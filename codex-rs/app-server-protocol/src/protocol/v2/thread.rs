@@ -487,12 +487,10 @@ pub struct ThreadResumeParams {
 #[ts(export_to = "v2/")]
 pub struct ThreadResumeResponse {
     /// True only after runtime publication; false means busy with no change.
-    /// Absent on older servers or when no supplement was requested.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
+    /// Null when no supplement was requested; missing fields from older servers are accepted.
+    #[serde(default)]
     pub runtime_dynamic_tools_applied: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
+    #[serde(default)]
     pub runtime_dynamic_tools_runtime_id: Option<String>,
     /// Available only when Core supports non-destructive idle compaction.
     #[serde(
