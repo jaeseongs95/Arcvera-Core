@@ -1,6 +1,185 @@
 use super::*;
 use pretty_assertions::assert_eq;
 
+fn runtime_tool(name: &str, description: &str) -> DynamicToolSpec {
+    DynamicToolSpec::Function(codex_protocol::dynamic_tools::DynamicToolFunctionSpec {
+        name: name.into(),
+        description: description.into(),
+        input_schema: json!({"type":"object", "properties":{}, "additionalProperties":false}),
+        defer_loading: false,
+    })
+}
+
+#[tokio::test]
+async fn runtime_tools_preserve_custom_storage_inheritance_and_disconnect_admission() {
+    let original = vec![runtime_tool("custom", "user-owned")];
+    let (mut session, _, _) =
+        make_session_and_context_with_dynamic_tools_and_rx(original.clone()).await;
+    let path = attach_thread_persistence(Arc::get_mut(&mut session).expect("unique session")).await;
+    let closed = CancellationToken::new();
+    let supplement = vec![runtime_tool("local_control", "current host")];
+    assert!(
+        session
+            .supplement_runtime_dynamic_tools(7, closed.clone(), supplement.clone(), &[])
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        session.dynamic_tools().await.as_ref(),
+        &[original[0].clone(), supplement[0].clone()]
+    );
+    assert_eq!(
+        session.inheritable_dynamic_tools().await.as_ref(),
+        original.as_slice()
+    );
+    assert_eq!(
+        session.state.lock().await.persisted_dynamic_tools.as_ref(),
+        original.as_slice()
+    );
+    session.flush_rollout().await.unwrap();
+    let history = RolloutRecorder::get_rollout_history(&path).await.unwrap();
+    assert_eq!(history.get_dynamic_tools(), Some(original.clone()));
+    assert!(
+        !history
+            .get_rollout_items()
+            .iter()
+            .any(|item| matches!(item, RolloutItem::DynamicToolsUpdated { .. }))
+    );
+    assert!(
+        session
+            .supplement_runtime_dynamic_tools(8, CancellationToken::new(), supplement.clone(), &[])
+            .await
+            .is_err()
+    );
+    *session.active_turn.lock().await = Some(ActiveTurn::default());
+    assert!(
+        !session
+            .supplement_runtime_dynamic_tools(7, closed.clone(), Vec::new(), &[])
+            .await
+            .unwrap()
+    );
+    closed.cancel();
+    let (_, route) = session
+        .runtime_dynamic_tool_owner(None, "local_control")
+        .await
+        .unwrap();
+    assert!(route.is_cancelled());
+    // An in-flight catalog remains stable; only the next idle admission removes it.
+    assert_eq!(session.dynamic_tools().await.len(), 2);
+    *session.active_turn.lock().await = None;
+    session.reserve_compact_if_idle().await.unwrap().unwrap();
+    assert_eq!(session.dynamic_tools().await.as_ref(), original.as_slice());
+    assert!(
+        session
+            .runtime_dynamic_tool_owner(None, "local_control")
+            .await
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn runtime_tools_reject_unknown_collision_without_partial_publication() {
+    let old = runtime_tool("local_control", "known previous host");
+    let replacement = runtime_tool("local_control", "current host");
+    let original = vec![runtime_tool("custom", "user-owned"), old.clone()];
+    let (session, _, _) =
+        make_session_and_context_with_dynamic_tools_and_rx(original.clone()).await;
+    let closed = CancellationToken::new();
+    assert!(
+        session
+            .supplement_runtime_dynamic_tools(
+                7,
+                closed.clone(),
+                vec![
+                    runtime_tool("new_tool", "must not leak on conflict"),
+                    replacement.clone()
+                ],
+                &[]
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(session.dynamic_tools().await.as_ref(), original.as_slice());
+    assert!(
+        session
+            .supplement_runtime_dynamic_tools(7, closed.clone(), vec![replacement.clone()], &[old])
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        session.dynamic_tools().await.as_ref(),
+        &[original[0].clone(), replacement]
+    );
+    assert_eq!(
+        session.inheritable_dynamic_tools().await.as_ref(),
+        original.as_slice()
+    );
+    closed.cancel();
+    assert!(
+        session
+            .supplement_runtime_dynamic_tools(7, closed, Vec::new(), &[])
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn explicit_tool_replacement_supersedes_runtime_catalog_without_persisting_overlay() {
+    let (session, _, _) = make_session_and_context_with_dynamic_tools_and_rx(vec![runtime_tool(
+        "old_custom",
+        "saved",
+    )])
+    .await;
+    assert!(
+        session
+            .supplement_runtime_dynamic_tools(
+                7,
+                CancellationToken::new(),
+                vec![runtime_tool("connection_only", "host")],
+                &[]
+            )
+            .await
+            .unwrap()
+    );
+    let replacement = vec![runtime_tool("new_custom", "replacement")];
+    *session.active_turn.lock().await = Some(ActiveTurn::default());
+    assert!(
+        session
+            .replace_dynamic_tools(replacement.clone())
+            .await
+            .is_err()
+    );
+    assert!(
+        session
+            .runtime_dynamic_tool_owner(None, "connection_only")
+            .await
+            .is_some()
+    );
+    *session.active_turn.lock().await = None;
+    session
+        .replace_dynamic_tools(replacement.clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        session.dynamic_tools().await.as_ref(),
+        replacement.as_slice()
+    );
+    assert_eq!(
+        session.inheritable_dynamic_tools().await.as_ref(),
+        replacement.as_slice()
+    );
+    assert_eq!(
+        session.state.lock().await.persisted_dynamic_tools.as_ref(),
+        replacement.as_slice()
+    );
+    assert!(
+        session
+            .runtime_dynamic_tool_owner(None, "connection_only")
+            .await
+            .is_none()
+    );
+}
+
 #[tokio::test]
 async fn dynamic_tools_updates_preserve_submission_order_after_caller_stops_waiting() {
     let (mut session, turn_context, rx_event) =

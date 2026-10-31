@@ -387,6 +387,24 @@ pub struct ThreadSettingsUpdatedNotification {
 /// Prefer using thread_id whenever possible.
 pub struct ThreadResumeParams {
     pub thread_id: String,
+    /// Connection-lifetime tools, merged only while idle. Never persisted.
+    #[experimental("thread/resume.runtimeDynamicTools")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_dynamic_tools: Option<Vec<DynamicToolSpec>>,
+    /// Exact previous host specs eligible for replacement; unknown collisions are rejected.
+    #[experimental("thread/resume.runtimeDynamicTools")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional)]
+    pub previous_runtime_dynamic_tools: Vec<DynamicToolSpec>,
+    /// Refresh an already-loaded runtime without history, lifecycle, or pending-call replay.
+    #[experimental("thread/resume.runtimeDynamicTools")]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub runtime_tools_only: bool,
+    /// Loaded runtime generation comparison, never an authority token.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub expected_runtime_id: Option<String>,
 
     /// [UNSTABLE] FOR CODEX CLOUD - DO NOT USE.
     /// If specified, the thread will be resumed with the provided history
@@ -468,6 +486,14 @@ pub struct ThreadResumeParams {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ThreadResumeResponse {
+    /// True only after runtime publication; false means busy with no change.
+    /// Absent on older servers or when no supplement was requested.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_dynamic_tools_applied: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_dynamic_tools_runtime_id: Option<String>,
     /// Available only when Core supports non-destructive idle compaction.
     #[serde(
         default,

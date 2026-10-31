@@ -289,6 +289,8 @@ fn thread_resume_params_accept_turns_page_bootstrap() {
 #[test]
 fn thread_resume_response_round_trips_initial_turns_page() {
     let response = ThreadResumeResponse {
+        runtime_dynamic_tools_applied: None,
+        runtime_dynamic_tools_runtime_id: None,
         supports_compact_if_idle: None,
         supports_expected_turn_interrupt: None,
         disabled_plugin_ids: Vec::new(),

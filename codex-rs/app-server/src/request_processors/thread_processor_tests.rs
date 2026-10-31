@@ -711,6 +711,10 @@ mod thread_processor_behavior_tests {
         let cwd = test_path_buf("/tmp").abs();
         let request = ThreadResumeParams {
             thread_id: "thread-1".to_string(),
+            runtime_dynamic_tools: None,
+            previous_runtime_dynamic_tools: Vec::new(),
+            runtime_tools_only: false,
+            expected_runtime_id: None,
             history: None,
             path: None,
             model: None,

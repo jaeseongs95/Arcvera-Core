@@ -60,6 +60,17 @@ pub(crate) enum ThreadToolTransport {
 }
 
 impl ThreadToolTransport {
+    /// Reuse the native handler even when remote task tools use MCP. This does not
+    /// rewrite the resumed thread's MCP configuration or persisted tool catalog.
+    pub(crate) fn configure_resume(
+        &self,
+        params: &mut codex_app_server_protocol::ThreadResumeParams,
+    ) {
+        params.runtime_dynamic_tools = Some(crate::cron_tools::specs());
+        params.previous_runtime_dynamic_tools = crate::cron_tools::previous_specs();
+        self.configure_mcp(&mut params.config);
+    }
+
     pub(crate) fn validate_config(
         &self,
         config: &crate::legacy_core::config::Config,

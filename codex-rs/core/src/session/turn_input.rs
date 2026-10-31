@@ -598,6 +598,7 @@ async fn start_if_idle(
                 reason: NotSubmittedReason::Superseded,
             });
         }
+        session.clear_disconnected_runtime_tools().await;
         let active_turn = active_turn.get_or_insert_with(ActiveTurn::default);
         Arc::clone(&active_turn.turn_state)
     };
@@ -793,6 +794,7 @@ impl Session {
             turn_state: Arc::new(tokio::sync::Mutex::new(turn_state)),
         };
         let state = Arc::clone(&turn.turn_state);
+        self.clear_disconnected_runtime_tools().await;
         *active = Some(turn);
         Ok(Ok(state))
     }
@@ -875,6 +877,7 @@ impl Session {
         {
             return None;
         }
+        self.clear_disconnected_runtime_tools().await;
         let active_turn = active_turn.get_or_insert_with(ActiveTurn::default);
         let previous_options = if has_trigger_turn {
             Default::default()

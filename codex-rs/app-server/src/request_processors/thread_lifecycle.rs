@@ -1281,6 +1281,10 @@ pub(super) async fn handle_pending_thread_resume_request(
     thread.session_id = session_id;
 
     let response = ThreadResumeResponse {
+        runtime_dynamic_tools_applied: pending.runtime_dynamic_tools_applied,
+        runtime_dynamic_tools_runtime_id: pending
+            .runtime_dynamic_tools_applied
+            .map(|_| conversation.runtime_id().to_string()),
         supports_compact_if_idle: pending.passive.then_some(true),
         supports_expected_turn_interrupt: Some(true),
         thread,

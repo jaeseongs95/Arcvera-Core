@@ -2602,6 +2602,25 @@ async fn spawn_agent_without_fork_from_paginated_parent_stays_fresh_and_paginate
         .await
         .expect("inject parent-only context");
 
+    // Connection-only tools must not become a new child's persisted initial catalog.
+    let mut supplement = dynamic_tools.clone();
+    let codex_protocol::dynamic_tools::DynamicToolSpec::Function(tool) = &mut supplement[0] else {
+        unreachable!()
+    };
+    tool.name = "connection_only".into();
+    assert!(
+        parent_thread
+            .supplement_runtime_dynamic_tools(
+                7,
+                tokio_util::sync::CancellationToken::new(),
+                supplement,
+                &[],
+            )
+            .await
+            .expect("install parent runtime supplement")
+    );
+    assert_eq!(parent_thread.session.dynamic_tools().await.len(), 2);
+
     let child_thread_id = harness
         .spawn_anonymous_child(
             parent_thread_id,

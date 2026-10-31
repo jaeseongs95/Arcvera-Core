@@ -467,7 +467,7 @@ impl App {
             );
             store.pending_interactive_replay = Default::default();
             store.pending_interrupt_turn_id = None;
-            store.active = false;
+            store.set_active(false);
             store
                 .buffer
                 .retain(|event| matches!(event, ThreadBufferedEvent::Notification(_)));

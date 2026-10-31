@@ -168,6 +168,109 @@ const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs
 const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 #[tokio::test]
+async fn runtime_tools_acknowledge_cold_and_loaded_resume_without_changing_saved_catalog()
+-> Result<()> {
+    let server = create_mock_responses_server_repeating_assistant("Done").await;
+    let home = TempDir::new()?;
+    mock_responses_config(&server.uri()).write(home.path())?;
+    let thread_id = create_fake_paginated_rollout(
+        home.path(),
+        "2025-01-05T12-00-00",
+        "2025-01-05T12:00:00Z",
+        "Saved history",
+        Some("mock_provider"),
+        None,
+    )?;
+    let path = rollout_path(home.path(), "2025-01-05T12-00-00", &thread_id);
+    let original = read_session_meta_line(&path).await?.meta.dynamic_tools;
+    let tool = codex_app_server_protocol::DynamicToolSpec::Function(
+        codex_app_server_protocol::DynamicToolFunctionSpec {
+            name: "connection_only".into(),
+            description: "runtime fixture".into(),
+            input_schema: json!({"type":"object", "properties":{}}),
+            defer_loading: false,
+        },
+    );
+    let params = ThreadResumeParams {
+        thread_id: thread_id.clone(),
+        exclude_turns: true,
+        runtime_dynamic_tools: Some(vec![tool]),
+        ..Default::default()
+    };
+    let mut client = TestAppServer::builder()
+        .with_codex_home(home.path())
+        .without_auto_env()
+        .build_initialized()
+        .await?;
+    let mut runtime_id = None;
+    for _ in 0..2 {
+        let id = client.send_thread_resume_request(params.clone()).await?;
+        let response: ThreadResumeResponse =
+            timeout(DEFAULT_READ_TIMEOUT, client.read_response(id)).await??;
+        assert_eq!(response.thread.id, thread_id);
+        assert_eq!(response.runtime_dynamic_tools_applied, Some(true));
+        runtime_id = response.runtime_dynamic_tools_runtime_id;
+        assert!(runtime_id.is_some());
+        assert_eq!(
+            read_session_meta_line(&path).await?.meta.dynamic_tools,
+            original
+        );
+        assert!(!std::fs::read_to_string(&path)?.contains("dynamic_tools_updated"));
+    }
+    let mut refresh = params.clone();
+    refresh.runtime_tools_only = true;
+    refresh.expected_runtime_id = Some(Uuid::new_v4().to_string());
+    let id = client.send_thread_resume_request(refresh.clone()).await?;
+    let error = timeout(
+        DEFAULT_READ_TIMEOUT,
+        client.read_stream_until_error_message(RequestId::Integer(id)),
+    )
+    .await??;
+    assert!(error.error.message.contains("실행 세대"));
+    refresh.expected_runtime_id = runtime_id.clone();
+    let id = client.send_thread_resume_request(refresh.clone()).await?;
+    let response: ThreadResumeResponse =
+        timeout(DEFAULT_READ_TIMEOUT, client.read_response(id)).await??;
+    assert_eq!(response.runtime_dynamic_tools_applied, Some(true));
+    assert_eq!(response.runtime_dynamic_tools_runtime_id, runtime_id);
+    let mut invalid = refresh.clone();
+    invalid.model = Some("must not change settings".into());
+    let id = client.send_thread_resume_request(invalid).await?;
+    let error = timeout(
+        DEFAULT_READ_TIMEOUT,
+        client.read_stream_until_error_message(RequestId::Integer(id)),
+    )
+    .await??;
+    assert!(error.error.message.contains("보강 전용"));
+    refresh.thread_id = Uuid::new_v4().to_string();
+    let id = client.send_thread_resume_request(refresh).await?;
+    let error = timeout(
+        DEFAULT_READ_TIMEOUT,
+        client.read_stream_until_error_message(RequestId::Integer(id)),
+    )
+    .await??;
+    assert!(error.error.message.contains("종료"));
+    let mut conflict = params;
+    let codex_app_server_protocol::DynamicToolSpec::Function(tool) =
+        &mut conflict.runtime_dynamic_tools.as_mut().unwrap()[0]
+    else {
+        unreachable!()
+    };
+    tool.description = "unknown replacement".into();
+    // Replacements compare against the immutable original catalog. A missing original key
+    // may be refreshed by this same connection without changing durable metadata.
+    let id = client.send_thread_resume_request(conflict).await?;
+    let response: ThreadResumeResponse =
+        timeout(DEFAULT_READ_TIMEOUT, client.read_response(id)).await??;
+    assert_eq!(response.runtime_dynamic_tools_applied, Some(true));
+    assert_eq!(
+        read_session_meta_line(&path).await?.meta.dynamic_tools,
+        original
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn thread_resume_paginated_model_context_preserves_original_metadata() -> Result<()> {
     let server = create_mock_responses_server_repeating_assistant("Done").await;
     let codex_home = TempDir::new()?;

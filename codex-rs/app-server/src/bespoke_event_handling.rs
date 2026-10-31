@@ -1107,9 +1107,43 @@ pub(crate) async fn apply_bespoke_event_handling(
             }
             if let Some(params) = dynamic_tool_call_params {
                 let call_id = params.call_id.clone();
-                let (_pending_request_id, rx) = outgoing
-                    .send_request(ServerRequestPayload::DynamicToolCall(params))
+                let owner = conversation
+                    .runtime_dynamic_tool_owner(params.namespace.as_deref(), &params.tool)
                     .await;
+                let (_pending_request_id, rx) = match owner {
+                    Some((_, ref disconnected)) if disconnected.is_cancelled() => {
+                        let response = codex_protocol::dynamic_tools::DynamicToolResponse {
+                            content_items: vec![codex_protocol::dynamic_tools::DynamicToolCallOutputContentItem::InputText {
+                                text: "도구를 제공한 연결이 종료됐습니다. 작업을 실행하거나 재전송하지 않았습니다.".into(),
+                            }],
+                            success: false,
+                        };
+                        if let Err(error) = conversation
+                            .submit(codex_protocol::protocol::Op::DynamicToolResponse {
+                                id: call_id,
+                                response,
+                            })
+                            .await
+                        {
+                            tracing::warn!(%error, "failed to reject disconnected runtime tool");
+                        }
+                        return;
+                    }
+                    Some((owner, disconnected)) => {
+                        outgoing
+                            .send_dynamic_tool_request_to_connection(
+                                crate::outgoing_message::ConnectionId(owner),
+                                ServerRequestPayload::DynamicToolCall(params),
+                                disconnected,
+                            )
+                            .await
+                    }
+                    None => {
+                        outgoing
+                            .send_request(ServerRequestPayload::DynamicToolCall(params))
+                            .await
+                    }
+                };
                 tokio::spawn(async move {
                     crate::dynamic_tools::on_call_response(call_id, rx, conversation).await;
                 });

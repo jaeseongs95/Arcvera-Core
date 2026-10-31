@@ -745,7 +745,27 @@ impl Session {
 
     pub(crate) async fn dynamic_tools(&self) -> Arc<[DynamicToolSpec]> {
         let state = self.state.lock().await;
-        Arc::clone(&state.session_configuration.dynamic_tools)
+        state.runtime_dynamic_tools.as_ref().map_or_else(
+            || Arc::clone(&state.session_configuration.dynamic_tools),
+            |overlay| Arc::clone(&overlay.tools),
+        )
+    }
+
+    /// Inheritance uses the original catalog, never a connection-owned overlay.
+    pub(crate) async fn inheritable_dynamic_tools(&self) -> Arc<[DynamicToolSpec]> {
+        Arc::clone(&self.state.lock().await.session_configuration.dynamic_tools)
+    }
+
+    /// Caller holds active_turn and has established that there is no admitted turn.
+    pub(crate) async fn clear_disconnected_runtime_tools(&self) {
+        let mut state = self.state.lock().await;
+        if state
+            .runtime_dynamic_tools
+            .as_ref()
+            .is_some_and(|tools| tools.disconnected.is_cancelled())
+        {
+            state.runtime_dynamic_tools = None;
+        }
     }
 
     pub(crate) async fn responses_metadata(

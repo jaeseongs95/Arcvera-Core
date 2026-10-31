@@ -857,6 +857,30 @@ impl CodexThread {
         result.await.unwrap_or(Err(CodexErr::InternalAgentDied))
     }
 
+    /// Connection-lifetime supplement; false means a busy turn prevented any change.
+    pub async fn supplement_runtime_dynamic_tools(
+        &self,
+        owner: u64,
+        disconnected: tokio_util::sync::CancellationToken,
+        tools: Vec<codex_protocol::dynamic_tools::DynamicToolSpec>,
+        previous: &[codex_protocol::dynamic_tools::DynamicToolSpec],
+    ) -> CodexResult<bool> {
+        self.session
+            .supplement_runtime_dynamic_tools(owner, disconnected, tools, previous)
+            .await
+    }
+
+    /// Only supplemented keys receive connection-specific routing.
+    pub async fn runtime_dynamic_tool_owner(
+        &self,
+        namespace: Option<&str>,
+        name: &str,
+    ) -> Option<(u64, tokio_util::sync::CancellationToken)> {
+        self.session
+            .runtime_dynamic_tool_owner(namespace, name)
+            .await
+    }
+
     /// Persists current settings without emitting a live settings event.
     ///
     /// Serializes snapshot capture and persistence with accepted settings updates.

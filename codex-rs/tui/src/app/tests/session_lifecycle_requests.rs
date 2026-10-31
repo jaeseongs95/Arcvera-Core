@@ -1626,6 +1626,50 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
 
     let started = Box::pin(app_server.start_thread(&app.config)).await?;
     let thread_id = started.session.thread_id;
+    let mut resume = codex_app_server_protocol::ThreadResumeParams::default();
+    app_server
+        .thread_tool_transport()
+        .configure_resume(&mut resume);
+    assert_eq!(
+        resume.runtime_dynamic_tools,
+        Some(crate::cron_tools::specs())
+    );
+    assert!(!resume.previous_runtime_dynamic_tools.is_empty());
+    // Remote MCP remains selected for task tools, but native calls on an old thread
+    // must reach the same connection-owned cron/control handlers after supplementation.
+    assert!(matches!(
+        app_server.thread_tool_transport(),
+        crate::dynamic_tools_mcp::ThreadToolTransport::Mcp(_)
+    ));
+    for (index, tool) in [crate::cron_tools::NAME, crate::session_control::NAME]
+        .into_iter()
+        .enumerate()
+    {
+        let request_id = AppServerRequestId::String(format!("runtime-native-{index}"));
+        app.handle_app_server_event(
+            &app_server,
+            codex_app_server_client::AppServerEvent::ServerRequest(Box::new(
+                ServerRequest::DynamicToolCall {
+                    request_id: request_id.clone(),
+                    params: codex_app_server_protocol::DynamicToolCallParams {
+                        thread_id: thread_id.to_string(),
+                        turn_id: "fixture-turn".into(),
+                        call_id: format!("fixture-{index}"),
+                        namespace: Some(crate::dynamic_tools::NAMESPACE.into()),
+                        tool: tool.into(),
+                        arguments: serde_json::json!({"action":"invalid_fixture"}),
+                    },
+                },
+            )),
+        )
+        .await;
+        assert!(
+            app.cron
+                .tool_tasks
+                .contains_key(&(app_server.backend_id(), request_id.clone()))
+        );
+        assert!(!app.dynamic_tool_tasks.contains_key(&request_id));
+    }
     assert!(started.task_tools_available);
     assert!(app_server.task_tools_available(thread_id));
     let startup = crate::app_server_session::start_thread_with_request_handle(

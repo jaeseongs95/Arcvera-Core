@@ -341,6 +341,9 @@ pub(crate) struct AppServerSession {
     backend_id: crate::backend_id::BackendId,
     connection_id: uuid::Uuid,
     connection_live: Arc<std::sync::atomic::AtomicBool>,
+    runtime_tool_registration_generation: u64,
+    runtime_tool_registration_lifetime: tokio_util::sync::CancellationToken,
+    pending_runtime_tool_resume: Mutex<Option<(u64, uuid::Uuid, ThreadResumeParams)>>,
     client: AppServerClient,
     next_request_id: i64,
     history_pagination: HashMap<ThreadId, history::ThreadHistoryPagination>,
@@ -485,6 +488,9 @@ impl AppServerSession {
             backend_id,
             connection_id: uuid::Uuid::new_v4(),
             connection_live: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            runtime_tool_registration_generation: 0,
+            runtime_tool_registration_lifetime: tokio_util::sync::CancellationToken::new(),
+            pending_runtime_tool_resume: Mutex::new(None),
             client,
             next_request_id: 1,
             history_pagination: HashMap::new(),
@@ -991,6 +997,7 @@ impl AppServerSession {
         remote_cwd_override: Option<&std::path::Path>,
         selected_profile: Option<&PermissionProfileSelection>,
     ) -> Result<AppServerStartedThread> {
+        self.invalidate_runtime_tool_registration().await;
         if self.thread_params_mode.settings_owner() == ThreadSettingsOwner::Server
             && selected_profile.is_some()
         {
@@ -3039,6 +3046,159 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn runtime_tool_busy_retry_is_metadata_only_and_never_loops_on_failure() {
+        let (client, mut commands, _events) = codex_app_server_client::CloudClient::channel(1);
+        let mut session = AppServerSession::new(
+            crate::backend_id::BackendId::new(),
+            AppServerClient::Cloud(client),
+            ThreadParamsMode::Remote,
+        );
+        let thread = ThreadId::new();
+        session.runtime_tool_registration_generation = 3;
+        *session.pending_runtime_tool_resume.lock().await = Some((
+            3,
+            session.connection_id,
+            ThreadResumeParams {
+                thread_id: thread.to_string(),
+                exclude_turns: true,
+                runtime_tools_only: true,
+                expected_runtime_id: Some(uuid::Uuid::new_v4().to_string()),
+                runtime_dynamic_tools: Some(crate::cron_tools::specs()),
+                previous_runtime_dynamic_tools: crate::cron_tools::previous_specs(),
+                ..Default::default()
+            },
+        ));
+        let thread_text = thread.to_string();
+        let (_, params) = tokio::join!(
+            session.retry_runtime_tools_on_idle(
+                &thread_text,
+                Some(thread),
+                Some(tokio_util::sync::CancellationToken::new())
+            ),
+            async {
+                let command = commands.recv().await.expect("single idle registration");
+                let codex_app_server_client::CloudOperation::Request(request) = command.operation
+                else {
+                    panic!("expected request")
+                };
+                let ClientRequest::ThreadResume { params, .. } = *request else {
+                    panic!("input/turn must never be replayed")
+                };
+                command
+                    .response
+                    .send(Ok(Err(JSONRPCErrorError {
+                        code: JSONRPC_INVALID_PARAMS,
+                        data: None,
+                        message: "registration rejected".into(),
+                    })))
+                    .unwrap();
+                params
+            },
+        );
+        assert!(params.exclude_turns);
+        assert!(params.runtime_dynamic_tools.is_some());
+        let mut expected = ThreadResumeParams::default();
+        expected.thread_id = thread.to_string();
+        expected.exclude_turns = true;
+        expected.runtime_tools_only = true;
+        expected.expected_runtime_id = params.expected_runtime_id.clone();
+        expected.runtime_dynamic_tools = params.runtime_dynamic_tools.clone();
+        expected.previous_runtime_dynamic_tools = params.previous_runtime_dynamic_tools.clone();
+        assert_eq!(
+            params, expected,
+            "no model, permissions, history, MCP config, or user input overrides"
+        );
+        session
+            .retry_runtime_tools_on_idle(
+                &thread.to_string(),
+                Some(thread),
+                Some(tokio_util::sync::CancellationToken::new()),
+            )
+            .await;
+        assert!(commands.try_recv().is_err());
+        assert!(session.pending_runtime_tool_resume.lock().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn runtime_tool_worker_never_sends_after_selection_or_registration_changes_before_poll() {
+        for case in ["selection", "registration"] {
+            let (client, mut commands, _events) = codex_app_server_client::CloudClient::channel(1);
+            let mut session = AppServerSession::new(
+                crate::backend_id::BackendId::new(),
+                AppServerClient::Cloud(client),
+                ThreadParamsMode::Remote,
+            );
+            let thread = ThreadId::new();
+            session.remember_runtime_tools_busy_for_test(thread).await;
+            let selection = tokio_util::sync::CancellationToken::new();
+            session
+                .retry_runtime_tools_on_idle(
+                    &thread.to_string(),
+                    Some(thread),
+                    Some(selection.clone()),
+                )
+                .await;
+            if case == "selection" {
+                selection.cancel();
+            } else {
+                session.invalidate_runtime_tool_registration().await;
+            }
+            tokio::task::yield_now().await;
+            assert!(commands.try_recv().is_err(), "{case}");
+            assert!(session.pending_runtime_tool_resume.lock().await.is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn runtime_tool_retry_rejects_stale_selection_connection_and_generation() {
+        for case in ["selection", "connection", "generation", "disconnected"] {
+            let (client, mut commands, _events) = codex_app_server_client::CloudClient::channel(1);
+            let mut session = AppServerSession::new(
+                crate::backend_id::BackendId::new(),
+                AppServerClient::Cloud(client),
+                ThreadParamsMode::Remote,
+            );
+            let thread = ThreadId::new();
+            session.runtime_tool_registration_generation = 3;
+            *session.pending_runtime_tool_resume.lock().await = Some((
+                if case == "generation" { 2 } else { 3 },
+                if case == "connection" {
+                    uuid::Uuid::new_v4()
+                } else {
+                    session.connection_id
+                },
+                ThreadResumeParams {
+                    thread_id: thread.to_string(),
+                    exclude_turns: true,
+                    ..Default::default()
+                },
+            ));
+            if case == "disconnected" {
+                session
+                    .connection_live
+                    .store(false, std::sync::atomic::Ordering::Release);
+            }
+            let selected = Some(if case == "selection" {
+                ThreadId::new()
+            } else {
+                thread
+            });
+            session
+                .retry_runtime_tools_on_idle(
+                    &thread.to_string(),
+                    selected,
+                    Some(tokio_util::sync::CancellationToken::new()),
+                )
+                .await;
+            assert!(commands.try_recv().is_err(), "{case}");
+            assert!(
+                session.pending_runtime_tool_resume.lock().await.is_none(),
+                "{case}"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn bootstrap_reads_account_when_no_prefetched_account_is_available() -> Result<()> {
         let codex_home = tempfile::tempdir()?;
         let config = build_config(&codex_home).await;
@@ -4664,6 +4824,8 @@ mod tests {
         let forked_from_id = ThreadId::new();
         let read_only_profile = PermissionProfile::read_only();
         let response = ThreadResumeResponse {
+            runtime_dynamic_tools_applied: None,
+            runtime_dynamic_tools_runtime_id: None,
             supports_compact_if_idle: None,
             supports_expected_turn_interrupt: None,
             disabled_plugin_ids: Vec::new(),

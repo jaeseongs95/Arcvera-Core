@@ -245,6 +245,24 @@ impl App {
 
         if let ServerNotification::ThreadStatusChanged(status) = &notification {
             let _ = self.dynamic_tool_status_updates.send(status.clone());
+            if matches!(status.status, codex_app_server_protocol::ThreadStatus::Idle) {
+                let selection = self
+                    .current_displayed_thread_id()
+                    .and_then(|id| self.thread_event_channels.get(&id));
+                let selection = if let Some(channel) = selection {
+                    let store = channel.store.lock().await;
+                    store.active.then(|| store.runtime_tool_selection.clone())
+                } else {
+                    None
+                };
+                app_server_client
+                    .retry_runtime_tools_on_idle(
+                        &status.thread_id,
+                        self.current_displayed_thread_id(),
+                        selection,
+                    )
+                    .await;
+            }
         }
 
         if let ServerNotification::ThreadStarted(started) = &notification
@@ -650,10 +668,6 @@ impl App {
         if let ServerRequest::DynamicToolCall { request_id, params } = &request {
             if params.namespace.as_deref() == Some(crate::dynamic_tools::NAMESPACE)
                 && crate::cron_tools::is_owned_tool(&params.tool)
-                && !matches!(
-                    app_server_client.thread_tool_transport(),
-                    crate::dynamic_tools_mcp::ThreadToolTransport::Mcp(_)
-                )
             {
                 let key = (app_server_client.backend_id(), request_id.clone());
                 self.cron

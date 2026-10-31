@@ -674,6 +674,7 @@ impl ThreadRequestProcessor {
                 request: Box::new(crate::thread_state::PendingThreadResumeRequest {
                     request_id,
                     passive: true,
+                    runtime_dynamic_tools_applied: None,
                     _activity_guard: Some(activity_guard),
                     history_items: Vec::new(),
                     cold_resume_token_usage_turn_id: None,
@@ -709,6 +710,80 @@ impl ThreadRequestProcessor {
         client_mcp_extensions: ClientMcpExtensions,
     ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
         let mut prepared_config = None;
+        if params.runtime_tools_only {
+            let expected = ThreadResumeParams {
+                thread_id: params.thread_id.clone(),
+                exclude_turns: true,
+                runtime_tools_only: true,
+                runtime_dynamic_tools: params.runtime_dynamic_tools.clone(),
+                previous_runtime_dynamic_tools: params.previous_runtime_dynamic_tools.clone(),
+                expected_runtime_id: params.expected_runtime_id.clone(),
+                ..Default::default()
+            };
+            if params != expected
+                || params.runtime_dynamic_tools.is_none()
+                || params.expected_runtime_id.is_none()
+            {
+                return Err(invalid_request(
+                    "보강 전용 재개에는 예상 실행 세대와 도구 목록만 지정할 수 있습니다.",
+                ));
+            }
+            let ThreadResumeTarget::Client(request_id) = &target else {
+                return Err(invalid_request(
+                    "보강 전용 재개에는 현재 호스트 연결이 필요합니다.",
+                ));
+            };
+            let id = ThreadId::from_string(&params.thread_id)
+                .map_err(|error| invalid_request(error.to_string()))?;
+            let thread =
+                self.thread_manager.get_thread(id).await.map_err(|_| {
+                    invalid_request("도구를 보강할 실행 인스턴스가 이미 종료됐습니다.")
+                })?;
+            if !self
+                .thread_state_manager
+                .subscribed_connection_ids(id)
+                .await
+                .contains(&request_id.connection_id)
+            {
+                return Err(invalid_request(
+                    "현재 연결이 이 대화에 연결돼 있지 않습니다.",
+                ));
+            }
+            let applied = self
+                .supplement_resume_tools(request_id, &params, &thread)
+                .await?;
+            let (config, _) = thread.resume_config_snapshot().await;
+            let mut summary = build_thread_from_loaded_snapshot(id, &config, &thread);
+            apply_live_thread_settings(&mut summary, &config);
+            let response = ThreadResumeResponse {
+                runtime_dynamic_tools_applied: applied,
+                runtime_dynamic_tools_runtime_id: Some(thread.runtime_id().to_string()),
+                supports_compact_if_idle: None,
+                supports_expected_turn_interrupt: None,
+                thread: summary,
+                sandbox: config.sandbox_policy().into(),
+                cwd: config.cwd().clone(),
+                active_permission_profile: thread_response_active_permission_profile(
+                    config.active_permission_profile,
+                ),
+                disabled_plugin_ids: config.disabled_plugin_ids,
+                model: config.model,
+                model_provider: config.model_provider_id,
+                service_tier: config.service_tier,
+                runtime_workspace_roots: config.workspace_roots,
+                instruction_sources: thread.legacy_instruction_sources().await,
+                approval_policy: config.approval_policy.into(),
+                approvals_reviewer: config.approvals_reviewer.into(),
+                reasoning_effort: config.reasoning_effort,
+                collaboration_mode: Some(config.collaboration_mode),
+                multi_agent_mode: MultiAgentMode::ExplicitRequestOnly,
+                initial_turns_page: None,
+                turns_backwards_cursor: None,
+                items_backwards_cursor: None,
+            };
+            // No runtime creation, settings/client-info edits, lifecycle or pending-call replay.
+            return Ok(Some(ClientResponsePayload::ThreadResume(response)));
+        }
         // Keep the resume future off the request handler's stack.
         while Box::pin(self.thread_resume_inner(
             &target,
@@ -4242,6 +4317,10 @@ impl ThreadRequestProcessor {
 
         let ThreadResumeParams {
             thread_id,
+            runtime_dynamic_tools: _,
+            previous_runtime_dynamic_tools: _,
+            runtime_tools_only: _,
+            expected_runtime_id: _,
             history,
             path,
             model,
@@ -4784,8 +4863,14 @@ impl ThreadRequestProcessor {
                     }
                 }
 
+                let runtime_dynamic_tools_applied = self
+                    .supplement_resume_tools(&request_id, params, &codex_thread)
+                    .await?;
                 let thread_originator = config_snapshot.originator.clone();
                 let response = ThreadResumeResponse {
+                    runtime_dynamic_tools_applied,
+                    runtime_dynamic_tools_runtime_id: runtime_dynamic_tools_applied
+                        .map(|_| codex_thread.runtime_id().to_string()),
                     supports_compact_if_idle: None,
                     supports_expected_turn_interrupt: None,
                     thread,
@@ -4880,6 +4965,56 @@ impl ThreadRequestProcessor {
             .flatten()?;
         merge_persisted_resume_metadata(request_overrides, typesafe_overrides, &persisted_metadata);
         Some(persisted_metadata)
+    }
+
+    async fn supplement_resume_tools(
+        &self,
+        request_id: &ConnectionRequestId,
+        params: &ThreadResumeParams,
+        thread: &Arc<CodexThread>,
+    ) -> Result<Option<bool>, JSONRPCErrorError> {
+        let Some(tools) = params.runtime_dynamic_tools.as_ref() else {
+            return Ok(None);
+        };
+        let _runtime_guard = self
+            .thread_manager
+            .lock_loaded_thread(thread.startup_metadata().thread_id, thread)
+            .await
+            .map_err(|_| {
+                invalid_request("도구를 보강할 실행 인스턴스가 바뀌었거나 종료됐습니다.")
+            })?;
+        if params
+            .expected_runtime_id
+            .as_deref()
+            .is_some_and(|expected| expected != thread.runtime_id().to_string())
+        {
+            return Err(invalid_request(
+                "도구 보강의 예상 실행 세대가 바뀌었습니다.",
+            ));
+        }
+        let config = thread.config_snapshot().await;
+        if !can_accept_direct_input(thread.multi_agent_version(), &config.session_source) {
+            return Err(invalid_request(
+                "이 대화에는 연결 한정 도구를 보강할 수 없습니다.",
+            ));
+        }
+        validate_dynamic_tools(tools).map_err(invalid_request)?;
+        validate_dynamic_tools(&params.previous_runtime_dynamic_tools).map_err(invalid_request)?;
+        let lifetime = self
+            .thread_state_manager
+            .runtime_connection_lifetime(request_id.connection_id)
+            .await
+            .ok_or_else(|| invalid_request("도구를 제공한 연결이 종료됐습니다."))?;
+        let applied = thread
+            .supplement_runtime_dynamic_tools(
+                request_id.connection_id.0,
+                lifetime,
+                tools.clone(),
+                &params.previous_runtime_dynamic_tools,
+            )
+            .await
+            .map_err(|error| invalid_request(error.to_string()))?;
+        Ok(Some(applied))
     }
 
     #[expect(
@@ -5202,10 +5337,14 @@ impl ThreadRequestProcessor {
             };
 
             let (completion_tx, completion_rx) = tokio::sync::oneshot::channel();
+            let runtime_dynamic_tools_applied = self
+                .supplement_resume_tools(request_id, params, &existing_thread)
+                .await?;
             let command = crate::thread_state::ThreadListenerCommand::SendThreadResumeResponse {
                 request: Box::new(crate::thread_state::PendingThreadResumeRequest {
                     request_id: request_id.clone(),
                     passive: false,
+                    runtime_dynamic_tools_applied,
                     _activity_guard: None,
                     history_items,
                     cold_resume_token_usage_turn_id,

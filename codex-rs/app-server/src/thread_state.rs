@@ -45,6 +45,8 @@ pub(crate) struct PendingThreadResumeRequest {
     pub(crate) request_id: ConnectionRequestId,
     /// Passive observation never emits resume lifecycle events or goal snapshots.
     pub(crate) passive: bool,
+    /// Set only after the runtime catalog has been published.
+    pub(crate) runtime_dynamic_tools_applied: Option<bool>,
     /// Protects only this command from cleanup, never the resulting membership.
     pub(crate) _activity_guard: Option<codex_core::ThreadActivityGuard>,
     pub(crate) history_items: Vec<RolloutItem>,
@@ -381,6 +383,7 @@ impl ThreadEntry {
 #[derive(Default)]
 struct ThreadStateManagerInner {
     live_connections: HashMap<ConnectionId, ConnectionCapabilities>,
+    runtime_connection_lifetimes: HashMap<ConnectionId, tokio_util::sync::CancellationToken>,
     threads: HashMap<ThreadId, ThreadEntry>,
     thread_ids_by_connection: HashMap<ConnectionId, HashSet<ThreadId>>,
 }
@@ -475,11 +478,12 @@ impl ThreadStateManager {
         connection_id: ConnectionId,
         capabilities: ConnectionCapabilities,
     ) {
-        self.state
-            .lock()
-            .await
-            .live_connections
-            .insert(connection_id, capabilities);
+        let mut state = self.state.lock().await;
+        state.live_connections.insert(connection_id, capabilities);
+        state
+            .runtime_connection_lifetimes
+            .entry(connection_id)
+            .or_default();
     }
 
     pub(crate) async fn first_attestation_capable_connection_for_thread(
@@ -517,6 +521,18 @@ impl ThreadStateManager {
                 break;
             }
         }
+    }
+
+    pub(crate) async fn runtime_connection_lifetime(
+        &self,
+        connection_id: ConnectionId,
+    ) -> Option<tokio_util::sync::CancellationToken> {
+        self.state
+            .lock()
+            .await
+            .runtime_connection_lifetimes
+            .get(&connection_id)
+            .cloned()
     }
 
     pub(crate) async fn subscribed_connection_ids(&self, thread_id: ThreadId) -> Vec<ConnectionId> {
@@ -717,6 +733,7 @@ impl ThreadStateManager {
             live_connections,
             threads,
             thread_ids_by_connection,
+            ..
         } = &mut *state;
         let slot = threads.entry(thread_id);
         match (&slot, candidate) {
@@ -770,6 +787,9 @@ impl ThreadStateManager {
         {
             let mut state = self.state.lock().await;
             state.live_connections.remove(&connection_id);
+            if let Some(lifetime) = state.runtime_connection_lifetimes.remove(&connection_id) {
+                lifetime.cancel();
+            }
             let thread_ids = state
                 .thread_ids_by_connection
                 .remove(&connection_id)

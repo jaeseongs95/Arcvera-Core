@@ -360,6 +360,9 @@ impl Session {
             }) {
                 return false;
             }
+            if active.is_none() {
+                self.clear_disconnected_runtime_tools().await;
+            }
             let turn = active.get_or_insert_with(ActiveTurn::default);
             debug_assert!(turn.task.is_none());
             turn.finishing = None;

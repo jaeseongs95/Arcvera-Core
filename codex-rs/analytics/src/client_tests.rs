@@ -704,6 +704,8 @@ fn sample_thread_start_response() -> ClientResponsePayload {
 
 fn sample_thread_resume_response() -> ClientResponsePayload {
     ClientResponsePayload::ThreadResume(ThreadResumeResponse {
+        runtime_dynamic_tools_applied: None,
+        runtime_dynamic_tools_runtime_id: None,
         supports_compact_if_idle: None,
         supports_expected_turn_interrupt: None,
         disabled_plugin_ids: Vec::new(),

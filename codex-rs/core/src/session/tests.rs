@@ -4176,6 +4176,23 @@ async fn start_new_context_window_persists_checkpoint_state(clear_tools: bool) {
     } else {
         dynamic_tools
     };
+    // Runtime supplements participate in sampling but never in the saved compact checkpoint.
+    session
+        .supplement_runtime_dynamic_tools(
+            7,
+            CancellationToken::new(),
+            vec![DynamicToolSpec::Function(
+                codex_protocol::dynamic_tools::DynamicToolFunctionSpec {
+                    name: "connection_only".into(),
+                    description: "must not survive compaction".into(),
+                    input_schema: json!({"type":"object", "properties":{}}),
+                    defer_loading: false,
+                },
+            )],
+            &[],
+        )
+        .await
+        .unwrap();
     let thread_id = ThreadId::new();
     let token_usage_record = TokenUsageRecord {
         thread_id,

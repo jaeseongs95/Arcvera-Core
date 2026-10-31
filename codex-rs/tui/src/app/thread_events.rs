@@ -82,6 +82,8 @@ pub(super) struct ThreadEventStore {
     pub(super) input_state: Option<ThreadInputState>,
     pub(super) capacity: usize,
     pub(super) active: bool,
+    pub(super) runtime_tool_selection: tokio_util::sync::CancellationToken,
+    runtime_tool_scope: tokio_util::sync::CancellationToken,
     pub(super) buffered_agent_message_delta_bytes: usize,
     pub(super) buffered_display_bytes: usize,
     pub(super) buffered_event_sizes: VecDeque<usize>,
@@ -90,6 +92,17 @@ pub(super) struct ThreadEventStore {
 }
 
 impl ThreadEventStore {
+    pub(super) fn set_active(&mut self, active: bool) {
+        if self.active != active {
+            self.runtime_tool_selection.cancel();
+            self.runtime_tool_selection = self.runtime_tool_scope.child_token();
+        }
+        self.active = active;
+        if !active {
+            self.runtime_tool_selection.cancel();
+        }
+    }
+
     pub(super) fn event_survives_session_refresh(event: &mut ThreadBufferedEvent) -> bool {
         if let ThreadBufferedEvent::Notification(notification) = event
             && let ServerNotification::ItemCompleted(notification) = notification.as_mut()
@@ -136,6 +149,8 @@ impl ThreadEventStore {
             input_state: None,
             capacity,
             active: false,
+            runtime_tool_selection: tokio_util::sync::CancellationToken::new(),
+            runtime_tool_scope: tokio_util::sync::CancellationToken::new(),
             buffered_agent_message_delta_bytes: 0,
             buffered_display_bytes: 0,
             buffered_event_sizes: VecDeque::new(),
@@ -707,16 +722,26 @@ pub(super) struct ThreadEventChannel {
     pub(super) receiver: Option<mpsc::Receiver<ThreadBufferedEvent>>,
     pub(super) store: Arc<Mutex<ThreadEventStore>>,
     attachment: ThreadEventAttachment,
+    runtime_tool_scope: tokio_util::sync::CancellationToken,
+}
+
+impl Drop for ThreadEventChannel {
+    fn drop(&mut self) {
+        self.runtime_tool_scope.cancel();
+    }
 }
 
 impl ThreadEventChannel {
     pub(super) fn new(capacity: usize) -> Self {
         let (sender, receiver) = mpsc::channel(capacity);
+        let store = ThreadEventStore::new(capacity);
+        let runtime_tool_scope = store.runtime_tool_scope.clone();
         Self {
             sender,
             receiver: Some(receiver),
-            store: Arc::new(Mutex::new(ThreadEventStore::new(capacity))),
+            store: Arc::new(Mutex::new(store)),
             attachment: ThreadEventAttachment::Live,
+            runtime_tool_scope,
         }
     }
 
@@ -739,13 +764,14 @@ impl ThreadEventChannel {
         turns: Vec<Turn>,
     ) -> Self {
         let (sender, receiver) = mpsc::channel(capacity);
+        let store = ThreadEventStore::new_with_session(capacity, session, turns);
+        let runtime_tool_scope = store.runtime_tool_scope.clone();
         Self {
             sender,
             receiver: Some(receiver),
-            store: Arc::new(Mutex::new(ThreadEventStore::new_with_session(
-                capacity, session, turns,
-            ))),
+            store: Arc::new(Mutex::new(store)),
             attachment: ThreadEventAttachment::Live,
+            runtime_tool_scope,
         }
     }
 }

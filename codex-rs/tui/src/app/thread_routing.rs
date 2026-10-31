@@ -82,7 +82,7 @@ impl App {
     pub(super) async fn set_thread_active(&mut self, thread_id: ThreadId, active: bool) {
         if let Some(channel) = self.thread_event_channels.get_mut(&thread_id) {
             let mut store = channel.store.lock().await;
-            store.active = active;
+            store.set_active(active);
         }
     }
 
@@ -110,7 +110,7 @@ impl App {
         if let Some(channel) = self.thread_event_channels.get_mut(&active_id) {
             let receiver = self.active_thread_rx.take();
             let mut store = channel.store.lock().await;
-            store.active = false;
+            store.set_active(false);
             store.input_state = input_state;
             store.merge_recap_progress(recap_progress);
             if let Some(receiver) = receiver {
@@ -150,7 +150,7 @@ impl App {
         let channel = self.thread_event_channels.get_mut(&thread_id)?;
         let receiver = channel.receiver.take()?;
         let mut store = channel.store.lock().await;
-        store.active = true;
+        store.set_active(true);
         let snapshot = store.snapshot();
         Some((receiver, snapshot))
     }

@@ -90,7 +90,7 @@ pub(in crate::agent) async fn fresh_child_history_and_tools(
     let tools = if version == MultiAgentVersion::V2
         && config.features.enabled(Feature::MultiAgentV2DynamicTools)
     {
-        parent.session.dynamic_tools().await.to_vec()
+        parent.session.inheritable_dynamic_tools().await.to_vec()
     } else {
         Vec::new()
     };
