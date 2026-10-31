@@ -16,7 +16,7 @@ impl App {
             .store(false, std::sync::atomic::Ordering::Release);
         self.cron.invalidate_backend(
             app_server.backend_id(),
-            "backend 이벤트 스트림 종료: 예약 실행 중지",
+            crate::i18n::text("Backend event stream ended: cron execution stopped"),
         );
     }
 
@@ -40,7 +40,7 @@ impl App {
                 .store(false, std::sync::atomic::Ordering::Release);
             self.cron.invalidate_backend(
                 event.backend_id,
-                "backend 연결 또는 이벤트 수신 유실: 예약 실행 중지",
+                crate::i18n::text("Backend connection or events lost: cron execution stopped"),
             );
         }
         if event.backend_id != displayed_owner

@@ -367,8 +367,10 @@ impl App {
             .cron_tool_connection()
             .live
             .store(false, std::sync::atomic::Ordering::Release);
-        self.cron
-            .invalidate_backend(app_server.backend_id(), "원래 연결 교체: 예약 실행 중지");
+        self.cron.invalidate_backend(
+            app_server.backend_id(),
+            crate::i18n::text("Original connection replaced: cron execution stopped"),
+        );
         *app_server = session;
         #[cfg(any(target_os = "windows", test))]
         let interrupted_windows_setup = self.windows_sandbox.pending_setup.take().is_some();

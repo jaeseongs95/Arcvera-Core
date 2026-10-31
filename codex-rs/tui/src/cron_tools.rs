@@ -3,6 +3,7 @@ use crate::app_event::AppEvent;
 use crate::app_event_sender::AppEventSender;
 use crate::backend_id::BackendId;
 use crate::dynamic_tools;
+use crate::i18n::text;
 use codex_app_server_protocol::{
     DynamicToolCallParams, DynamicToolCallResponse, DynamicToolFunctionSpec,
     DynamicToolNamespaceSpec, DynamicToolNamespaceTool, DynamicToolSpec,
@@ -88,18 +89,18 @@ fn command(value: Value) -> Result<String, String> {
                 _ => unreachable!(),
             };
             if value.is_empty() || value.chars().any(char::is_whitespace) {
-                return Err("일정은 공백 없는 간격 또는 offset이 포함된 RFC3339 시각이어야 합니다.".into());
+                return Err(text("The schedule must be an interval without whitespace or an RFC3339 timestamp with an offset.").into());
             }
             let prompt = args.prompt.filter(|prompt| !prompt.trim().is_empty())
-                .ok_or("등록에는 실행할 prompt가 필요합니다.")?;
+                .ok_or(text("A prompt is required to add a cron job."))?;
             Ok(format!("add {flag} {value} -- {prompt}"))
         }
         "list" if args.every.is_none() && args.at.is_none() && args.prompt.is_none() && args.id.is_none() => Ok("list".into()),
         "pause" | "resume" | "remove" | "cancel" if args.every.is_none() && args.at.is_none() && args.prompt.is_none() => {
-            let id = args.id.filter(|id| *id > 0).ok_or("관리할 예약 id가 필요합니다.")?;
+            let id = args.id.filter(|id| *id > 0).ok_or(text("A cron job id is required."))?;
             Ok(format!("{} {id}", args.action))
         }
-        _ => Err("action에 맞는 인자를 사용하세요. add에는 every 또는 at 하나와 prompt, 관리에는 id만 필요합니다.".into()),
+        _ => Err(text("Use arguments for the selected action. add requires exactly one of every or at and a prompt; management actions require only an id.").into()),
     }
 }
 
@@ -135,14 +136,16 @@ pub(crate) async fn execute(
     } else if params.tool == NAME {
         command(params.arguments.clone())
     } else {
-        Err("이 연결의 로컬 제어 도구가 아닙니다.".into())
+        Err(text("This is not a local control tool for this connection.").into())
     };
     let command = match parsed {
         Ok(command) => command,
         Err(error) => return dynamic_tools::failure_response(error),
     };
     if params.thread_id.is_empty() || params.turn_id.is_empty() || params.call_id.is_empty() {
-        return dynamic_tools::failure_response("실제 호출 대화·turn·call 정보가 필요합니다.");
+        return dynamic_tools::failure_response(text(
+            "The actual calling thread, turn, and call are required.",
+        ));
     }
     // Verify source policy on the originating connection, never from visible UI state.
     let verified = tokio::time::timeout(
@@ -169,17 +172,20 @@ pub(crate) async fn execute(
                     codex_app_server_protocol::SessionSource::SubAgent(_)
                 ) => {}
         Ok(Ok(_)) => {
-            return dynamic_tools::failure_response(
-                "이 대화는 로컬 제어 도구를 사용할 수 없습니다.",
-            );
+            return dynamic_tools::failure_response(text(
+                "This thread cannot use local control tools.",
+            ));
         }
         Ok(Err(error)) => {
-            return dynamic_tools::failure_response(format!("호출 대화 확인 실패: {error}"));
+            return dynamic_tools::failure_response(format!(
+                "{} {error}",
+                text("Calling thread verification failed:")
+            ));
         }
         Err(_) => {
-            return dynamic_tools::failure_response(
-                "호출 대화 확인 시간초과: 예약 요청을 보내지 않았습니다.",
-            );
+            return dynamic_tools::failure_response(text(
+                "Calling thread verification timed out: no cron request was sent.",
+            ));
         }
     }
     let (reply, result) = oneshot::channel();
@@ -194,15 +200,82 @@ pub(crate) async fn execute(
     })));
     match tokio::time::timeout(std::time::Duration::from_secs(30), result).await {
         Ok(Ok(response)) => response,
-        _ => dynamic_tools::failure_response(
-            "로컬 제어 결과 미확인: 자동 재전송하지 마세요. 예약은 list, 다른 설정은 해당 조회로 확인하세요.",
-        ),
+        _ => dynamic_tools::failure_response(text(
+            "Local control outcome unknown: do not retry automatically. Use list for cron jobs or the relevant query for other settings.",
+        )),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cron_argument_errors_follow_locale_but_commands_and_specs_do_not() {
+        use crate::i18n::{Locale, with_locale};
+        let english_specs = with_locale(Locale::English, || serde_json::to_value(specs()).unwrap());
+        let korean_specs = with_locale(Locale::Korean, || serde_json::to_value(specs()).unwrap());
+        assert_eq!(english_specs, korean_specs);
+        for locale in [Locale::English, Locale::Korean] {
+            with_locale(locale, || {
+                let korean = locale == Locale::Korean;
+                let prompt =
+                    "대기 -- original {id} /cron list pause resume remove delete cancel at every";
+                assert_eq!(
+                    command(json!({"action":"add","every":"10m","prompt":prompt})).unwrap(),
+                    format!("add --every 10m -- {prompt}")
+                );
+                let at = "2099-01-01T00:00:00+09:00";
+                assert_eq!(
+                    command(json!({"action":"add","at":at,"prompt":prompt})).unwrap(),
+                    format!("add --at {at} -- {prompt}")
+                );
+                assert_eq!(command(json!({"action":"list"})).unwrap(), "list");
+                for action in ["pause", "resume", "remove", "cancel"] {
+                    assert_eq!(
+                        command(json!({"action":action,"id":42})).unwrap(),
+                        format!("{action} 42")
+                    );
+                }
+                for (arguments, expected) in [
+                    (
+                        json!({"action":"add","every":"1m -- injected","prompt":"unchanged"}),
+                        if korean {
+                            "일정은 공백 없는 간격 또는 offset이 포함된 RFC3339 시각이어야 합니다."
+                        } else {
+                            "The schedule must be an interval without whitespace or an RFC3339 timestamp with an offset."
+                        },
+                    ),
+                    (
+                        json!({"action":"add","every":"1m"}),
+                        if korean {
+                            "등록에는 실행할 prompt가 필요합니다."
+                        } else {
+                            "A prompt is required to add a cron job."
+                        },
+                    ),
+                    (
+                        json!({"action":"pause","id":0}),
+                        if korean {
+                            "관리할 예약 id가 필요합니다."
+                        } else {
+                            "A cron job id is required."
+                        },
+                    ),
+                    (
+                        json!({"action":"add","every":"1m","at":at,"prompt":"unchanged"}),
+                        if korean {
+                            "action에 맞는 인자를 사용하세요. add에는 every 또는 at 하나와 prompt, 관리에는 id만 필요합니다."
+                        } else {
+                            "Use arguments for the selected action. add requires exactly one of every or at and a prompt; management actions require only an id."
+                        },
+                    ),
+                ] {
+                    assert_eq!(command(arguments).unwrap_err(), expected);
+                }
+            });
+        }
+    }
 
     #[tokio::test]
     async fn cron_execute_verifies_real_thread_read_policy_before_queueing()
