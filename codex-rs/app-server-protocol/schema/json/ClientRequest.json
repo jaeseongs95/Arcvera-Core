@@ -5420,6 +5420,13 @@
           "description": "When true, return only thread metadata and live-resume state without populating `thread.turns`. This is useful when the client plans to call `thread/turns/list` immediately after resuming. Full-history hydration is deprecated for paginated threads; use this with `thread/turns/list` and `thread/items/list` instead.",
           "type": "boolean"
         },
+        "expectedRuntimeId": {
+          "description": "Loaded runtime generation comparison, never an authority token.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "model": {
           "description": "Configuration overrides for the resumed thread, if any.",
           "type": [

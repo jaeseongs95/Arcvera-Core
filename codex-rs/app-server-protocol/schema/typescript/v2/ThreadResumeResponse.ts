@@ -11,6 +11,10 @@ import type { SandboxPolicy } from "./SandboxPolicy";
 import type { Thread } from "./Thread";
 
 export type ThreadResumeResponse = {/**
+ * True only after runtime publication; false means busy with no change.
+ * Null when no supplement was requested; missing fields from older servers are accepted.
+ */
+runtimeDynamicToolsApplied: boolean | null, runtimeDynamicToolsRuntimeId: string | null, /**
  * Available only when Core supports non-destructive idle compaction.
  */
 supportsCompactIfIdle?: boolean, /**

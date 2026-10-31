@@ -4,4 +4,4 @@
 import type { SubagentManagementCapabilities } from "./SubagentManagementCapabilities";
 import type { SubagentManagementStatus } from "./SubagentManagementStatus";
 
-export type SubagentManagementAgent = { id: string, parentThreadId: string, runtimeId: string | null, nickname?: string | null, role?: string | null, status: SubagentManagementStatus, model?: string | null, effort?: string | null, activeTurnId?: string | null, capabilities: SubagentManagementCapabilities, };
+export type SubagentManagementAgent = { id: string, parentThreadId: string, runtimeId: string | null, nickname: string | null, role: string | null, status: SubagentManagementStatus, model: string | null, effort: string | null, activeTurnId: string | null, capabilities: SubagentManagementCapabilities, };

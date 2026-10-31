@@ -3275,6 +3275,21 @@
         }
       ]
     },
+    "runtimeDynamicToolsApplied": {
+      "default": null,
+      "description": "True only after runtime publication; false means busy with no change. Null when no supplement was requested; missing fields from older servers are accepted.",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "runtimeDynamicToolsRuntimeId": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "sandbox": {
       "allOf": [
         {

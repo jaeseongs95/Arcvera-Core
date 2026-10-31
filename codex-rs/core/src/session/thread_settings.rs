@@ -30,7 +30,8 @@ impl Session {
         tools: Vec<codex_protocol::dynamic_tools::DynamicToolSpec>,
         previous: &[codex_protocol::dynamic_tools::DynamicToolSpec],
     ) -> CodexResult<bool> {
-        let _settings_guard = acquire_persistence_lock(self).await;
+        // No persistence is touched here. Holding its permit while waiting for an
+        // active turn can deadlock a user reply behind a delivered-message record.
         let active = self.active_turn.lock().await;
         if active.is_some() {
             return Ok(false);
@@ -77,8 +78,10 @@ impl Session {
         &self,
         tools: Vec<codex_protocol::dynamic_tools::DynamicToolSpec>,
     ) -> CodexResult<()> {
-        let _settings_guard = acquire_persistence_lock(self).await;
         let active = self.active_turn.lock().await;
+        // User replies hold active_turn while reserving communication order;
+        // delivered-message records then acquire persistence. Keep that order.
+        let _settings_guard = acquire_persistence_lock(self).await;
         if active.is_some() && self.state.lock().await.runtime_dynamic_tools.is_some() {
             return Err(CodexErr::InvalidRequest(
                 "연결 한정 도구를 사용하는 활성 턴의 도구 목록은 교체할 수 없습니다.".into(),

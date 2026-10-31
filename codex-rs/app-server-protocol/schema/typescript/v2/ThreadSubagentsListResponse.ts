@@ -4,4 +4,4 @@
 import type { SubagentManagementAgent } from "./SubagentManagementAgent";
 import type { SubagentMutationState } from "./SubagentMutationState";
 
-export type ThreadSubagentsListResponse = { parentThreadId: string, parentRuntimeId: string, agents: Array<SubagentManagementAgent>, nextCursor: string | null, mutationState: SubagentMutationState, reconciledRequestId?: string | null, };
+export type ThreadSubagentsListResponse = { parentThreadId: string, parentRuntimeId: string, agents: Array<SubagentManagementAgent>, nextCursor: string | null, mutationState: SubagentMutationState, reconciledRequestId: string | null, };
