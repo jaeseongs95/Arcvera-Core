@@ -27,8 +27,6 @@ pub struct ThreadSubagentsListResponse {
     pub agents: Vec<SubagentManagementAgent>,
     pub next_cursor: Option<String>,
     pub mutation_state: SubagentMutationState,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
     pub reconciled_request_id: Option<String>,
 }
 
@@ -40,21 +38,11 @@ pub struct SubagentManagementAgent {
     pub parent_thread_id: String,
     #[schemars(schema_with = "required_nullable_runtime_schema")]
     pub runtime_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
     pub nickname: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
     pub role: Option<String>,
     pub status: SubagentManagementStatus,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
     pub model: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
     pub effort: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
     pub active_turn_id: Option<String>,
     pub capabilities: SubagentManagementCapabilities,
 }
@@ -224,6 +212,49 @@ mod tests {
             serde_json::to_value(decoded).unwrap().get("runtimeId"),
             Some(&serde_json::Value::Null)
         );
+    }
+
+    #[test]
+    fn response_optional_values_are_explicit_nulls_and_required_in_typescript() {
+        let agent: SubagentManagementAgent = serde_json::from_value(json!({
+            "id": "child", "parentThreadId": "parent", "status": "unknown",
+            "capabilities": { "send": false, "interrupt": false, "close": false, "resume": true }
+        }))
+        .unwrap();
+        let output = serde_json::to_value(agent).unwrap();
+        let declaration = <SubagentManagementAgent as ts_rs::TS>::decl();
+        for key in [
+            "runtimeId",
+            "nickname",
+            "role",
+            "model",
+            "effort",
+            "activeTurnId",
+        ] {
+            assert_eq!(output.get(key), Some(&serde_json::Value::Null), "{key}");
+            assert!(
+                declaration.contains(&format!("{key}: string | null")),
+                "{key}"
+            );
+            assert!(!declaration.contains(&format!("{key}?:")), "{key}");
+        }
+        let response = ThreadSubagentsListResponse {
+            parent_thread_id: "parent".into(),
+            parent_runtime_id: "runtime".into(),
+            agents: vec![],
+            next_cursor: None,
+            mutation_state: SubagentMutationState::Clear,
+            reconciled_request_id: None,
+        };
+        assert_eq!(
+            serde_json::to_value(response)
+                .unwrap()
+                .get("reconciledRequestId"),
+            Some(&serde_json::Value::Null)
+        );
+        let declaration = <ThreadSubagentsListResponse as ts_rs::TS>::decl();
+        assert!(declaration.contains("reconciledRequestId: string | null"));
+        assert!(!declaration.contains("reconciledRequestId?:"));
     }
 
     #[test]
