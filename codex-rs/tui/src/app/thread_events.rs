@@ -26,17 +26,23 @@ pub(super) enum ThreadBufferedEvent {
     FeedbackSubmission(FeedbackThreadEvent),
 }
 
-fn is_voice_handoff_item(item: &ThreadItem) -> bool {
-    matches!(item, ThreadItem::UserMessage { content, .. }
+fn is_voice_handoff_item(item: &ThreadItemPayload) -> bool {
+    matches!(item, ThreadItemPayload::UserMessage { content, .. }
         if crate::chatwidget::realtime_delegation_input(content).is_some())
 }
 
-fn hide_private_items_after_voice_handoff(items: &mut Vec<ThreadItem>, delegated: bool) {
-    let has_marker = items.iter().any(is_voice_handoff_item);
+fn hide_private_items_after_voice_handoff(
+    items: &mut Vec<codex_app_server_protocol::ThreadItem>,
+    delegated: bool,
+) {
+    let has_marker = items
+        .iter()
+        .any(|entry| is_voice_handoff_item(&entry.payload));
     // An evicted marker leaves no reliable order, so hide private items
     // conservatively. A present marker lets earlier typed output survive.
     let mut voice_started = delegated && !has_marker;
-    items.retain(|item| {
+    items.retain(|entry| {
+        let item = &entry.payload;
         if is_voice_handoff_item(item) {
             voice_started = true;
         }
@@ -87,11 +93,11 @@ impl ThreadEventStore {
     pub(super) fn event_survives_session_refresh(event: &mut ThreadBufferedEvent) -> bool {
         if let ThreadBufferedEvent::Notification(notification) = event
             && let ServerNotification::ItemCompleted(notification) = notification.as_mut()
-            && let ThreadItem::AgentMessage {
+            && let ThreadItemPayload::AgentMessage {
                 questions: Some(_),
                 text,
                 ..
-            } = &mut notification.item
+            } = &mut notification.item.payload
         {
             // Refreshed turns contain the text; retain only the live question state.
             text.clear();
@@ -99,7 +105,7 @@ impl ThreadEventStore {
         }
         if matches!(event, ThreadBufferedEvent::Notification(notification)
             if matches!(notification.as_ref(), ServerNotification::ItemStarted(started)
-                if matches!(&started.item, ThreadItem::FileChange { status: codex_app_server_protocol::PatchApplyStatus::InProgress, .. })))
+                if matches!(&started.item.payload, ThreadItemPayload::FileChange { status: codex_app_server_protocol::PatchApplyStatus::InProgress, .. })))
         {
             return true;
         }
@@ -156,11 +162,11 @@ impl ThreadEventStore {
             .filter(|turn| turn.status == TurnStatus::InProgress)
         {
             for item in &turn.items {
-                if let ThreadItem::FileChange {
+                if let ThreadItemPayload::FileChange {
                     id,
                     changes,
                     status: codex_app_server_protocol::PatchApplyStatus::InProgress,
-                } = item
+                } = &item.payload
                 {
                     self.pending_patch_changes
                         .insert((turn.id.clone(), id.clone()), changes.clone());
@@ -221,11 +227,11 @@ impl ThreadEventStore {
 
     fn push_notification_inner(&mut self, notification: Cow<'_, ServerNotification>) {
         let user_item = match notification.as_ref() {
-            ServerNotification::ItemStarted(n) => Some((&n.turn_id, &n.item)),
-            ServerNotification::ItemCompleted(n) => Some((&n.turn_id, &n.item)),
+            ServerNotification::ItemStarted(n) => Some((&n.turn_id, &n.item.payload)),
+            ServerNotification::ItemCompleted(n) => Some((&n.turn_id, &n.item.payload)),
             _ => None,
         };
-        if let Some((turn_id, ThreadItem::UserMessage { content, .. })) = user_item
+        if let Some((turn_id, ThreadItemPayload::UserMessage { content, .. })) = user_item
             && turn_id.len() <= 512
             && crate::chatwidget::realtime_delegation_input(content).is_some()
             && !self.delegated_turns.contains(turn_id)
@@ -236,7 +242,7 @@ impl ThreadEventStore {
             .note_server_notification(notification.as_ref());
         match notification.as_ref() {
             ServerNotification::ItemStarted(started) => {
-                if let ThreadItem::FileChange { id, changes, .. } = &started.item {
+                if let ThreadItemPayload::FileChange { id, changes, .. } = &started.item.payload {
                     self.pending_patch_changes
                         .insert((started.turn_id.clone(), id.clone()), changes.clone());
                 }
@@ -299,28 +305,36 @@ impl ThreadEventStore {
             }
             ServerNotification::ItemStarted(
                 started @ codex_app_server_protocol::ItemStartedNotification {
-                    item: ThreadItem::Reasoning { id, .. },
+                    item:
+                        codex_app_server_protocol::ThreadItem {
+                            payload: ThreadItemPayload::Reasoning { id, .. },
+                            ..
+                        },
                     ..
                 },
             ) if !self.delegated_turns.contains(&started.turn_id)
                 && !self.turns.iter().any(|turn| {
-                    turn.id == started.turn_id && turn.items.iter().any(is_voice_handoff_item)
+                    turn.id == started.turn_id
+                        && turn
+                            .items
+                            .iter()
+                            .any(|entry| is_voice_handoff_item(&entry.payload))
                 }) =>
             {
                 self.active_reasoning_item =
-                    Some(codex_app_server_protocol::ItemStartedNotification {
-                        thread_id: started.thread_id.clone(),
-                        turn_id: started.turn_id.clone(),
-                        item: ThreadItem::Reasoning {
+                    Some(codex_app_server_protocol::ItemStartedNotification::new(
+                        started.thread_id.clone(),
+                        started.turn_id.clone(),
+                        ThreadItemPayload::Reasoning {
                             id: id.clone(),
                             summary: Vec::new(),
                             content: Vec::new(),
                         },
-                        started_at_ms: started.started_at_ms,
-                    });
+                        started.started_at_ms,
+                    ));
             }
             ServerNotification::ItemCompleted(completed)
-                if matches!(&completed.item, ThreadItem::Reasoning { .. })
+                if matches!(&completed.item.payload, ThreadItemPayload::Reasoning { .. })
                     && self.active_reasoning_item.as_ref().is_some_and(|started| {
                         started.turn_id == completed.turn_id
                             && started.item.id() == completed.item.id()
@@ -469,12 +483,12 @@ impl ThreadEventStore {
                                     thread_id: session.thread_id.to_string(),
                                     turn_id: turn_id.clone(),
                                     started_at_ms: 0,
-                                    item: ThreadItem::FileChange {
+                                    item: codex_app_server_protocol::ThreadItem::untimed(ThreadItemPayload::FileChange {
                                         id: item_id.clone(),
                                         changes: changes.clone(),
                                         status:
                                             codex_app_server_protocol::PatchApplyStatus::InProgress,
-                                    },
+                                    }),
                                 },
                             ),
                         )),
@@ -490,7 +504,7 @@ impl ThreadEventStore {
             .iter()
             .filter(|turn| {
                 turn.items.iter().any(|item| {
-                    matches!(item, ThreadItem::UserMessage { content, .. }
+                    matches!(&item.payload, ThreadItemPayload::UserMessage { content, .. }
                     if crate::chatwidget::realtime_delegation_input(content).is_some())
                 })
             })
@@ -505,10 +519,14 @@ impl ThreadEventStore {
             .iter()
             .filter_map(|event| match event {
                 ThreadBufferedEvent::Notification(notification) => match notification.as_ref() {
-                    ServerNotification::ItemStarted(n) if is_voice_handoff_item(&n.item) => {
+                    ServerNotification::ItemStarted(n)
+                        if is_voice_handoff_item(&n.item.payload) =>
+                    {
                         Some(n.turn_id.clone())
                     }
-                    ServerNotification::ItemCompleted(n) if is_voice_handoff_item(&n.item) => {
+                    ServerNotification::ItemCompleted(n)
+                        if is_voice_handoff_item(&n.item.payload) =>
+                    {
                         Some(n.turn_id.clone())
                     }
                     _ => None,
@@ -530,15 +548,15 @@ impl ThreadEventStore {
                 return true;
             };
             match notification.as_ref() {
-                ServerNotification::ItemStarted(n) if is_voice_handoff_item(&n.item) => {
+                ServerNotification::ItemStarted(n) if is_voice_handoff_item(&n.item.payload) => {
                     voice_started.insert(n.turn_id.clone());
                 }
-                ServerNotification::ItemCompleted(n) if is_voice_handoff_item(&n.item) => {
+                ServerNotification::ItemCompleted(n) if is_voice_handoff_item(&n.item.payload) => {
                     voice_started.insert(n.turn_id.clone());
                 }
                 ServerNotification::ItemStarted(n) => {
-                    if let ThreadItem::AgentMessage { id, .. } | ThreadItem::Reasoning { id, .. } =
-                        &n.item
+                    if let ThreadItemPayload::AgentMessage { id, .. } | ThreadItemPayload::Reasoning { id, .. } =
+                        &n.item.payload
                     {
                         let key = (n.turn_id.clone(), id.clone());
                         if voice_started.contains(&n.turn_id) {
@@ -568,9 +586,9 @@ impl ThreadEventStore {
                         || typed_items.contains(&(n.turn_id.clone(), n.item_id.clone()))
                 }
                 ServerNotification::ItemCompleted(n) if voice_started.contains(&n.turn_id) => {
-                    matches!(&n.item, ThreadItem::AgentMessage { id, .. } | ThreadItem::Reasoning { id, .. }
+                    matches!(&n.item.payload, ThreadItemPayload::AgentMessage { id, .. } | ThreadItemPayload::Reasoning { id, .. }
                         if typed_items.contains(&(n.turn_id.clone(), id.clone())))
-                        || !crate::chatwidget::is_private_realtime_agent_item(&n.item)
+                        || !crate::chatwidget::is_private_realtime_agent_item(&n.item.payload)
                 }
                 ServerNotification::TurnCompleted(n) if delegated.contains(&n.turn.id) => {
                     hide_private_items_after_voice_handoff(
@@ -653,10 +671,10 @@ pub(super) fn file_change_changes<'a>(
         };
         let (candidate_turn_id, item) = match notification.as_ref() {
             ServerNotification::ItemStarted(notification) => {
-                (&notification.turn_id, &notification.item)
+                (&notification.turn_id, &notification.item.payload)
             }
             ServerNotification::ItemCompleted(notification) => {
-                (&notification.turn_id, &notification.item)
+                (&notification.turn_id, &notification.item.payload)
             }
             _ => return None,
         };
@@ -668,17 +686,17 @@ pub(super) fn file_change_changes<'a>(
                 .iter()
                 .rev()
                 .filter(|turn| turn_id_matches(turn_id, &turn.id))
-                .flat_map(|turn| turn.items.iter().rev()),
+                .flat_map(|turn| turn.item_payloads().rev()),
         )
         .find_map(|item| file_change_item_changes(item, item_id))
 }
 
 fn file_change_item_changes(
-    item: &ThreadItem,
+    item: &ThreadItemPayload,
     item_id: &str,
 ) -> Option<Vec<codex_app_server_protocol::FileUpdateChange>> {
     match item {
-        ThreadItem::FileChange { id, changes, .. } if id == item_id => Some(changes.clone()),
+        ThreadItemPayload::FileChange { id, changes, .. } if id == item_id => Some(changes.clone()),
         _ => None,
     }
 }
@@ -756,6 +774,7 @@ mod tests {
     use codex_app_server_protocol::RequestId as AppServerRequestId;
     use codex_app_server_protocol::ThreadAttachmentOperation;
     use codex_app_server_protocol::ThreadAttachmentUpdatedNotification;
+    use codex_app_server_protocol::ThreadItem;
     use codex_app_server_protocol::ThreadRealtimeAudioChunk;
     use codex_app_server_protocol::ThreadRealtimeOutputAudioDeltaNotification;
     use codex_app_server_protocol::TurnCompletedNotification;
@@ -792,12 +811,12 @@ mod tests {
         }
     }
 
-    fn test_turn(turn_id: &str, status: TurnStatus, items: Vec<ThreadItem>) -> Turn {
+    fn test_turn(turn_id: &str, status: TurnStatus, items: Vec<ThreadItemPayload>) -> Turn {
         Turn {
             id: turn_id.to_string(),
             root_turn_id: None,
             items_view: codex_app_server_protocol::TurnItemsView::Full,
-            items,
+            items: items.into_iter().map(ThreadItem::untimed).collect(),
             status,
             error: None,
             started_at: None,
@@ -841,7 +860,7 @@ mod tests {
                 handler_type: AppServerHookHandlerType::Command,
                 execution_mode: AppServerHookExecutionMode::Sync,
                 scope: AppServerHookScope::Turn,
-                source_path: test_path_buf("/tmp/hooks.json").abs(),
+                source_path: test_path_buf("/tmp/hooks.json").abs().into(),
                 source: codex_app_server_protocol::HookSource::User,
                 display_order: 0,
                 status: AppServerHookRunStatus::Running,
@@ -864,7 +883,7 @@ mod tests {
                 handler_type: AppServerHookHandlerType::Command,
                 execution_mode: AppServerHookExecutionMode::Sync,
                 scope: AppServerHookScope::Turn,
-                source_path: test_path_buf("/tmp/hooks.json").abs(),
+                source_path: test_path_buf("/tmp/hooks.json").abs().into(),
                 source: codex_app_server_protocol::HookSource::User,
                 display_order: 0,
                 status: AppServerHookRunStatus::Stopped,
@@ -1078,9 +1097,10 @@ mod tests {
     fn refresh_retains_live_questions_without_replaying_their_text() {
         let mut expected = serde_json::json!({
             "method": "item/completed", "params": {
-                "threadId": "thread", "turnId": "turn", "completedAtMs": 0,
+                "threadId": "thread", "turnId": "turn", "completedAtMs": 20,
                 "item": {
                     "type": "agentMessage", "id": "question", "text": "already in the snapshot",
+                    "startedAtMs": 10, "completedAtMs": 20,
                     "phase": null, "memoryCitation": null, "delivery": null,
                     "questions": [{"title": "Which way?", "options": null}]
                 }
@@ -1160,47 +1180,53 @@ mod tests {
         let thread_id = ThreadId::new().to_string();
         let turn_id = "mixed-reasoning-turn".to_string();
         let mut store = ThreadEventStore::new(/*capacity*/ 16);
-        let typed = ThreadItem::Reasoning {
+        let typed = ThreadItemPayload::Reasoning {
             id: "typed-reasoning".into(),
             summary: Vec::new(),
             content: Vec::new(),
         };
-        store.push_notification(ServerNotification::ItemStarted(ItemStartedNotification {
-            thread_id: thread_id.clone(),
-            turn_id: turn_id.clone(),
-            item: typed,
-            started_at_ms: 0,
-        }));
-        store.push_notification(ServerNotification::ItemStarted(ItemStartedNotification {
-            thread_id: thread_id.clone(),
-            turn_id: turn_id.clone(),
-            item: ThreadItem::UserMessage {
-                id: "voice-marker".into(),
-                client_id: None,
-                content: vec![UserInput::Text {
+        store.push_notification(ServerNotification::ItemStarted(
+            ItemStartedNotification::new(
+                thread_id.clone(),
+                turn_id.clone(),
+                typed,
+                /*started_at_ms*/ 0,
+            ),
+        ));
+        store.push_notification(ServerNotification::ItemStarted(
+            ItemStartedNotification::new(
+                thread_id.clone(),
+                turn_id.clone(),
+                ThreadItemPayload::UserMessage {
+                    id: "voice-marker".into(),
+                    client_id: None,
+                    content: vec![UserInput::Text {
                     text:
                         "<realtime_delegation><input>spoken follow-up</input></realtime_delegation>"
                             .into(),
                     text_elements: Vec::new(),
                 }],
-            },
-            started_at_ms: 0,
-        }));
+                },
+                /*started_at_ms*/ 0,
+            ),
+        ));
         for (id, text) in [
             ("typed-reasoning", "Typed tail"),
             ("private-reasoning", "Private voice reasoning"),
         ] {
             if id == "private-reasoning" {
-                store.push_notification(ServerNotification::ItemStarted(ItemStartedNotification {
-                    thread_id: thread_id.clone(),
-                    turn_id: turn_id.clone(),
-                    item: ThreadItem::Reasoning {
-                        id: id.into(),
-                        summary: Vec::new(),
-                        content: Vec::new(),
-                    },
-                    started_at_ms: 0,
-                }));
+                store.push_notification(ServerNotification::ItemStarted(
+                    ItemStartedNotification::new(
+                        thread_id.clone(),
+                        turn_id.clone(),
+                        ThreadItemPayload::Reasoning {
+                            id: id.into(),
+                            summary: Vec::new(),
+                            content: Vec::new(),
+                        },
+                        /*started_at_ms*/ 0,
+                    ),
+                ));
             }
             store.push_notification(ServerNotification::ReasoningSummaryTextDelta(
                 ReasoningSummaryTextDeltaNotification {
@@ -1212,16 +1238,17 @@ mod tests {
                 },
             ));
             store.push_notification(ServerNotification::ItemCompleted(
-                ItemCompletedNotification {
-                    thread_id: thread_id.clone(),
-                    turn_id: turn_id.clone(),
-                    item: ThreadItem::Reasoning {
+                ItemCompletedNotification::new(
+                    thread_id.clone(),
+                    turn_id.clone(),
+                    ThreadItemPayload::Reasoning {
                         id: id.into(),
                         summary: vec![text.into()],
                         content: Vec::new(),
                     },
-                    completed_at_ms: 0,
-                },
+                    /*started_at_ms*/ None,
+                    /*completed_at_ms*/ 0,
+                ),
             ));
         }
 
@@ -1232,8 +1259,8 @@ mod tests {
             .filter_map(|event| match event {
                 ThreadBufferedEvent::Notification(notification) => match *notification {
                     ServerNotification::ReasoningSummaryTextDelta(n) => Some(n.delta),
-                    ServerNotification::ItemCompleted(n) => match n.item {
-                        ThreadItem::Reasoning { summary, .. } => Some(summary.join("")),
+                    ServerNotification::ItemCompleted(n) => match n.item.payload {
+                        ThreadItemPayload::Reasoning { summary, .. } => Some(summary.join("")),
                         _ => None,
                     },
                     _ => None,
@@ -1247,26 +1274,32 @@ mod tests {
     #[test]
     fn repeated_runtime_snapshots_preserve_bounded_sources_and_pending_requests() {
         let thread_id = ThreadId::new();
-        let item: ThreadItem = serde_json::from_value(serde_json::json!({
+        let item: ThreadItemPayload = serde_json::from_value(serde_json::json!({
             "type": "agentMessage", "id": "body", "text": "x".repeat(4096),
             "phase": null, "questions": null
         }))
         .unwrap();
         let mut store = ThreadEventStore::new(2);
-        store.set_turns(vec![test_turn("turn", TurnStatus::InProgress, vec![item])]);
-        let ThreadItem::AgentMessage { text, .. } = &store.turns[0].items[0] else {
+        let mut turn = test_turn("turn", TurnStatus::InProgress, vec![item]);
+        turn.items[0].started_at_ms = Some(10);
+        turn.items[0].completed_at_ms = Some(20);
+        store.set_turns(vec![turn]);
+        let ThreadItemPayload::AgentMessage { text, .. } = &store.turns[0].items[0].payload else {
             panic!("agent item")
         };
         let original = text.as_ptr();
         store.push_request(exec_approval_request(thread_id, "turn", "approval", None));
         let snapshot = store.snapshot();
-        let ThreadItem::AgentMessage { text, .. } = &snapshot.turns[0].items[0] else {
+        assert_eq!(snapshot.turns[0].items[0].started_at_ms, Some(10));
+        assert_eq!(snapshot.turns[0].items[0].completed_at_ms, Some(20));
+        let ThreadItemPayload::AgentMessage { text, .. } = &snapshot.turns[0].items[0].payload
+        else {
             panic!("agent item")
         };
         assert_eq!(text.len(), 4096);
         let again = store.snapshot();
         assert_eq!(again.turns, snapshot.turns);
-        let ThreadItem::AgentMessage { text, .. } = &store.turns[0].items[0] else {
+        let ThreadItemPayload::AgentMessage { text, .. } = &store.turns[0].items[0].payload else {
             panic!("retained agent item")
         };
         assert_eq!(

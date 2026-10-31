@@ -12,26 +12,41 @@ use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::warn;
 
-pub(super) struct PendingSpawn {
+pub(in crate::agent) enum SpawnOwner {
+    Local,
+    Host,
+}
+
+pub(in crate::agent) struct PendingSpawn {
     state: Arc<ThreadManagerState>,
     pending: Option<(ThreadId, AgentTreeMembership)>,
     edge_write: Option<JoinHandle<()>>,
     cleanup_admission: Option<crate::thread_manager::cleanup::CleanupOperation>,
+    owner: SpawnOwner,
 }
 
 impl PendingSpawn {
-    pub(super) fn new(
+    pub(in crate::agent) fn new(
         state: Arc<ThreadManagerState>,
         child: ThreadId,
         membership: AgentTreeMembership,
-        cleanup_admission: crate::thread_manager::cleanup::CleanupOperation,
+        owner: SpawnOwner,
     ) -> Self {
         Self {
             state,
             pending: Some((child, membership)),
             edge_write: None,
-            cleanup_admission: Some(cleanup_admission),
+            cleanup_admission: None,
+            owner,
         }
+    }
+
+    pub(super) fn with_cleanup_admission(
+        mut self,
+        cleanup_admission: crate::thread_manager::cleanup::CleanupOperation,
+    ) -> Self {
+        self.cleanup_admission = Some(cleanup_admission);
+        self
     }
 
     pub(super) fn set_edge_write(&mut self, edge_write: JoinHandle<()>) {
@@ -48,7 +63,7 @@ impl PendingSpawn {
         self.edge_write = None;
     }
 
-    pub(super) fn disarm(mut self) -> AgentTreeMembership {
+    pub(in crate::agent) fn disarm(mut self) -> AgentTreeMembership {
         let Some((_child, membership)) = self.pending.take() else {
             unreachable!("pending spawn must own agent-tree membership");
         };
@@ -65,6 +80,7 @@ impl Drop for PendingSpawn {
         let teardown = membership.into_teardown_guard("child_spawn_cleanup", Some(child));
         let edge_write = self.edge_write.take();
         let cleanup_admission = self.cleanup_admission.take();
+        let local_owner = matches!(self.owner, SpawnOwner::Local);
         drop(tokio::spawn(async move {
             // Cancellation transfers ownership: keep the parent pinned through the
             // pending Open write and the final Closed write, not just child startup.
@@ -92,7 +108,8 @@ impl Drop for PendingSpawn {
             if let Some(edge_write) = edge_write {
                 let _ = edge_write.await;
             }
-            if let Some(store) = state.agent_graph_store()
+            if local_owner
+                && let Some(store) = state.agent_graph_store()
                 && let Err(error) = store
                     .set_thread_spawn_edge_status(child, ThreadSpawnEdgeStatus::Closed)
                     .await
@@ -130,7 +147,13 @@ mod tests {
         let baseline = Arc::strong_count(&state.cleanup_admission);
         let pin = state.cleanup_admission.admit([ThreadId::new()]).unwrap();
         let membership = control.runtime.admit_start().unwrap();
-        let pending = PendingSpawn::new(Arc::clone(&state), ThreadId::new(), membership, pin);
+        let pending = PendingSpawn::new(
+            Arc::clone(&state),
+            ThreadId::new(),
+            membership,
+            SpawnOwner::Local,
+        )
+        .with_cleanup_admission(pin);
         assert_eq!(Arc::strong_count(&state.cleanup_admission), baseline + 1);
         let membership = pending.disarm();
         // This is the real successful owner handoff. It must release its pin even

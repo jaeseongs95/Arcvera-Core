@@ -111,42 +111,30 @@ impl LocalAgentControl {
     /// persisted spawn-edge state.
     pub(crate) async fn shutdown_live_agent(&self, agent_id: ThreadId) -> CodexResult<String> {
         let state = self.runtime.upgrade()?;
-        let result = if let Ok(thread) = state.get_thread(agent_id).await {
+        let thread = state.get_thread(agent_id).await?;
+        if thread.is_running() {
             thread
                 .session
                 .ensure_rollout_materialized(PersistContext::Standard)
                 .await;
             thread.session.flush_rollout().await?;
-            let result = if matches!(thread.agent_status().await, AgentStatus::Shutdown) {
-                Ok(String::new())
-            } else {
-                state
-                    .send_op(
-                        agent_id,
-                        Op::Shutdown {},
-                        /*parent_turn_id*/ None,
-                        /*root_turn_id*/ None,
-                        /*message_delivery*/ None,
-                    )
-                    .await
-            };
-            thread.wait_until_terminated().await;
-            result
+        }
+        let result = if !thread.is_running()
+            || matches!(thread.agent_status().await, AgentStatus::Shutdown)
+        {
+            Ok(String::new())
         } else {
-            state
-                .send_op(
-                    agent_id,
-                    Op::Shutdown {},
-                    /*parent_turn_id*/ None,
-                    /*root_turn_id*/ None,
-                    /*message_delivery*/ None,
-                )
-                .await
+            // Do not look up the ID again after persistence I/O: it may now name a successor.
+            state.submit_shutdown_to_thread(&thread).await
         };
-        let _ = state.remove_thread(&agent_id).await;
-        self.forget_v2_residency(agent_id);
-        self.runtime.registry.release_spawned_thread(agent_id);
-        self.runtime.mailboxes.remove(agent_id);
+        thread.wait_until_terminated().await;
+        state
+            .remove_stopped_thread_if_matches(&thread, || {
+                self.forget_v2_residency(agent_id);
+                self.runtime.registry.release_spawned_thread(agent_id);
+                self.runtime.mailboxes.remove(agent_id);
+            })
+            .await?;
         result
     }
 
@@ -248,4 +236,106 @@ async fn managed_close_flush(thread: &crate::CodexThread) -> std::io::Result<()>
         }
     }
     thread.session.flush_rollout().await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core_test_support::PathBufExt;
+    use futures::FutureExt;
+
+    #[tokio::test]
+    async fn legacy_shutdown_preserves_failed_cleanup_and_a_replacement_handle() {
+        let home = tempfile::tempdir().expect("tempdir");
+        let mut config = crate::config::test_config().await;
+        config.codex_home = home.path().to_path_buf().abs();
+        config.cwd = config.codex_home.clone();
+        let manager = crate::ThreadManager::with_models_provider_and_home_for_tests(
+            codex_login::CodexAuth::from_api_key("dummy"),
+            config.model_provider.clone(),
+            config.codex_home.to_path_buf(),
+            Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
+        );
+        let control = manager.agent_control();
+        let state = control.runtime.upgrade().expect("manager state");
+        let source = manager
+            .start_thread(crate::StartThreadOptions::new(config))
+            .await
+            .expect("start source");
+        let make_thread = |io| {
+            Arc::new(crate::CodexThread::new(
+                Arc::clone(&source.thread.session),
+                io,
+                (&source.session_configured).into(),
+                source.thread.rollout_path(),
+                source.thread.session_source.clone(),
+            ))
+        };
+        let mut io = source.thread.io.clone();
+        io.session_loop_termination = std::future::ready(Err(Arc::new(
+            crate::session::SessionLoopFailure::CleanupUnconfirmed,
+        )))
+        .boxed()
+        .shared();
+        let failed = make_thread(io);
+        state
+            .threads
+            .write()
+            .await
+            .insert(source.thread_id, Arc::clone(&failed));
+        let error = control
+            .shutdown_live_agent(source.thread_id)
+            .await
+            .expect_err("lost cleanup confirmation cannot remove the handle");
+        assert!(error.to_string().contains("cleanup unconfirmed"));
+        assert!(Arc::ptr_eq(
+            &manager
+                .get_thread(source.thread_id)
+                .await
+                .expect("failed cleanup is retained"),
+            &failed
+        ));
+        source
+            .thread
+            .shutdown_and_wait()
+            .await
+            .expect("finish real source cleanup");
+
+        let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+        let mut io = source.thread.io.clone();
+        io.session_loop_termination = async move {
+            let _ = entered_tx.send(());
+            release_rx.await.expect("release old cleanup");
+            Ok(())
+        }
+        .boxed()
+        .shared();
+        let old = make_thread(io);
+        state.threads.write().await.insert(source.thread_id, old);
+        let (result, ()) = tokio::join!(control.shutdown_live_agent(source.thread_id), async {
+            entered_rx
+                .await
+                .expect("shutdown waits for the captured runtime");
+            state
+                .threads
+                .write()
+                .await
+                .insert(source.thread_id, Arc::clone(&source.thread));
+            release_tx.send(()).expect("complete old cleanup");
+        });
+        result.expect("old cleanup confirmed");
+        assert!(Arc::ptr_eq(
+            &manager
+                .get_thread(source.thread_id)
+                .await
+                .expect("replacement remains registered"),
+            &source.thread
+        ));
+        control
+            .shutdown_live_agent(source.thread_id)
+            .await
+            .expect("normal confirmed shutdown can remove its own handle");
+        assert!(manager.get_thread(source.thread_id).await.is_err());
+    }
 }

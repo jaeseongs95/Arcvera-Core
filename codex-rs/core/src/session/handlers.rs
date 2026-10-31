@@ -695,6 +695,10 @@ pub(super) async fn submission_loop(
                     }
                     false
                 }
+                Op::ReplaceDynamicTools { tools, reply } => {
+                    let _ = reply.send(sess.replace_dynamic_tools(tools).await);
+                    false
+                }
                 Op::TurnSettings {
                     turn_id,
                     update,
@@ -810,6 +814,7 @@ pub(super) async fn submission_loop(
             );
             warn!("failed to shutdown thread persistence after submission channel closed: {err}");
         }
+        sess.cleanup_admission.shutdown_finished();
     }
     debug!("Agent loop exited");
 }

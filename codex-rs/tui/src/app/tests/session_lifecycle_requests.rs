@@ -1342,7 +1342,7 @@ async fn external_transport_registers_dynamic_tools_and_finds_task_mentions() ->
         assert_eq!(params["dynamicTools"][0]["name"], "codex_tui");
         assert_eq!(
             params["dynamicTools"][0]["tools"].as_array().map(Vec::len),
-            Some(7)
+            Some(8)
         );
         let tools = params["dynamicTools"][0]["tools"].as_array().unwrap();
         assert_eq!(
@@ -1358,13 +1358,16 @@ async fn external_transport_registers_dynamic_tools_and_finds_task_mentions() ->
             // Cron stays visible; existing non-delegation tools stay deferred.
             assert_eq!(
                 tool.get("deferLoading"),
-                (name != crate::cron_tools::NAME).then_some(&serde_json::Value::Bool(true))
+                (!crate::cron_tools::is_owned_tool(name)).then_some(&serde_json::Value::Bool(true))
             );
             let codex_app_server_protocol::DynamicToolNamespaceTool::Function(function) =
                 serde_json::from_value::<codex_app_server_protocol::DynamicToolNamespaceTool>(
                     tool.clone(),
                 )?;
-            assert_eq!(function.defer_loading, name != crate::cron_tools::NAME);
+            assert_eq!(
+                function.defer_loading,
+                !crate::cron_tools::is_owned_tool(name)
+            );
             assert!(!crate::dynamic_tools::DELEGATION_TOOLS.contains(&name));
         }
     }
@@ -1656,8 +1659,9 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
         .find(|server| server.name == "codex_tui")
         .expect("local daemon must connect to the TUI MCP server")
         .tools;
-    assert_eq!(tools.len(), 10);
+    assert_eq!(tools.len(), 11);
     assert!(tools.contains_key(crate::cron_tools::NAME));
+    assert!(tools.contains_key(crate::session_control::NAME));
     for tool in crate::dynamic_tools::DELEGATION_TOOLS {
         assert!(tools.contains_key(tool));
     }
@@ -1995,7 +1999,7 @@ async fn local_mcp_respects_configured_servers_and_managed_requirements() -> Res
         } else {
             assert_eq!(
                 start["dynamicTools"][0]["tools"].as_array().map(Vec::len),
-                Some(7)
+                Some(8)
             );
             assert!(start["config"]["mcp_servers.codex_tui"].is_null());
         }
@@ -2035,7 +2039,7 @@ async fn older_external_server_starts_without_unsupported_dynamic_tools_or_histo
 
     let starts = recorded_params(&requests, "thread/start");
     assert_eq!(starts.len(), 6);
-    for attempts in starts.as_chunks::<3>().0 {
+    for attempts in starts.chunks_exact(3) {
         assert_eq!(attempts[0]["dynamicTools"][0]["type"], "namespace");
         assert_eq!(attempts[0]["historyMode"], "paginated");
         assert_eq!(attempts[1]["dynamicTools"], serde_json::Value::Null);
@@ -2715,7 +2719,7 @@ async fn older_pagination_reconciles_review_prompts_across_page_boundaries() -> 
     let initial_cells = crate::thread_transcript::thread_items_to_transcript_cells(
         Some(thread_id),
         &app.config.cwd,
-        started.turns.iter().flat_map(|turn| turn.items.clone()),
+        started.turns.iter().flat_map(Turn::item_payloads).cloned(),
         crate::thread_transcript::RawReasoningVisibility::Hidden,
         Some(&app.config),
     );
@@ -2889,7 +2893,7 @@ async fn transcript_alt_beginning_loads_every_older_history_page() -> Result<()>
     let initial_cells = crate::thread_transcript::thread_items_to_transcript_cells(
         Some(thread_id),
         &app.config.cwd,
-        started.turns.iter().flat_map(|turn| turn.items.clone()),
+        started.turns.iter().flat_map(Turn::item_payloads).cloned(),
         crate::thread_transcript::RawReasoningVisibility::Hidden,
         Some(&app.config),
     );
@@ -3305,7 +3309,7 @@ async fn underfilled_scrollback_fetches_older_pages_without_opening_the_transcri
     let mut initial_cells = crate::thread_transcript::thread_items_to_transcript_cells(
         Some(thread_id),
         &app.config.cwd,
-        started.turns.iter().flat_map(|turn| turn.items.clone()),
+        started.turns.iter().flat_map(Turn::item_payloads).cloned(),
         crate::thread_transcript::RawReasoningVisibility::Hidden,
         Some(&app.config),
     );
@@ -3835,7 +3839,7 @@ async fn cold_paginated_subagent_transcript_excludes_inherited_parent_history() 
     let [child_entry] = child_item_page.data.as_slice() else {
         panic!("paginated subagent should expose exactly one child message");
     };
-    let ThreadItem::UserMessage { content, .. } = &child_entry.item else {
+    let ThreadItemPayload::UserMessage { content, .. } = &child_entry.item.payload else {
         panic!("paginated subagent should expose its child user message");
     };
     assert_eq!(resumed.session.thread_id, child_thread_id);
@@ -3851,9 +3855,9 @@ async fn cold_paginated_subagent_transcript_excludes_inherited_parent_history() 
         resumed
             .turns
             .iter()
-            .flat_map(|turn| turn.items.iter())
+            .flat_map(Turn::item_payloads)
             .collect::<Vec<_>>(),
-        vec![&child_entry.item],
+        vec![&child_entry.item.payload],
     );
 
     let cells = crate::thread_transcript::load_session_transcript(
@@ -5417,13 +5421,13 @@ async fn command_center_read_only_open_requests_and_failure_preservation() -> Re
             );
             assert!(viewed.turns.iter().all(|turn| {
                 turn.items.iter().any(|item| {
-                    matches!(item,
-                    ThreadItem::UserMessage { content, .. }
+                    matches!(&item.payload,
+                    ThreadItemPayload::UserMessage { content, .. }
                         if content.iter().any(|input| matches!(input,
                             UserInput::Text { text, .. } if text == "Locked task")))
                 }) && turn.items.iter().any(|item| {
-                    matches!(item,
-                        ThreadItem::AgentMessage { text, .. } if text == "Saved final answer")
+                    matches!(&item.payload,
+                        ThreadItemPayload::AgentMessage { text, .. } if text == "Saved final answer")
                 })
             }));
             assert!(

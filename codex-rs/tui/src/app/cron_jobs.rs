@@ -208,62 +208,51 @@ fn parse_add(args: &str, now: MonotonicInstant) -> Result<(Schedule, String), St
 }
 
 impl App {
-    pub(super) async fn handle_cron_tool_call(
+    pub(super) async fn claim_cli_tool_call(
         &mut self,
         app_server: &AppServerSession,
-        request: crate::cron_tools::Request,
-    ) {
+        request: &crate::cron_tools::Request,
+    ) -> Result<Option<ThreadId>, codex_app_server_protocol::DynamicToolCallResponse> {
         use std::sync::atomic::Ordering;
         let fail = |message| crate::dynamic_tools::failure_response(message);
-        let Ok(thread) = ThreadId::from_string(&request.params.thread_id) else {
-            let _ = request
-                .reply
-                .send(fail("호출 대화 식별자가 올바르지 않습니다."));
-            return;
-        };
+        let thread = ThreadId::from_string(&request.params.thread_id)
+            .map_err(|_| fail("호출 대화 식별자가 올바르지 않습니다."))?;
         if request.reply.is_closed() {
-            return;
+            return Ok(None);
         }
-        let current_connection = app_server.cron_tool_connection();
-        let available = request.connection.backend == current_connection.backend
-            && request.connection.id == current_connection.id
-            && request.connection.live.load(Ordering::Acquire)
-            && !self.reconnect.offline
-            && !self
+        let current = app_server.cron_tool_connection();
+        if request.connection.backend != current.backend
+            || request.connection.id != current.id
+            || !request.connection.live.load(Ordering::Acquire)
+            || self.reconnect.offline
+            || self
                 .cron
                 .closed_threads
                 .contains(&(request.connection.backend, thread))
-            && !self.abandoned_side_threads.contains(&thread)
-            && !self.temporary_structured_requests.contains_key(&thread)
-            && !self.thread_unavailable(thread)
-            && self.active_turn_id_for_thread(thread).await.as_deref()
-                == Some(request.params.turn_id.as_str());
-        if !available {
-            let _ = request.reply.send(fail("원래 호출 대화·활성 turn·연결이 종료되거나 바뀌었습니다. 예약을 변경하지 않았습니다."));
-            return;
+            || self.abandoned_side_threads.contains(&thread)
+            || self.temporary_structured_requests.contains_key(&thread)
+            || self.thread_unavailable(thread)
+            || self.active_turn_id_for_thread(thread).await.as_deref()
+                != Some(request.params.turn_id.as_str())
+        {
+            return Err(fail(
+                "원래 호출 대화·활성 turn·연결이 종료되거나 바뀌었습니다. 요청을 실행하지 않았습니다.",
+            ));
         }
-        let key = (
-            request.connection.backend,
-            request.connection.id,
-            thread,
-            request.params.turn_id.clone(),
-            request.params.call_id.clone(),
-        );
-        if let Some((command, response)) = self.cron.model_calls.get(&key) {
-            let response = if command == &request.command {
-                response.clone()
-            } else {
-                fail("동일 호출 식별자에 다른 요청을 사용할 수 없습니다.")
-            };
-            let _ = request.reply.send(response);
-            return;
+        if let Some((command, response)) = self.cron.model_calls.get(&request.key(thread)) {
+            if command != &request.command {
+                return Err(fail("동일 호출 식별자에 다른 요청을 사용할 수 없습니다."));
+            }
+            if !crate::session_control::is_read_only_command(command) {
+                return Err(response.clone());
+            }
         }
         if self.cron.model_calls.len() >= MAX_MODEL_CALLS {
-            let _ = request.reply.send(fail("동시 활성 호출 기록 한도에 도달했습니다. 이전 요청을 다시 등록하지 말고 turn 종료 후 확인하세요."));
-            return;
+            return Err(fail(
+                "동시 활성 호출 기록 한도에 도달했습니다. 이전 요청을 다시 실행하지 말고 turn 종료 후 확인하세요.",
+            ));
         }
-        // Cancellation before this claim wins. After it, a lost reply is an unknown
-        // outcome, not permission to replay the same mutation.
+        // Cancellation before this claim wins. A lost reply after it never permits replay.
         if request.reply.is_closed()
             || request.cancellation.is_cancelled()
             || request
@@ -273,8 +262,25 @@ impl App {
             || request.cancellation.is_cancelled()
             || !request.connection.live.load(Ordering::Acquire)
         {
-            return;
+            return Ok(None);
         }
+        Ok(Some(thread))
+    }
+
+    pub(super) async fn handle_cron_tool_call(
+        &mut self,
+        app_server: &AppServerSession,
+        request: crate::cron_tools::Request,
+    ) {
+        let thread = match self.claim_cli_tool_call(app_server, &request).await {
+            Ok(Some(thread)) => thread,
+            Ok(None) => return,
+            Err(response) => {
+                let _ = request.reply.send(response);
+                return;
+            }
+        };
+        let key = request.key(thread);
         let response = match self
             .cron_command_scoped(app_server, Some(thread), &request.command, true)
             .await
@@ -1790,7 +1796,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn model_cron_native_roundtrip_registers_and_survives_resume() -> color_eyre::Result<()> {
+    async fn model_cron_native_roundtrip_lists_and_resumes_existing_job() -> color_eyre::Result<()>
+    {
         use app_test_support::{
             MockResponsesConfig, create_final_assistant_message_sse_response,
             create_mock_responses_server_sequence_unchecked,
@@ -1800,19 +1807,44 @@ mod tests {
         use codex_utils_absolute_path::test_support::PathExt;
         use core_test_support::responses;
         let mut responses = Vec::new();
-        for (id, arguments) in [
+        for (id, tool, arguments) in [
             (
                 "model-cron-add",
+                crate::cron_tools::NAME,
                 serde_json::json!({"action":"add","every":"5m","prompt":"주기 확인"}),
             ),
-            ("model-cron-list", serde_json::json!({"action":"list"})),
+            (
+                "model-cron-pause",
+                crate::cron_tools::NAME,
+                serde_json::json!({"action":"pause","id":1}),
+            ),
+            (
+                "model-cron-list-paused",
+                crate::cron_tools::NAME,
+                serde_json::json!({"action":"list"}),
+            ),
+            (
+                "model-cron-resume",
+                crate::cron_tools::NAME,
+                serde_json::json!({"action":"resume","id":1}),
+            ),
+            (
+                "model-cron-list-resumed",
+                crate::cron_tools::NAME,
+                serde_json::json!({"action":"list"}),
+            ),
+            (
+                "model-session-status",
+                crate::session_control::NAME,
+                serde_json::json!({"action":"status"}),
+            ),
         ] {
             responses.push(responses::sse(vec![
                 responses::ev_response_created(id),
                 responses::ev_function_call_with_namespace(
                     id,
                     crate::dynamic_tools::NAMESPACE,
-                    crate::cron_tools::NAME,
+                    tool,
                     &arguments.to_string(),
                 ),
                 responses::ev_completed(id),
@@ -1855,8 +1887,16 @@ mod tests {
         app.enqueue_primary_thread_session(started.session, started.turns)
             .await?;
         let mut tui = crate::tui::test_support::make_test_tui()?;
-        for round in 0..2 {
-            if round == 1 {
+        let prompts = [
+            "5분마다 주기 확인을 실행하도록 cron 걸어줘",
+            "예약 잠시 멈춰줘",
+            "등록된 예약 목록을 보여줘",
+            "너한테 걸려있던 예약작업 다시 걸어줘",
+            "재개한 예약을 확인해줘",
+            "메모리·문맥·속도 설정 기능을 확인해줘",
+        ];
+        for (round, prompt) in prompts.into_iter().enumerate() {
+            if round == 2 {
                 let resumed = session
                     .resume_thread(
                         &app.local_settings,
@@ -1874,12 +1914,7 @@ mod tests {
                     params: codex_app_server_protocol::TurnStartParams {
                         thread_id: caller.to_string(),
                         input: vec![codex_app_server_protocol::UserInput::Text {
-                            text: if round == 0 {
-                                "5분마다 주기 확인을 실행하도록 cron 걸어줘"
-                            } else {
-                                "등록된 예약 목록을 보여줘"
-                            }
-                            .into(),
+                            text: prompt.into(),
                             text_elements: Vec::new(),
                         }],
                         ..Default::default()
@@ -1901,7 +1936,9 @@ mod tests {
                 Ok::<_, color_eyre::Report>(())
             }).await??;
             assert_eq!(app.cron.scheduler.jobs.len(), 1);
+            assert_eq!(app.cron.scheduler.jobs[0].id, 1);
             assert_eq!(app.cron.scheduler.jobs[0].target.thread, caller);
+            assert_eq!(app.cron.scheduler.jobs[0].paused, matches!(round, 1 | 2));
             assert_eq!(
                 app.cron.scheduler.jobs[0].interval,
                 Some(Duration::from_secs(300))
@@ -1913,7 +1950,7 @@ mod tests {
             .iter()
             .filter(|request| request.url.path().ends_with("/responses"))
             .collect();
-        assert_eq!(requests.len(), 4);
+        assert_eq!(requests.len(), 12);
         let first: serde_json::Value = serde_json::from_slice(&requests[0].body)?;
         assert!(
             first["input"]
@@ -1922,13 +1959,38 @@ mod tests {
         );
         let tools = first["tools"].to_string();
         assert!(tools.contains("cron"));
-        assert!(tools.contains("자연어로 '5분마다 확인해줘'"));
+        assert!(tools.contains(crate::session_control::NAME));
+        assert!(tools.contains("너한테 걸려있던 예약작업 다시 걸어줘"));
+        assert!(tools.contains("대상 id에 resume을 호출하세요"));
         assert!(tools.contains("다른 스케줄러 등록으로 대체하지 마세요"));
         assert!(!tools.contains("list_threads"));
         let registered: serde_json::Value = serde_json::from_slice(&requests[1].body)?;
         assert!(registered["input"].to_string().contains("예약 #1 등록"));
-        let listed: serde_json::Value = serde_json::from_slice(&requests[3].body)?;
-        assert!(listed["input"].to_string().contains("#1 thread="));
+        for (request_index, call_id, paused) in [
+            (5, "model-cron-list-paused", true),
+            (9, "model-cron-list-resumed", false),
+        ] {
+            let listed: serde_json::Value = serde_json::from_slice(&requests[request_index].body)?;
+            let output = listed["input"]
+                .as_array()
+                .expect("model input")
+                .iter()
+                .find(|item| item["type"] == "function_call_output" && item["call_id"] == call_id)
+                .expect("caller-scoped list output")["output"]
+                .to_string();
+            assert!(output.contains("#1 thread="));
+            assert_eq!(output.contains("일시중지"), paused);
+        }
+        let status: serde_json::Value = serde_json::from_slice(&requests[11].body)?;
+        assert!(
+            status["input"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|item| item["type"] == "function_call_output"
+                    && item["call_id"] == "model-session-status"
+                    && item["output"].to_string().contains("supportedServiceTiers"))
+        );
         app.cron.stop();
         session.shutdown().await?;
         Ok(())

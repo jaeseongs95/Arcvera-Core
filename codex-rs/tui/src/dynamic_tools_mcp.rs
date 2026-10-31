@@ -348,7 +348,7 @@ impl ServerHandler for DynamicToolMcpHandler {
                 Value::String(value) => serde_json::from_str(value).ok(),
                 _ => None,
             });
-        if request.name == crate::cron_tools::NAME {
+        if crate::cron_tools::is_owned_tool(&request.name) {
             for (direct, nested) in [("threadId", "thread_id"), ("turnId", "turn_id")] {
                 let direct_value = metadata.get(direct).and_then(Value::as_str);
                 let nested_value = turn_metadata
@@ -373,7 +373,7 @@ impl ServerHandler for DynamicToolMcpHandler {
                     .is_none_or(str::is_empty)
             {
                 return Err(McpError::invalid_params(
-                    "예약에는 실제 turn·call 메타데이터가 필요합니다.",
+                    "로컬 제어에는 실제 turn·call 메타데이터가 필요합니다.",
                     None,
                 ));
             }
@@ -415,13 +415,13 @@ impl ServerHandler for DynamicToolMcpHandler {
             .ok_or_else(|| {
                 McpError::internal_error("TUI is reconnecting; tool was not sent", None)
             })?;
-        let response = if params.tool == crate::cron_tools::NAME {
+        let response = if crate::cron_tools::is_owned_tool(&params.tool) {
             let connection = cron.ok_or_else(|| {
-                McpError::invalid_params("예약 도구가 이 연결에서 제공되지 않습니다.", None)
+                McpError::invalid_params("로컬 제어 도구가 이 연결에서 제공되지 않습니다.", None)
             })?;
             tokio::select! {
                 response = crate::cron_tools::execute(connection, request_handle, params, &app_event_tx, context.ct.clone()) => response,
-                _ = context.ct.cancelled() => dynamic_tools::failure_response("예약 요청이 중단되었습니다. 결과가 불명확하면 list로 확인하세요."),
+                _ = context.ct.cancelled() => dynamic_tools::failure_response("로컬 제어 요청이 중단되었습니다. 결과가 불명확하면 해당 설정을 조회하고 자동 재전송하지 마세요."),
             }
         } else if matches!(
             params.tool.as_str(),

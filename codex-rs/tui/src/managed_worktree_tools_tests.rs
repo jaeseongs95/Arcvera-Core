@@ -104,6 +104,7 @@ async fn start_server(
         names,
         vec![
             "cron",
+            "session_control",
             "create_worktree",
             "get_worktree_creation_status",
             "list_worktrees"

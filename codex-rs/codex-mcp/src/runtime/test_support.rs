@@ -57,6 +57,7 @@ impl McpRuntime {
                 is_authentication_required: false,
                 is_ema_authentication_required: false,
                 is_termination_unconfirmed: true,
+                shutdown: None,
             })
         }
         .boxed()
@@ -66,6 +67,7 @@ impl McpRuntime {
             "unconfirmed-startup",
             AsyncManagedClient {
                 ema_authority: None,
+                connection_slot: None,
                 client,
                 is_codex_apps_mcp_server: false,
                 server_capabilities: Arc::new(Mutex::new(None)),

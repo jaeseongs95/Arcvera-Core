@@ -99,6 +99,7 @@ pub(super) async fn suspend_turn_and_shutdown(
     live_thread.shutdown().await.map_err(|error| {
         CodexErr::Fatal(format!("close suspended root turn writer failed: {error}"))
     })?;
+    session.cleanup_admission.shutdown_finished();
     // Announce completion only after extension cleanup and writer closure so a
     // replacement worker cannot write the same thread concurrently.
     session

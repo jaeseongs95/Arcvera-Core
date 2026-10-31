@@ -18,8 +18,8 @@ impl ChatWidget {
         self.restore_reasoning_status_header();
     }
 
-    pub(super) fn on_command_execution_started(&mut self, item: ThreadItem) {
-        let ThreadItem::CommandExecution {
+    pub(super) fn on_command_execution_started(&mut self, item: ThreadItemPayload) {
+        let ThreadItemPayload::CommandExecution {
             id,
             command,
             process_id,
@@ -141,8 +141,8 @@ impl ChatWidget {
         }
     }
 
-    pub(super) fn on_command_execution_completed(&mut self, item: ThreadItem) {
-        let ThreadItem::CommandExecution {
+    pub(super) fn on_command_execution_completed(&mut self, item: ThreadItemPayload) {
+        let ThreadItemPayload::CommandExecution {
             id,
             process_id,
             source,
@@ -249,11 +249,11 @@ impl ChatWidget {
         }
     }
 
-    pub(crate) fn handle_command_execution_started_now(&mut self, item: ThreadItem) {
+    pub(crate) fn handle_command_execution_started_now(&mut self, item: ThreadItemPayload) {
         let bytes = crate::history_window::payload_bytes(&item)
             .unwrap_or(crate::history_window::MAX_HISTORY_BYTES + 1);
         self.prepare_active_display_item(bytes);
-        let ThreadItem::CommandExecution {
+        let ThreadItemPayload::CommandExecution {
             id,
             command,
             source,
@@ -332,7 +332,7 @@ impl ChatWidget {
     /// standalone history entry instead of replacing or flushing the unrelated active exploring
     /// cell. If this method treated every unknown end as "complete the active cell", the UI could
     /// merge unrelated commands and hide still-running exploring work.
-    pub(crate) fn handle_command_execution_completed_now(&mut self, item: ThreadItem) {
+    pub(crate) fn handle_command_execution_completed_now(&mut self, item: ThreadItemPayload) {
         let bytes = crate::history_window::payload_bytes(&item)
             .unwrap_or(crate::history_window::MAX_HISTORY_BYTES + 1);
         self.prepare_active_display_item(bytes);
@@ -346,7 +346,7 @@ impl ChatWidget {
             NewCell,
         }
 
-        let ThreadItem::CommandExecution {
+        let ThreadItemPayload::CommandExecution {
             id,
             command,
             process_id: _,

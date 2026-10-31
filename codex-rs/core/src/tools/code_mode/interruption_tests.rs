@@ -26,12 +26,13 @@ impl CodeModeSession for RecordingSession {
         request: codex_code_mode::WaitRequest,
         _preempt: Option<CancellationToken>,
     ) -> codex_code_mode::CodeModeSessionResultFuture<'a, codex_code_mode::WaitOutcome> {
-        self.terminate(request.cell_id)
+        self.terminate(request.cell_id.into())
     }
     fn terminate<'a>(
         &'a self,
-        cell_id: CellId,
+        request: codex_code_mode::TerminateRequest,
     ) -> codex_code_mode::CodeModeSessionResultFuture<'a, codex_code_mode::WaitOutcome> {
+        let cell_id = request.cell_id;
         self.0.lock().unwrap().push(cell_id.clone());
         Box::pin(async move {
             Ok(codex_code_mode::WaitOutcome::MissingCell(

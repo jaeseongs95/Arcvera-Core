@@ -2027,8 +2027,14 @@ async fn websocket_rate_limit_without_retry_after_is_terminal() -> Result<()> {
 }
 
 /// An exhausted capacity budget remains terminal when advice stops; no transport switch.
+#[test_case::test_case("policy_capacity_unavailable", "server_is_overloaded", CodexErrorInfo::ServerOverloaded; "prior_policy_failure_stays_on_its_attempt")]
+#[test_case::test_case("server_is_overloaded", "policy_capacity_unavailable", CodexErrorInfo::PolicyCapacityUnavailable; "terminal_policy_failure_is_preserved")]
 #[tokio::test(flavor = "current_thread")]
-async fn websocket_capacity_budget_does_not_fall_back() -> Result<()> {
+async fn websocket_capacity_budget_does_not_fall_back(
+    first_code: &str,
+    last_code: &str,
+    expected_error: CodexErrorInfo,
+) -> Result<()> {
     skip_if_no_network!(Ok(()));
 
     let mut telemetry = RetryTelemetryCapture::install();
@@ -2042,7 +2048,7 @@ async fn websocket_capacity_budget_does_not_fall_back() -> Result<()> {
                 "type": "error",
                 "status": 503,
                 "error": {
-                    "code": "server_is_overloaded",
+                    "code": first_code,
                     "message": "This model is disabled.",
                     "headers": { "Retry-After": "1" }
                 }
@@ -2061,7 +2067,7 @@ async fn websocket_capacity_budget_does_not_fall_back() -> Result<()> {
         vec![vec![json!({
             "type": "error",
             "status": 503,
-            "error": {"code": "server_is_overloaded", "message": "This model is disabled."}
+            "error": {"code": last_code, "message": "This model is disabled."}
         })]],
     ])
     .await;
@@ -2097,13 +2103,14 @@ async fn websocket_capacity_budget_does_not_fall_back() -> Result<()> {
         match wait_for_event(&test.codex, |_| true).await {
             EventMsg::Error(error) => {
                 error_events += 1;
-                assert_eq!(
-                    error.codex_error_info,
-                    Some(CodexErrorInfo::ServerOverloaded)
-                );
+                assert_eq!(error.codex_error_info, Some(expected_error.clone()));
                 assert_eq!(
                     error.message,
-                    "Selected model is at capacity. Please try a different model."
+                    if last_code == "policy_capacity_unavailable" {
+                        "Policy-restricted capacity is unavailable. Please try again later."
+                    } else {
+                        "Selected model is at capacity. Please try a different model."
+                    }
                 );
             }
             EventMsg::StreamError(_) => stream_error_events += 1,
@@ -2115,7 +2122,7 @@ async fn websocket_capacity_budget_does_not_fall_back() -> Result<()> {
             EventMsg::TurnComplete(event) => {
                 assert_eq!(
                     event.error.and_then(|error| error.codex_error_info),
-                    Some(CodexErrorInfo::ServerOverloaded)
+                    Some(expected_error.clone())
                 );
                 break;
             }
