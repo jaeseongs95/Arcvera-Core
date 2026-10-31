@@ -395,7 +395,6 @@ pub struct ThreadResumeParams {
     /// Exact previous host specs eligible for replacement; unknown collisions are rejected.
     #[experimental("thread/resume.runtimeDynamicTools")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(optional)]
     pub previous_runtime_dynamic_tools: Vec<DynamicToolSpec>,
     /// Refresh an already-loaded runtime without history, lifecycle, or pending-call replay.
     #[experimental("thread/resume.runtimeDynamicTools")]
