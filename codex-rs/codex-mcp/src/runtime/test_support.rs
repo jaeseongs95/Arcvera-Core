@@ -85,6 +85,7 @@ impl McpRuntime {
             auth: previous.auth.clone(),
             auth_token: previous.auth_token.clone(),
             auth_manager: previous.auth_manager.clone(),
+            auth_owner: previous.auth_owner,
             auth_generation: Arc::clone(&previous.auth_generation),
             plugins_available: previous.plugins_available,
             ready_selected_capability_roots: previous.ready_selected_capability_roots.clone(),
