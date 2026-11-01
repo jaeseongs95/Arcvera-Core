@@ -214,6 +214,7 @@ async fn boundary_child() -> anyhow::Result<()> {
             }
         };
         let request = request()?;
+        let mut rejected_usage = 0;
         for previous in [None, Some("resp_ws_full".to_string())] {
             let mut ws_request = ResponseCreateWsRequest::from(&request);
             ws_request.previous_response_id = previous.clone();
@@ -225,18 +226,26 @@ async fn boundary_child() -> anyhow::Result<()> {
                 )
                 .await?;
             while let Some(event) = stream.next().await {
-                if matches!(event?, ResponseEvent::Completed { .. }) {
-                    completed += 1;
+                match event {
+                    Ok(ResponseEvent::Completed { .. }) => completed += 1,
+                    Ok(_) => {},
+                    Err(error) if previous.is_some()
+                        && error.to_string().contains("missing field `cached_tokens`") => {
+                        // Raw presence must survive the existing protocol rejection;
+                        // missing usage must not become a successful zero-token response.
+                        rejected_usage += 1;
+                    },
+                    Err(error) => return Err(error.into()),
                 }
             }
         }
         server.await??;
-        Ok::<_, anyhow::Error>(completed)
+        Ok::<_, anyhow::Error>((completed, rejected_usage))
     }
     .with_subscriber(dispatch);
     assert_eq!(
         tokio::time::timeout(Duration::from_secs(20), received).await??,
-        3
+        (2, 1)
     );
     drop(guard);
     let spool = home.path().join("log/cli-batches");
