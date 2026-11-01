@@ -1,5 +1,8 @@
 //! Content-free tracing batches. The producer never performs filesystem I/O.
 //! Completed local batches are copied once to an optional streaming-drive path.
+use crate::cache_diagnostics::CacheMode;
+#[cfg(test)]
+use crate::cache_diagnostics::Settings as CacheSettings;
 use chrono::Local;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
@@ -23,7 +26,10 @@ const QUEUE: usize = 4096;
 const MAX_EVENT: usize = 4096;
 
 fn cache_metadata(metadata: &tracing::Metadata<'_>) -> bool {
-    metadata.target() == "codex_api::prompt_cache" && *metadata.level() == tracing::Level::DEBUG
+    matches!(
+        metadata.target(),
+        "codex_api::prompt_cache" | "codex_api::prompt_cache_wire"
+    ) && *metadata.level() == tracing::Level::DEBUG
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -37,7 +43,6 @@ pub struct Settings {
     pub rpc: bool,
     pub events: bool,
     pub process: bool,
-    pub prompt_cache: bool,
 }
 
 impl Default for Settings {
@@ -51,7 +56,6 @@ impl Default for Settings {
             rpc: true,
             events: true,
             process: true,
-            prompt_cache: false,
         }
     }
 }
@@ -96,6 +100,24 @@ pub struct BatchLayer {
     sender: SyncSender<Command>,
     counters: Arc<Counters>,
     settings: Settings,
+    run: Arc<RunContext>,
+}
+
+#[derive(serde::Serialize)]
+struct RunContext {
+    instance_id: String,
+    producer_version: &'static str,
+    cache: CacheMode,
+}
+
+impl RunContext {
+    fn new(cache: CacheMode) -> Self {
+        Self {
+            instance_id: Uuid::new_v4().to_string(),
+            producer_version: env!("CARGO_PKG_VERSION"),
+            cache,
+        }
+    }
 }
 
 enum Command {
@@ -127,19 +149,33 @@ pub fn start(home: &Path) -> io::Result<(Option<BatchLayer>, Option<Guard>)> {
     let file = home.join("cli-logging.toml");
     let text = match fs::read_to_string(file) {
         Ok(text) => text,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok((None, None)),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => String::new(),
         Err(e) => return Err(e),
     };
     let settings: Settings =
         toml::from_str(&text).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let mode = crate::cache_diagnostics::initialize(home, settings.enabled)?;
     if !settings.enabled {
         return Ok((None, None));
     }
-    start_with(home.join("log").join("cli-batches"), settings)
+    start_with_mode(home.join("log").join("cli-batches"), settings, mode)
         .map(|(layer, guard)| (Some(layer), Some(guard)))
 }
 
+#[cfg(test)]
 fn start_with(spool: PathBuf, settings: Settings) -> io::Result<(BatchLayer, Guard)> {
+    start_with_mode(
+        spool,
+        settings,
+        CacheMode::resolve(false, CacheSettings::default(), false),
+    )
+}
+
+fn start_with_mode(
+    spool: PathBuf,
+    settings: Settings,
+    mode: CacheMode,
+) -> io::Result<(BatchLayer, Guard)> {
     settings.validate(&spool)?;
     fs::create_dir_all(&spool)?;
     let (sender, receiver) = mpsc::sync_channel(QUEUE);
@@ -150,6 +186,8 @@ fn start_with(spool: PathBuf, settings: Settings) -> io::Result<(BatchLayer, Gua
     let writer_spool = spool.clone();
     let writer_counters = counters.clone();
     let writer_stopping = stop_export.clone();
+    let run = Arc::new(RunContext::new(mode));
+    let writer_run = run.clone();
     thread::Builder::new()
         .name("cli-log-buffer".into())
         .spawn(move || {
@@ -159,6 +197,7 @@ fn start_with(spool: PathBuf, settings: Settings) -> io::Result<(BatchLayer, Gua
                 &writer_settings,
                 &writer_counters,
                 &writer_stopping,
+                &writer_run,
             );
             let _ = finished_tx.send(());
         })?;
@@ -188,7 +227,12 @@ fn start_with(spool: PathBuf, settings: Settings) -> io::Result<(BatchLayer, Gua
         sender: sender.clone(),
         counters,
         settings,
+        run,
     };
+    layer.submit(
+        json!({"kind":"diagnostic_start", "at":Local::now().to_rfc3339(),
+        "pid":std::process::id(), "run":&*layer.run}),
+    );
     Ok((
         layer,
         Guard {
@@ -204,17 +248,27 @@ impl BatchLayer {
     pub fn metadata_filter(
         &self,
     ) -> impl Fn(&tracing::Metadata<'_>) -> bool + Send + Sync + 'static {
-        let prompt_cache = self.settings.prompt_cache;
+        let mode = self.run.cache;
         move |metadata| {
             if cache_metadata(metadata) {
-                prompt_cache
+                if metadata.target() == "codex_api::prompt_cache_wire" {
+                    mode.wire_enabled
+                } else {
+                    mode.response_enabled
+                }
             } else {
                 metadata.target().starts_with("codex") && *metadata.level() <= tracing::Level::INFO
             }
         }
     }
 
-    fn submit(&self, value: Value) {
+    fn submit(&self, mut value: Value) {
+        if let Some(fields) = value.as_object_mut() {
+            fields.insert(
+                "instance_id".into(),
+                self.run.instance_id.to_string().into(),
+            );
+        }
         let Ok(mut bytes) = serde_json::to_vec(&value) else {
             return;
         };
@@ -225,8 +279,55 @@ impl BatchLayer {
     }
 }
 
+#[derive(Clone, Copy, Default, PartialEq)]
+enum FieldPolicy {
+    #[default]
+    General,
+    Response,
+    Wire,
+}
+
 #[derive(Default)]
-struct SafeFields(Map<String, Value>, bool);
+struct SafeFields(Map<String, Value>, FieldPolicy);
+
+fn wire_hash(name: &str) -> bool {
+    matches!(
+        name,
+        "model_hash"
+            | "tier_hash"
+            | "cache_key_hash"
+            | "tools_hash"
+            | "wire_input_hash"
+            | "controls_hash"
+            | "metadata_hash"
+            | "previous_response_hash"
+            | "upstream_request_hash"
+            | "returned_model_hash"
+            | "returned_tier_hash"
+    )
+}
+
+fn wire_label(name: &str, value: &str) -> bool {
+    match name {
+        "transport" => matches!(value, "http" | "websocket"),
+        "mode" => matches!(value, "full" | "delta"),
+        "logical_prefix" => value == "unknown",
+        "stage" => matches!(
+            value,
+            "transport_error"
+                | "send_error"
+                | "sent"
+                | "stream_opened"
+                | "created"
+                | "completed"
+                | "incomplete"
+                | "failed"
+                | "abandoned_before_terminal"
+        ),
+        "response_id" => cache_label(name, value),
+        _ => false,
+    }
+}
 
 fn cache_label(name: &str, value: &str) -> bool {
     match name {
@@ -264,42 +365,76 @@ fn cache_label(name: &str, value: &str) -> bool {
 impl Visit for SafeFields {
     fn record_str(&mut self, field: &Field, value: &str) {
         let name = field.name();
-        if self.1 && cache_label(name, value) {
+        if (self.1 == FieldPolicy::Response && cache_label(name, value))
+            || (self.1 == FieldPolicy::Wire && wire_label(name, value))
+        {
             self.0.insert(name.into(), value.into());
-        } else if name == "rpc.method"
+        } else if self.1 == FieldPolicy::General
+            && name == "rpc.method"
             && value.len() <= 128
             && value
                 .bytes()
                 .all(|b| b.is_ascii_alphanumeric() || b"/._-".contains(&b))
         {
             self.0.insert(name.into(), value.into());
-        } else if matches!(
-            name,
-            "thread_id" | "turn_id" | "rpc.request_id" | "thread.id" | "turn.id"
-        ) && (Uuid::parse_str(value).is_ok() || value.parse::<u64>().is_ok())
+        } else if self.1 == FieldPolicy::General
+            && matches!(
+                name,
+                "thread_id" | "turn_id" | "rpc.request_id" | "thread.id" | "turn.id"
+            )
+            && (Uuid::parse_str(value).is_ok() || value.parse::<u64>().is_ok())
         {
             self.0.insert(name.into(), value.into());
         }
     }
     fn record_u64(&mut self, field: &Field, value: u64) {
-        if numeric_field(field.name())
-            || (self.1 && matches!(field.name(), "cached_tokens" | "cache_write_tokens"))
+        if (self.1 == FieldPolicy::General && numeric_field(field.name()))
+            || (self.1 == FieldPolicy::Response
+                && matches!(
+                    field.name(),
+                    "input_tokens" | "cached_tokens" | "cache_write_tokens"
+                ))
+            || (self.1 == FieldPolicy::Wire
+                && matches!(field.name(), "wire_ordinal" | "input_items" | "input_bytes"))
         {
             self.0.insert(field.name().into(), value.into());
         }
     }
     fn record_i64(&mut self, field: &Field, value: i64) {
-        if numeric_field(field.name()) {
+        if self.1 == FieldPolicy::General && numeric_field(field.name()) {
+            self.0.insert(field.name().into(), value.into());
+        }
+    }
+    fn record_bool(&mut self, field: &Field, value: bool) {
+        if self.1 == FieldPolicy::Wire
+            && matches!(
+                field.name(),
+                "warmup"
+                    | "connection_reused"
+                    | "tier_present"
+                    | "cache_key_present"
+                    | "tools_present"
+                    | "metadata_present"
+            )
+        {
             self.0.insert(field.name().into(), value.into());
         }
     }
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         // Official RPC spans use `%id`. Only allowlisted, bounded UUID/numeric
         // IDs may cross this visitor; never format arbitrary payload fields.
-        if matches!(
-            field.name(),
-            "rpc.request_id" | "thread_id" | "turn_id" | "thread.id" | "turn.id"
-        ) {
+        if (self.1 == FieldPolicy::General
+            && matches!(
+                field.name(),
+                "rpc.request_id" | "thread_id" | "turn_id" | "thread.id" | "turn.id"
+            ))
+            || (self.1 == FieldPolicy::Wire && wire_hash(field.name()))
+            || (self.1 == FieldPolicy::Response
+                && matches!(
+                    field.name(),
+                    "input_tokens" | "cached_tokens" | "cache_write_tokens"
+                ))
+        {
             struct Limited(String);
             impl std::fmt::Write for Limited {
                 fn write_str(&mut self, value: &str) -> std::fmt::Result {
@@ -312,7 +447,30 @@ impl Visit for SafeFields {
             }
             let mut text = Limited(String::new());
             if std::fmt::write(&mut text, format_args!("{value:?}")).is_ok() {
-                self.record_str(field, text.0.trim_matches('"'));
+                if self.1 != FieldPolicy::General {
+                    // Existing producers use ?Option<u64>. Encode hashes as
+                    // fixed-width hex text so JavaScript readers cannot round them.
+                    let value = if text.0 == "None" {
+                        (self.1 == FieldPolicy::Wire).then_some(Value::Null)
+                    } else {
+                        text.0
+                            .strip_prefix("Some(")
+                            .and_then(|s| s.strip_suffix(')'))
+                            .and_then(|s| s.parse::<u64>().ok())
+                            .map(|n| {
+                                if self.1 == FieldPolicy::Wire {
+                                    Value::String(format!("{n:016x}"))
+                                } else {
+                                    Value::from(n)
+                                }
+                            })
+                    };
+                    if let Some(value) = value {
+                        self.0.insert(field.name().into(), value);
+                    }
+                } else {
+                    self.record_str(field, text.0.trim_matches('"'));
+                }
             }
         }
     }
@@ -391,7 +549,11 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for BatchLayer {
         let meta = event.metadata();
         let cache = cache_metadata(meta);
         let allowed = if cache {
-            self.settings.prompt_cache
+            if meta.target() == "codex_api::prompt_cache_wire" {
+                self.run.cache.wire_enabled
+            } else {
+                self.run.cache.response_enabled
+            }
         } else {
             self.settings.events
                 && meta.target().starts_with("codex")
@@ -400,7 +562,14 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for BatchLayer {
         if !allowed {
             return;
         }
-        let mut fields = SafeFields(Map::new(), cache);
+        let policy = if !cache {
+            FieldPolicy::General
+        } else if meta.target() == "codex_api::prompt_cache_wire" {
+            FieldPolicy::Wire
+        } else {
+            FieldPolicy::Response
+        };
+        let mut fields = SafeFields(Map::new(), policy);
         event.record(&mut fields);
         let span = ctx.event_span(event).map(|s| s.id().into_u64());
         self.submit(
@@ -424,6 +593,7 @@ fn writer(
     settings: &Settings,
     counters: &Counters,
     stopping: &AtomicBool,
+    run: &RunContext,
 ) {
     let mut buffer = Vec::new();
     let mut last_flush = Instant::now();
@@ -458,6 +628,7 @@ fn writer(
                 .map(|v| (v.name.into(), v.value.into()))
                 .collect();
             let row = json!({"kind":"process", "at":Local::now().to_rfc3339(), "pid":snapshot.process.id,
+                "instance_id":run.instance_id,
                 "resident_memory_bytes":snapshot.process.resident_memory_bytes, "gauges":gauges,
                 "collector":counters_value(counters)});
             if let Ok(mut bytes) = serde_json::to_vec(&row) {
@@ -476,7 +647,7 @@ fn writer(
             || last_flush.elapsed() >= Duration::from_secs(settings.flush_seconds)
         {
             if !buffer.is_empty() {
-                match write_batch(spool, &buffer, counters) {
+                match write_batch_for_run(spool, &buffer, counters, run) {
                     Ok(_) => buffer.clear(),
                     Err(error) => {
                         counters.local_failures.fetch_add(1, Ordering::Relaxed);
@@ -495,7 +666,22 @@ fn writer(
     }
 }
 
+#[cfg(test)]
 fn write_batch(root: &Path, bytes: &[u8], counters: &Counters) -> io::Result<PathBuf> {
+    write_batch_for_run(
+        root,
+        bytes,
+        counters,
+        &RunContext::new(CacheMode::resolve(false, CacheSettings::default(), false)),
+    )
+}
+
+fn write_batch_for_run(
+    root: &Path,
+    bytes: &[u8],
+    counters: &Counters,
+    run: &RunContext,
+) -> io::Result<PathBuf> {
     let now = Local::now();
     let date = root.join(now.format("%Y%m%d").to_string());
     fs::create_dir_all(&date)?;
@@ -521,7 +707,7 @@ fn write_batch(root: &Path, bytes: &[u8], counters: &Counters) -> io::Result<Pat
         file.write_all(bytes)?;
         serde_json::to_writer(
             &mut file,
-            &json!({"kind":"batch_summary","collector":counters_value(counters)}),
+            &json!({"kind":"batch_summary","run":run,"collector":counters_value(counters)}),
         )?;
         file.write_all(b"\n")?;
         file.sync_all()?;
@@ -659,6 +845,11 @@ mod tests {
         let layer = BatchLayer {
             sender,
             counters: counters.clone(),
+            run: Arc::new(RunContext::new(CacheMode::resolve(
+                false,
+                CacheSettings::default(),
+                false,
+            ))),
             settings: Settings {
                 enabled: true,
                 ..Settings::default()
@@ -759,8 +950,15 @@ mod tests {
         let layer = BatchLayer {
             sender,
             counters: Arc::new(Counters::default()),
+            run: Arc::new(RunContext::new(CacheMode::resolve(
+                true,
+                CacheSettings {
+                    response: enabled,
+                    wire: enabled,
+                },
+                enabled,
+            ))),
             settings: Settings {
-                prompt_cache: enabled,
                 rpc: false,
                 events: false,
                 process: false,
@@ -830,6 +1028,63 @@ mod tests {
     }
 
     #[test]
+    fn actual_option_fields_keep_counts_and_full_width_hashes() {
+        let rows = cache_events(true, || {
+            tracing::debug!(target: "codex_api::prompt_cache",
+                input_tokens = ?Some(2048_u64), cached_tokens = ?Some(0_u64),
+                cache_write_tokens = ?None::<u64>);
+            tracing::debug!(target: "codex_api::prompt_cache_wire",
+                model_hash = ?Some(u64::MAX), tier_hash = ?None::<u64>,
+                wire_ordinal = 1_u64, input_items = 2_usize, input_bytes = 512_u64,
+                transport = "websocket", mode = "delta", stage = "sent",
+                warmup = false, connection_reused = true, cache_key_present = true,
+                prompt = "PRIVATE_PROMPT");
+        });
+        assert_eq!(rows.len(), 2);
+        assert_eq!(
+            rows[0]["fields"],
+            json!({"input_tokens":2048,"cached_tokens":0})
+        );
+        let fields = &rows[1]["fields"];
+        assert_eq!(fields["model_hash"], "ffffffffffffffff");
+        assert_eq!(fields["tier_hash"], Value::Null);
+        assert_eq!(fields["input_items"], 2);
+        assert_eq!(fields["connection_reused"], true);
+        assert_eq!(fields["warmup"], false);
+        assert_eq!(fields["stage"], "sent");
+        assert_eq!(rows[0]["instance_id"], rows[1]["instance_id"]);
+        assert!(!rows[1].to_string().contains("PRIVATE"));
+        let rejected = cache_events(false, || {
+            tracing::debug!(target: "codex_api::prompt_cache_wire", model_hash = ?Some(1_u64));
+        });
+        assert!(rejected.is_empty());
+    }
+
+    #[test]
+    fn run_identity_joins_batches_and_distinguishes_process_generations() {
+        let root = tempfile::tempdir().unwrap();
+        let counters = Counters::default();
+        let run = RunContext::new(CacheMode::resolve(
+            true,
+            CacheSettings {
+                response: true,
+                wire: false,
+            },
+            false,
+        ));
+        let first = write_batch_for_run(root.path(), b"", &counters, &run).unwrap();
+        let second = write_batch_for_run(root.path(), b"", &counters, &run).unwrap();
+        let read = |path: &Path| serde_json::from_slice::<Value>(&fs::read(path).unwrap()).unwrap();
+        assert_ne!(first, second);
+        assert_eq!(read(&first)["run"], read(&second)["run"]);
+        assert_ne!(run.instance_id, RunContext::new(run.cache).instance_id);
+        assert_eq!(
+            read(&first)["run"]["cache"]["wire_disabled_reason"],
+            "wire_not_selected"
+        );
+    }
+
+    #[test]
     fn cache_batches_reject_malformed_labels_and_negative_cache_counts() {
         let rows = cache_events(true, || {
             tracing::debug!(target: "codex_api::prompt_cache", cached_state = "PRIVATE_STATE",
@@ -862,6 +1117,11 @@ mod tests {
             sender,
             counters: counters.clone(),
             settings: Settings::default(),
+            run: Arc::new(RunContext::new(CacheMode::resolve(
+                false,
+                CacheSettings::default(),
+                false,
+            ))),
         };
         layer.submit(json!({"kind":"first"}));
         layer.submit(json!({"kind":"overflow"}));

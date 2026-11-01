@@ -98,10 +98,7 @@ fn fingerprint(value: &(impl Serialize + ?Sized)) -> Fingerprint {
 // Layer filters compose with OR: feedback may enable this target independently.
 // Check the process opt-in before any serialization, hash work, or ordinal allocation.
 fn wire_diagnostics_opted_in() -> bool {
-    matches!(
-        std::env::var("APP_CACHE_WIRE_DIAGNOSTICS").as_deref(),
-        Ok("1")
-    )
+    codex_diagnostics::cache_diagnostics::process_mode().wire_producer_enabled
 }
 
 pub(crate) struct WireObservation {

@@ -51,6 +51,7 @@ use tracing::debug;
 use tracing::error;
 use tracing::info;
 use tracing::instrument;
+use tracing::instrument::WithSubscriber;
 use tungstenite::extensions::ExtensionsConfig;
 use tungstenite::extensions::compression::deflate::DeflateConfig;
 use tungstenite::protocol::WebSocketConfig;
@@ -391,7 +392,8 @@ impl ResponsesWebsocketConnection {
                     let _ = tx_event.send(Ok(completed)).await;
                 }
             }
-            .instrument(current_span),
+            .instrument(current_span)
+            .with_current_subscriber(),
         );
 
         Ok(ResponseStream {
