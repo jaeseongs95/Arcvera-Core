@@ -191,7 +191,7 @@ async fn boundary_child() -> anyhow::Result<()> {
         });
         let client =
             ResponsesWebsocketClient::new(provider(format!("http://{address}")), Arc::new(NoAuth));
-        let connection = client
+        let connection_result = client
             .connect(
                 &HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
                 HeaderMap::new(),
@@ -199,7 +199,14 @@ async fn boundary_child() -> anyhow::Result<()> {
                 None,
                 None,
             )
-            .await?;
+            .await;
+        let connection = match connection_result {
+            Ok(connection) => connection,
+            Err(error) => {
+                let fixture = tokio::time::timeout(Duration::from_secs(2), server).await;
+                anyhow::bail!("client handshake: {error}; local fixture: {fixture:?}");
+            }
+        };
         let request = request()?;
         for previous in [None, Some("resp_ws_full".to_string())] {
             let mut ws_request = ResponseCreateWsRequest::from(&request);
