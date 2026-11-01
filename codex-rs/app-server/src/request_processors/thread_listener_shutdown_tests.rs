@@ -86,6 +86,7 @@ async fn listener_shutdown_releases_runtime_and_preserves_other_subscribers(
         thread_watch_manager,
         Arc::new(Semaphore::new(/*permits*/ 1)),
         thread_goal_processor,
+        /*cleanup_queue_service*/ None,
         /*state_db*/ None,
         /*log_db*/ None,
         skills_watcher.clone(),
