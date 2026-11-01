@@ -167,7 +167,13 @@ async fn boundary_child() -> anyhow::Result<()> {
         let address = listener.local_addr()?;
         let server = tokio::spawn(async move {
             let (socket, _) = listener.accept().await?;
-            let mut socket = tokio_tungstenite::accept_async(socket).await?;
+            // Match the real client's permessage-deflate offer. The fork rejects
+            // that header when the fixture has no extension configuration.
+            let mut config = tungstenite::protocol::WebSocketConfig::default();
+            config.extensions.permessage_deflate = Some(
+                tungstenite::extensions::compression::deflate::DeflateConfig::default(),
+            );
+            let mut socket = tokio_tungstenite::accept_async_with_config(socket, Some(config)).await?;
             for (id, cached, previous) in [
                 ("resp_ws_full", Some(0), None),
                 ("resp_ws_delta", None, Some("resp_ws_full")),
