@@ -22,8 +22,8 @@ use uuid::Uuid;
 const QUEUE: usize = 4096;
 const MAX_EVENT: usize = 4096;
 
-pub fn metadata_enabled(metadata: &tracing::Metadata<'_>) -> bool {
-    metadata.target().starts_with("codex") && *metadata.level() <= tracing::Level::INFO
+fn cache_metadata(metadata: &tracing::Metadata<'_>) -> bool {
+    metadata.target() == "codex_api::prompt_cache" && *metadata.level() == tracing::Level::DEBUG
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -37,6 +37,7 @@ pub struct Settings {
     pub rpc: bool,
     pub events: bool,
     pub process: bool,
+    pub prompt_cache: bool,
 }
 
 impl Default for Settings {
@@ -50,6 +51,7 @@ impl Default for Settings {
             rpc: true,
             events: true,
             process: true,
+            prompt_cache: false,
         }
     }
 }
@@ -198,6 +200,20 @@ fn start_with(spool: PathBuf, settings: Settings) -> io::Result<(BatchLayer, Gua
 }
 
 impl BatchLayer {
+    /// Opt in only the structural cache event, never general DEBUG traffic.
+    pub fn metadata_filter(
+        &self,
+    ) -> impl Fn(&tracing::Metadata<'_>) -> bool + Send + Sync + 'static {
+        let prompt_cache = self.settings.prompt_cache;
+        move |metadata| {
+            if cache_metadata(metadata) {
+                prompt_cache
+            } else {
+                metadata.target().starts_with("codex") && *metadata.level() <= tracing::Level::INFO
+            }
+        }
+    }
+
     fn submit(&self, value: Value) {
         let Ok(mut bytes) = serde_json::to_vec(&value) else {
             return;
@@ -210,12 +226,47 @@ impl BatchLayer {
 }
 
 #[derive(Default)]
-struct SafeFields(Map<String, Value>);
+struct SafeFields(Map<String, Value>, bool);
+
+fn cache_label(name: &str, value: &str) -> bool {
+    match name {
+        "response_id_state"
+        | "model_state"
+        | "tier_state"
+        | "diagnostics_type_state"
+        | "diagnostics_reason_state" => matches!(value, "absent" | "null" | "present" | "invalid"),
+        "usage_state" | "input_tokens_details_state" | "diagnostics_state" => {
+            matches!(value, "absent" | "null" | "object" | "invalid")
+        }
+        "input_state" | "cached_state" | "write_state" => {
+            matches!(value, "absent" | "null" | "zero" | "positive" | "invalid")
+        }
+        "response_id"
+        | "returned_model"
+        | "returned_service_tier"
+        | "diagnostics_type"
+        | "diagnostics_reason" => {
+            let limit = if matches!(name, "response_id" | "returned_model") {
+                128
+            } else {
+                64
+            };
+            !value.is_empty()
+                && value.len() <= limit
+                && value.bytes().all(|byte| {
+                    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b'/' | b':')
+                })
+        }
+        _ => false,
+    }
+}
 
 impl Visit for SafeFields {
     fn record_str(&mut self, field: &Field, value: &str) {
         let name = field.name();
-        if name == "rpc.method"
+        if self.1 && cache_label(name, value) {
+            self.0.insert(name.into(), value.into());
+        } else if name == "rpc.method"
             && value.len() <= 128
             && value
                 .bytes()
@@ -231,7 +282,9 @@ impl Visit for SafeFields {
         }
     }
     fn record_u64(&mut self, field: &Field, value: u64) {
-        if numeric_field(field.name()) {
+        if numeric_field(field.name())
+            || (self.1 && matches!(field.name(), "cached_tokens" | "cache_write_tokens"))
+        {
             self.0.insert(field.name().into(), value.into());
         }
     }
@@ -336,13 +389,18 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for BatchLayer {
     }
     fn on_event(&self, event: &tracing::Event<'_>, ctx: Context<'_, S>) {
         let meta = event.metadata();
-        if !self.settings.events
-            || !meta.target().starts_with("codex")
-            || *meta.level() > tracing::Level::INFO
-        {
+        let cache = cache_metadata(meta);
+        let allowed = if cache {
+            self.settings.prompt_cache
+        } else {
+            self.settings.events
+                && meta.target().starts_with("codex")
+                && *meta.level() <= tracing::Level::INFO
+        };
+        if !allowed {
             return;
         }
-        let mut fields = SafeFields::default();
+        let mut fields = SafeFields(Map::new(), cache);
         event.record(&mut fields);
         let span = ctx.event_span(event).map(|s| s.id().into_u64());
         self.submit(
@@ -694,6 +752,93 @@ mod tests {
         ] {
             assert!(!text.contains(secret));
         }
+    }
+
+    fn cache_events(enabled: bool, emit: impl FnOnce()) -> Vec<Value> {
+        let (sender, receiver) = mpsc::sync_channel(QUEUE);
+        let layer = BatchLayer {
+            sender,
+            counters: Arc::new(Counters::default()),
+            settings: Settings {
+                prompt_cache: enabled,
+                rpc: false,
+                events: false,
+                process: false,
+                ..Settings::default()
+            },
+        };
+        let filter = layer.metadata_filter();
+        let subscriber = tracing_subscriber::registry()
+            .with(layer.with_filter(tracing_subscriber::filter::filter_fn(filter)));
+        tracing::subscriber::with_default(subscriber, emit);
+        receiver
+            .try_iter()
+            .filter_map(|command| match command {
+                Command::Event(bytes) => Some(serde_json::from_slice(&bytes).unwrap()),
+                Command::Shutdown => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn cache_opt_in_reaches_batch_queue_without_enabling_general_debug() {
+        for enabled in [false, true] {
+            let rows = cache_events(enabled, || {
+                assert_eq!(
+                    tracing::enabled!(target: "codex_api::prompt_cache", tracing::Level::DEBUG),
+                    enabled
+                );
+                assert!(!tracing::enabled!(target: "codex_api::other", tracing::Level::DEBUG));
+                assert!(
+                    !tracing::enabled!(target: "codex_api::prompt_cache", tracing::Level::TRACE)
+                );
+                tracing::debug!(target: "codex_api::prompt_cache",
+                    response_id = "resp_fixture", input_state = "positive", input_tokens = 2048_u64,
+                    cached_state = "positive", cached_tokens = 1024_u64,
+                    write_state = "zero", cache_write_tokens = 0_u64,
+                    returned_model = "model-fixture", returned_service_tier = "priority",
+                    diagnostics_type_state = "present", diagnostics_type = "cache_miss",
+                    diagnostics_reason = "service_tier_changed", prompt = "PRIVATE_PROMPT",
+                    authorization = "PRIVATE_TOKEN", "PRIVATE_MESSAGE");
+                tracing::debug!(target: "codex_api::other", input_tokens = 9_u64);
+            });
+            assert_eq!(rows.len(), usize::from(enabled));
+            if enabled {
+                let fields = &rows[0]["fields"];
+                assert_eq!(fields["input_tokens"], 2048);
+                assert_eq!(fields["cached_tokens"], 1024);
+                assert_eq!(fields["cache_write_tokens"], 0);
+                assert_eq!(fields["cached_state"], "positive");
+                assert_eq!(fields["response_id"], "resp_fixture");
+                assert_eq!(fields["diagnostics_reason"], "service_tier_changed");
+                assert!(!rows[0].to_string().contains("PRIVATE"));
+            }
+        }
+    }
+
+    #[test]
+    fn cache_batches_preserve_missing_and_zero_as_different_states() {
+        let rows = cache_events(true, || {
+            tracing::debug!(target: "codex_api::prompt_cache", cached_state = "absent");
+            tracing::debug!(target: "codex_api::prompt_cache", cached_state = "zero", cached_tokens = 0_u64);
+        });
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["fields"]["cached_state"], "absent");
+        assert!(rows[0]["fields"].get("cached_tokens").is_none());
+        assert_eq!(rows[1]["fields"]["cached_state"], "zero");
+        assert_eq!(rows[1]["fields"]["cached_tokens"], 0);
+    }
+
+    #[test]
+    fn cache_batches_reject_malformed_labels_and_negative_cache_counts() {
+        let rows = cache_events(true, || {
+            tracing::debug!(target: "codex_api::prompt_cache", cached_state = "PRIVATE_STATE",
+                returned_model = "PRIVATE\\nMODEL", returned_service_tier = "x".repeat(65).as_str(),
+                cache_write_tokens = -1_i64, cached_tokens = -2_i64, reason = "PRIVATE_REASON");
+        });
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["fields"], json!({}));
+        assert!(!rows[0].to_string().contains("PRIVATE"));
     }
 
     #[test]

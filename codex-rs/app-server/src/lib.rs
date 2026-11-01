@@ -759,8 +759,10 @@ pub async fn run_main_with_transport_options(
         .map(|layer| layer.with_filter(log_db::default_filter()));
     let (otel_layers, otel_logger_reload_handle) = otel_reloader::layers(otel.as_ref());
     let (batch_layer, _batch_guard) = codex_diagnostics::batch_log::start(&config.codex_home)?;
-    let batch_layer = batch_layer.map(|layer| layer.with_filter(
-        tracing_subscriber::filter::filter_fn(codex_diagnostics::batch_log::metadata_enabled)));
+    let batch_layer = batch_layer.map(|layer| {
+        let filter = layer.metadata_filter();
+        layer.with_filter(tracing_subscriber::filter::filter_fn(filter))
+    });
     let _ = tracing_subscriber::registry()
         .with(stderr_fmt)
         .with(feedback_layer)

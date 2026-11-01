@@ -30,6 +30,8 @@ enabled = true
 destination = 'G:\내 드라이브\앱로그\cli-r27'
 flush_seconds = 60
 sample_seconds = 5
+# R32 후속 후보에서만 제공. 구조화된 캐시 관측만 별도로 수집합니다.
+prompt_cache = false
 max_batch_bytes = 16777216
 rpc = true
 events = true

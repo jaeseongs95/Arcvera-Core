@@ -981,9 +981,8 @@ pub(super) async fn run_main_inner(
 
     let (batch_layer, _batch_guard) = codex_diagnostics::batch_log::start(&config.codex_home)?;
     let batch_layer = batch_layer.map(|layer| {
-        layer.with_filter(tracing_subscriber::filter::filter_fn(
-            codex_diagnostics::batch_log::metadata_enabled,
-        ))
+        let filter = layer.metadata_filter();
+        layer.with_filter(tracing_subscriber::filter::filter_fn(filter))
     });
     let _ = tracing_subscriber::registry()
         .with(tui_file_layer)
