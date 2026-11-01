@@ -3055,7 +3055,10 @@ mod tests {
         );
         let thread = ThreadId::new();
         session.runtime_tool_registration_generation = 3;
-        *session.pending_runtime_tool_resume.lock().await = Some((
+        *session
+            .pending_runtime_tool_resume
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((
             3,
             session.connection_id,
             ThreadResumeParams {
@@ -3116,7 +3119,13 @@ mod tests {
             )
             .await;
         assert!(commands.try_recv().is_err());
-        assert!(session.pending_runtime_tool_resume.lock().await.is_none());
+        assert!(
+            session
+                .pending_runtime_tool_resume
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -3145,7 +3154,13 @@ mod tests {
             }
             tokio::task::yield_now().await;
             assert!(commands.try_recv().is_err(), "{case}");
-            assert!(session.pending_runtime_tool_resume.lock().await.is_none());
+            assert!(
+                session
+                    .pending_runtime_tool_resume
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .is_none()
+            );
         }
     }
 
@@ -3160,7 +3175,10 @@ mod tests {
             );
             let thread = ThreadId::new();
             session.runtime_tool_registration_generation = 3;
-            *session.pending_runtime_tool_resume.lock().await = Some((
+            *session
+                .pending_runtime_tool_resume
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((
                 if case == "generation" { 2 } else { 3 },
                 if case == "connection" {
                     uuid::Uuid::new_v4()
@@ -3192,7 +3210,11 @@ mod tests {
                 .await;
             assert!(commands.try_recv().is_err(), "{case}");
             assert!(
-                session.pending_runtime_tool_resume.lock().await.is_none(),
+                session
+                    .pending_runtime_tool_resume
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .is_none(),
                 "{case}"
             );
         }
