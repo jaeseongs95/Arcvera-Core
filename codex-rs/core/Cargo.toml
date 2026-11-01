@@ -8,6 +8,9 @@ version.workspace = true
 name = "codex_core"
 path = "src/lib.rs"
 
+[features]
+test-support = []
+
 [lints]
 workspace = true
 
