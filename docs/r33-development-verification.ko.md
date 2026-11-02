@@ -39,11 +39,11 @@ CLI 예약 토글은 업데이트 전용 `--enable-updates`·`--disable-updates`
 | --- | --- | --- |
 | Windows updater | PowerShell 5.1 격리 13개 통과, 종료 0; receipt와 최종 원본 두 파일 SHA-256 일치 | 파일 전송 fixture·스케줄러 mock이며 실제 네트워크·사용자 프로필·예약 등록·실제 Codex 실행 제외 |
 | 패키징 도구 | 최종 소스와 공개사본 각각 13개 통과, 종료 0; 원본 두 파일 SHA-256 일치 | 합성 argv 실행 파일로 패키지·메타데이터를 검사하며 제품 빌드·설치가 아님 |
-| 전달 준비 검사기 | 21개 fixture 통과; 별도 숨김 PowerShell의 `FileShare.None` 잠금 충돌과 해제 포함 | 패키지 실행 파일과 실제 COM 바로가기를 호출하지 않으며 설치 결과가 아님 |
+| 전달 준비 검사기 | 초기 21개와 후속 보강 23개 fixture 통과; 숨김 PowerShell의 배타 잠금, 바로가기 값 수집과 시스템 PowerShell·`Get-FileHash` 선택 경계 포함 | 패키지 실행 파일과 실제 COM 바로가기를 호출하지 않으며 설치 결과가 아님 |
 
 PowerShell updater SHA-256은 `81c26d4744130029944926c031c239ebc9ce6f2cae567c995e0e1d55ac4b22ce`, 시험 소스는 `7a73dbb041e54882e396cdbb47e0d14c3d586a936fc4c6a378babf50ff77c193`다. ZIP·원자 포인터 교체·독립 프로세스 잠금·숨김 VBS와 native 전체 버전·릴리스 태그·필수 경로·launcher 호환성 검사를 포함한다. `Status.schedule`은 실제 스케줄러 조회 결과와 마지막 업데이트 결과를 구분하지만 시험의 scheduler 명령은 mock이다.
 
-전달 준비 검사기 SHA-256은 `0c7e4f98ea329259f8bc50f25f648505aa1b75b7917db5dbcb1d1b84acfe7a6d`다. 직접 계산한 값과 지정된 근거가 일치했고 21개 fixture 통과 로그를 직접 읽었다. 이 검사기는 공개 소스 export 대상이 아니며 실제 설치는 실행하지 않았다.
+초기 21개 fixture를 통과한 전달 준비 검사기의 SHA-256은 `0c7e4f98ea329259f8bc50f25f648505aa1b75b7917db5dbcb1d1b84acfe7a6d`다. 후속 보강본은 `e79c481ea811210560f4178ec42c700ac0e19d1d57ac93c2b4ebe8adee17d131`이며 23개 fixture를 통과했다. 후속 로그와 실제 검사기 해시를 직접 대조했다. 시스템 PowerShell·시스템 모듈을 선택하며 가짜 PATH·작업 폴더의 실행 파일을 선택하지 않는 경계도 포함한다. 이 검사기는 공개 소스 export 대상이 아니며 실제 설치는 실행하지 않았다.
 
 ## 이전 후보의 근거
 
@@ -67,6 +67,6 @@ python -B scripts/source-import/verify.py
 python -B scripts/source-import/test_verify.py
 ```
 
-출처 검사는 inventory·공식 대비 patch·프롬프트 catalog의 해시 결속, 각 공개 파일에서 고지를 제외한 원본 SHA-256·Git blob, 로컬 경로 의존성과 literal include를 확인한다. 기존 R32 기본 고지·공식 pin과 앞선 R33 고지를 보존하고 총 46경로만 R33 고지로 기록한다. 새 PowerShell·VBS 고지는 명시한 경로에만 적용한다. 루트 LICENSE·NOTICE·README 두 파일과 내장 프롬프트 38개의 원본·Windows 바이트 해시는 유지한다. 공개 자료에는 실행 파일·원시 로그·실제 개인 경로·비밀을 추가하지 않는다. 이 공개 검사 자체는 Rust 빌드나 제품 runtime을 실행하지 않는다.
+출처 검사는 inventory·공식 대비 patch·프롬프트 catalog의 해시 결속, 각 공개 파일에서 고지를 제외한 원본 SHA-256·Git blob, 로컬 경로 의존성과 literal include를 확인한다. 기존 R32 기본 고지·공식 pin과 앞선 R33 고지를 보존하고 총 46경로만 R33 고지로 기록한다. 새 PowerShell·VBS 고지는 명시한 경로에만 적용한다. 루트 LICENSE·NOTICE와 내장 프롬프트 38개의 원본·Windows 바이트 해시는 유지한다. README 두 파일은 현재 배포·개발 상태에 맞춰 별도로 갱신하고 `SOURCE_BASELINE.json`의 루트 문서 해시에 다시 결속한다. `preservedRepositoryDocuments`는 exporter가 해당 문서를 덮어쓰지 않는 기존 계약이며 이번 README 편집 전후의 바이트가 같다는 뜻은 아니다. 공개 자료에는 실행 파일·원시 로그·실제 개인 경로·비밀을 추가하지 않는다. 이 공개 검사 자체는 Rust 빌드나 제품 runtime을 실행하지 않는다.
 
 최종 통합 CLI·daemon runtime, 실제 installer 경쟁·grace 실패·구 updater와의 공동 동작, 실제 스케줄러 등록, 실제 사용 환경의 전환·재개·부하 효과, 데스크톱 공동 시험·모바일 연결·설치·릴리스는 미검증이다. 표적 회귀시험과 합성 경계 검사의 통과를 전체 R33 제품 완료로 확대하지 않는다.

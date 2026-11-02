@@ -2,86 +2,75 @@
 
 [English](README.md) · [한국어](README.ko.md)
 
-An unofficial Windows edition of **Codex CLI and Rust App Server**, with fixes for cancellation and process cleanup, per-conversation controls, and buffered diagnostics.
+An unofficial Windows edition of Codex CLI and Rust App Server, with changes to cancellation, process cleanup, conversation controls, scheduling, and optional diagnostics.
 
-[Download R30](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.165.0-r30.20261101) · [Build from source](docs/source-import.md) · [Validation](docs/TESTING.md) · [Changes](MODIFICATIONS.md)
+[Download R32](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.166.0-r32.20261101) · [Build from source](docs/source-import.md) · [Validation](docs/TESTING.md) · [Changes](MODIFICATIONS.md)
 
-## Versions
+## Releases and development
 
 | Channel | Official base | Status |
 | --- | --- | --- |
-| **R30 release** | 0.165.0 | Windows x86-64 CLI, standalone App Server, and portable package available |
-| **R31 source on main** | 0.166.0 | Release cancelled; pending work continues in R32 |
-| **R32 source candidate** | 0.166.0 | Cache-diagnostic boundary tests and compilation in progress; not released |
+| **R32 release** | 0.166.0 | Latest published release: Windows x86-64 CLI, standalone App Server, and portable package |
+| **R31** | 0.166.0 | Separate release cancelled; changes integrated into R32 |
+| **R33 source candidate** | 0.166.0 | `0.166.0+native-r33.20261102`; not released |
 
-Downloading R30 and building main produce different versions. [SOURCE_BASELINE.json](SOURCE_BASELINE.json) identifies the source snapshot; [Releases](https://github.com/jaeseongs95/opendiy-codex/releases) identifies published executables and their validation scope.
+The source is pinned to `0c588be6c85098f0ff139ec7a9bc119c1da71f20` and differs from the R32 download. Development test compilation and 73 targeted Rust tests passed, as did 13 PowerShell and 13 packaging tests. A separate delivery-preparation checker passed its initial 21 fixtures and 23 fixtures after further hardening. Product builds, actual installation, task registration, and CLI/daemon runtime validation are not complete. See the [R33 validation scope](docs/r33-development-verification.ko.md) and [source provenance](SOURCE_BASELINE.json).
 
-## What it adds
+## Features
 
-- **Cancellation and cleanup:** propagate cancellation through pending requests, limit retries for model-capacity errors, avoid replay after partial output, and clean up owned child processes.
-- **Conversation controls:** set a context-window override, manage memory scope and corrections, and view subagent counts above the input field.
-- **Scheduled work:** run prompts at intervals or at a specified time while the CLI stays open. Busy conversations skip that occurrence instead of accumulating work.
-- **Smaller display history:** reuse official history APIs and cursors while limiting retained display history. The model's original conversation remains separate.
-- **Optional diagnostics:** buffer events off the input path, write completed batches as separate files, and retry asynchronous export without appending to published files.
-- **Language choice:** English by default, with a saved global Korean option. Commands and model responses are not translated automatically.
+- **Cancellation and cleanup:** propagate cancellation to pending requests, limit capacity-error retries, and clean up owned child processes.
+- **Conversation controls:** manage context-window settings and memory corrections, and inspect subagent status.
+- **Scheduling:** schedule prompts while the CLI is open; busy conversations skip that occurrence.
+- **Display history and language:** limit retained display history and choose English or Korean UI. The model's original conversation is preserved.
+- **Optional diagnostics:** buffer events and publish completed files. R32 improves cache-response and wire-diagnostic delivery into batches and identifies their originating run.
 
-These features were introduced across R26–R30. R32 carries the unreleased R31 changes onto official 0.166.0: request/agent-loop lifetime, history-query connection use, stale client state, and cron language handling. It adds process-bound, optional cache diagnostics. R32 compilation, final integration, and release validation are pending. The [upstream upgrade design](docs/native-cli-r32-upgrade-design.ko.md) is a design, not an implemented automatic updater.
+The R33 candidate adds duplicate-display filtering when history and buffered events overlap, drain preservation on repeated graceful shutdown requests, a shared cleanup startup path, and full-version checks for local CLI/server connections. Its Windows updater is designed to select a verified package for the next CLI launch while retaining existing packages and the shared daemon. These additions are absent from the current R32 download.
 
 ## Run on Windows
 
-1. Download `opendiy-codex-r30-windows-x86_64.zip` and `SHA256SUMS.txt` from the [R30 release](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.165.0-r30.20261101).
-2. Verify the archive's SHA-256 and extract it into a new folder, keeping your existing installation.
-3. Run `codex-local.cmd` to use the packaged CLI with its local engine, separate from an existing shared server. See the included `USAGE.ko.md` for package details.
+1. Download `opendiy-codex-r32-windows-x86_64.zip` and `SHA256SUMS.txt` from the [R32 release](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.166.0-r32.20261101).
+2. Verify SHA-256 and extract into a new folder, keeping your existing installation.
+3. Run `codex-local.cmd` for a local engine separate from an existing shared server. See the package's `USAGE.ko.md`.
 
-The archive includes the CLI, standalone App Server, Windows helpers, licenses, and usage notes. Individual `codex.exe` and `codex-app-server.exe` downloads are also available; features requiring helpers need the full package. `codex-patched.cmd` and the default CLI may connect to an existing shared server, so the launched executable alone does not establish which backend is serving the conversation.
+Individual `codex.exe` and `codex-app-server.exe` downloads are also available; features needing helpers require the full package. The default CLI and `codex-patched.cmd` may connect to an existing shared server, whose version must be checked separately.
 
-## Commands
+## Where to enter commands
 
-Enter these in the CLI conversation input, not in PowerShell. The examples are available in R30; R31 changes remain subject to validation.
+These conversation-input commands were available in R30 and remain in R32. They are not PowerShell commands.
 
 | Command | Purpose |
 | --- | --- |
 | `/cron add --every 10m -- Check whether the build has finished` | Schedule a repeating prompt |
-| `/cron list` | Show this conversation's schedules |
-| `/cron remove 1` | Remove schedule 1's future runs; use its actual returned ID |
-| `/context 120000` · `/context reset` | Save or clear this conversation's context-window override |
-| `/memory view` · `/memory edit <correction>` | View stored memory or record a correction for later consolidation |
-| `/subagents` | View subagent conversations |
+| `/cron list` · `/cron remove 1` | List or remove schedules; use the actual ID |
+| `/context 120000` · `/context reset` | Set or clear this conversation's context-window override |
+| `/memory view` · `/memory edit <correction>` | View memory or record a correction for later consolidation |
+| `/subagents` | Inspect subagent conversations |
 | `/background` or `F6` | Return control while a supported terminal task continues |
 | `/reload_plugin` | Request plugin reload for the current conversation |
-| `/language ko` · `/language en` | Save the global interface language for the next launch |
+| `/language ko` · `/language en` | Save the global UI language for the next launch |
 
-Context settings apply from the next turn, survive resume, and cannot raise the model's catalog limit. Memory corrections do not immediately rewrite the stored summary or existing chat context. `CODEX_UI_LANGUAGE` overrides the saved language.
+Context settings cannot raise the model's catalog limit. Memory corrections do not immediately rewrite the stored summary. Schedules disappear when the CLI exits; natural-language scheduling requires the conversation's `cron` tool. See [scheduling](docs/native-cli-cron.ko.md) and [context, language, and logging](docs/native-cli-r27.ko.md), currently in Korean.
 
-Schedules disappear when the CLI exits. Natural-language scheduling works only when the conversation exposes the CLI's `cron` tool; an old resumed conversation may need direct commands or a new chat. See [scheduling and subagent display](docs/native-cli-cron.ko.md) and [context, language, and logging](docs/native-cli-r27.ko.md). These guides are currently in Korean.
+The following are **PowerShell commands for the R33 candidate**. They are not conversation slash commands and are unavailable in the R32 download.
 
-## Diagnostics and validation
+```powershell
+codex update --check
+codex update --status
+codex update --enable-updates --interval-minutes 60
+codex update --disable-updates
+codex update
+```
 
-Logging is off unless explicitly enabled in `CODEX_HOME/cli-logging.toml`. Categories, buffering, and an optional export destination are configurable. Export success means filesystem publication, not confirmed cloud upload. Prompt text and authentication headers are excluded from these diagnostic batches.
+These commands require an installation configured for automatic updates. They are separate from the global feature options `--enable` and `--disable`. See [updater requirements](tools/windows-cli/UPDATE.ko.md) for helpers, scheduling, and package requirements.
 
-[Validation records](docs/TESTING.md) distinguish candidates, tests, and remaining checks. Display retention is not a total process-memory limit: legacy conversations can still use the official full-history fallback. Authenticated mobile access to the same backend and sustained workload behavior remain unverified. No prompt-cache hit-rate improvement or complete resolution of memory growth, connection accumulation, or desktop latency is claimed.
+## Validation and integration
 
-## Two projects, one backend
+Logging requires explicit selection. File publication does not confirm cloud upload, and cache-diagnostic tests do not establish improved cache hit rates on the actual service. Display-history limits are not a total process-memory cap.
 
-| Project | Responsibility |
-| --- | --- |
-| **OpenDIY Codex** | CLI, Rust App Server, protocol changes, and build tools |
-| [**OpenDIY Desktop**](https://github.com/jaeseongs95/opendiy-desktop) | Desktop interface and multi-session management |
-
-The projects coordinate around the same backend. This repository does not distribute private ChatGPT desktop assets. Source and build tools live in Git; executable packages are published separately in Releases. Credentials and operational logs are excluded.
-
-### Version pairs and validation
-
-| CLI and App Server | OpenDIY Desktop | Verified scope |
-| --- | --- | --- |
-| Published R30, based on official 0.165.0 | No validated pair designated | R30's own checks are separate from joint Desktop validation |
-| R31 candidate, based on official 0.166.0, `1cd3bbff` | v0.6.0 candidate, `deba0725` | Static comparison of compatibility-related protocol fields only; joint checks with final executables pending |
-| R32 follow-up patch on R31, `2f42356a` | Follow-up candidate, `6929409` | Source candidates for pairing review; no executable or joint-test result yet |
-
-Rows identify candidates to check together, not a compatibility guarantee. Only pairs that pass actual joint tests will be marked validated. The default CLI may select an existing shared server, so checks must identify the running CLI and server paths, versions, and hashes separately.
+[OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop) is the separate UI and multi-session project. The Desktop 1.0.0 candidate has not been tested as an actual pair with the current R33 candidate; CI status is not a compatibility guarantee. Actual mobile access, sustained workloads, and resolution of the original latency and memory-growth issues remain unverified.
 
 ## Build and license
 
-See the [source and build guide](docs/source-import.md) for the pinned toolchain, source verification, and CLI/App Server build commands, and the [Windows packaging tools](tools/windows-cli/README.md). Source-export verification does not establish that a fresh public checkout has completed a full build or runtime validation.
+See the [source build guide](docs/source-import.md) and [Windows packaging tools](tools/windows-cli/README.md). Source-provenance checks do not replace a full public-checkout build or runtime validation. Git contains source and tools; Releases contains executable packages. Credentials and operational logs are excluded.
 
-Independent work based on [OpenAI Codex](https://github.com/openai/codex), not an official OpenAI product. See [Apache-2.0](LICENSE), [NOTICE](NOTICE), and component-specific licenses; third-party components retain their original licenses.
+Independent work based on [OpenAI Codex](https://github.com/openai/codex), not an official OpenAI product. See [Apache-2.0](LICENSE), [NOTICE](NOTICE), and component-specific licenses.
