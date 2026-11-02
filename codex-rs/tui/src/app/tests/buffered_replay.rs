@@ -626,6 +626,86 @@ async fn buffered_replay_renders_completed_text_without_streaming_again() {
     ");
 }
 
+fn replay_message_turn(id: &str) -> Turn {
+    Turn {
+        duration_ms: Some(8_000),
+        ..test_turn(
+            id,
+            TurnStatus::Completed,
+            vec![
+                ThreadItemPayload::UserMessage {
+                    id: format!("{id}-user"),
+                    client_id: None,
+                    content: vec![AppServerUserInput::Text {
+                        text: "Synthetic replay question".into(),
+                        text_elements: Vec::new(),
+                    }],
+                },
+                ThreadItemPayload::AgentMessage {
+                    id: format!("{id}-answer"),
+                    text: "Synthetic replay answer".into(),
+                    phase: None,
+                    memory_citation: None,
+                    delivery: None,
+                    questions: None,
+                },
+            ],
+        )
+    }
+}
+
+async fn replay_message_counts(buffered_turn_id: &str) -> (usize, usize, usize) {
+    let (mut app, mut events, _ops) = make_test_app_with_channels().await;
+    let thread_id = ThreadId::new();
+    let mut store = ThreadEventStore::new_with_session(
+        /*capacity*/ 16,
+        test_thread_session(thread_id, app.config.cwd.to_path_buf()),
+        vec![replay_message_turn("snapshot-turn")],
+    );
+    let buffered_turn = replay_message_turn(buffered_turn_id);
+    for item in &buffered_turn.items {
+        store.push_notification(ServerNotification::ItemCompleted(
+            ItemCompletedNotification::new(
+                thread_id.to_string(),
+                buffered_turn.id.clone(),
+                item.payload.clone(),
+                /*started_at_ms*/ None,
+                /*completed_at_ms*/ 8_000,
+            ),
+        ));
+    }
+    store.push_notification(ServerNotification::TurnCompleted(
+        TurnCompletedNotification {
+            thread_id: thread_id.to_string(),
+            turn: buffered_turn,
+        },
+    ));
+    app.replay_thread_snapshot(store.snapshot(), /*resume_restored_queue*/ false);
+    let mut counts = (0, 0, 0);
+    while let Ok(event) = events.try_recv() {
+        if let AppEvent::InsertHistoryCell(cell) = event {
+            let text = lines_to_single_string(&cell.transcript_lines(/*width*/ 100));
+            counts.0 += usize::from(text.contains("Synthetic replay question"));
+            counts.1 += usize::from(text.contains("Synthetic replay answer"));
+            counts.2 += usize::from(
+                cell.as_any()
+                    .is::<crate::history_cell::FinalMessageSeparator>(),
+            );
+        }
+    }
+    counts
+}
+
+#[tokio::test]
+async fn snapshot_and_buffered_replay_render_same_message_ids_once() {
+    assert_eq!(replay_message_counts("snapshot-turn").await, (1, 1, 1));
+}
+
+#[tokio::test]
+async fn snapshot_and_buffered_replay_preserve_same_text_with_distinct_message_ids() {
+    assert_eq!(replay_message_counts("different-turn").await, (2, 2, 2));
+}
+
 #[test]
 fn buffered_replay_preserves_text_before_interactive_requests() {
     let mut store = ThreadEventStore::new(/*capacity*/ 16);
