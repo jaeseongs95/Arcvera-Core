@@ -153,7 +153,7 @@ async fn daemon_feature_compatibility_respects_required_and_optional_attachment(
                     };
                     let response = match request.method.as_str() {
                         "initialize" => {
-                            json!({"id": request.id, "result": {"userAgent": "daemon-test"}})
+                            json!({"id": request.id, "result": {"userAgent": format!("daemon-test/{}", env!("CARGO_PKG_VERSION"))}})
                         }
                         "config/read" => {
                             json!({"id": request.id, "result": {"config": {}, "layers": [{
@@ -262,6 +262,9 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
     for scenario in [
         "missing socket",
         "failed handshake",
+        "version mismatch",
+        "unknown version",
+        "required version mismatch",
         "explicit endpoint",
         "required daemon",
     ] {
@@ -284,14 +287,40 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
             }
         };
         let reject_handshake = tokio::spawn(async move {
-            let _ = listener.accept().await;
+            use futures::SinkExt;
+            use futures::StreamExt;
+            use tokio_tungstenite::tungstenite::Message;
+            let (stream, _) = listener.accept().await.unwrap();
+            if scenario.contains("version") {
+                let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+                let Some(Ok(Message::Text(request))) = socket.next().await else {
+                    panic!("initialize request missing");
+                };
+                let request: serde_json::Value = serde_json::from_str(&request).unwrap();
+                let user_agent = if scenario == "unknown version" {
+                    "daemon-test"
+                } else {
+                    "daemon-test/0.166.0+native-r28.20261029"
+                };
+                socket
+                    .send(Message::Text(
+                        serde_json::json!({
+                            "id": request["id"], "result": {"userAgent": user_agent}
+                        })
+                        .to_string()
+                        .into(),
+                    ))
+                    .await
+                    .unwrap();
+                while let Some(Ok(_)) = socket.next().await {}
+            }
         });
         let mut target = if scenario == "explicit endpoint" {
             AppServerTarget::Remote { endpoint }
         } else {
             AppServerTarget::LocalDaemon {
                 endpoint,
-                allow_embedded_fallback: scenario != "required daemon",
+                allow_embedded_fallback: !scenario.starts_with("required"),
             }
         };
         let original_target = target.clone();
@@ -312,12 +341,16 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
         )
         .await;
         reject_handshake.abort();
-        if scenario == "explicit endpoint" || scenario == "required daemon" {
+        if scenario == "explicit endpoint" || scenario.starts_with("required") {
             assert!(result.is_err());
-            if scenario == "required daemon" {
+            if scenario.starts_with("required") {
                 let message = result.err().unwrap().to_string();
                 assert!(message.contains("rerun the same command with --no-daemon"));
-                assert!(message.contains("failed to connect to remote app server"));
+                if scenario == "required version mismatch" {
+                    assert!(message.contains("does not match this CLI"));
+                } else {
+                    assert!(message.contains("failed to connect to remote app server"));
+                }
             }
             assert_eq!(target, original_target);
             assert!(state_db.is_none());
@@ -434,4 +467,85 @@ fn daemon_exclusion_warning_snapshot() {
         .collect::<Vec<_>>()
         .join("\n");
     insta::assert_snapshot!("daemon_exclusion_warning", text);
+}
+
+#[tokio::test]
+async fn local_daemon_requires_full_build_version_but_explicit_remote_is_preserved()
+-> color_eyre::Result<()> {
+    use futures::SinkExt;
+    use futures::StreamExt;
+    use serde_json::json;
+    use tokio_tungstenite::tungstenite::Message;
+
+    for version in [
+        Some(env!("CARGO_PKG_VERSION")),
+        Some("0.166.0+native-r28.20261029"),
+        None,
+    ] {
+        for explicit_remote in [false, true] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+            let endpoint = RemoteAppServerEndpoint::WebSocket {
+                websocket_url: format!("ws://{}", listener.local_addr()?),
+                auth_token: None,
+            };
+            let server = tokio::spawn(async move {
+                let (stream, _) = listener.accept().await.unwrap();
+                let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+                let Some(Ok(Message::Text(request))) = socket.next().await else {
+                    panic!("initialize request missing");
+                };
+                let request: serde_json::Value = serde_json::from_str(&request).unwrap();
+                assert_eq!(request["method"], "initialize");
+                let user_agent = version.map_or_else(
+                    || "daemon-test".to_string(),
+                    |version| format!("daemon-test/{version}"),
+                );
+                socket
+                    .send(Message::Text(
+                        json!({
+                            "id": request["id"], "result": {"userAgent": user_agent}
+                        })
+                        .to_string()
+                        .into(),
+                    ))
+                    .await
+                    .unwrap();
+                while let Some(Ok(message)) = socket.next().await {
+                    if let Message::Text(text) = message {
+                        let message: serde_json::Value = serde_json::from_str(&text).unwrap();
+                        // Disconnecting must not request daemon shutdown or mutate its state.
+                        assert_eq!(message["method"], "initialized");
+                    }
+                }
+            });
+            let target = if explicit_remote {
+                AppServerTarget::Remote { endpoint }
+            } else {
+                AppServerTarget::LocalDaemon {
+                    endpoint,
+                    allow_embedded_fallback: true,
+                }
+            };
+            let result = app_server_connection::connect(&target).await;
+            let accepted = explicit_remote || version == Some(env!("CARGO_PKG_VERSION"));
+            assert_eq!(
+                result.is_ok(),
+                accepted,
+                "{version:?} explicit={explicit_remote}"
+            );
+            if let Ok(client) = result {
+                client.shutdown().await?;
+            } else {
+                assert!(
+                    result
+                        .err()
+                        .unwrap()
+                        .to_string()
+                        .contains("does not match this CLI")
+                );
+            }
+            tokio::time::timeout(std::time::Duration::from_secs(5), server).await??;
+        }
+    }
+    Ok(())
 }

@@ -15,7 +15,7 @@ use codex_app_server_client::RemoteAppServerEndpoint;
 use codex_utils_absolute_path::AbsolutePathBuf;
 
 pub(crate) async fn connect(target: &AppServerTarget) -> color_eyre::Result<AppServerClient> {
-    match target {
+    let client = match target {
         AppServerTarget::Embedded => {
             color_eyre::eyre::bail!("embedded sessions have no remote connection")
         }
@@ -45,5 +45,21 @@ pub(crate) async fn connect(target: &AppServerTarget) -> color_eyre::Result<AppS
         AppServerTarget::LocalDaemon { endpoint, .. } | AppServerTarget::Remote { endpoint } => {
             connect_remote_app_server(endpoint.clone()).await
         }
+    }?;
+    if matches!(target, AppServerTarget::LocalDaemon { .. }) {
+        let AppServerClient::Remote(remote) = &client else {
+            unreachable!("local daemon connections are remote clients");
+        };
+        // Keep build metadata: different OpenDIY revisions can share an upstream version.
+        if remote.server_version() != Some(env!("CARGO_PKG_VERSION")) {
+            let observed = remote.server_version().unwrap_or("unknown").to_owned();
+            // Only close this client's connection. Other sessions and daemon jobs survive.
+            let _ = client.shutdown().await;
+            color_eyre::eyre::bail!(
+                "Background server version {observed} does not match this CLI {}",
+                env!("CARGO_PKG_VERSION")
+            );
+        }
     }
+    Ok(client)
 }

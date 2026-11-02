@@ -159,7 +159,9 @@ pub(super) async fn compatibility_warning(
         // Connect even without overrides so startup can recover from an unreachable daemon.
         let client = app_server_connection::connect(target)
             .await
-            .map_err(|_| "could not connect to check daemon feature settings".to_string())?;
+            .map_err(|error| {
+                format!("could not connect to check daemon feature settings: {error}")
+            })?;
         if requested.is_empty() {
             let _ = client.shutdown().await;
             return Ok(());
