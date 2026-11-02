@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 //! Managed app-server lifecycle, serialized across CLI invocations and the updater.
 
 mod backend;
@@ -20,8 +20,11 @@ mod prepare_install;
 mod release_pruning;
 pub use prepare_install::InstallRequest;
 pub use prepare_install::update_from_cli;
+pub use prepare_install::update_from_cli_with_no_force;
 mod remote_control_client;
 mod settings;
+mod status;
+pub use status::{DaemonStatus, StatusOutput, status};
 pub mod telemetry;
 mod thread_recovery;
 mod update_loop;
@@ -145,6 +148,9 @@ pub enum UpdateStatus {
     Updated,
     NoUpdate,
     Unsupported,
+    ShutdownUnconfirmed,
+    ShutdownTimedOut,
+    ShutdownOutcomeUnknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]

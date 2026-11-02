@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 //! PID reservations serialize detached launches; process identities protect stale-record cleanup.
 //! PID probes explicitly unlock so concurrent forks cannot retain their transient reservations.
 
@@ -34,6 +34,154 @@ const STOP_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const STOP_FORCE_TIMEOUT: Duration = Duration::from_secs(10);
 const START_TIMEOUT: Duration = Duration::from_secs(10);
 const STDERR_LOG_TAIL_BYTES: u64 = 4096;
+
+#[derive(Debug)]
+pub(crate) enum NoForceStopError {
+    RequestUnconfirmed(anyhow::Error),
+    TimedOut,
+}
+
+impl std::fmt::Display for NoForceStopError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::RequestUnconfirmed(error) => {
+                write!(f, "graceful shutdown was not confirmed: {error:#}")
+            }
+            Self::TimedOut => f.write_str("graceful shutdown did not finish before its deadline"),
+        }
+    }
+}
+
+impl std::error::Error for NoForceStopError {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReadOnlyPidStatus {
+    NotRunning,
+    Running,
+    Starting,
+}
+
+/// Inspect existing files only; never create a reservation, remove a record, or reap a child.
+#[cfg(any(unix, windows))]
+pub(crate) async fn read_only_pid_status(path: &Path) -> Result<ReadOnlyPidStatus> {
+    let lock_path = path.with_extension("pid.lock");
+    match fs::symlink_metadata(&lock_path).await {
+        Ok(metadata) => anyhow::ensure!(
+            metadata.is_file() && !metadata.file_type().is_symlink(),
+            "PID reservation is not a regular file"
+        ),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error).context("could not inspect PID reservation metadata"),
+    }
+    let lock = match fs::OpenOptions::new().read(true).open(lock_path).await {
+        Ok(file) => Some(file),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error).context("could not inspect PID reservation"),
+    };
+    if let Some(lock) = lock
+        && probe_reservation_lock(lock)?
+    {
+        return Ok(ReadOnlyPidStatus::Starting);
+    }
+    let before = match read_only_pid_bytes(path).await? {
+        Some(bytes) => bytes,
+        None => {
+            return match fs::symlink_metadata(path.with_extension("pid.tmp")).await {
+                Ok(_) => Ok(ReadOnlyPidStatus::Starting),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    Ok(ReadOnlyPidStatus::NotRunning)
+                }
+                Err(error) => Err(error).context("could not inspect PID publication"),
+            };
+        }
+    };
+    if before.iter().all(u8::is_ascii_whitespace) {
+        return Ok(ReadOnlyPidStatus::Starting);
+    }
+    let record: PidRecord = serde_json::from_slice(&before).context("invalid PID metadata")?;
+    anyhow::ensure!(
+        record.pid > 0 && !record.process_start_time.is_empty(),
+        "PID metadata has no valid generation"
+    );
+    let running = read_only_process_matches(&record).await?;
+    anyhow::ensure!(
+        read_only_pid_bytes(path).await?.as_ref() == Some(&before),
+        "PID metadata changed during observation"
+    );
+    Ok(if running {
+        ReadOnlyPidStatus::Running
+    } else {
+        ReadOnlyPidStatus::NotRunning
+    })
+}
+
+#[cfg(any(unix, windows))]
+async fn read_only_pid_bytes(path: &Path) -> Result<Option<Vec<u8>>> {
+    let metadata = match fs::symlink_metadata(path).await {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error).context("could not inspect PID metadata"),
+    };
+    anyhow::ensure!(
+        metadata.is_file() && !metadata.file_type().is_symlink(),
+        "PID metadata is not a regular file"
+    );
+    let file = fs::File::open(path).await?;
+    let mut bytes = Vec::new();
+    file.take(16385).read_to_end(&mut bytes).await?;
+    anyhow::ensure!(bytes.len() <= 16384, "PID metadata is oversized");
+    Ok(Some(bytes))
+}
+
+#[cfg(not(any(unix, windows)))]
+pub(crate) async fn read_only_pid_status(_path: &Path) -> Result<ReadOnlyPidStatus> {
+    bail!("PID observation is unsupported on this platform")
+}
+
+#[cfg(windows)]
+async fn read_only_process_matches(record: &PidRecord) -> Result<bool> {
+    let Some(process) = super::windows::Process::open(record.pid)? else {
+        return Ok(false);
+    };
+    if !process.is_running()? {
+        return Ok(false);
+    }
+    anyhow::ensure!(
+        process.start_time()? == record.process_start_time,
+        "PID generation does not match its record"
+    );
+    Ok(true)
+}
+
+#[cfg(unix)]
+async fn read_only_process_matches(record: &PidRecord) -> Result<bool> {
+    let pid = libc::pid_t::try_from(record.pid).context("PID is out of range")?;
+    anyhow::ensure!(pid > 0, "PID is not positive");
+    if unsafe { libc::kill(pid, 0) } != 0 {
+        let error = std::io::Error::last_os_error();
+        if error.raw_os_error() == Some(libc::ESRCH) {
+            return Ok(false);
+        }
+        return Err(error).context("could not inspect PID liveness");
+    }
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    if let Some(expected) = &record.process_identity {
+        let (zombie, matches) = expected.matches_process(record.pid).await?;
+        anyhow::ensure!(matches, "PID generation does not match its record");
+        return Ok(!zombie);
+    }
+    let (state, started) = read_process_details(record.pid).await?;
+    anyhow::ensure!(
+        started == record.process_start_time,
+        "PID generation does not match its record"
+    );
+    Ok(!state.starts_with('Z'))
+}
+
+#[cfg(not(any(unix, windows)))]
+async fn read_only_process_matches(_record: &PidRecord) -> Result<bool> {
+    bail!("PID observation is unsupported on this platform")
+}
 
 #[derive(Debug)]
 #[cfg_attr(not(any(unix, windows)), allow(dead_code))]
@@ -179,6 +327,14 @@ impl PidBackend {
     }
 
     pub(crate) async fn stop_with_grace(&self, grace_seconds: u32) -> Result<()> {
+        self.stop_with_policy(grace_seconds, /*force*/ true).await
+    }
+
+    pub(crate) async fn stop_without_force(&self, grace_seconds: u32) -> Result<()> {
+        self.stop_with_policy(grace_seconds, /*force*/ false).await
+    }
+
+    async fn stop_with_policy(&self, grace_seconds: u32, force: bool) -> Result<()> {
         loop {
             let Some(record) = self.wait_for_pid_start().await? else {
                 return Ok(());
@@ -186,23 +342,52 @@ impl PidBackend {
             if !self.record_is_active(&record).await? {
                 match self.refresh_after_stale_record(&record).await? {
                     PidFileState::Missing => return Ok(()),
+                    PidFileState::Starting | PidFileState::Running(_) if !force => {
+                        bail!(
+                            "managed process ownership changed; non-forcing stop was not retried"
+                        );
+                    }
                     PidFileState::Starting | PidFileState::Running(_) => continue,
                 }
             }
 
             let pid = record.pid;
+            if !force && matches!(self.command_kind, PidCommandKind::UpdateLoop { .. }) {
+                bail!(
+                    "non-forcing updater shutdown is unsupported: its installer descendants may be force-killed; no shutdown was requested"
+                );
+            }
             crate::diagnostics::event("shutdown_requested", serde_json::json!({ "pid": pid }));
             let started_at = tokio::time::Instant::now();
             let force_after = Duration::from_secs(grace_seconds.into());
-            let deadline = started_at + force_after + STOP_FORCE_TIMEOUT;
+            let deadline = started_at
+                + force_after
+                + if force {
+                    STOP_FORCE_TIMEOUT
+                } else {
+                    Duration::ZERO
+                };
             #[cfg(unix)]
-            self.terminate_process(pid)?;
+            if let Err(error) = self.terminate_process(pid) {
+                if !force {
+                    return Err(NoForceStopError::RequestUnconfirmed(error).into());
+                }
+                return Err(error);
+            }
             #[cfg(windows)]
             let process = {
                 let Some(process) = super::windows::Process::open(pid)? else {
+                    if !force {
+                        bail!(
+                            "managed process disappeared before shutdown; non-forcing stop was not retried"
+                        );
+                    }
                     continue;
                 };
                 if process.start_time()? != record.process_start_time {
+                    if !force {
+                        bail!("managed process identity changed; non-forcing stop was not retried");
+                    }
                     continue;
                 }
                 match self.command_kind {
@@ -217,13 +402,23 @@ impl PidBackend {
                         if let Err(err) =
                             crate::client::request_shutdown(socket_path.as_path(), pid).await
                         {
+                            if !force {
+                                return Err(NoForceStopError::RequestUnconfirmed(err).into());
+                            }
                             tracing::warn!(%pid, %err, "managed app-server shutdown request failed; waiting for force deadline");
                         }
                     }
                     PidCommandKind::UpdateLoop { .. } => {
-                        fs::write(self.pid_file.with_extension("shutdown"), pid.to_string())
-                            .await
-                            .context("failed to request updater shutdown")?;
+                        let requested =
+                            fs::write(self.pid_file.with_extension("shutdown"), pid.to_string())
+                                .await
+                                .context("failed to request updater shutdown");
+                        if let Err(error) = requested {
+                            if !force {
+                                return Err(NoForceStopError::RequestUnconfirmed(error).into());
+                            }
+                            return Err(error);
+                        }
                     }
                 }
                 process
@@ -240,13 +435,21 @@ impl PidBackend {
                 if !self.record_is_active(&record).await? {
                     match self.refresh_after_stale_record(&record).await? {
                         PidFileState::Missing => return Ok(()),
+                        PidFileState::Starting | PidFileState::Running(_) if !force => {
+                            bail!(
+                                "managed process ownership changed after shutdown; non-forcing stop was not retried"
+                            );
+                        }
                         PidFileState::Starting | PidFileState::Running(_) => break,
                     }
                 }
                 if tokio::time::Instant::now() >= deadline {
+                    if !force {
+                        return Err(NoForceStopError::TimedOut.into());
+                    }
                     break;
                 }
-                if !forced && started_at.elapsed() >= force_after {
+                if force && !forced && started_at.elapsed() >= force_after {
                     crate::diagnostics::event("shutdown_forced", serde_json::json!({ "pid": pid }));
                     #[cfg(unix)]
                     self.force_terminate_process(pid)?;

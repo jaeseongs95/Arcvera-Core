@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 #[cfg(any(unix, windows))]
 use std::process::Stdio;
 use std::time::Duration;
@@ -45,6 +45,32 @@ fn is_elevated_test_process() -> anyhow::Result<bool> {
         "False" => Ok(false),
         other => anyhow::bail!("unexpected administrator membership: {other}"),
     }
+}
+
+#[tokio::test]
+async fn passive_pid_observation_checks_generation_and_preserves_records() {
+    let temp = TempDir::new().unwrap();
+    let pid_file = temp.path().join("daemon.pid");
+    let mut record = PidRecord {
+        pid: std::process::id(),
+        process_start_time: super::read_process_start_time(std::process::id())
+            .await
+            .unwrap(),
+        process_identity: None,
+        executable_identity: None,
+    };
+    let bytes = serde_json::to_vec(&record).unwrap();
+    tokio::fs::write(&pid_file, &bytes).await.unwrap();
+    assert_eq!(
+        super::read_only_pid_status(&pid_file).await.unwrap(),
+        super::ReadOnlyPidStatus::Running
+    );
+    record.process_start_time.push_str("-different-generation");
+    let stale = serde_json::to_vec(&record).unwrap();
+    tokio::fs::write(&pid_file, &stale).await.unwrap();
+    assert!(super::read_only_pid_status(&pid_file).await.is_err());
+    assert_eq!(tokio::fs::read(&pid_file).await.unwrap(), stale);
+    assert!(!pid_file.with_extension("pid.lock").exists());
 }
 
 #[tokio::test]
@@ -577,6 +603,67 @@ async fn shutdown_grace_handles_process_exit() {
         assert_eq!(ready.with_extension("exited").exists(), exits);
         assert!(!still_running, "{name}");
     }
+}
+
+#[tokio::test]
+async fn no_force_timeout_keeps_process_and_pid_record() {
+    let temp = TempDir::new().expect("temp dir");
+    let ready = temp.path().join("fixture.ready");
+    let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "backend::pid::tests::shutdown_grace_child"])
+        .env("CODEX_TEST_SHUTDOWN_GRACE_READY", &ready)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let pid = child.id();
+    let pid_file = ready.with_extension("pid");
+    let result = async {
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while !ready.exists() {
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("fixture readiness");
+        let record = PidRecord {
+            pid,
+            process_start_time: super::read_process_start_time(pid).await?,
+            process_identity: None,
+            executable_identity: None,
+        };
+        tokio::fs::write(&pid_file, serde_json::to_vec(&record)?).await?;
+        for updater in [false, true] {
+            if cfg!(windows) && !updater {
+                continue; // The fixture does not implement the app-server shutdown RPC.
+            }
+            let backend = if updater {
+                PidBackend::new_update_loop(temp.path().join("codex"), pid_file.clone(), None)
+            } else {
+                PidBackend::new(temp.path().join("codex"), pid_file.clone(), false)
+            };
+            let error = backend
+                .stop_without_force(0)
+                .await
+                .expect_err("must not force a live fixture");
+            if updater {
+                anyhow::ensure!(error.to_string().contains("no shutdown was requested"));
+                anyhow::ensure!(!pid_file.with_extension("shutdown").exists());
+            } else {
+                anyhow::ensure!(matches!(
+                    error.downcast_ref::<super::NoForceStopError>(),
+                    Some(super::NoForceStopError::TimedOut)
+                ));
+            }
+            anyhow::ensure!(backend.record_is_active(&record).await?);
+            anyhow::ensure!(pid_file.is_file());
+        }
+        Ok::<(), anyhow::Error>(())
+    }
+    .await;
+    let _ = child.kill(); // Test fixture cleanup, never part of the no-force product path.
+    let _ = child.wait();
+    result.unwrap();
 }
 
 #[cfg(unix)]

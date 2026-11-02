@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 //! Covers complete-package staging, conservative selection, and legacy preservation.
 #![cfg(unix)]
 use std::collections::BTreeMap;
@@ -152,6 +153,243 @@ async fn seeds_full_package() {
         // Subsequent pruning does not retry a retirement, even when deletable now.
         assert_eq!(std::fs::read(leftover.join("runtime")).unwrap(), b"runtime");
     }
+}
+
+#[tokio::test]
+async fn no_force_installer_fixture() {
+    let Some(root) = std::env::var_os("CODEX_TEST_NO_FORCE_INSTALL_ROOT") else {
+        return;
+    };
+    let root = PathBuf::from(root);
+    let _lock = crate::install_lock::acquire_install_lock(&root)
+        .await
+        .unwrap();
+    std::fs::write(root.join("installer-ready"), b"ready").unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        while !root.join("installer-proceed").exists() {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    std::fs::write(root.join("installer-completed"), b"completed").unwrap();
+}
+
+#[tokio::test]
+#[cfg(target_os = "linux")]
+async fn no_force_waits_for_legacy_installer_without_stopping_its_updater() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let home = temp.path().join("home");
+    let source = temp.path().join("source");
+    let bin = package(&source, "0.152.0");
+    let settings = DaemonSettings::default();
+    prepare_from_package(
+        &daemon(&home),
+        &settings,
+        InstallMode::Missing,
+        Some(&source),
+        &bin,
+        |_| Ok(true),
+    )
+    .await
+    .unwrap();
+    let dedicated = home.join("packages/app-server-daemon");
+    let legacy = home.join("packages/standalone");
+    let old_name = dedicated
+        .join("current")
+        .canonicalize()
+        .unwrap()
+        .file_name()
+        .unwrap()
+        .to_owned();
+    std::fs::rename(&dedicated, &legacy).unwrap();
+    std::fs::remove_file(legacy.join("current")).unwrap();
+    std::os::unix::fs::symlink(
+        legacy.join("releases").join(old_name),
+        legacy.join("current"),
+    )
+    .unwrap();
+    let selected = crate::Daemon {
+        managed_codex_bin: legacy.join("current/bin/codex"),
+        ..daemon(&home)
+    };
+    // The managed updater owns a live installer child, which holds the legacy
+    // install lock. Signalling its group would interrupt that child (the F1 path).
+    let fixture = format!(
+        "#!/bin/sh\nif [ \"$1\" = --version ]; then echo 'codex 0.152.0'; exit 0; fi\ntrap 'touch \"{root}/updater-terminated\"; exit 0' TERM\nCODEX_TEST_NO_FORCE_INSTALL_ROOT='{root}' '{test}' --exact prepare_install::tests::no_force_installer_fixture &\nwait\nwhile :; do sleep 1; done\n",
+        root = legacy.display(),
+        test = std::env::current_exe().unwrap().display(),
+    );
+    codex_utils_cargo_bin::write_executable(&selected.managed_codex_bin, &fixture).unwrap();
+    let updater = crate::backend::pid_update_loop_backend(selected.backend_paths(&settings));
+    updater.start().await.unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while !legacy.join("installer-ready").exists() {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let old_selection = legacy.join("current").canonicalize().unwrap();
+    let replacement = temp.path().join("replacement");
+    let replacement_bin = package(&replacement, "0.153.0");
+    let (result, ()) = tokio::join!(
+        prepare_from_package(
+            &selected,
+            &settings,
+            InstallMode::ReplaceNoForce,
+            Some(&replacement),
+            &replacement_bin,
+            |_| Ok(true)
+        ),
+        async {
+            tokio::time::timeout(std::time::Duration::from_secs(3), async {
+                loop {
+                    let probe = selected.open_operation_lock_file().await.unwrap();
+                    if !crate::try_lock_file(&probe).unwrap() {
+                        break;
+                    }
+                    drop(probe);
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .unwrap();
+            // Wait until no-force owns the dedicated lock as well as the
+            // operation lock, while its legacy-lock acquisition is blocked.
+            tokio::time::timeout(std::time::Duration::from_secs(3), async {
+                loop {
+                    if dedicated.join("install.lock").exists()
+                        || dedicated.join("install.lock.d").exists()
+                    {
+                        break;
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .unwrap();
+            assert!(
+                tokio::time::timeout(
+                    std::time::Duration::from_millis(100),
+                    crate::install_lock::acquire_install_lock(&dedicated)
+                )
+                .await
+                .is_err()
+            );
+            assert!(!dedicated.join("current").exists());
+            assert_eq!(
+                legacy.join("current").canonicalize().unwrap(),
+                old_selection
+            );
+            assert!(updater.is_starting_or_running().await.unwrap());
+            assert!(!legacy.join("updater-terminated").exists());
+            std::fs::write(legacy.join("installer-proceed"), b"go").unwrap();
+        },
+    );
+    let updater_alive = updater.is_starting_or_running().await.unwrap();
+    let terminated = legacy.join("updater-terminated").exists();
+    let installer_completed = legacy.join("installer-completed").exists();
+    let new_selection = dedicated.join("current").canonicalize().unwrap();
+    // Exercise the real updater restart entry after pinning. An absent server
+    // cannot be resurrected by the old updater's captured executable/root.
+    let restart = selected
+        .try_restart_if_running(
+            crate::RestartMode::IfBinaryOrVersionChanged,
+            &selected.managed_codex_bin.canonicalize().unwrap(),
+            &legacy,
+        )
+        .await
+        .unwrap();
+    updater.stop_with_grace(0).await.unwrap(); // Own fixture cleanup after observations.
+    assert!(result.unwrap());
+    assert!(updater_alive);
+    assert!(!terminated);
+    assert!(installer_completed);
+    assert!(matches!(
+        restart,
+        crate::RestartIfRunningOutcome::AlreadyCurrent
+    ));
+    assert_eq!(
+        dedicated.join("current").canonicalize().unwrap(),
+        new_selection
+    );
+    assert!(!selected.pid_file.exists());
+    assert!(!crate::managed_install::is_stable_standalone_release(
+        &home,
+        &dedicated.join("current/bin/codex")
+    ));
+}
+
+#[tokio::test]
+async fn no_force_timeout_does_not_select_or_start_replacement() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    let bin = package(&source, "0.152.0");
+    let home = temp.path().join("home");
+    let settings = DaemonSettings {
+        shutdown_grace_seconds: 0,
+        ..DaemonSettings::default()
+    };
+    prepare_from_package(
+        &daemon(&home),
+        &settings,
+        InstallMode::Missing,
+        Some(&source),
+        &bin,
+        |_| Ok(true),
+    )
+    .await
+    .unwrap();
+    let selected = daemon(&home);
+    settings.save(&selected.settings_file).await.unwrap();
+    let old_selection = home
+        .join("packages/app-server-daemon/current")
+        .canonicalize()
+        .unwrap();
+    let ready = temp.path().join("ready");
+    let fixture = format!(
+        "#!/bin/sh\ncase \"$*\" in *--help*) exit 1;; esac\nif [ \"$1\" = --version ]; then echo 'codex 0.152.0'; exit 0; fi\ntrap '' TERM\ntouch '{}'\nwhile :; do sleep 1; done\n",
+        ready.display()
+    );
+    codex_utils_cargo_bin::write_executable(&selected.managed_codex_bin, &fixture).unwrap();
+    let backend = crate::backend::pid_backend(selected.backend_paths(&settings));
+    backend.start().await.unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while !ready.exists() {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let recovery = selected.recovery_file().unwrap();
+    std::fs::write(&recovery, b"preserve pending recovery").unwrap();
+    let replacement = temp.path().join("replacement");
+    let replacement_bin = package(&replacement, "0.153.0");
+    let result = prepare_from_package(
+        &selected,
+        &settings,
+        InstallMode::ReplaceNoForce,
+        Some(&replacement),
+        &replacement_bin,
+        |_| Ok(true),
+    )
+    .await;
+    let unchanged = home
+        .join("packages/app-server-daemon/current")
+        .canonicalize()
+        .unwrap()
+        == old_selection;
+    let alive = backend.is_starting_or_running().await.unwrap();
+    let recovery_preserved = std::fs::read(&recovery).unwrap() == b"preserve pending recovery";
+    backend.stop_with_grace(0).await.unwrap(); // Fixture cleanup after capturing the no-force result.
+    let error = result.expect_err("live old process must prevent selection");
+    assert!(
+        matches!(error.downcast_ref::<super::NoForceUpdateError>(), Some(error) if error.status == crate::UpdateStatus::ShutdownTimedOut)
+    );
+    assert!(unchanged);
+    assert!(alive);
+    assert!(recovery_preserved);
 }
 
 #[tokio::test]

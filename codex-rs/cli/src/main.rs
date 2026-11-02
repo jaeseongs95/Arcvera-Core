@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 use clap::Args;
 use clap::CommandFactory;
 use clap::Parser;
@@ -697,6 +697,9 @@ enum AppServerDaemonSubcommand {
         /// Confirm replacing the daemon package without an interactive prompt.
         #[arg(short = 'y', long, requires = "from_cli")]
         yes: bool,
+        /// Never force shutdown. On an unconfirmed stop, keep the selected package and do not retry automatically.
+        #[arg(long, requires = "from_cli")]
+        no_force: bool,
     },
 
     /// Enable remote control for future starts and a currently running managed daemon.
@@ -710,6 +713,12 @@ enum AppServerDaemonSubcommand {
 
     /// Print local CLI and running app-server versions as JSON.
     Version,
+
+    /// Observe the selected installation and daemon without starting or repairing it.
+    Status {
+        #[arg(long)]
+        json: bool,
+    },
 
     /// [internal] Run the detached pid-backed standalone updater loop.
     #[clap(hide = true)]
@@ -1431,10 +1440,12 @@ async fn cli_main(
                     AppServerDaemonSubcommand::Update {
                         from_cli: true,
                         yes,
+                        no_force,
                     } => {
-                        let result = codex_app_server_daemon::update_from_cli(|request| {
-                            daemon_install::confirm_install(request, yes)
-                        })
+                        let result = codex_app_server_daemon::update_from_cli_with_no_force(
+                            |request| daemon_install::confirm_install(request, yes),
+                            no_force,
+                        )
                         .await;
                         daemon_telemetry::record_command(
                             &root_config_overrides,
@@ -1445,6 +1456,14 @@ async fn cli_main(
                         .await;
                         if let Some(output) = result? {
                             println!("{}", serde_json::to_string(&output)?);
+                            if matches!(
+                                output.status,
+                                codex_app_server_daemon::UpdateStatus::ShutdownUnconfirmed
+                                    | codex_app_server_daemon::UpdateStatus::ShutdownTimedOut
+                                    | codex_app_server_daemon::UpdateStatus::ShutdownOutcomeUnknown
+                            ) {
+                                anyhow::bail!("{}", output.message);
+                            }
                         }
                     }
                     AppServerDaemonSubcommand::EnableRemoteControl => {
@@ -1462,6 +1481,18 @@ async fn cli_main(
                     }
                     AppServerDaemonSubcommand::Version => {
                         print_app_server_daemon_output(AppServerLifecycleCommand::Version).await?;
+                    }
+                    AppServerDaemonSubcommand::Status { json } => {
+                        let output = codex_app_server_daemon::status().await;
+                        if json {
+                            println!("{}", serde_json::to_string(&output)?);
+                        } else {
+                            println!(
+                                "{:?}: {}",
+                                output.status,
+                                output.reason.as_deref().unwrap_or("observation complete")
+                            );
+                        }
                     }
                     AppServerDaemonSubcommand::PidUpdateLoop {
                         check_package_ownership: true,
@@ -2510,6 +2541,7 @@ fn app_server_subcommand_name(subcommand: Option<&AppServerSubcommand>) -> &'sta
             }
             AppServerDaemonSubcommand::Stop => "app-server daemon stop",
             AppServerDaemonSubcommand::Version => "app-server daemon version",
+            AppServerDaemonSubcommand::Status { .. } => "app-server daemon status",
             AppServerDaemonSubcommand::PidUpdateLoop { .. } => "app-server daemon pid-update-loop",
         },
         Some(AppServerSubcommand::Proxy(_)) => "app-server proxy",
@@ -5062,6 +5094,46 @@ enabled = true
                 subcommand: AppServerDaemonSubcommand::Start {
                     existing_installation: true
                 }
+            }))
+        ));
+    }
+
+    #[test]
+    fn no_force_update_requires_from_cli_and_preserves_default() {
+        assert!(
+            MultitoolCli::try_parse_from(["codex", "app-server", "daemon", "update", "--no-force"])
+                .is_err()
+        );
+        for (args, expected) in [
+            (
+                vec!["codex", "app-server", "daemon", "update", "--from-cli"],
+                false,
+            ),
+            (
+                vec![
+                    "codex",
+                    "app-server",
+                    "daemon",
+                    "update",
+                    "--from-cli",
+                    "--no-force",
+                ],
+                true,
+            ),
+        ] {
+            assert!(matches!(app_server_from_args(&args).subcommand,
+                Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
+                    subcommand: AppServerDaemonSubcommand::Update { from_cli: true, no_force, .. }
+                })) if no_force == expected));
+        }
+    }
+
+    #[test]
+    fn daemon_status_json_parses() {
+        assert!(matches!(
+            app_server_from_args(&["codex", "app-server", "daemon", "status", "--json"]).subcommand,
+            Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
+                subcommand: AppServerDaemonSubcommand::Status { json: true }
             }))
         ));
     }

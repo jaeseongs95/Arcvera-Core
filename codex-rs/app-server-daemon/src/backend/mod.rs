@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 mod pid;
 pub(crate) mod stderr_log;
 #[cfg(windows)]
@@ -9,7 +10,10 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
+pub(crate) use pid::NoForceStopError;
 pub(crate) use pid::PidBackend;
+pub(crate) use pid::ReadOnlyPidStatus;
+pub(crate) use pid::read_only_pid_status;
 pub(crate) use pid::wait_for_process_exit;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

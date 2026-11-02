@@ -1,3 +1,4 @@
+<!-- Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md. -->
 # codex-app-server-daemon
 
 > `codex-app-server-daemon` is experimental and its lifecycle contract may
@@ -33,12 +34,46 @@ initialize the connection, the TUI starts an embedded server instead. Explicit
 codex app-server daemon start
 codex app-server daemon restart
 codex app-server daemon update
+codex app-server daemon update --from-cli --no-force
 codex app-server daemon enable-remote-control
 codex app-server daemon disable-remote-control
 codex app-server daemon stop
 codex app-server daemon version
+codex app-server daemon status --json
 codex app-server daemon bootstrap --remote-control
 ```
+
+`update --from-cli --no-force` selects the invoking complete package only after
+holding the operation lock and both existing package roots' installer locks,
+and after the existing daemon finishes graceful shutdown. It never requests
+updater shutdown: that path can force-kill installer descendants even when the
+updater receives only a graceful request. The old updater remains alive. The
+new dedicated local pin prevents it from restarting the selected server; a
+legacy updater may still finish an independent standalone-root package update.
+Unlike the default update, this operation never force-kills a managed process
+or its installer descendants. Installer-lock failure, a failed request or elapsed
+shutdown grace leaves `current` unchanged and does not start a replacement or
+automatically restart the updater. A staged release may remain on disk.
+
+Success retains the existing `status: "updated"` JSON. An incomplete non-forcing
+stop prints the same output fields with `shutdownUnconfirmed` (request/ACK
+failed), `shutdownTimedOut` (grace elapsed), or `shutdownOutcomeUnknown` (state
+could not be reconciled), and exits unsuccessfully. Version fields are null when
+not re-observed. The old process may still be draining: an ACK is not process
+exit, an already-sent shutdown cannot be undone, and these outcomes must not be
+automatically retried. `--no-force` requires `--from-cli`; omitting it preserves
+the existing force-after-grace behavior.
+
+`status --json` is a passive observation: `status` is `running`, `stopped`, or
+`unknown`, with `managedCodexPath`, `managedCodexVersion`, `appServerVersion`,
+`socketPath`, `cliVersion`, and `reason`. Missing/unobserved values are null.
+Both legacy and dedicated PID namespaces are inspected without stale-record
+cleanup. Starting reservations, changed PID generations, metadata errors, and
+unreachable existing sockets are unknown, not stopped. The socket probe has a
+two-second deadline and the selected binary version probe a five-second deadline.
+No settings, authentication, log contents, or conversation payloads are returned.
+An observation is not an atomic installation snapshot or a reservation against
+new work, and `stopped` is not a safe-to-upgrade/quiescence gate.
 
 On success, every command writes exactly one JSON object to stdout. Consumers
 should parse that JSON rather than relying on human-readable text. Lifecycle
