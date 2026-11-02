@@ -6,6 +6,16 @@
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File PACKAGE\updater\update.ps1 -Action Update -InstallationRoot ROOT -PackageRoot PACKAGE -ManifestSha256 RECEIPT_SHA256
 ```
 
+설치된 CLI에서는 다음 명령을 사용한다. `--enable` / `--disable`은 기존 전역 기능 옵션이므로 자동업데이트에는 아래 전용 옵션을 쓴다.
+
+```text
+codex update --check
+codex update --status
+codex update --enable-updates --interval-minutes 60
+codex update --disable-updates
+codex update
+```
+
 `PACKAGE`와 `RECEIPT_SHA256`은 현재 선택된 패키지 또는 보존한 초기 패키지 및 그 `package-receipt.json` SHA-256이다. `Update`는 검증한 패키지를 새 `ROOT/versions/` 폴더에 보관하고 `ROOT/current-package.json`을 원자 교체하므로 다음 CLI 실행이 새 패키지를 선택한다. 기존 실행 파일·패키지·공유 서버는 보존한다. 서버에 종료·업데이트를 요청하지 않으며 CLI 선택 성공과 서버 전환 성공을 합치지 않는다.
 
 패키지 전체 버전은 `정식 또는 alpha 기반 버전+native-rNN.8자리날짜` 형식이며, 릴리스 태그는 이 문자열의 `+native-r`를 `-r`로 바꾸고 `v`를 앞에 붙인 값과 정확히 같아야 한다. 필수 receipt 경로의 소문자 표기도 native launcher와 동일하게 검사한다.
