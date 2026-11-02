@@ -180,7 +180,9 @@ impl FromStr for AppServerTransport {
 #[derive(Debug)]
 pub enum TransportEvent {
     /// Accepted on the managed local control socket, outside JSON-RPC.
-    DaemonShutdown,
+    DaemonShutdown {
+        graceful_only: bool,
+    },
     ConnectionOpened {
         connection_id: ConnectionId,
         origin: ConnectionOrigin,

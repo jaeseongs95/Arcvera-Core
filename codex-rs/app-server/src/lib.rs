@@ -222,7 +222,6 @@ enum ShutdownAction {
 #[derive(Clone, Copy)]
 enum ShutdownSignal {
     Forceable,
-    #[cfg(unix)]
     GracefulOnly,
 }
 
@@ -1149,15 +1148,16 @@ pub async fn run_main_with_transport_options(
                         let Some(event) = event else {
                             break "transport_channel_closed";
                         };
-                        if ready_to_exit && !matches!(event, TransportEvent::DaemonShutdown) {
+                        if ready_to_exit && !matches!(event, TransportEvent::DaemonShutdown { .. }) {
                             if let TransportEvent::ConnectionOpened { disconnect_sender: Some(token), .. } = event {
                                 token.cancel();
                             }
                             continue;
                         }
                         match event {
-                            TransportEvent::DaemonShutdown => {
-                                shutdown_state.on_signal(ShutdownSignal::Forceable, connections.len(), *running_turn_count_rx.borrow(), &processor.turn_admission);
+                            TransportEvent::DaemonShutdown { graceful_only } => {
+                                let signal = if graceful_only { ShutdownSignal::GracefulOnly } else { ShutdownSignal::Forceable };
+                                shutdown_state.on_signal(signal, connections.len(), *running_turn_count_rx.borrow(), &processor.turn_admission);
                             }
                             TransportEvent::ConnectionOpened {
                                 connection_id,

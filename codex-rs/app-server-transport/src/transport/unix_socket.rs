@@ -253,16 +253,25 @@ async fn run_daemon_shutdown(
     transport_event_tx: mpsc::Sender<TransportEvent>,
 ) {
     let pid = std::process::id().to_string();
-    if !matches!(websocket.next().await, Some(Ok(Message::Text(request))) if request == pid) {
+    let Some(Ok(Message::Text(request))) = websocket.next().await else {
         return;
-    }
-    if websocket.send(Message::Text(pid.into())).await.is_err() {
+    };
+    let graceful_only = if request == pid {
+        false
+    } else if request == format!("graceful:{pid}") {
+        true
+    } else {
+        return;
+    };
+    // Echo the complete request: a legacy PID-only ACK cannot acknowledge a
+    // graceful-only request, and the original PID-only contract stays forceable.
+    if websocket.send(Message::Text(request)).await.is_err() {
         return;
     }
     // Let the manager receive the acknowledgment before the main loop closes connections.
     let _ = tokio::time::timeout(Duration::from_secs(2), websocket.next()).await;
     let _ = transport_event_tx
-        .send(TransportEvent::DaemonShutdown)
+        .send(TransportEvent::DaemonShutdown { graceful_only })
         .await;
 }
 

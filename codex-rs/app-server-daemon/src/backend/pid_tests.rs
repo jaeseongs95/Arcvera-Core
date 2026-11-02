@@ -507,11 +507,17 @@ async fn shutdown_grace_child() {
     #[cfg(unix)]
     let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
         .expect("install shutdown handler");
+    #[cfg(unix)]
+    let mut hangup = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup())
+        .expect("install graceful-only shutdown handler");
     tokio::fs::write(&ready, "").await.expect("ready marker");
     // Outlive the parent's stop deadline so this watchdog cannot look like a forced stop.
     let _ = tokio::time::timeout(Duration::from_secs(/*secs*/ 30), async {
         #[cfg(unix)]
-        terminate.recv().await;
+        tokio::select! {
+            _ = terminate.recv() => {},
+            _ = hangup.recv() => {},
+        }
         #[cfg(windows)]
         loop {
             if ready.with_extension("shutdown").exists() {
@@ -661,6 +667,96 @@ async fn no_force_timeout_keeps_process_and_pid_record() {
     }
     .await;
     let _ = child.kill(); // Test fixture cleanup, never part of the no-force product path.
+    let _ = child.wait();
+    result.unwrap();
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn already_draining_child() {
+    let Some(ready) = std::env::var_os("CODEX_TEST_SHUTDOWN_RETRY_READY") else {
+        return;
+    };
+    let ready = std::path::PathBuf::from(ready);
+    let mut terminate =
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
+    let mut hangup =
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup()).unwrap();
+    tokio::fs::write(&ready, "").await.unwrap();
+    let mut draining = false;
+    let mut received = 0;
+    loop {
+        let forceable = tokio::select! {
+            _ = terminate.recv() => true,
+            _ = hangup.recv() => false,
+        };
+        if draining && forceable {
+            return;
+        } // The R28/R32 forceable-second-signal contract.
+        draining = true;
+        received += 1;
+        tokio::fs::write(
+            ready.with_extension(format!("signal{received}")),
+            if forceable { "TERM" } else { "HUP" },
+        )
+        .await
+        .unwrap();
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn repeated_no_force_stop_does_not_escalate_an_already_draining_process() {
+    let temp = TempDir::new().unwrap();
+    let ready = temp.path().join("draining.ready");
+    let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "backend::pid::tests::already_draining_child"])
+        .env("CODEX_TEST_SHUTDOWN_RETRY_READY", &ready)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let result = async {
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while !ready.exists() {
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await?;
+        let pid = child.id();
+        let record = PidRecord {
+            pid,
+            process_start_time: super::read_process_start_time(pid).await?,
+            process_identity: None,
+            executable_identity: None,
+        };
+        let pid_file = ready.with_extension("pid");
+        tokio::fs::write(&pid_file, serde_json::to_vec(&record)?).await?;
+        let backend = PidBackend::new(temp.path().join("codex"), pid_file.clone(), false);
+        for received in 1..=2 {
+            let error = backend
+                .stop_without_force(0)
+                .await
+                .expect_err("drain is still active");
+            anyhow::ensure!(matches!(
+                error.downcast_ref::<super::NoForceStopError>(),
+                Some(super::NoForceStopError::TimedOut)
+            ));
+            let observed = ready.with_extension(format!("signal{received}"));
+            tokio::time::timeout(Duration::from_secs(3), async {
+                while !observed.exists() {
+                    sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await?;
+            anyhow::ensure!(tokio::fs::read_to_string(observed).await? == "HUP");
+            anyhow::ensure!(backend.record_is_active(&record).await?);
+            anyhow::ensure!(pid_file.is_file());
+        }
+        Ok::<(), anyhow::Error>(())
+    }
+    .await;
+    let _ = child.kill(); // Own fixture cleanup after capturing both no-force results.
     let _ = child.wait();
     result.unwrap();
 }

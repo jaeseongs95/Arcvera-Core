@@ -16,6 +16,32 @@ use codex_utils_absolute_path::AbsolutePathBuf;
 use pretty_assertions::assert_eq;
 
 #[test]
+fn repeated_graceful_only_shutdown_never_escalates_an_existing_drain() {
+    for first in [ShutdownSignal::Forceable, ShutdownSignal::GracefulOnly] {
+        let admission = TurnAdmission::default();
+        let active = admission.subscribe_active();
+        let in_flight = admission.admit().unwrap();
+        let mut shutdown = ShutdownState::default();
+        shutdown.on_signal(first, 1, 1, &admission);
+        for _ in 0..3 {
+            shutdown.on_signal(ShutdownSignal::GracefulOnly, 1, 1, &admission);
+            assert!(shutdown.requested());
+            assert!(!shutdown.forced());
+            assert!(matches!(
+                shutdown.update(1, *active.borrow(), 1),
+                ShutdownAction::Noop
+            ));
+        }
+        drop(in_flight);
+        assert!(matches!(
+            shutdown.update(0, *active.borrow(), 1),
+            ShutdownAction::Finish
+        ));
+        assert!(!shutdown.forced());
+    }
+}
+
+#[test]
 fn shutdown_waits_for_admitted_requests_but_force_remains_available() {
     let admission = TurnAdmission::default();
     let active = admission.subscribe_active();
