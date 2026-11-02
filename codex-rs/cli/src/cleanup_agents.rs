@@ -161,7 +161,7 @@ mod tests {
             options.explicit_remote_endpoint,
             Some(
                 codex_app_server_client::RemoteAppServerEndpoint::WebSocket {
-                    websocket_url: "ws://127.0.0.1:12345".into(),
+                    websocket_url: "ws://127.0.0.1:12345/".into(),
                     auth_token: None,
                 }
             ),
