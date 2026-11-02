@@ -22,6 +22,8 @@ pub use prepare_install::update_from_cli;
 pub use prepare_install::update_from_cli_with_no_force;
 mod remote_control_client;
 mod settings;
+mod status;
+pub use status::{DaemonStatus, StatusOutput, status};
 pub mod telemetry;
 mod thread_recovery;
 mod update_loop;

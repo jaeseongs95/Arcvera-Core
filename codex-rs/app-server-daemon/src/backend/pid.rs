@@ -53,6 +53,135 @@ impl std::fmt::Display for NoForceStopError {
 
 impl std::error::Error for NoForceStopError {}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReadOnlyPidStatus {
+    NotRunning,
+    Running,
+    Starting,
+}
+
+/// Inspect existing files only; never create a reservation, remove a record, or reap a child.
+#[cfg(any(unix, windows))]
+pub(crate) async fn read_only_pid_status(path: &Path) -> Result<ReadOnlyPidStatus> {
+    let lock_path = path.with_extension("pid.lock");
+    match fs::symlink_metadata(&lock_path).await {
+        Ok(metadata) => anyhow::ensure!(
+            metadata.is_file() && !metadata.file_type().is_symlink(),
+            "PID reservation is not a regular file"
+        ),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error).context("could not inspect PID reservation metadata"),
+    }
+    let lock = match fs::OpenOptions::new().read(true).open(lock_path).await {
+        Ok(file) => Some(file),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error).context("could not inspect PID reservation"),
+    };
+    if let Some(lock) = lock
+        && probe_reservation_lock(lock)?
+    {
+        return Ok(ReadOnlyPidStatus::Starting);
+    }
+    let before = match read_only_pid_bytes(path).await? {
+        Some(bytes) => bytes,
+        None => {
+            return match fs::symlink_metadata(path.with_extension("pid.tmp")).await {
+                Ok(_) => Ok(ReadOnlyPidStatus::Starting),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    Ok(ReadOnlyPidStatus::NotRunning)
+                }
+                Err(error) => Err(error).context("could not inspect PID publication"),
+            };
+        }
+    };
+    if before.iter().all(u8::is_ascii_whitespace) {
+        return Ok(ReadOnlyPidStatus::Starting);
+    }
+    let record: PidRecord = serde_json::from_slice(&before).context("invalid PID metadata")?;
+    anyhow::ensure!(
+        record.pid > 0 && !record.process_start_time.is_empty(),
+        "PID metadata has no valid generation"
+    );
+    let running = read_only_process_matches(&record).await?;
+    anyhow::ensure!(
+        read_only_pid_bytes(path).await?.as_ref() == Some(&before),
+        "PID metadata changed during observation"
+    );
+    Ok(if running {
+        ReadOnlyPidStatus::Running
+    } else {
+        ReadOnlyPidStatus::NotRunning
+    })
+}
+
+#[cfg(any(unix, windows))]
+async fn read_only_pid_bytes(path: &Path) -> Result<Option<Vec<u8>>> {
+    let metadata = match fs::symlink_metadata(path).await {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error).context("could not inspect PID metadata"),
+    };
+    anyhow::ensure!(
+        metadata.is_file() && !metadata.file_type().is_symlink(),
+        "PID metadata is not a regular file"
+    );
+    let file = fs::File::open(path).await?;
+    let mut bytes = Vec::new();
+    file.take(16385).read_to_end(&mut bytes).await?;
+    anyhow::ensure!(bytes.len() <= 16384, "PID metadata is oversized");
+    Ok(Some(bytes))
+}
+
+#[cfg(not(any(unix, windows)))]
+pub(crate) async fn read_only_pid_status(_path: &Path) -> Result<ReadOnlyPidStatus> {
+    bail!("PID observation is unsupported on this platform")
+}
+
+#[cfg(windows)]
+async fn read_only_process_matches(record: &PidRecord) -> Result<bool> {
+    let Some(process) = super::windows::Process::open(record.pid)? else {
+        return Ok(false);
+    };
+    if !process.is_running()? {
+        return Ok(false);
+    }
+    anyhow::ensure!(
+        process.start_time()? == record.process_start_time,
+        "PID generation does not match its record"
+    );
+    Ok(true)
+}
+
+#[cfg(unix)]
+async fn read_only_process_matches(record: &PidRecord) -> Result<bool> {
+    let pid = libc::pid_t::try_from(record.pid).context("PID is out of range")?;
+    anyhow::ensure!(pid > 0, "PID is not positive");
+    if unsafe { libc::kill(pid, 0) } != 0 {
+        let error = std::io::Error::last_os_error();
+        if error.raw_os_error() == Some(libc::ESRCH) {
+            return Ok(false);
+        }
+        return Err(error).context("could not inspect PID liveness");
+    }
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    if let Some(expected) = &record.process_identity {
+        let (zombie, matches) = expected.matches_process(record.pid).await?;
+        anyhow::ensure!(matches, "PID generation does not match its record");
+        return Ok(!zombie);
+    }
+    let (state, started) = read_process_details(record.pid).await?;
+    anyhow::ensure!(
+        started == record.process_start_time,
+        "PID generation does not match its record"
+    );
+    Ok(!state.starts_with('Z'))
+}
+
+#[cfg(not(any(unix, windows)))]
+async fn read_only_process_matches(_record: &PidRecord) -> Result<bool> {
+    bail!("PID observation is unsupported on this platform")
+}
+
 #[derive(Debug)]
 #[cfg_attr(not(any(unix, windows)), allow(dead_code))]
 pub(crate) struct PidBackend {

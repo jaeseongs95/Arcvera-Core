@@ -713,6 +713,12 @@ enum AppServerDaemonSubcommand {
     /// Print local CLI and running app-server versions as JSON.
     Version,
 
+    /// Observe the selected installation and daemon without starting or repairing it.
+    Status {
+        #[arg(long)]
+        json: bool,
+    },
+
     /// [internal] Run the detached pid-backed standalone updater loop.
     #[clap(hide = true)]
     PidUpdateLoop {
@@ -1474,6 +1480,18 @@ async fn cli_main(
                     }
                     AppServerDaemonSubcommand::Version => {
                         print_app_server_daemon_output(AppServerLifecycleCommand::Version).await?;
+                    }
+                    AppServerDaemonSubcommand::Status { json } => {
+                        let output = codex_app_server_daemon::status().await;
+                        if json {
+                            println!("{}", serde_json::to_string(&output)?);
+                        } else {
+                            println!(
+                                "{:?}: {}",
+                                output.status,
+                                output.reason.as_deref().unwrap_or("observation complete")
+                            );
+                        }
                     }
                     AppServerDaemonSubcommand::PidUpdateLoop {
                         check_package_ownership: true,
@@ -2522,6 +2540,7 @@ fn app_server_subcommand_name(subcommand: Option<&AppServerSubcommand>) -> &'sta
             }
             AppServerDaemonSubcommand::Stop => "app-server daemon stop",
             AppServerDaemonSubcommand::Version => "app-server daemon version",
+            AppServerDaemonSubcommand::Status { .. } => "app-server daemon status",
             AppServerDaemonSubcommand::PidUpdateLoop { .. } => "app-server daemon pid-update-loop",
         },
         Some(AppServerSubcommand::Proxy(_)) => "app-server proxy",
@@ -5106,6 +5125,16 @@ enabled = true
                     subcommand: AppServerDaemonSubcommand::Update { from_cli: true, no_force, .. }
                 })) if no_force == expected));
         }
+    }
+
+    #[test]
+    fn daemon_status_json_parses() {
+        assert!(matches!(
+            app_server_from_args(&["codex", "app-server", "daemon", "status", "--json"]).subcommand,
+            Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
+                subcommand: AppServerDaemonSubcommand::Status { json: true }
+            }))
+        ));
     }
 
     #[test]

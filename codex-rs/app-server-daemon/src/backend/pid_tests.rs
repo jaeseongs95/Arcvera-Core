@@ -47,6 +47,32 @@ fn is_elevated_test_process() -> anyhow::Result<bool> {
 }
 
 #[tokio::test]
+async fn passive_pid_observation_checks_generation_and_preserves_records() {
+    let temp = TempDir::new().unwrap();
+    let pid_file = temp.path().join("daemon.pid");
+    let mut record = PidRecord {
+        pid: std::process::id(),
+        process_start_time: super::read_process_start_time(std::process::id())
+            .await
+            .unwrap(),
+        process_identity: None,
+        executable_identity: None,
+    };
+    let bytes = serde_json::to_vec(&record).unwrap();
+    tokio::fs::write(&pid_file, &bytes).await.unwrap();
+    assert_eq!(
+        super::read_only_pid_status(&pid_file).await.unwrap(),
+        super::ReadOnlyPidStatus::Running
+    );
+    record.process_start_time.push_str("-different-generation");
+    let stale = serde_json::to_vec(&record).unwrap();
+    tokio::fs::write(&pid_file, &stale).await.unwrap();
+    assert!(super::read_only_pid_status(&pid_file).await.is_err());
+    assert_eq!(tokio::fs::read(&pid_file).await.unwrap(), stale);
+    assert!(!pid_file.with_extension("pid.lock").exists());
+}
+
+#[tokio::test]
 async fn locked_empty_pid_file_is_treated_as_active_reservation() {
     let temp_dir = TempDir::new().expect("temp dir");
     let pid_file = temp_dir.path().join("app-server.pid");

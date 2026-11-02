@@ -38,6 +38,7 @@ codex app-server daemon enable-remote-control
 codex app-server daemon disable-remote-control
 codex app-server daemon stop
 codex app-server daemon version
+codex app-server daemon status --json
 codex app-server daemon bootstrap --remote-control
 ```
 
@@ -55,6 +56,17 @@ not re-observed. The old process may still be draining: an ACK is not process
 exit, an already-sent shutdown cannot be undone, and these outcomes must not be
 automatically retried. `--no-force` requires `--from-cli`; omitting it preserves
 the existing force-after-grace behavior.
+
+`status --json` is a passive observation: `status` is `running`, `stopped`, or
+`unknown`, with `managedCodexPath`, `managedCodexVersion`, `appServerVersion`,
+`socketPath`, `cliVersion`, and `reason`. Missing/unobserved values are null.
+Both legacy and dedicated PID namespaces are inspected without stale-record
+cleanup. Starting reservations, changed PID generations, metadata errors, and
+unreachable existing sockets are unknown, not stopped. The socket probe has a
+two-second deadline and the selected binary version probe a five-second deadline.
+No settings, authentication, log contents, or conversation payloads are returned.
+An observation is not an atomic installation snapshot or a reservation against
+new work, and `stopped` is not a safe-to-upgrade/quiescence gate.
 
 On success, every command writes exactly one JSON object to stdout. Consumers
 should parse that JSON rather than relying on human-readable text. Lifecycle
