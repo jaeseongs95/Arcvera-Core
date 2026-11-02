@@ -23,6 +23,7 @@ struct TopCli {
 }
 
 fn main() -> anyhow::Result<()> {
+    codex_tui::initialize_error_reporting()?;
     let desktop_cron_bootstrap = codex_tui::take_desktop_cron_bootstrap_from_env();
     codex_build_info::initialize!();
     arg0_dispatch_or_else(move |arg0_paths: Arg0DispatchPaths| async move {

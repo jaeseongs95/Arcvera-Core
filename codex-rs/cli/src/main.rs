@@ -1113,6 +1113,7 @@ fn stage_str(stage: Stage) -> &'static str {
 }
 
 fn main() -> anyhow::Result<()> {
+    codex_tui::initialize_error_reporting()?;
     let desktop_cron_bootstrap = codex_tui::take_desktop_cron_bootstrap_from_env();
     codex_build_info::initialize!();
     let remote_control_disabled = codex_app_server::take_remote_control_disabled_env();

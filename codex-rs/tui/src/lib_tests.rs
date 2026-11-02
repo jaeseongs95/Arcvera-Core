@@ -30,6 +30,88 @@ fn tui_startup_future_stays_bounded() {
     assert!(size < 64 * 1024, "TUI startup future is {size} bytes");
 }
 
+// eyre's report hook cannot be reset. Each case must start before any other
+// test can create a report, so exercise the public startup boundary in a child.
+#[test]
+fn startup_error_reporting_precedes_reports_and_survives_reentry() {
+    const CHILD: &str = "CODEX_TEST_STARTUP_ERROR_REPORTING";
+    if let Some(case) = std::env::var_os(CHILD) {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+        let enter_tui = || {
+            run_main(
+                Cli::parse_from(["codex", "--no-daemon"]),
+                Arg0DispatchPaths::default(),
+                LoaderOverrides::without_managed_config_for_tests(),
+                Some(RemoteAppServerEndpoint::WebSocket {
+                    websocket_url: "ws://127.0.0.1:1/".to_string(),
+                    auth_token: None,
+                }),
+                DesktopCronBootstrap::default(),
+            )
+        };
+        if case == "late-install" {
+            let _early_report = color_eyre::eyre::eyre!("report before process initialization");
+            for _ in 0..2 {
+                let error = runtime
+                    .block_on(enter_tui())
+                    .expect_err("late hook installation must remain an error");
+                assert!(error.to_string().contains("ErrorHook"), "{error}");
+                assert!(error.get_ref().is_some(), "preserve the installation cause");
+            }
+            return;
+        }
+        assert_eq!(case, "startup-reentry");
+        for _ in 0..2 {
+            let error = runtime
+                .block_on(enter_tui())
+                .expect_err("conflicting launch options must fail before acquiring the terminal");
+            assert_eq!(
+                error.to_string(),
+                "--no-daemon cannot be used with --remote."
+            );
+            // A recoverable daemon version error can be the first eyre report.
+            // It must use color-eyre before embedded fallback or a second entry.
+            let report =
+                color_eyre::eyre::eyre!("Background server version does not match this CLI");
+            assert!(report.handler().is::<color_eyre::Handler>());
+        }
+
+        let panic_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let hook_count = std::sync::Arc::clone(&panic_count);
+        std::panic::set_hook(Box::new(move |_| {
+            hook_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }));
+        let _error = runtime.block_on(enter_tui()).expect_err("invalid options");
+        assert!(std::panic::catch_unwind(|| panic!("test chained panic hook")).is_err());
+        assert_eq!(panic_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+        return;
+    }
+
+    for case in ["startup-reentry", "late-install"] {
+        let home = TempDir::new().expect("isolated test home");
+        let output = std::process::Command::new(std::env::current_exe().expect("test executable"))
+            .args([
+                "--exact",
+                "tests::startup_error_reporting_precedes_reports_and_survives_reentry",
+                "--nocapture",
+            ])
+            .env(CHILD, case)
+            .env("CODEX_HOME", home.path())
+            .env("CODEX_UI_LANGUAGE", "en")
+            .output()
+            .expect("start isolated hook test");
+        assert!(
+            output.status.success(),
+            "{case}: {}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+    }
+}
+
 async fn build_config(temp_dir: &TempDir) -> std::io::Result<Config> {
     ConfigBuilder::default()
         .loader_overrides(LoaderOverrides::without_managed_config_for_tests())
