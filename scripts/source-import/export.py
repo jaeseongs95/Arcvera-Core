@@ -9,9 +9,9 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='278f41f74f26b72cd2f3bf068400d8454a00ff75'
-PREVIOUS_PUBLIC='3f2185d69aa14ff8cb9f0991f119bdc6f222de7e'
-PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md']
+PATCHED='76c0a7ab3b971918cd3d9f30daf8e1344941359c'
+PREVIOUS_PUBLIC='5537d7bf4f0730969dfaf1c1ed876acb8920a5e1'
+PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
 PATCH_PATH='upstream/official-0.166.0.patch'
@@ -20,6 +20,19 @@ NOTICE_OVERRIDES={path:('R33','2026-11-02') for path in (
     'codex-rs/tui/src/app/replay_filter.rs',
     'codex-rs/tui/src/app/thread_routing.rs',
     'codex-rs/tui/src/app/tests/buffered_replay.rs',
+    'codex-rs/app-server-daemon/README.md',
+    'codex-rs/app-server-daemon/src/backend/mod.rs',
+    'codex-rs/app-server-daemon/src/backend/pid.rs',
+    'codex-rs/app-server-daemon/src/backend/pid_tests.rs',
+    'codex-rs/app-server-daemon/src/lib.rs',
+    'codex-rs/app-server-daemon/src/prepare_install.rs',
+    'codex-rs/app-server-daemon/src/prepare_install_tests.rs',
+    'codex-rs/app-server-daemon/src/status.rs',
+    'codex-rs/cli/src/daemon_telemetry.rs',
+    'codex-rs/cli/src/main.rs',
+    'codex-rs/codex-api/tests/cache_batch_boundary.rs',
+    'codex-rs/diagnostics/src/cache_diagnostics.rs',
+    'docs/native-cli-r33-cache-observation.ko.md',
 )}
 ATTR_BEGIN=b'# BEGIN OpenDIY pinned source attributes\n'
 ATTR_END=b'# END OpenDIY pinned source attributes\n'
@@ -35,7 +48,7 @@ def notice(path):
     if path.startswith('codex-rs/app-server-protocol/schema/typescript/') and path.endswith('.ts'):return b''
     if path.endswith(('.rs','.ts')):prefix='//'
     elif path.endswith(('.py','.toml','Cargo.lock','.gitattributes','.gitignore')):prefix='#'
-    elif path.endswith('.md') and path.startswith('docs/'):return f'<!-- Modified for OpenDIY Codex {label} ({date}); see MODIFICATIONS.md. -->\n'.encode()
+    elif path.endswith('.md') and (path.startswith('docs/') or path in NOTICE_OVERRIDES):return f'<!-- Modified for OpenDIY Codex {label} ({date}); see MODIFICATIONS.md. -->\n'.encode()
     else:return b''  # Data formats and snapshots stay exact; MODIFICATIONS.md lists each one.
     return f'{prefix} Modified for OpenDIY Codex {label} ({date}); see MODIFICATIONS.md.\n'.encode()
 

@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 //! Foreground daemon observations use the CLI's existing consent and identity handling.
 //! Detached updater entry points never call this module.
 
@@ -29,6 +30,9 @@ pub(crate) async fn record_command(
             UpdateStatus::Updated => "updated",
             UpdateStatus::NoUpdate => "no_update",
             UpdateStatus::Unsupported => "unsupported",
+            UpdateStatus::ShutdownUnconfirmed => "shutdown_unconfirmed",
+            UpdateStatus::ShutdownTimedOut => "shutdown_timed_out",
+            UpdateStatus::ShutdownOutcomeUnknown => "shutdown_outcome_unknown",
         },
         Ok(None) => "cancelled",
         Err(_) => "unconfirmed",

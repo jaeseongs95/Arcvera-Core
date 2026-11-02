@@ -152,12 +152,27 @@ class VerifierChecks(unittest.TestCase):
         self.assertEqual(EXPORT.notice('codex-rs/schema.json'),b'')
         self.assertEqual(EXPORT.notice('codex-rs/schema.json.zst'),b'')
         self.assertEqual(EXPORT.notice('codex-rs/expected.snap'),b'')
-    def test_r33_notice_is_limited_to_replay_followup(self):
+    def test_r33_notice_is_limited_to_reviewed_followups(self):
         for path in ['codex-rs/tui/src/app/replay_filter.rs',
                      'codex-rs/tui/src/app/thread_routing.rs',
-                     'codex-rs/tui/src/app/tests/buffered_replay.rs']:
+                     'codex-rs/tui/src/app/tests/buffered_replay.rs',
+                     'codex-rs/app-server-daemon/src/backend/mod.rs',
+                     'codex-rs/app-server-daemon/src/backend/pid.rs',
+                     'codex-rs/app-server-daemon/src/backend/pid_tests.rs',
+                     'codex-rs/app-server-daemon/src/lib.rs',
+                     'codex-rs/app-server-daemon/src/prepare_install.rs',
+                     'codex-rs/app-server-daemon/src/prepare_install_tests.rs',
+                     'codex-rs/app-server-daemon/src/status.rs',
+                     'codex-rs/cli/src/daemon_telemetry.rs',
+                     'codex-rs/cli/src/main.rs',
+                     'codex-rs/codex-api/tests/cache_batch_boundary.rs',
+                     'codex-rs/diagnostics/src/cache_diagnostics.rs']:
             with self.subTest(path=path):
                 self.assertEqual(EXPORT.notice(path),b'// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n')
+        for path in ['codex-rs/app-server-daemon/README.md',
+                     'docs/native-cli-r33-cache-observation.ko.md']:
+            with self.subTest(path=path):
+                self.assertEqual(EXPORT.notice(path),b'<!-- Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md. -->\n')
         self.assertEqual(EXPORT.notice('codex-rs/core/src/lib.rs'),b'// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.\n')
     def test_runtime_markdown_prompts_do_not_receive_local_notices(self):
         for path in EXPORT.WINDOWS_INPUTS:

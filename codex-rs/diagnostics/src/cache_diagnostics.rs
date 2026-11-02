@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 //! Immutable, process-local cache observation choices. This extension never
 //! changes the shared logging settings understood by older installations.
 use serde::{Deserialize, Serialize};
@@ -29,13 +29,13 @@ pub struct CacheMode {
 impl CacheMode {
     pub fn resolve(logging_enabled: bool, settings: Settings, explicit_wire: bool) -> Self {
         let response_enabled = logging_enabled && settings.response;
-        let wire_enabled = response_enabled && settings.wire && explicit_wire;
+        let wire_enabled = response_enabled && settings.wire;
         Self {
             response_requested: settings.response,
             wire_requested: settings.wire,
-            // Preserve the existing explicit producer opt-in even when batch
-            // output is off: another existing tracing layer may consume it.
-            wire_producer_enabled: explicit_wire,
+            // Batch configuration is an explicit producer opt-in too. Preserve
+            // the legacy environment opt-in for other tracing consumers.
+            wire_producer_enabled: explicit_wire || wire_enabled,
             response_enabled,
             wire_enabled,
             wire_disabled_reason: if wire_enabled {
@@ -44,10 +44,8 @@ impl CacheMode {
                 Some("logging_disabled")
             } else if !settings.response {
                 Some("response_disabled")
-            } else if !settings.wire {
-                Some("wire_not_selected")
             } else {
-                Some("producer_not_selected")
+                Some("wire_not_selected")
             },
         }
     }
@@ -85,20 +83,44 @@ mod tests {
     use super::*;
 
     #[test]
-    fn batch_wire_requires_every_gate_but_explicit_producer_is_preserved() {
-        for logging in [false, true] {
-            for response in [false, true] {
-                for wire in [false, true] {
-                    for explicit in [false, true] {
-                        let mode =
-                            CacheMode::resolve(logging, Settings { response, wire }, explicit);
-                        assert_eq!(mode.response_enabled, logging && response);
-                        assert_eq!(mode.wire_enabled, logging && response && wire && explicit);
-                        assert_eq!(mode.wire_producer_enabled, explicit);
-                        assert_eq!(mode.wire_disabled_reason.is_none(), mode.wire_enabled);
-                    }
-                }
-            }
+    fn config_wire_opt_in_and_legacy_producer_follow_all_gate_combinations() {
+        // Gate bits: logging, response, wire, legacy environment. Outputs are
+        // response, batch wire, producer; each expected row is independent of resolve.
+        for (gates, expected, reason) in [
+            (0b0000, [false, false, false], Some("logging_disabled")),
+            (0b0001, [false, false, true], Some("logging_disabled")),
+            (0b0010, [false, false, false], Some("logging_disabled")),
+            (0b0011, [false, false, true], Some("logging_disabled")),
+            (0b0100, [false, false, false], Some("logging_disabled")),
+            (0b0101, [false, false, true], Some("logging_disabled")),
+            (0b0110, [false, false, false], Some("logging_disabled")),
+            (0b0111, [false, false, true], Some("logging_disabled")),
+            (0b1000, [false, false, false], Some("response_disabled")),
+            (0b1001, [false, false, true], Some("response_disabled")),
+            (0b1010, [false, false, false], Some("response_disabled")),
+            (0b1011, [false, false, true], Some("response_disabled")),
+            (0b1100, [true, false, false], Some("wire_not_selected")),
+            (0b1101, [true, false, true], Some("wire_not_selected")),
+            (0b1110, [true, true, true], None),
+            (0b1111, [true, true, true], None),
+        ] {
+            let logging = gates & 0b1000 != 0;
+            let response = gates & 0b0100 != 0;
+            let wire = gates & 0b0010 != 0;
+            let explicit = gates & 0b0001 != 0;
+            let mode = CacheMode::resolve(logging, Settings { response, wire }, explicit);
+            assert_eq!(mode.response_requested, response);
+            assert_eq!(mode.wire_requested, wire);
+            assert_eq!(
+                [
+                    mode.response_enabled,
+                    mode.wire_enabled,
+                    mode.wire_producer_enabled
+                ],
+                expected,
+                "gates={gates:04b}"
+            );
+            assert_eq!(mode.wire_disabled_reason, reason, "gates={gates:04b}");
         }
     }
 
@@ -121,7 +143,7 @@ mod tests {
                 "--ignored",
                 "--test-threads=1",
             ])
-            .env("APP_CACHE_WIRE_DIAGNOSTICS", "1");
+            .env_remove("APP_CACHE_WIRE_DIAGNOSTICS");
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;

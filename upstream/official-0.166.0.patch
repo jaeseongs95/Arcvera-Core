@@ -1855,11 +1855,230 @@ index ad8d28bce..334e2888d 100644
                              metadata.server_version = response
                                  .result
                                  .get("userAgent")
+diff --git a/codex-rs/app-server-daemon/README.md b/codex-rs/app-server-daemon/README.md
+index c0877c5ba..6836f96e4 100644
+--- a/codex-rs/app-server-daemon/README.md
++++ b/codex-rs/app-server-daemon/README.md
+@@ -33,13 +33,47 @@ initialize the connection, the TUI starts an embedded server instead. Explicit
+ codex app-server daemon start
+ codex app-server daemon restart
+ codex app-server daemon update
++codex app-server daemon update --from-cli --no-force
+ codex app-server daemon enable-remote-control
+ codex app-server daemon disable-remote-control
+ codex app-server daemon stop
+ codex app-server daemon version
++codex app-server daemon status --json
+ codex app-server daemon bootstrap --remote-control
+ ```
+ 
++`update --from-cli --no-force` selects the invoking complete package only after
++holding the operation lock and both existing package roots' installer locks,
++and after the existing daemon finishes graceful shutdown. It never requests
++updater shutdown: that path can force-kill installer descendants even when the
++updater receives only a graceful request. The old updater remains alive. The
++new dedicated local pin prevents it from restarting the selected server; a
++legacy updater may still finish an independent standalone-root package update.
++Unlike the default update, this operation never force-kills a managed process
++or its installer descendants. Installer-lock failure, a failed request or elapsed
++shutdown grace leaves `current` unchanged and does not start a replacement or
++automatically restart the updater. A staged release may remain on disk.
++
++Success retains the existing `status: "updated"` JSON. An incomplete non-forcing
++stop prints the same output fields with `shutdownUnconfirmed` (request/ACK
++failed), `shutdownTimedOut` (grace elapsed), or `shutdownOutcomeUnknown` (state
++could not be reconciled), and exits unsuccessfully. Version fields are null when
++not re-observed. The old process may still be draining: an ACK is not process
++exit, an already-sent shutdown cannot be undone, and these outcomes must not be
++automatically retried. `--no-force` requires `--from-cli`; omitting it preserves
++the existing force-after-grace behavior.
++
++`status --json` is a passive observation: `status` is `running`, `stopped`, or
++`unknown`, with `managedCodexPath`, `managedCodexVersion`, `appServerVersion`,
++`socketPath`, `cliVersion`, and `reason`. Missing/unobserved values are null.
++Both legacy and dedicated PID namespaces are inspected without stale-record
++cleanup. Starting reservations, changed PID generations, metadata errors, and
++unreachable existing sockets are unknown, not stopped. The socket probe has a
++two-second deadline and the selected binary version probe a five-second deadline.
++No settings, authentication, log contents, or conversation payloads are returned.
++An observation is not an atomic installation snapshot or a reservation against
++new work, and `stopped` is not a safe-to-upgrade/quiescence gate.
++
+ On success, every command writes exactly one JSON object to stdout. Consumers
+ should parse that JSON rather than relying on human-readable text. Lifecycle
+ responses report the resolved backend, socket path, local CLI version, and
+diff --git a/codex-rs/app-server-daemon/src/backend/mod.rs b/codex-rs/app-server-daemon/src/backend/mod.rs
+index 1c2ea755e..387440306 100644
+--- a/codex-rs/app-server-daemon/src/backend/mod.rs
++++ b/codex-rs/app-server-daemon/src/backend/mod.rs
+@@ -9,7 +9,10 @@ use std::path::PathBuf;
+ 
+ use serde::Serialize;
+ 
++pub(crate) use pid::NoForceStopError;
+ pub(crate) use pid::PidBackend;
++pub(crate) use pid::ReadOnlyPidStatus;
++pub(crate) use pid::read_only_pid_status;
+ pub(crate) use pid::wait_for_process_exit;
+ 
+ #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 diff --git a/codex-rs/app-server-daemon/src/backend/pid.rs b/codex-rs/app-server-daemon/src/backend/pid.rs
-index 97738dd8e..501301b4f 100644
+index 97738dd8e..4ac457c5f 100644
 --- a/codex-rs/app-server-daemon/src/backend/pid.rs
 +++ b/codex-rs/app-server-daemon/src/backend/pid.rs
-@@ -38,6 +38,7 @@ const STDERR_LOG_TAIL_BYTES: u64 = 4096;
+@@ -34,10 +34,159 @@ const STOP_FORCE_TIMEOUT: Duration = Duration::from_secs(10);
+ const START_TIMEOUT: Duration = Duration::from_secs(10);
+ const STDERR_LOG_TAIL_BYTES: u64 = 4096;
+ 
++#[derive(Debug)]
++pub(crate) enum NoForceStopError {
++    RequestUnconfirmed(anyhow::Error),
++    TimedOut,
++}
++
++impl std::fmt::Display for NoForceStopError {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        match self {
++            Self::RequestUnconfirmed(error) => {
++                write!(f, "graceful shutdown was not confirmed: {error:#}")
++            }
++            Self::TimedOut => f.write_str("graceful shutdown did not finish before its deadline"),
++        }
++    }
++}
++
++impl std::error::Error for NoForceStopError {}
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub(crate) enum ReadOnlyPidStatus {
++    NotRunning,
++    Running,
++    Starting,
++}
++
++/// Inspect existing files only; never create a reservation, remove a record, or reap a child.
++#[cfg(any(unix, windows))]
++pub(crate) async fn read_only_pid_status(path: &Path) -> Result<ReadOnlyPidStatus> {
++    let lock_path = path.with_extension("pid.lock");
++    match fs::symlink_metadata(&lock_path).await {
++        Ok(metadata) => anyhow::ensure!(
++            metadata.is_file() && !metadata.file_type().is_symlink(),
++            "PID reservation is not a regular file"
++        ),
++        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
++        Err(error) => return Err(error).context("could not inspect PID reservation metadata"),
++    }
++    let lock = match fs::OpenOptions::new().read(true).open(lock_path).await {
++        Ok(file) => Some(file),
++        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
++        Err(error) => return Err(error).context("could not inspect PID reservation"),
++    };
++    if let Some(lock) = lock
++        && probe_reservation_lock(lock)?
++    {
++        return Ok(ReadOnlyPidStatus::Starting);
++    }
++    let before = match read_only_pid_bytes(path).await? {
++        Some(bytes) => bytes,
++        None => {
++            return match fs::symlink_metadata(path.with_extension("pid.tmp")).await {
++                Ok(_) => Ok(ReadOnlyPidStatus::Starting),
++                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
++                    Ok(ReadOnlyPidStatus::NotRunning)
++                }
++                Err(error) => Err(error).context("could not inspect PID publication"),
++            };
++        }
++    };
++    if before.iter().all(u8::is_ascii_whitespace) {
++        return Ok(ReadOnlyPidStatus::Starting);
++    }
++    let record: PidRecord = serde_json::from_slice(&before).context("invalid PID metadata")?;
++    anyhow::ensure!(
++        record.pid > 0 && !record.process_start_time.is_empty(),
++        "PID metadata has no valid generation"
++    );
++    let running = read_only_process_matches(&record).await?;
++    anyhow::ensure!(
++        read_only_pid_bytes(path).await?.as_ref() == Some(&before),
++        "PID metadata changed during observation"
++    );
++    Ok(if running {
++        ReadOnlyPidStatus::Running
++    } else {
++        ReadOnlyPidStatus::NotRunning
++    })
++}
++
++#[cfg(any(unix, windows))]
++async fn read_only_pid_bytes(path: &Path) -> Result<Option<Vec<u8>>> {
++    let metadata = match fs::symlink_metadata(path).await {
++        Ok(metadata) => metadata,
++        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
++        Err(error) => return Err(error).context("could not inspect PID metadata"),
++    };
++    anyhow::ensure!(
++        metadata.is_file() && !metadata.file_type().is_symlink(),
++        "PID metadata is not a regular file"
++    );
++    let file = fs::File::open(path).await?;
++    let mut bytes = Vec::new();
++    file.take(16385).read_to_end(&mut bytes).await?;
++    anyhow::ensure!(bytes.len() <= 16384, "PID metadata is oversized");
++    Ok(Some(bytes))
++}
++
++#[cfg(not(any(unix, windows)))]
++pub(crate) async fn read_only_pid_status(_path: &Path) -> Result<ReadOnlyPidStatus> {
++    bail!("PID observation is unsupported on this platform")
++}
++
++#[cfg(windows)]
++async fn read_only_process_matches(record: &PidRecord) -> Result<bool> {
++    let Some(process) = super::windows::Process::open(record.pid)? else {
++        return Ok(false);
++    };
++    if !process.is_running()? {
++        return Ok(false);
++    }
++    anyhow::ensure!(
++        process.start_time()? == record.process_start_time,
++        "PID generation does not match its record"
++    );
++    Ok(true)
++}
++
++#[cfg(unix)]
++async fn read_only_process_matches(record: &PidRecord) -> Result<bool> {
++    let pid = libc::pid_t::try_from(record.pid).context("PID is out of range")?;
++    anyhow::ensure!(pid > 0, "PID is not positive");
++    if unsafe { libc::kill(pid, 0) } != 0 {
++        let error = std::io::Error::last_os_error();
++        if error.raw_os_error() == Some(libc::ESRCH) {
++            return Ok(false);
++        }
++        return Err(error).context("could not inspect PID liveness");
++    }
++    #[cfg(any(target_os = "linux", target_os = "macos"))]
++    if let Some(expected) = &record.process_identity {
++        let (zombie, matches) = expected.matches_process(record.pid).await?;
++        anyhow::ensure!(matches, "PID generation does not match its record");
++        return Ok(!zombie);
++    }
++    let (state, started) = read_process_details(record.pid).await?;
++    anyhow::ensure!(
++        started == record.process_start_time,
++        "PID generation does not match its record"
++    );
++    Ok(!state.starts_with('Z'))
++}
++
++#[cfg(not(any(unix, windows)))]
++async fn read_only_process_matches(_record: &PidRecord) -> Result<bool> {
++    bail!("PID observation is unsupported on this platform")
++}
++
+ #[derive(Debug)]
  #[cfg_attr(not(any(unix, windows)), allow(dead_code))]
  pub(crate) struct PidBackend {
      pub(super) feature_overrides: BTreeMap<String, bool>,
@@ -1867,7 +2086,7 @@ index 97738dd8e..501301b4f 100644
      codex_bin: PathBuf,
      pid_file: PathBuf,
      lock_file: PathBuf,
-@@ -113,6 +114,7 @@ impl PidBackend {
+@@ -113,6 +262,7 @@ impl PidBackend {
          let lock_file = pid_file.with_extension("pid.lock");
          Self {
              feature_overrides: BTreeMap::new(),
@@ -1875,7 +2094,7 @@ index 97738dd8e..501301b4f 100644
              codex_bin,
              pid_file,
              lock_file,
-@@ -130,6 +132,7 @@ impl PidBackend {
+@@ -130,6 +280,7 @@ impl PidBackend {
          let lock_file = pid_file.with_extension("pid.lock");
          Self {
              feature_overrides: BTreeMap::new(),
@@ -1883,7 +2102,7 @@ index 97738dd8e..501301b4f 100644
              codex_bin,
              pid_file,
              lock_file,
-@@ -137,6 +140,11 @@ impl PidBackend {
+@@ -137,6 +288,11 @@ impl PidBackend {
          }
      }
  
@@ -1895,6 +2114,126 @@ index 97738dd8e..501301b4f 100644
      pub(crate) async fn is_starting_or_running(&self) -> Result<bool> {
          loop {
              match self.read_pid_file_state().await? {
+@@ -170,6 +326,14 @@ impl PidBackend {
+     }
+ 
+     pub(crate) async fn stop_with_grace(&self, grace_seconds: u32) -> Result<()> {
++        self.stop_with_policy(grace_seconds, /*force*/ true).await
++    }
++
++    pub(crate) async fn stop_without_force(&self, grace_seconds: u32) -> Result<()> {
++        self.stop_with_policy(grace_seconds, /*force*/ false).await
++    }
++
++    async fn stop_with_policy(&self, grace_seconds: u32, force: bool) -> Result<()> {
+         loop {
+             let Some(record) = self.wait_for_pid_start().await? else {
+                 return Ok(());
+@@ -177,23 +341,52 @@ impl PidBackend {
+             if !self.record_is_active(&record).await? {
+                 match self.refresh_after_stale_record(&record).await? {
+                     PidFileState::Missing => return Ok(()),
++                    PidFileState::Starting | PidFileState::Running(_) if !force => {
++                        bail!(
++                            "managed process ownership changed; non-forcing stop was not retried"
++                        );
++                    }
+                     PidFileState::Starting | PidFileState::Running(_) => continue,
+                 }
+             }
+ 
+             let pid = record.pid;
++            if !force && matches!(self.command_kind, PidCommandKind::UpdateLoop { .. }) {
++                bail!(
++                    "non-forcing updater shutdown is unsupported: its installer descendants may be force-killed; no shutdown was requested"
++                );
++            }
+             crate::diagnostics::event("shutdown_requested", serde_json::json!({ "pid": pid }));
+             let started_at = tokio::time::Instant::now();
+             let force_after = Duration::from_secs(grace_seconds.into());
+-            let deadline = started_at + force_after + STOP_FORCE_TIMEOUT;
++            let deadline = started_at
++                + force_after
++                + if force {
++                    STOP_FORCE_TIMEOUT
++                } else {
++                    Duration::ZERO
++                };
+             #[cfg(unix)]
+-            self.terminate_process(pid)?;
++            if let Err(error) = self.terminate_process(pid) {
++                if !force {
++                    return Err(NoForceStopError::RequestUnconfirmed(error).into());
++                }
++                return Err(error);
++            }
+             #[cfg(windows)]
+             let process = {
+                 let Some(process) = super::windows::Process::open(pid)? else {
++                    if !force {
++                        bail!(
++                            "managed process disappeared before shutdown; non-forcing stop was not retried"
++                        );
++                    }
+                     continue;
+                 };
+                 if process.start_time()? != record.process_start_time {
++                    if !force {
++                        bail!("managed process identity changed; non-forcing stop was not retried");
++                    }
+                     continue;
+                 }
+                 match self.command_kind {
+@@ -208,13 +401,23 @@ impl PidBackend {
+                         if let Err(err) =
+                             crate::client::request_shutdown(socket_path.as_path(), pid).await
+                         {
++                            if !force {
++                                return Err(NoForceStopError::RequestUnconfirmed(err).into());
++                            }
+                             tracing::warn!(%pid, %err, "managed app-server shutdown request failed; waiting for force deadline");
+                         }
+                     }
+                     PidCommandKind::UpdateLoop { .. } => {
+-                        fs::write(self.pid_file.with_extension("shutdown"), pid.to_string())
+-                            .await
+-                            .context("failed to request updater shutdown")?;
++                        let requested =
++                            fs::write(self.pid_file.with_extension("shutdown"), pid.to_string())
++                                .await
++                                .context("failed to request updater shutdown");
++                        if let Err(error) = requested {
++                            if !force {
++                                return Err(NoForceStopError::RequestUnconfirmed(error).into());
++                            }
++                            return Err(error);
++                        }
+                     }
+                 }
+                 process
+@@ -231,13 +434,21 @@ impl PidBackend {
+                 if !self.record_is_active(&record).await? {
+                     match self.refresh_after_stale_record(&record).await? {
+                         PidFileState::Missing => return Ok(()),
++                        PidFileState::Starting | PidFileState::Running(_) if !force => {
++                            bail!(
++                                "managed process ownership changed after shutdown; non-forcing stop was not retried"
++                            );
++                        }
+                         PidFileState::Starting | PidFileState::Running(_) => break,
+                     }
+                 }
+                 if tokio::time::Instant::now() >= deadline {
++                    if !force {
++                        return Err(NoForceStopError::TimedOut.into());
++                    }
+                     break;
+                 }
+-                if !forced && started_at.elapsed() >= force_after {
++                if force && !forced && started_at.elapsed() >= force_after {
+                     crate::diagnostics::event("shutdown_forced", serde_json::json!({ "pid": pid }));
+                     #[cfg(unix)]
+                     self.force_terminate_process(pid)?;
 diff --git a/codex-rs/app-server-daemon/src/backend/pid_start.rs b/codex-rs/app-server-daemon/src/backend/pid_start.rs
 index 6eca5d885..61703928f 100644
 --- a/codex-rs/app-server-daemon/src/backend/pid_start.rs
@@ -1991,7 +2330,7 @@ index 6eca5d885..61703928f 100644
 +    Ok(())
 +}
 diff --git a/codex-rs/app-server-daemon/src/backend/pid_tests.rs b/codex-rs/app-server-daemon/src/backend/pid_tests.rs
-index 3c47d1249..0ff162051 100644
+index 3c47d1249..5aacf39bc 100644
 --- a/codex-rs/app-server-daemon/src/backend/pid_tests.rs
 +++ b/codex-rs/app-server-daemon/src/backend/pid_tests.rs
 @@ -22,13 +22,18 @@ use super::try_lock_file;
@@ -2013,7 +2352,108 @@ index 3c47d1249..0ff162051 100644
          .output()?;
      anyhow::ensure!(
          output.status.success(),
-@@ -693,6 +698,7 @@ async fn exited_unreaped_updater_is_reaped() {
+@@ -41,6 +46,32 @@ fn is_elevated_test_process() -> anyhow::Result<bool> {
+     }
+ }
+ 
++#[tokio::test]
++async fn passive_pid_observation_checks_generation_and_preserves_records() {
++    let temp = TempDir::new().unwrap();
++    let pid_file = temp.path().join("daemon.pid");
++    let mut record = PidRecord {
++        pid: std::process::id(),
++        process_start_time: super::read_process_start_time(std::process::id())
++            .await
++            .unwrap(),
++        process_identity: None,
++        executable_identity: None,
++    };
++    let bytes = serde_json::to_vec(&record).unwrap();
++    tokio::fs::write(&pid_file, &bytes).await.unwrap();
++    assert_eq!(
++        super::read_only_pid_status(&pid_file).await.unwrap(),
++        super::ReadOnlyPidStatus::Running
++    );
++    record.process_start_time.push_str("-different-generation");
++    let stale = serde_json::to_vec(&record).unwrap();
++    tokio::fs::write(&pid_file, &stale).await.unwrap();
++    assert!(super::read_only_pid_status(&pid_file).await.is_err());
++    assert_eq!(tokio::fs::read(&pid_file).await.unwrap(), stale);
++    assert!(!pid_file.with_extension("pid.lock").exists());
++}
++
+ #[tokio::test]
+ async fn locked_empty_pid_file_is_treated_as_active_reservation() {
+     let temp_dir = TempDir::new().expect("temp dir");
+@@ -573,6 +604,67 @@ async fn shutdown_grace_handles_process_exit() {
+     }
+ }
+ 
++#[tokio::test]
++async fn no_force_timeout_keeps_process_and_pid_record() {
++    let temp = TempDir::new().expect("temp dir");
++    let ready = temp.path().join("fixture.ready");
++    let mut child = std::process::Command::new(std::env::current_exe().unwrap())
++        .args(["--exact", "backend::pid::tests::shutdown_grace_child"])
++        .env("CODEX_TEST_SHUTDOWN_GRACE_READY", &ready)
++        .stdout(Stdio::null())
++        .stderr(Stdio::null())
++        .spawn()
++        .unwrap();
++    let pid = child.id();
++    let pid_file = ready.with_extension("pid");
++    let result = async {
++        tokio::time::timeout(Duration::from_secs(3), async {
++            while !ready.exists() {
++                sleep(Duration::from_millis(10)).await;
++            }
++        })
++        .await
++        .expect("fixture readiness");
++        let record = PidRecord {
++            pid,
++            process_start_time: super::read_process_start_time(pid).await?,
++            process_identity: None,
++            executable_identity: None,
++        };
++        tokio::fs::write(&pid_file, serde_json::to_vec(&record)?).await?;
++        for updater in [false, true] {
++            if cfg!(windows) && !updater {
++                continue; // The fixture does not implement the app-server shutdown RPC.
++            }
++            let backend = if updater {
++                PidBackend::new_update_loop(temp.path().join("codex"), pid_file.clone(), None)
++            } else {
++                PidBackend::new(temp.path().join("codex"), pid_file.clone(), false)
++            };
++            let error = backend
++                .stop_without_force(0)
++                .await
++                .expect_err("must not force a live fixture");
++            if updater {
++                anyhow::ensure!(error.to_string().contains("no shutdown was requested"));
++                anyhow::ensure!(!pid_file.with_extension("shutdown").exists());
++            } else {
++                anyhow::ensure!(matches!(
++                    error.downcast_ref::<super::NoForceStopError>(),
++                    Some(super::NoForceStopError::TimedOut)
++                ));
++            }
++            anyhow::ensure!(backend.record_is_active(&record).await?);
++            anyhow::ensure!(pid_file.is_file());
++        }
++        Ok::<(), anyhow::Error>(())
++    }
++    .await;
++    let _ = child.kill(); // Test fixture cleanup, never part of the no-force product path.
++    let _ = child.wait();
++    result.unwrap();
++}
++
+ #[cfg(unix)]
+ #[tokio::test]
+ async fn stopping_updater_signals_its_installer_process_group() {
+@@ -693,6 +785,7 @@ async fn exited_unreaped_updater_is_reaped() {
  fn update_loop_uses_hidden_app_server_subcommand() {
      let backend = PidBackend {
          feature_overrides: Default::default(),
@@ -2021,7 +2461,7 @@ index 3c47d1249..0ff162051 100644
          codex_bin: "codex".into(),
          pid_file: "updater.pid".into(),
          lock_file: "updater.pid.lock".into(),
-@@ -707,6 +713,44 @@ fn update_loop_uses_hidden_app_server_subcommand() {
+@@ -707,6 +800,44 @@ fn update_loop_uses_hidden_app_server_subcommand() {
      );
  }
  
@@ -2066,7 +2506,7 @@ index 3c47d1249..0ff162051 100644
  #[test]
  fn app_server_remote_control_uses_runtime_flag() {
      let backend = PidBackend::new(
-@@ -820,6 +864,94 @@ async fn stale_creation_time_never_stops_reused_pid() {
+@@ -820,6 +951,94 @@ async fn stale_creation_time_never_stops_reused_pid() {
      }
  }
  
@@ -2162,10 +2602,22 @@ index 3c47d1249..0ff162051 100644
  #[tokio::test]
  async fn managed_children_launch_in_workdir_without_changing_private_state_directory() {
 diff --git a/codex-rs/app-server-daemon/src/lib.rs b/codex-rs/app-server-daemon/src/lib.rs
-index 51b9c72e7..118affe26 100644
+index 51b9c72e7..1e6713325 100644
 --- a/codex-rs/app-server-daemon/src/lib.rs
 +++ b/codex-rs/app-server-daemon/src/lib.rs
-@@ -38,6 +38,7 @@ pub use backend::BackendKind;
+@@ -19,8 +19,11 @@ mod prepare_install;
+ mod release_pruning;
+ pub use prepare_install::InstallRequest;
+ pub use prepare_install::update_from_cli;
++pub use prepare_install::update_from_cli_with_no_force;
+ mod remote_control_client;
+ mod settings;
++mod status;
++pub use status::{DaemonStatus, StatusOutput, status};
+ pub mod telemetry;
+ mod thread_recovery;
+ mod update_loop;
+@@ -38,6 +41,7 @@ pub use backend::BackendKind;
  use backend::BackendPaths;
  use codex_app_server_protocol::RemoteControlConnectionStatus;
  use codex_app_server_protocol::RemoteControlPairingStartResponse;
@@ -2173,7 +2625,7 @@ index 51b9c72e7..118affe26 100644
  use codex_app_server_transport::app_server_control_socket_path;
  use codex_utils_home_dir::find_codex_home;
  use managed_install::managed_codex_bin;
-@@ -70,6 +71,7 @@ const STATE_DIR_NAME: &str = "app-server-daemon";
+@@ -70,6 +74,7 @@ const STATE_DIR_NAME: &str = "app-server-daemon";
  #[derive(Debug, Clone, PartialEq, Eq)]
  pub enum LifecycleCommand {
      Start,
@@ -2181,7 +2633,17 @@ index 51b9c72e7..118affe26 100644
      Restart {
          feature_overrides: BTreeMap<String, bool>,
      },
-@@ -240,7 +242,9 @@ pub async fn run(command: LifecycleCommand) -> Result<LifecycleOutput> {
+@@ -142,6 +147,9 @@ pub enum UpdateStatus {
+     Updated,
+     NoUpdate,
+     Unsupported,
++    ShutdownUnconfirmed,
++    ShutdownTimedOut,
++    ShutdownOutcomeUnknown,
+ }
+ 
+ #[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
+@@ -240,7 +248,9 @@ pub async fn run(command: LifecycleCommand) -> Result<LifecycleOutput> {
      #[cfg(windows)]
      if matches!(
          command,
@@ -2192,7 +2654,7 @@ index 51b9c72e7..118affe26 100644
      ) {
          backend::windows::ensure_not_elevated()?;
      }
-@@ -283,6 +287,15 @@ pub async fn start_remote_control_pairing() -> Result<RemoteControlPairingStartR
+@@ -283,6 +293,15 @@ pub async fn start_remote_control_pairing() -> Result<RemoteControlPairingStartR
      remote_control_client::start_pairing(&daemon.socket_path).await
  }
  
@@ -2208,7 +2670,7 @@ index 51b9c72e7..118affe26 100644
  pub async fn set_remote_control(mode: RemoteControlMode) -> Result<RemoteControlOutput> {
      ensure_supported_platform()?;
      #[cfg(windows)]
-@@ -421,6 +434,9 @@ impl Daemon {
+@@ -421,6 +440,9 @@ impl Daemon {
          let selected = self.current_installation()?;
          match command {
              LifecycleCommand::Start => selected.start(&BTreeMap::new()).await,
@@ -2218,7 +2680,7 @@ index 51b9c72e7..118affe26 100644
              LifecycleCommand::Restart { feature_overrides } => {
                  selected.restart(&feature_overrides).await
              }
-@@ -436,6 +452,24 @@ impl Daemon {
+@@ -436,6 +458,24 @@ impl Daemon {
      }
  
      async fn start(&self, feature_overrides: &BTreeMap<String, bool>) -> Result<LifecycleOutput> {
@@ -2243,7 +2705,7 @@ index 51b9c72e7..118affe26 100644
          let mut managed = self.clone();
          let mut settings = self.load_settings().await?;
          let (status, backend, pid, info) = if let Ok(info) = client::probe(&self.socket_path).await
-@@ -454,22 +488,32 @@ impl Daemon {
+@@ -454,22 +494,32 @@ impl Daemon {
                  self.wait_until_ready().await?,
              )
          } else {
@@ -2289,7 +2751,7 @@ index 51b9c72e7..118affe26 100644
              (
                  LifecycleStatus::Started,
                  Some(BackendKind::Pid),
-@@ -477,7 +521,8 @@ impl Daemon {
+@@ -477,7 +527,8 @@ impl Daemon {
                  self.wait_until_ready().await?,
              )
          };
@@ -2299,7 +2761,7 @@ index 51b9c72e7..118affe26 100644
              && let Err(err) = managed.ensure_managed_updater(&settings).await
          {
              self.diagnostic(format_args!(
-@@ -1278,6 +1323,73 @@ mod tests {
+@@ -1278,6 +1329,73 @@ mod tests {
      #[cfg(unix)]
      use crate::settings::DaemonSettings;
  
@@ -2373,6 +2835,471 @@ index 51b9c72e7..118affe26 100644
      #[test]
      fn remote_control_status_uses_camel_case_json() {
          assert_eq!(
+diff --git a/codex-rs/app-server-daemon/src/prepare_install.rs b/codex-rs/app-server-daemon/src/prepare_install.rs
+index ef09b6dab..bcc03b91b 100644
+--- a/codex-rs/app-server-daemon/src/prepare_install.rs
++++ b/codex-rs/app-server-daemon/src/prepare_install.rs
+@@ -46,6 +46,15 @@ pub(super) async fn prepare(daemon: &Daemon, settings: &DaemonSettings) -> Resul
+ /// Returns None when the user cancels without changing the installation.
+ pub async fn update_from_cli(
+     confirm: impl FnOnce(&InstallRequest) -> Result<bool>,
++) -> Result<Option<crate::UpdateOutput>> {
++    update_from_cli_with_no_force(confirm, /*no_force*/ false).await
++}
++
++/// A failed non-forcing stop leaves the selection unchanged, but may leave its daemon draining.
++/// Callers must reconcile that state rather than automatically retrying an ambiguous result.
++pub async fn update_from_cli_with_no_force(
++    confirm: impl FnOnce(&InstallRequest) -> Result<bool>,
++    no_force: bool,
+ ) -> Result<Option<crate::UpdateOutput>> {
+     crate::ensure_supported_platform()?;
+     #[cfg(windows)]
+@@ -53,16 +62,39 @@ pub async fn update_from_cli(
+     let daemon = Daemon::from_environment()?;
+     let settings = daemon.load_settings().await?;
+     let source = InstallContext::current().package_layout.as_ref();
+-    if !Box::pin(prepare_from_package(
++    let prepared = Box::pin(prepare_from_package(
+         &daemon,
+         &settings,
+-        InstallMode::Replace,
++        if no_force {
++            InstallMode::ReplaceNoForce
++        } else {
++            InstallMode::Replace
++        },
+         source.map(|layout| layout.package_dir.as_path()),
+         &std::env::current_exe()?,
+         confirm,
+     ))
+-    .await?
+-    {
++    .await;
++    let prepared = match prepared {
++        Ok(prepared) => prepared,
++        Err(error) => {
++            if let Some(stopped) = error.downcast_ref::<NoForceUpdateError>() {
++                return Ok(Some(crate::UpdateOutput {
++                    status: stopped.status,
++                    managed_codex_path: daemon.managed_codex_bin.clone(),
++                    installed_version: None,
++                    running_version: None,
++                    message: format!(
++                        "{error:#}. The selected package was not changed and no replacement was started. \
++                         The previous process may still be draining; shutdown cannot be undone. \
++                         Reconcile its state before requesting another update; do not automatically retry."
++                    ),
++                }));
++            }
++            return Err(error);
++        }
++    };
++    if !prepared {
+         return Ok(None);
+     }
+     let managed_codex_path = daemon.current_managed_codex_bin()?;
+@@ -82,8 +114,29 @@ pub async fn update_from_cli(
+ enum InstallMode {
+     Missing,
+     Replace,
++    ReplaceNoForce,
++}
++
++impl InstallMode {
++    fn replacing(self) -> bool {
++        self != Self::Missing
++    }
++}
++
++#[derive(Debug)]
++struct NoForceUpdateError {
++    status: crate::UpdateStatus,
++    error: anyhow::Error,
++}
++
++impl std::fmt::Display for NoForceUpdateError {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        write!(f, "non-forcing update was not applied: {:#}", self.error)
++    }
+ }
+ 
++impl std::error::Error for NoForceUpdateError {}
++
+ async fn prepare_from_package(
+     daemon: &Daemon,
+     settings: &DaemonSettings,
+@@ -173,7 +226,7 @@ async fn prepare_from_package(
+     validate_package(source, source_entrypoint)?;
+     // A local build may replace the executable while confirmation is pending.
+     let running_identity = managed_install::executable_identity(running_exe).await?;
+-    if mode == InstallMode::Replace {
++    if mode.replacing() {
+         if !confirm(&InstallRequest {
+             source: source.to_path_buf(),
+             version: version.clone(),
+@@ -197,18 +250,42 @@ async fn prepare_from_package(
+     }
+     // Confirmation must not block lifecycle commands. Recheck the approved
+     // selection and running state once this operation owns both locks.
+-    let _operation_lock = if mode == InstallMode::Replace {
++    let _operation_lock = if mode.replacing() {
+         Some(daemon.acquire_operation_lock().await?)
+     } else {
+         None // Initial startup already holds the operation lock.
+     };
+-    let current_settings = if mode == InstallMode::Replace {
++    let current_settings = if mode.replacing() {
+         Some(daemon.load_settings().await?)
+     } else {
+         None
+     };
+     let settings = current_settings.as_ref().unwrap_or(settings);
+-    let _install_lock = acquire_install_lock(&root).await?;
++    let installer_locks = async {
++        let dedicated = acquire_install_lock(&root).await?;
++        // A legacy updater can still have an installer in its standalone root.
++        // Keep both roots quiescent until selection and server startup finish.
++        let standalone = home.join("packages/standalone");
++        let legacy = if mode == InstallMode::ReplaceNoForce && standalone.try_exists()? {
++            Some(acquire_install_lock(&standalone).await?)
++        } else {
++            None
++        };
++        Ok::<_, anyhow::Error>((dedicated, legacy))
++    }
++    .await;
++    let (_install_lock, _legacy_install_lock) = installer_locks.map_err(|error| {
++        if mode == InstallMode::ReplaceNoForce {
++            NoForceUpdateError {
++                status: crate::UpdateStatus::ShutdownOutcomeUnknown,
++                error: error
++                    .context("installer quiescence was not established; no shutdown was requested"),
++            }
++            .into()
++        } else {
++            error
++        }
++    })?;
+     anyhow::ensure!(
+         managed_install::package_root(home) == previous_root,
+         "daemon package location changed; retry the command"
+@@ -340,30 +417,59 @@ async fn prepare_from_package(
+     }
+     #[cfg(windows)]
+     windows::validate_selection(&root)?;
+-    if mode == InstallMode::Replace {
++    if mode.replacing() {
+         let stopped = async {
+-            crate::backend::pid_update_loop_backend(daemon.backend_paths(settings))
+-                .stop()
+-                .await?;
++            if mode != InstallMode::ReplaceNoForce {
++                let updater =
++                    crate::backend::pid_update_loop_backend(daemon.backend_paths(settings));
++                updater.stop().await?;
++            }
++            // Never signal an updater in no-force mode: even its graceful exit
++            // cancels installer descendants (Unix SIGKILL / Windows Job close).
++            // R28 and newer recheck the selected latest-channel binary under the
++            // operation lock before restarting a server. Our local pin revokes
++            // that authority; an old legacy updater may finish its own package
++            // update, but cannot restart this newly selected dedicated server.
+             anyhow::ensure!(
+                 managed_install::package_root(home) == previous_root
+                     && previous_root.join("current").canonicalize().ok() == previous_release,
+                 "daemon selection changed while preparing its package; retry the command"
+             );
+             if let Some(backend) = &backend {
+-                if let Err(error) = crate::thread_recovery::discard_pending(daemon) {
++                if mode != InstallMode::ReplaceNoForce
++                    && let Err(error) = crate::thread_recovery::discard_pending(daemon)
++                {
+                     eprintln!(
+                         "warning: failed to clear stale daemon recovery before replacement: {error}"
+                     );
+                 }
+-                backend
+-                    .stop_with_grace(settings.shutdown_grace_seconds)
+-                    .await?;
++                if mode == InstallMode::ReplaceNoForce {
++                    backend
++                        .stop_without_force(settings.shutdown_grace_seconds)
++                        .await
++                        .context("managed app-server shutdown")?;
++                } else {
++                    backend
++                        .stop_with_grace(settings.shutdown_grace_seconds)
++                        .await?;
++                }
+             }
+             Ok::<(), anyhow::Error>(())
+         }
+         .await;
+         if let Err(error) = stopped {
++            if mode == InstallMode::ReplaceNoForce {
++                let status = match error.downcast_ref::<crate::backend::NoForceStopError>() {
++                    Some(crate::backend::NoForceStopError::RequestUnconfirmed(_)) => {
++                        crate::UpdateStatus::ShutdownUnconfirmed
++                    }
++                    Some(crate::backend::NoForceStopError::TimedOut) => {
++                        crate::UpdateStatus::ShutdownTimedOut
++                    }
++                    None => crate::UpdateStatus::ShutdownOutcomeUnknown,
++                };
++                return Err(NoForceUpdateError { status, error }.into());
++            }
+             if let Err(restore_error) = async {
+                 daemon
+                     .current_installation()?
+diff --git a/codex-rs/app-server-daemon/src/prepare_install_tests.rs b/codex-rs/app-server-daemon/src/prepare_install_tests.rs
+index 48f389a21..4013b8db4 100644
+--- a/codex-rs/app-server-daemon/src/prepare_install_tests.rs
++++ b/codex-rs/app-server-daemon/src/prepare_install_tests.rs
+@@ -154,6 +154,243 @@ async fn seeds_full_package() {
+     }
+ }
+ 
++#[tokio::test]
++async fn no_force_installer_fixture() {
++    let Some(root) = std::env::var_os("CODEX_TEST_NO_FORCE_INSTALL_ROOT") else {
++        return;
++    };
++    let root = PathBuf::from(root);
++    let _lock = crate::install_lock::acquire_install_lock(&root)
++        .await
++        .unwrap();
++    std::fs::write(root.join("installer-ready"), b"ready").unwrap();
++    tokio::time::timeout(std::time::Duration::from_secs(15), async {
++        while !root.join("installer-proceed").exists() {
++            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
++        }
++    })
++    .await
++    .unwrap();
++    std::fs::write(root.join("installer-completed"), b"completed").unwrap();
++}
++
++#[tokio::test]
++#[cfg(target_os = "linux")]
++async fn no_force_waits_for_legacy_installer_without_stopping_its_updater() {
++    let temp = tempfile::TempDir::new().unwrap();
++    let home = temp.path().join("home");
++    let source = temp.path().join("source");
++    let bin = package(&source, "0.152.0");
++    let settings = DaemonSettings::default();
++    prepare_from_package(
++        &daemon(&home),
++        &settings,
++        InstallMode::Missing,
++        Some(&source),
++        &bin,
++        |_| Ok(true),
++    )
++    .await
++    .unwrap();
++    let dedicated = home.join("packages/app-server-daemon");
++    let legacy = home.join("packages/standalone");
++    let old_name = dedicated
++        .join("current")
++        .canonicalize()
++        .unwrap()
++        .file_name()
++        .unwrap()
++        .to_owned();
++    std::fs::rename(&dedicated, &legacy).unwrap();
++    std::fs::remove_file(legacy.join("current")).unwrap();
++    std::os::unix::fs::symlink(
++        legacy.join("releases").join(old_name),
++        legacy.join("current"),
++    )
++    .unwrap();
++    let selected = crate::Daemon {
++        managed_codex_bin: legacy.join("current/bin/codex"),
++        ..daemon(&home)
++    };
++    // The managed updater owns a live installer child, which holds the legacy
++    // install lock. Signalling its group would interrupt that child (the F1 path).
++    let fixture = format!(
++        "#!/bin/sh\nif [ \"$1\" = --version ]; then echo 'codex 0.152.0'; exit 0; fi\ntrap 'touch \"{root}/updater-terminated\"; exit 0' TERM\nCODEX_TEST_NO_FORCE_INSTALL_ROOT='{root}' '{test}' --exact prepare_install::tests::no_force_installer_fixture &\nwait\nwhile :; do sleep 1; done\n",
++        root = legacy.display(),
++        test = std::env::current_exe().unwrap().display(),
++    );
++    codex_utils_cargo_bin::write_executable(&selected.managed_codex_bin, &fixture).unwrap();
++    let updater = crate::backend::pid_update_loop_backend(selected.backend_paths(&settings));
++    updater.start().await.unwrap();
++    tokio::time::timeout(std::time::Duration::from_secs(3), async {
++        while !legacy.join("installer-ready").exists() {
++            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
++        }
++    })
++    .await
++    .unwrap();
++    let old_selection = legacy.join("current").canonicalize().unwrap();
++    let replacement = temp.path().join("replacement");
++    let replacement_bin = package(&replacement, "0.153.0");
++    let (result, ()) = tokio::join!(
++        prepare_from_package(
++            &selected,
++            &settings,
++            InstallMode::ReplaceNoForce,
++            Some(&replacement),
++            &replacement_bin,
++            |_| Ok(true)
++        ),
++        async {
++            tokio::time::timeout(std::time::Duration::from_secs(3), async {
++                loop {
++                    let probe = selected.open_operation_lock_file().await.unwrap();
++                    if !crate::try_lock_file(&probe).unwrap() {
++                        break;
++                    }
++                    drop(probe);
++                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
++                }
++            })
++            .await
++            .unwrap();
++            // Wait until no-force owns the dedicated lock as well as the
++            // operation lock, while its legacy-lock acquisition is blocked.
++            tokio::time::timeout(std::time::Duration::from_secs(3), async {
++                loop {
++                    if dedicated.join("install.lock").exists()
++                        || dedicated.join("install.lock.d").exists()
++                    {
++                        break;
++                    }
++                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
++                }
++            })
++            .await
++            .unwrap();
++            assert!(
++                tokio::time::timeout(
++                    std::time::Duration::from_millis(100),
++                    crate::install_lock::acquire_install_lock(&dedicated)
++                )
++                .await
++                .is_err()
++            );
++            assert!(!dedicated.join("current").exists());
++            assert_eq!(
++                legacy.join("current").canonicalize().unwrap(),
++                old_selection
++            );
++            assert!(updater.is_starting_or_running().await.unwrap());
++            assert!(!legacy.join("updater-terminated").exists());
++            std::fs::write(legacy.join("installer-proceed"), b"go").unwrap();
++        },
++    );
++    let updater_alive = updater.is_starting_or_running().await.unwrap();
++    let terminated = legacy.join("updater-terminated").exists();
++    let installer_completed = legacy.join("installer-completed").exists();
++    let new_selection = dedicated.join("current").canonicalize().unwrap();
++    // Exercise the real updater restart entry after pinning. An absent server
++    // cannot be resurrected by the old updater's captured executable/root.
++    let restart = selected
++        .try_restart_if_running(
++            crate::RestartMode::IfBinaryOrVersionChanged,
++            &selected.managed_codex_bin.canonicalize().unwrap(),
++            &legacy,
++        )
++        .await
++        .unwrap();
++    updater.stop_with_grace(0).await.unwrap(); // Own fixture cleanup after observations.
++    assert!(result.unwrap());
++    assert!(updater_alive);
++    assert!(!terminated);
++    assert!(installer_completed);
++    assert!(matches!(
++        restart,
++        crate::RestartIfRunningOutcome::AlreadyCurrent
++    ));
++    assert_eq!(
++        dedicated.join("current").canonicalize().unwrap(),
++        new_selection
++    );
++    assert!(!selected.pid_file.exists());
++    assert!(!crate::managed_install::is_stable_standalone_release(
++        &home,
++        &dedicated.join("current/bin/codex")
++    ));
++}
++
++#[tokio::test]
++async fn no_force_timeout_does_not_select_or_start_replacement() {
++    let temp = tempfile::TempDir::new().unwrap();
++    let source = temp.path().join("source");
++    let bin = package(&source, "0.152.0");
++    let home = temp.path().join("home");
++    let settings = DaemonSettings {
++        shutdown_grace_seconds: 0,
++        ..DaemonSettings::default()
++    };
++    prepare_from_package(
++        &daemon(&home),
++        &settings,
++        InstallMode::Missing,
++        Some(&source),
++        &bin,
++        |_| Ok(true),
++    )
++    .await
++    .unwrap();
++    let selected = daemon(&home);
++    settings.save(&selected.settings_file).await.unwrap();
++    let old_selection = home
++        .join("packages/app-server-daemon/current")
++        .canonicalize()
++        .unwrap();
++    let ready = temp.path().join("ready");
++    let fixture = format!(
++        "#!/bin/sh\ncase \"$*\" in *--help*) exit 1;; esac\nif [ \"$1\" = --version ]; then echo 'codex 0.152.0'; exit 0; fi\ntrap '' TERM\ntouch '{}'\nwhile :; do sleep 1; done\n",
++        ready.display()
++    );
++    codex_utils_cargo_bin::write_executable(&selected.managed_codex_bin, &fixture).unwrap();
++    let backend = crate::backend::pid_backend(selected.backend_paths(&settings));
++    backend.start().await.unwrap();
++    tokio::time::timeout(std::time::Duration::from_secs(3), async {
++        while !ready.exists() {
++            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
++        }
++    })
++    .await
++    .unwrap();
++    let recovery = selected.recovery_file().unwrap();
++    std::fs::write(&recovery, b"preserve pending recovery").unwrap();
++    let replacement = temp.path().join("replacement");
++    let replacement_bin = package(&replacement, "0.153.0");
++    let result = prepare_from_package(
++        &selected,
++        &settings,
++        InstallMode::ReplaceNoForce,
++        Some(&replacement),
++        &replacement_bin,
++        |_| Ok(true),
++    )
++    .await;
++    let unchanged = home
++        .join("packages/app-server-daemon/current")
++        .canonicalize()
++        .unwrap()
++        == old_selection;
++    let alive = backend.is_starting_or_running().await.unwrap();
++    let recovery_preserved = std::fs::read(&recovery).unwrap() == b"preserve pending recovery";
++    backend.stop_with_grace(0).await.unwrap(); // Fixture cleanup after capturing the no-force result.
++    let error = result.expect_err("live old process must prevent selection");
++    assert!(
++        matches!(error.downcast_ref::<super::NoForceUpdateError>(), Some(error) if error.status == crate::UpdateStatus::ShutdownTimedOut)
++    );
++    assert!(unchanged);
++    assert!(alive);
++    assert!(recovery_preserved);
++}
++
+ #[tokio::test]
+ async fn incomplete_source_fails_without_selecting_it() {
+     let temp = tempfile::TempDir::new().expect("temp");
 diff --git a/codex-rs/app-server-daemon/src/remote_control_client.rs b/codex-rs/app-server-daemon/src/remote_control_client.rs
 index d48a71f85..35c0c4fb3 100644
 --- a/codex-rs/app-server-daemon/src/remote_control_client.rs
@@ -2665,6 +3592,277 @@ index d48a71f85..35c0c4fb3 100644
  #[cfg(all(test, unix))]
  mod tests {
      use anyhow::Result;
+diff --git a/codex-rs/app-server-daemon/src/status.rs b/codex-rs/app-server-daemon/src/status.rs
+new file mode 100644
+index 000000000..fbc839ddd
+--- /dev/null
++++ b/codex-rs/app-server-daemon/src/status.rs
+@@ -0,0 +1,265 @@
++//! Passive installation/process observations. This is not an update reservation or an idle gate.
++
++use std::path::{Path, PathBuf};
++use std::time::Duration;
++
++use anyhow::{Context, Result};
++use serde::Serialize;
++use tokio::fs;
++use tokio::time::timeout;
++
++use crate::backend::{ReadOnlyPidStatus, read_only_pid_status};
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
++#[serde(rename_all = "camelCase")]
++pub enum DaemonStatus {
++    Running,
++    Stopped,
++    Unknown,
++}
++
++#[derive(Debug, Serialize)]
++#[serde(rename_all = "camelCase")]
++pub struct StatusOutput {
++    pub status: DaemonStatus,
++    pub managed_codex_path: Option<PathBuf>,
++    pub managed_codex_version: Option<String>,
++    pub app_server_version: Option<String>,
++    pub socket_path: Option<PathBuf>,
++    pub cli_version: String,
++    pub reason: Option<String>,
++}
++
++/// Does not load settings, config, authentication, logs, or conversation data.
++pub async fn status() -> StatusOutput {
++    match codex_utils_home_dir::find_codex_home() {
++        Ok(home) => status_for_home(home.as_path()).await,
++        Err(error) => StatusOutput {
++            status: DaemonStatus::Unknown,
++            managed_codex_path: None,
++            managed_codex_version: None,
++            app_server_version: None,
++            socket_path: None,
++            cli_version: env!("CARGO_PKG_VERSION").to_string(),
++            reason: Some(format!("homeObservationFailed: {error}")),
++        },
++    }
++}
++
++async fn status_for_home(home: &Path) -> StatusOutput {
++    let mut output = StatusOutput {
++        status: DaemonStatus::Unknown,
++        managed_codex_path: None,
++        managed_codex_version: None,
++        app_server_version: None,
++        socket_path: None,
++        cli_version: env!("CARGO_PKG_VERSION").to_string(),
++        reason: None,
++    };
++    let mut reasons = Vec::new();
++    match selected_binary(home).await {
++        Ok(path) => {
++            output.managed_codex_path = Some(path.clone());
++            match timeout(Duration::from_secs(5), selected_version(&path)).await {
++                Ok(Ok(version)) => output.managed_codex_version = version,
++                Ok(Err(error)) => {
++                    reasons.push(format!("selectedVersionObservationFailed: {error:#}"))
++                }
++                Err(_) => reasons.push("selectedVersionTimedOut".to_string()),
++            }
++        }
++        Err(error) => reasons.push(format!("selectionObservationFailed: {error:#}")),
++    }
++    let mut running_count = 0;
++    let mut starting = false;
++    let state = home.join(crate::STATE_DIR_NAME);
++    for name in [crate::LEGACY_PID_FILE_NAME, crate::DAEMON_PID_FILE_NAME] {
++        match timeout(
++            Duration::from_secs(2),
++            read_only_pid_status(&state.join(name)),
++        )
++        .await
++        {
++            Ok(Ok(ReadOnlyPidStatus::NotRunning)) => {}
++            Ok(Ok(ReadOnlyPidStatus::Running)) => running_count += 1,
++            Ok(Ok(ReadOnlyPidStatus::Starting)) => starting = true,
++            Ok(Err(error)) => reasons.push(format!("pidObservationFailed({name}): {error:#}")),
++            Err(_) => reasons.push(format!("pidObservationTimedOut({name})")),
++        }
++    }
++    let mut socket_exists = true; // Errors must never look like absence.
++    match codex_app_server_transport::app_server_control_socket_path(home) {
++        Ok(path) => {
++            output.socket_path = Some(path.as_path().to_path_buf());
++            match exists(path.as_path()).await {
++                Ok(present) => {
++                    socket_exists = present;
++                    if present {
++                        match crate::client::probe(path.as_path()).await {
++                            Ok(info) => output.app_server_version = Some(info.app_server_version),
++                            Err(error) => reasons.push(format!("socketProbeFailed: {error:#}")),
++                        }
++                    }
++                }
++                Err(error) => reasons.push(format!("socketObservationFailed: {error:#}")),
++            }
++        }
++        Err(error) => reasons.push(format!("socketPathUnavailable: {error}")),
++    }
++    if starting {
++        reasons.push("processStarting".to_string());
++    }
++    if running_count > 1 {
++        reasons.push("multipleManagedProcesses".to_string());
++    }
++    if running_count > 0 && !socket_exists {
++        reasons.push("liveProcessWithoutSocket".to_string());
++    }
++    if reasons.is_empty() {
++        output.status = if output.app_server_version.is_some() {
++            DaemonStatus::Running
++        } else if running_count == 0 && !socket_exists {
++            DaemonStatus::Stopped
++        } else {
++            DaemonStatus::Unknown
++        };
++    } else {
++        output.reason = Some(reasons.join("; "));
++    }
++    output
++}
++
++async fn exists(path: &Path) -> Result<bool> {
++    match fs::symlink_metadata(path).await {
++        Ok(_) => Ok(true),
++        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
++        Err(error) => Err(error).context("metadata access failed"),
++    }
++}
++
++/// Match lifecycle selection precedence, preserving errors that its best-effort helpers hide.
++async fn selected_binary(home: &Path) -> Result<PathBuf> {
++    let dedicated = home.join("packages/app-server-daemon");
++    let mut root = dedicated.clone();
++    if !exists(&dedicated.join("current")).await? {
++        for (package, names) in [
++            (
++                "app-server-daemon",
++                [
++                    "daemon.pid",
++                    "daemon.stderr.log",
++                    "daemon-updater.pid",
++                    "daemon-updater.stderr.log",
++                ],
++            ),
++            (
++                "standalone",
++                [
++                    "app-server.pid",
++                    "app-server.stderr.log",
++                    "app-server-updater.pid",
++                    "app-server-updater.stderr.log",
++                ],
++            ),
++        ] {
++            let mut found = false;
++            for name in names {
++                found |= exists(&home.join(crate::STATE_DIR_NAME).join(name)).await?;
++            }
++            if found {
++                root = home.join("packages").join(package);
++                break;
++            }
++        }
++    }
++    let current = root.join("current");
++    if exists(&current).await? {
++        anyhow::ensure!(
++            fs::metadata(&current).await?.is_dir(),
++            "selected installation is not a directory"
++        );
++    }
++    let name = if cfg!(windows) { "codex.exe" } else { "codex" };
++    let packaged = current.join("bin").join(name);
++    let legacy = current.join(name);
++    if exists(&packaged).await?
++        || (!exists(&legacy).await? && (cfg!(windows) || root.ends_with("app-server-daemon")))
++    {
++        Ok(packaged)
++    } else {
++        Ok(legacy)
++    }
++}
++
++async fn selected_version(path: &Path) -> Result<Option<String>> {
++    if !exists(path).await? {
++        return Ok(None);
++    }
++    let before = fs::canonicalize(path).await?;
++    anyhow::ensure!(
++        fs::metadata(&before).await?.is_file(),
++        "selected executable is not a file"
++    );
++    let version = crate::managed_install::managed_codex_version(&before).await?;
++    anyhow::ensure!(
++        fs::canonicalize(path).await? == before,
++        "selected installation changed during observation"
++    );
++    Ok(Some(version))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[tokio::test]
++    async fn missing_installation_is_stopped_without_creating_home() {
++        let temp = tempfile::tempdir().unwrap();
++        let home = temp.path().join("absent");
++        let output = status_for_home(&home).await;
++        assert_eq!(output.status, DaemonStatus::Stopped);
++        assert!(output.managed_codex_version.is_none());
++        assert!(!home.exists());
++    }
++
++    #[tokio::test]
++    async fn malformed_and_starting_records_are_unknown_and_unchanged() {
++        let temp = tempfile::tempdir().unwrap();
++        let state = temp.path().join(crate::STATE_DIR_NAME);
++        fs::create_dir(&state).await.unwrap();
++        for name in [crate::LEGACY_PID_FILE_NAME, crate::DAEMON_PID_FILE_NAME] {
++            for bytes in [b"invalid PID JSON".as_slice(), b"".as_slice()] {
++                let path = state.join(name);
++                fs::write(&path, bytes).await.unwrap();
++                let output = status_for_home(temp.path()).await;
++                assert_eq!(output.status, DaemonStatus::Unknown);
++                assert!(output.reason.is_some());
++                assert_eq!(fs::read(&path).await.unwrap(), bytes);
++                assert!(!path.with_extension("pid.lock").exists());
++                fs::remove_file(path).await.unwrap();
++            }
++        }
++    }
++
++    #[tokio::test]
++    async fn invalid_selected_installation_is_unknown_not_absent() {
++        let temp = tempfile::tempdir().unwrap();
++        let package = temp.path().join("packages/app-server-daemon");
++        fs::create_dir_all(&package).await.unwrap();
++        fs::write(package.join("current"), b"not a directory")
++            .await
++            .unwrap();
++        let output = status_for_home(temp.path()).await;
++        assert_eq!(output.status, DaemonStatus::Unknown);
++        assert!(
++            output
++                .reason
++                .unwrap()
++                .contains("selectionObservationFailed")
++        );
++        assert_eq!(
++            fs::read(package.join("current")).await.unwrap(),
++            b"not a directory"
++        );
++    }
++}
 diff --git a/codex-rs/app-server-daemon/src/update_loop_tests.rs b/codex-rs/app-server-daemon/src/update_loop_tests.rs
 index 3eaf610e3..402e0ce0c 100644
 --- a/codex-rs/app-server-daemon/src/update_loop_tests.rs
@@ -33438,6 +34636,20 @@ index 26f86a8e6..067d6a7ce 100644
      let mut matches = command.try_get_matches_from_mut(&args)?;
      crate::queue_cmd::validate_options(&command, &matches)?;
      let mut cli = MultitoolCli::from_arg_matches_mut(&mut matches)
+diff --git a/codex-rs/cli/src/daemon_telemetry.rs b/codex-rs/cli/src/daemon_telemetry.rs
+index 0bc3fed79..054eede49 100644
+--- a/codex-rs/cli/src/daemon_telemetry.rs
++++ b/codex-rs/cli/src/daemon_telemetry.rs
+@@ -29,6 +29,9 @@ pub(crate) async fn record_command(
+             UpdateStatus::Updated => "updated",
+             UpdateStatus::NoUpdate => "no_update",
+             UpdateStatus::Unsupported => "unsupported",
++            UpdateStatus::ShutdownUnconfirmed => "shutdown_unconfirmed",
++            UpdateStatus::ShutdownTimedOut => "shutdown_timed_out",
++            UpdateStatus::ShutdownOutcomeUnknown => "shutdown_outcome_unknown",
+         },
+         Ok(None) => "cancelled",
+         Err(_) => "unconfirmed",
 diff --git a/codex-rs/cli/src/doctor/updates.rs b/codex-rs/cli/src/doctor/updates.rs
 index fbad7d91c..9cedba9c8 100644
 --- a/codex-rs/cli/src/doctor/updates.rs
@@ -33718,7 +34930,7 @@ index 000000000..fbc1feb0d
 +    }
 +}
 diff --git a/codex-rs/cli/src/main.rs b/codex-rs/cli/src/main.rs
-index 8a578c38a..15bf90d8a 100644
+index 8a578c38a..a03ec578e 100644
 --- a/codex-rs/cli/src/main.rs
 +++ b/codex-rs/cli/src/main.rs
 @@ -53,6 +53,7 @@ static ALLOCATOR: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
@@ -33782,7 +34994,30 @@ index 8a578c38a..15bf90d8a 100644
  
      /// Restart the local app server daemon.
      Restart,
-@@ -1037,11 +1057,17 @@ fn stage_str(stage: Stage) -> &'static str {
+@@ -676,6 +696,9 @@ enum AppServerDaemonSubcommand {
+         /// Confirm replacing the daemon package without an interactive prompt.
+         #[arg(short = 'y', long, requires = "from_cli")]
+         yes: bool,
++        /// Never force shutdown. On an unconfirmed stop, keep the selected package and do not retry automatically.
++        #[arg(long, requires = "from_cli")]
++        no_force: bool,
+     },
+ 
+     /// Enable remote control for future starts and a currently running managed daemon.
+@@ -690,6 +713,12 @@ enum AppServerDaemonSubcommand {
+     /// Print local CLI and running app-server versions as JSON.
+     Version,
+ 
++    /// Observe the selected installation and daemon without starting or repairing it.
++    Status {
++        #[arg(long)]
++        json: bool,
++    },
++
+     /// [internal] Run the detached pid-backed standalone updater loop.
+     #[clap(hide = true)]
+     PidUpdateLoop {
+@@ -1037,11 +1066,17 @@ fn stage_str(stage: Stage) -> &'static str {
  }
  
  fn main() -> anyhow::Result<()> {
@@ -33801,7 +35036,7 @@ index 8a578c38a..15bf90d8a 100644
          Ok(())
      })
  }
-@@ -1049,7 +1075,9 @@ fn main() -> anyhow::Result<()> {
+@@ -1049,7 +1084,9 @@ fn main() -> anyhow::Result<()> {
  async fn cli_main(
      arg0_paths: Arg0DispatchPaths,
      remote_control_disabled: bool,
@@ -33811,7 +35046,7 @@ index 8a578c38a..15bf90d8a 100644
      let MultitoolCli {
          config_overrides: mut root_config_overrides,
          feature_toggles,
-@@ -1151,6 +1179,7 @@ async fn cli_main(
+@@ -1151,6 +1188,7 @@ async fn cli_main(
                  root_remote.clone(),
                  root_remote_auth_token_env.clone(),
                  arg0_paths.clone(),
@@ -33819,7 +35054,7 @@ index 8a578c38a..15bf90d8a 100644
              )
              .await?;
              handle_app_exit(exit_info, daemon_cli_executable.as_deref())?;
-@@ -1253,11 +1282,16 @@ async fn cli_main(
+@@ -1253,11 +1291,16 @@ async fn cli_main(
                  listen,
                  stdio,
                  remote_control,
@@ -33836,7 +35071,7 @@ index 8a578c38a..15bf90d8a 100644
              reject_strict_config_for_app_server_subcommand(strict_config, subcommand.as_ref())?;
              reject_remote_mode_for_app_server_subcommand(
                  root_remote.as_deref(),
-@@ -1299,8 +1333,10 @@ async fn cli_main(
+@@ -1299,8 +1342,10 @@ async fn cli_main(
                          cloud_skills_snapshot,
                          code_mode_host_transport: code_mode_host.into(),
                          managed_daemon,
@@ -33849,7 +35084,7 @@ index 8a578c38a..15bf90d8a 100644
                              (true, _) => {
                                  codex_app_server::RemoteControlStartupMode::EnabledEphemeral
                              }
-@@ -1331,8 +1367,15 @@ async fn cli_main(
+@@ -1331,8 +1376,15 @@ async fn cli_main(
                      }
                  }
                  Some(AppServerSubcommand::Daemon(daemon_cli)) => match daemon_cli.subcommand {
@@ -33867,7 +35102,57 @@ index 8a578c38a..15bf90d8a 100644
                      }
                      AppServerDaemonSubcommand::Bootstrap(bootstrap_cli) => {
                          let output =
-@@ -1471,16 +1514,17 @@ async fn cli_main(
+@@ -1387,10 +1439,12 @@ async fn cli_main(
+                     AppServerDaemonSubcommand::Update {
+                         from_cli: true,
+                         yes,
++                        no_force,
+                     } => {
+-                        let result = codex_app_server_daemon::update_from_cli(|request| {
+-                            daemon_install::confirm_install(request, yes)
+-                        })
++                        let result = codex_app_server_daemon::update_from_cli_with_no_force(
++                            |request| daemon_install::confirm_install(request, yes),
++                            no_force,
++                        )
+                         .await;
+                         daemon_telemetry::record_command(
+                             &root_config_overrides,
+@@ -1401,6 +1455,14 @@ async fn cli_main(
+                         .await;
+                         if let Some(output) = result? {
+                             println!("{}", serde_json::to_string(&output)?);
++                            if matches!(
++                                output.status,
++                                codex_app_server_daemon::UpdateStatus::ShutdownUnconfirmed
++                                    | codex_app_server_daemon::UpdateStatus::ShutdownTimedOut
++                                    | codex_app_server_daemon::UpdateStatus::ShutdownOutcomeUnknown
++                            ) {
++                                anyhow::bail!("{}", output.message);
++                            }
+                         }
+                     }
+                     AppServerDaemonSubcommand::EnableRemoteControl => {
+@@ -1419,6 +1481,18 @@ async fn cli_main(
+                     AppServerDaemonSubcommand::Version => {
+                         print_app_server_daemon_output(AppServerLifecycleCommand::Version).await?;
+                     }
++                    AppServerDaemonSubcommand::Status { json } => {
++                        let output = codex_app_server_daemon::status().await;
++                        if json {
++                            println!("{}", serde_json::to_string(&output)?);
++                        } else {
++                            println!(
++                                "{:?}: {}",
++                                output.status,
++                                output.reason.as_deref().unwrap_or("observation complete")
++                            );
++                        }
++                    }
+                     AppServerDaemonSubcommand::PidUpdateLoop {
+                         check_package_ownership: true,
+                         ..
+@@ -1471,16 +1545,17 @@ async fn cli_main(
                          }
                      }
                  },
@@ -33895,7 +35180,7 @@ index 8a578c38a..15bf90d8a 100644
                  Some(AppServerSubcommand::GenerateTs(gen_cli)) => {
                      let options = codex_app_server_protocol::GenerateTsOptions {
                          experimental_api: gen_cli.experimental,
-@@ -1552,6 +1596,7 @@ async fn cli_main(
+@@ -1552,6 +1627,7 @@ async fn cli_main(
                      .remote_auth_token_env
                      .or(root_remote_auth_token_env.clone()),
                  arg0_paths.clone(),
@@ -33903,7 +35188,7 @@ index 8a578c38a..15bf90d8a 100644
              )
              .await?;
              handle_app_exit(exit_info, daemon_cli_executable.as_deref())?;
-@@ -1616,6 +1661,14 @@ async fn cli_main(
+@@ -1616,6 +1692,14 @@ async fn cli_main(
              )
              .await?;
          }
@@ -33918,7 +35203,7 @@ index 8a578c38a..15bf90d8a 100644
          Some(Subcommand::Unarchive(cmd)) => {
              let output = run_session_archive_cli_command(
                  codex_tui::SessionArchiveAction::Unarchive,
-@@ -1652,6 +1705,7 @@ async fn cli_main(
+@@ -1652,6 +1736,7 @@ async fn cli_main(
                      .remote_auth_token_env
                      .or(root_remote_auth_token_env.clone()),
                  arg0_paths.clone(),
@@ -33926,7 +35211,7 @@ index 8a578c38a..15bf90d8a 100644
              )
              .await?;
              handle_app_exit(exit_info, daemon_cli_executable.as_deref())?;
-@@ -2373,6 +2427,7 @@ fn unsupported_subcommand_name_for_strict_config(
+@@ -2373,6 +2458,7 @@ fn unsupported_subcommand_name_for_strict_config(
          Some(Subcommand::RemoteControl(remote_control)) => Some(remote_control.subcommand_name()),
          Some(Subcommand::Mcp(_)) => Some("mcp"),
          Some(Subcommand::Plugin(_)) => Some("plugin"),
@@ -33934,7 +35219,7 @@ index 8a578c38a..15bf90d8a 100644
          Some(Subcommand::MigrateRollouts(_)) => Some("migrate-rollouts"),
          Some(Subcommand::MigrateNfsDb(_)) => Some("migrate-nfs-db"),
          #[cfg(any(target_os = "macos", target_os = "windows"))]
-@@ -2393,6 +2448,19 @@ fn unsupported_subcommand_name_for_strict_config(
+@@ -2393,6 +2479,19 @@ fn unsupported_subcommand_name_for_strict_config(
      }
  }
  
@@ -33954,7 +35239,7 @@ index 8a578c38a..15bf90d8a 100644
  fn reject_strict_config_for_app_server_subcommand(
      strict_config: bool,
      subcommand: Option<&AppServerSubcommand>,
-@@ -2430,7 +2498,7 @@ fn app_server_subcommand_name(subcommand: Option<&AppServerSubcommand>) -> &'sta
+@@ -2430,7 +2529,7 @@ fn app_server_subcommand_name(subcommand: Option<&AppServerSubcommand>) -> &'sta
          None => "app-server",
          Some(AppServerSubcommand::Daemon(daemon)) => match daemon.subcommand {
              AppServerDaemonSubcommand::Bootstrap(_) => "app-server daemon bootstrap",
@@ -33963,7 +35248,15 @@ index 8a578c38a..15bf90d8a 100644
              AppServerDaemonSubcommand::Restart => "app-server daemon restart",
              AppServerDaemonSubcommand::Update { .. } => "app-server daemon update",
              AppServerDaemonSubcommand::EnableRemoteControl => {
-@@ -2499,6 +2567,7 @@ async fn run_interactive_tui(
+@@ -2441,6 +2540,7 @@ fn app_server_subcommand_name(subcommand: Option<&AppServerSubcommand>) -> &'sta
+             }
+             AppServerDaemonSubcommand::Stop => "app-server daemon stop",
+             AppServerDaemonSubcommand::Version => "app-server daemon version",
++            AppServerDaemonSubcommand::Status { .. } => "app-server daemon status",
+             AppServerDaemonSubcommand::PidUpdateLoop { .. } => "app-server daemon pid-update-loop",
+         },
+         Some(AppServerSubcommand::Proxy(_)) => "app-server proxy",
+@@ -2499,6 +2599,7 @@ async fn run_interactive_tui(
      remote: Option<String>,
      remote_auth_token_env: Option<String>,
      arg0_paths: Arg0DispatchPaths,
@@ -33971,7 +35264,7 @@ index 8a578c38a..15bf90d8a 100644
  ) -> std::io::Result<AppExitInfo> {
      if interactive.no_daemon {
          if interactive.agents_overview {
-@@ -2567,6 +2636,7 @@ async fn run_interactive_tui(
+@@ -2567,6 +2668,7 @@ async fn run_interactive_tui(
              arg0_paths.clone(),
              codex_config::LoaderOverrides::default(),
              remote_endpoint.clone(),
@@ -33979,7 +35272,7 @@ index 8a578c38a..15bf90d8a 100644
          )
      };
      run_tui_with_recovery(start_tui, remote_auth_token_env.as_deref()).await
-@@ -2775,6 +2845,7 @@ fn merge_interactive_cli_flags(interactive: &mut TuiCli, subcommand_cli: TuiCli)
+@@ -2775,6 +2877,7 @@ fn merge_interactive_cli_flags(interactive: &mut TuiCli, subcommand_cli: TuiCli)
          web_search,
          no_alt_screen,
          no_daemon,
@@ -33987,7 +35280,7 @@ index 8a578c38a..15bf90d8a 100644
          prompt,
          mut config_overrides,
          ..
-@@ -2796,6 +2867,9 @@ fn merge_interactive_cli_flags(interactive: &mut TuiCli, subcommand_cli: TuiCli)
+@@ -2796,6 +2899,9 @@ fn merge_interactive_cli_flags(interactive: &mut TuiCli, subcommand_cli: TuiCli)
      }
      interactive.no_alt_screen |= no_alt_screen;
      interactive.no_daemon |= no_daemon;
@@ -33997,7 +35290,7 @@ index 8a578c38a..15bf90d8a 100644
      if strict_config {
          interactive.strict_config = true;
      }
-@@ -2824,6 +2898,45 @@ mod tests {
+@@ -2824,6 +2930,45 @@ mod tests {
      use codex_tui::TokenUsage;
      use pretty_assertions::assert_eq;
  
@@ -34043,7 +35336,7 @@ index 8a578c38a..15bf90d8a 100644
      #[test]
      fn interactive_tui_future_stays_bounded() {
          let future = run_interactive_tui(
-@@ -2831,6 +2944,7 @@ mod tests {
+@@ -2831,6 +2976,7 @@ mod tests {
              /*remote*/ None,
              /*remote_auth_token_env*/ None,
              Arg0DispatchPaths::default(),
@@ -34051,7 +35344,7 @@ index 8a578c38a..15bf90d8a 100644
          );
          let size = std::mem::size_of_val(&future);
  
-@@ -4291,6 +4405,7 @@ enabled = true
+@@ -4291,6 +4437,7 @@ enabled = true
          let app_server = app_server_from_args(["codex", "app-server"].as_ref());
          assert!(!app_server.analytics_default_enabled);
          assert!(!app_server.remote_control);
@@ -34059,7 +35352,7 @@ index 8a578c38a..15bf90d8a 100644
          assert_eq!(
              app_server.listen,
              codex_app_server::AppServerTransport::Stdio
-@@ -4301,6 +4416,114 @@ enabled = true
+@@ -4301,6 +4448,114 @@ enabled = true
      fn app_server_remote_control_startup_flag_enables_remote_control() {
          let enabled = app_server_from_args(["codex", "app-server", "--remote-control"].as_ref());
          assert!(enabled.remote_control);
@@ -34174,7 +35467,7 @@ index 8a578c38a..15bf90d8a 100644
      }
  
      #[test]
-@@ -4777,7 +5000,9 @@ enabled = true
+@@ -4777,7 +5032,9 @@ enabled = true
          assert!(matches!(
              app_server_from_args(["codex", "app-server", "daemon", "start"].as_ref()).subcommand,
              Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
@@ -34185,7 +35478,7 @@ index 8a578c38a..15bf90d8a 100644
              }))
          ));
          assert!(matches!(
-@@ -4818,6 +5043,28 @@ enabled = true
+@@ -4818,6 +5075,68 @@ enabled = true
          ));
      }
  
@@ -34207,6 +35500,46 @@ index 8a578c38a..15bf90d8a 100644
 +                subcommand: AppServerDaemonSubcommand::Start {
 +                    existing_installation: true
 +                }
++            }))
++        ));
++    }
++
++    #[test]
++    fn no_force_update_requires_from_cli_and_preserves_default() {
++        assert!(
++            MultitoolCli::try_parse_from(["codex", "app-server", "daemon", "update", "--no-force"])
++                .is_err()
++        );
++        for (args, expected) in [
++            (
++                vec!["codex", "app-server", "daemon", "update", "--from-cli"],
++                false,
++            ),
++            (
++                vec![
++                    "codex",
++                    "app-server",
++                    "daemon",
++                    "update",
++                    "--from-cli",
++                    "--no-force",
++                ],
++                true,
++            ),
++        ] {
++            assert!(matches!(app_server_from_args(&args).subcommand,
++                Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
++                    subcommand: AppServerDaemonSubcommand::Update { from_cli: true, no_force, .. }
++                })) if no_force == expected));
++        }
++    }
++
++    #[test]
++    fn daemon_status_json_parses() {
++        assert!(matches!(
++            app_server_from_args(&["codex", "app-server", "daemon", "status", "--json"]).subcommand,
++            Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
++                subcommand: AppServerDaemonSubcommand::Status { json: true }
 +            }))
 +        ));
 +    }
@@ -36660,10 +37993,10 @@ index 67f627e60..08560173f 100644
  
 diff --git a/codex-rs/codex-api/tests/cache_batch_boundary.rs b/codex-rs/codex-api/tests/cache_batch_boundary.rs
 new file mode 100644
-index 000000000..d0d9a67ad
+index 000000000..65ca267d0
 --- /dev/null
 +++ b/codex-rs/codex-api/tests/cache_batch_boundary.rs
-@@ -0,0 +1,335 @@
+@@ -0,0 +1,357 @@
 +//! Exercise real local HTTP/WebSocket requests through the production parser and batch writer.
 +use codex_api::{
 +    AuthProvider, Provider, ResponseCreateWsRequest, ResponseEvent, ResponsesApiRequest,
@@ -36746,31 +38079,44 @@ index 000000000..d0d9a67ad
 +#[test]
 +fn http_and_websocket_producers_reach_immutable_batches() {
 +    for wire in [false, true] {
-+        let mut command = std::process::Command::new(std::env::current_exe().unwrap());
-+        command
-+            .args([
-+                "--exact",
-+                "boundary_child",
-+                "--ignored",
-+                "--nocapture",
-+                "--test-threads=1",
-+            ])
-+            .env("APP_CACHE_WIRE_DIAGNOSTICS", if wire { "1" } else { "0" });
-+        for name in [
-+            "CODEX_HOME",
-+            "OPENAI_API_KEY",
-+            "HTTP_PROXY",
-+            "HTTPS_PROXY",
-+            "ALL_PROXY",
-+        ] {
-+            command.env_remove(name);
++        for explicit in [None, Some("0"), Some("1")] {
++            let mut command = std::process::Command::new(std::env::current_exe().unwrap());
++            command
++                .args([
++                    "--exact",
++                    "boundary_child",
++                    "--ignored",
++                    "--nocapture",
++                    "--test-threads=1",
++                ])
++                .env("CODEX_TEST_CACHE_WIRE", wire.to_string());
++            match explicit {
++                Some(value) => {
++                    command.env("APP_CACHE_WIRE_DIAGNOSTICS", value);
++                }
++                None => {
++                    command.env_remove("APP_CACHE_WIRE_DIAGNOSTICS");
++                }
++            }
++            for name in [
++                "CODEX_HOME",
++                "OPENAI_API_KEY",
++                "HTTP_PROXY",
++                "HTTPS_PROXY",
++                "ALL_PROXY",
++            ] {
++                command.env_remove(name);
++            }
++            #[cfg(windows)]
++            {
++                use std::os::windows::process::CommandExt;
++                command.creation_flags(0x08000000);
++            }
++            assert!(
++                command.status().unwrap().success(),
++                "wire={wire}, explicit={explicit:?}"
++            );
 +        }
-+        #[cfg(windows)]
-+        {
-+            use std::os::windows::process::CommandExt;
-+            command.creation_flags(0x08000000);
-+        }
-+        assert!(command.status().unwrap().success(), "wire={wire}");
 +    }
 +}
 +
@@ -36782,11 +38128,12 @@ index 000000000..d0d9a67ad
 +        home.path().join("cli-logging.toml"),
 +        "enabled = true\nprocess = false\nrpc = false\nevents = false\n",
 +    )?;
++    let wire_enabled = std::env::var("CODEX_TEST_CACHE_WIRE")? == "true";
++    let explicit_wire = std::env::var("APP_CACHE_WIRE_DIAGNOSTICS").as_deref() == Ok("1");
 +    std::fs::write(
 +        home.path().join("cli-cache-diagnostics.toml"),
-+        "response = true\nwire = true\n",
++        format!("response = true\nwire = {wire_enabled}\n"),
 +    )?;
-+    let wire_enabled = std::env::var("APP_CACHE_WIRE_DIAGNOSTICS")? == "1";
 +    let (layer, guard) = codex_diagnostics::batch_log::start(home.path())?;
 +    let layer = layer.expect("batch enabled");
 +    let filter = layer.metadata_filter();
@@ -36836,10 +38183,10 @@ index 000000000..d0d9a67ad
 +            // Match the real client's permessage-deflate offer. The fork rejects
 +            // that header when the fixture has no extension configuration.
 +            let mut config = tungstenite::protocol::WebSocketConfig::default();
-+            config.extensions.permessage_deflate = Some(
-+                tungstenite::extensions::compression::deflate::DeflateConfig::default(),
-+            );
-+            let mut socket = tokio_tungstenite::accept_async_with_config(socket, Some(config)).await?;
++            config.extensions.permessage_deflate =
++                Some(tungstenite::extensions::compression::deflate::DeflateConfig::default());
++            let mut socket =
++                tokio_tungstenite::accept_async_with_config(socket, Some(config)).await?;
 +            for (id, cached, previous) in [
 +                ("resp_ws_full", Some(0), None),
 +                ("resp_ws_delta", None, Some("resp_ws_full")),
@@ -36894,13 +38241,15 @@ index 000000000..d0d9a67ad
 +            while let Some(event) = stream.next().await {
 +                match event {
 +                    Ok(ResponseEvent::Completed { .. }) => completed += 1,
-+                    Ok(_) => {},
-+                    Err(error) if previous.is_some()
-+                        && error.to_string().contains("missing field `cached_tokens`") => {
++                    Ok(_) => {}
++                    Err(error)
++                        if previous.is_some()
++                            && error.to_string().contains("missing field `cached_tokens`") =>
++                    {
 +                        // Raw presence must survive the existing protocol rejection;
 +                        // missing usage must not become a successful zero-token response.
 +                        rejected_usage += 1;
-+                    },
++                    }
 +                    Err(error) => return Err(error.into()),
 +                }
 +            }
@@ -36936,6 +38285,11 @@ index 000000000..d0d9a67ad
 +        .unwrap();
 +    let instance = startup["instance_id"].as_str().unwrap();
 +    assert_eq!(startup["run"]["cache"]["wire_enabled"], wire_enabled);
++    assert_eq!(startup["run"]["cache"]["response_enabled"], true);
++    assert_eq!(
++        startup["run"]["cache"]["wire_producer_enabled"],
++        wire_enabled || explicit_wire
++    );
 +    let observations: Vec<_> = rows
 +        .iter()
 +        .filter(|row| row["target"] == "codex_api::prompt_cache")
@@ -36991,6 +38345,7 @@ index 000000000..d0d9a67ad
 +    }
 +    for summary in rows.iter().filter(|row| row["kind"] == "batch_summary") {
 +        assert_eq!(summary["run"]["instance_id"], instance);
++        assert_eq!(summary["run"]["cache"], startup["run"]["cache"]);
 +        assert_eq!(summary["collector"]["dropped"], 0);
 +    }
 +    for (path, bytes) in batches {
@@ -54216,10 +55571,10 @@ index 000000000..bab359fa2
 +}
 diff --git a/codex-rs/diagnostics/src/cache_diagnostics.rs b/codex-rs/diagnostics/src/cache_diagnostics.rs
 new file mode 100644
-index 000000000..94080a1b2
+index 000000000..90a569607
 --- /dev/null
 +++ b/codex-rs/diagnostics/src/cache_diagnostics.rs
-@@ -0,0 +1,145 @@
+@@ -0,0 +1,167 @@
 +//! Immutable, process-local cache observation choices. This extension never
 +//! changes the shared logging settings understood by older installations.
 +use serde::{Deserialize, Serialize};
@@ -54250,13 +55605,13 @@ index 000000000..94080a1b2
 +impl CacheMode {
 +    pub fn resolve(logging_enabled: bool, settings: Settings, explicit_wire: bool) -> Self {
 +        let response_enabled = logging_enabled && settings.response;
-+        let wire_enabled = response_enabled && settings.wire && explicit_wire;
++        let wire_enabled = response_enabled && settings.wire;
 +        Self {
 +            response_requested: settings.response,
 +            wire_requested: settings.wire,
-+            // Preserve the existing explicit producer opt-in even when batch
-+            // output is off: another existing tracing layer may consume it.
-+            wire_producer_enabled: explicit_wire,
++            // Batch configuration is an explicit producer opt-in too. Preserve
++            // the legacy environment opt-in for other tracing consumers.
++            wire_producer_enabled: explicit_wire || wire_enabled,
 +            response_enabled,
 +            wire_enabled,
 +            wire_disabled_reason: if wire_enabled {
@@ -54265,10 +55620,8 @@ index 000000000..94080a1b2
 +                Some("logging_disabled")
 +            } else if !settings.response {
 +                Some("response_disabled")
-+            } else if !settings.wire {
-+                Some("wire_not_selected")
 +            } else {
-+                Some("producer_not_selected")
++                Some("wire_not_selected")
 +            },
 +        }
 +    }
@@ -54306,20 +55659,44 @@ index 000000000..94080a1b2
 +    use super::*;
 +
 +    #[test]
-+    fn batch_wire_requires_every_gate_but_explicit_producer_is_preserved() {
-+        for logging in [false, true] {
-+            for response in [false, true] {
-+                for wire in [false, true] {
-+                    for explicit in [false, true] {
-+                        let mode =
-+                            CacheMode::resolve(logging, Settings { response, wire }, explicit);
-+                        assert_eq!(mode.response_enabled, logging && response);
-+                        assert_eq!(mode.wire_enabled, logging && response && wire && explicit);
-+                        assert_eq!(mode.wire_producer_enabled, explicit);
-+                        assert_eq!(mode.wire_disabled_reason.is_none(), mode.wire_enabled);
-+                    }
-+                }
-+            }
++    fn config_wire_opt_in_and_legacy_producer_follow_all_gate_combinations() {
++        // Gate bits: logging, response, wire, legacy environment. Outputs are
++        // response, batch wire, producer; each expected row is independent of resolve.
++        for (gates, expected, reason) in [
++            (0b0000, [false, false, false], Some("logging_disabled")),
++            (0b0001, [false, false, true], Some("logging_disabled")),
++            (0b0010, [false, false, false], Some("logging_disabled")),
++            (0b0011, [false, false, true], Some("logging_disabled")),
++            (0b0100, [false, false, false], Some("logging_disabled")),
++            (0b0101, [false, false, true], Some("logging_disabled")),
++            (0b0110, [false, false, false], Some("logging_disabled")),
++            (0b0111, [false, false, true], Some("logging_disabled")),
++            (0b1000, [false, false, false], Some("response_disabled")),
++            (0b1001, [false, false, true], Some("response_disabled")),
++            (0b1010, [false, false, false], Some("response_disabled")),
++            (0b1011, [false, false, true], Some("response_disabled")),
++            (0b1100, [true, false, false], Some("wire_not_selected")),
++            (0b1101, [true, false, true], Some("wire_not_selected")),
++            (0b1110, [true, true, true], None),
++            (0b1111, [true, true, true], None),
++        ] {
++            let logging = gates & 0b1000 != 0;
++            let response = gates & 0b0100 != 0;
++            let wire = gates & 0b0010 != 0;
++            let explicit = gates & 0b0001 != 0;
++            let mode = CacheMode::resolve(logging, Settings { response, wire }, explicit);
++            assert_eq!(mode.response_requested, response);
++            assert_eq!(mode.wire_requested, wire);
++            assert_eq!(
++                [
++                    mode.response_enabled,
++                    mode.wire_enabled,
++                    mode.wire_producer_enabled
++                ],
++                expected,
++                "gates={gates:04b}"
++            );
++            assert_eq!(mode.wire_disabled_reason, reason, "gates={gates:04b}");
 +        }
 +    }
 +
@@ -54342,7 +55719,7 @@ index 000000000..94080a1b2
 +                "--ignored",
 +                "--test-threads=1",
 +            ])
-+            .env("APP_CACHE_WIRE_DIAGNOSTICS", "1");
++            .env_remove("APP_CACHE_WIRE_DIAGNOSTICS");
 +        #[cfg(windows)]
 +        {
 +            use std::os::windows::process::CommandExt;
@@ -85627,6 +87004,28 @@ index 000000000..46765c379
 +구형 형식으로 알려진 대화를 재개할 때는 공식 유지보수 잠금과 메타데이터 재확인 절차를 재사용합니다. 페이지 형식으로 바뀌었거나 잠금을 확보하지 못하면 전체 응답을 재사용하는 지름길을 쓰지 않습니다.
 +
 +일반 실행의 실패·중단 차례는 종료 상태를 로그 소유자에게 반환하고, 로컬 로그 버퍼의 제한된 정리를 마친 뒤 기존 실패 종료 코드로 종료합니다. Drive 내보내기를 기다리지 않습니다. 설정·입력 검증 단계에서의 직접 종료와 강제 종료까지 모두 기록한다고 보장하지 않습니다.
+diff --git a/docs/native-cli-r33-cache-observation.ko.md b/docs/native-cli-r33-cache-observation.ko.md
+new file mode 100644
+index 000000000..6f4538111
+--- /dev/null
++++ b/docs/native-cli-r33-cache-observation.ko.md
+@@ -0,0 +1,16 @@
++# R33 프롬프트 캐시 관측 설정
++
++R32는 별도 캐시 진단 설정과 `APP_CACHE_WIRE_DIAGNOSTICS=1`을 함께 요구했다. R33에서는 일반 배치 logging을 켠 상태에서 `$CODEX_HOME/cli-cache-diagnostics.toml`에 다음을 명시하면 응답과 wire 관측을 함께 저장한다. 환경변수는 추가로 필요하지 않다.
++
++```toml
++response = true
++wire = true
++```
++
++기본값은 계속 모두 false다. 일반 CLI logging만 켜고 이 확장 파일을 빠뜨린 초기 설정에서는 캐시 관측이 수집되지 않는다. 확장 파일을 자동 생성하거나 기존 사용자의 설정을 자동 변경하지 않는다. 공유 `cli-logging.toml`에 캐시 설정 키를 추가하지 않는다.
++
++`wire=true`만으로는 켜지지 않으며 배치 logging과 `response=true`도 필요하다. 이 조건이 꺼져 있고 기존 환경변수 선택도 없으면 wire producer의 직렬화·해시·ordinal 연산을 시작하지 않는다. 기존 환경변수 단독 선택은 다른 tracing consumer를 위해 유지하되 배치 저장의 logging·response·wire 조건을 우회하지 않는다. 환경변수 값 0은 별도 파일의 명시적 선택을 취소하지 않는다.
++
++관측 모드는 프로세스 시작 때 고정된다. 설정을 적용한 새 실행의 `diagnostic_start`와 `batch_summary`에서 `instance_id`, `run.cache.response_enabled`, `wire_enabled`, `wire_producer_enabled`를 확인하고 캐시 전용 이벤트의 토큰 상태를 비교한다. 관측이 없거나 `cached_tokens`가 누락되면 적중률 0으로 계산하지 않는다. 기록은 기존 안전 필드 allowlist와 완결 배치 계약을 사용한다.
++
++이 변경은 관측의 중복 선택 조건만 줄인다. 모델, 프롬프트 캐시 키, TTL, 컨텍스트 구성과 서버 캐시 정책은 바꾸지 않는다. 기존 R32 설계 문서는 당시 동작의 기록으로 유지한다.
 diff --git a/tools/windows-cli/.gitattributes b/tools/windows-cli/.gitattributes
 new file mode 100644
 index 000000000..fcadb2cf9

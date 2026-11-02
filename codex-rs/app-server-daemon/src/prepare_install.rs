@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 //! Installs complete CLI packages after confirmation. Initial starts preserve
 //! existing selections; explicit replacements migrate to dedicated packages and stay pinned.
 //! WinGet sources are verified in their original layout before staging a canonical daemon package.
@@ -47,22 +48,54 @@ pub(super) async fn prepare(daemon: &Daemon, settings: &DaemonSettings) -> Resul
 pub async fn update_from_cli(
     confirm: impl FnOnce(&InstallRequest) -> Result<bool>,
 ) -> Result<Option<crate::UpdateOutput>> {
+    update_from_cli_with_no_force(confirm, /*no_force*/ false).await
+}
+
+/// A failed non-forcing stop leaves the selection unchanged, but may leave its daemon draining.
+/// Callers must reconcile that state rather than automatically retrying an ambiguous result.
+pub async fn update_from_cli_with_no_force(
+    confirm: impl FnOnce(&InstallRequest) -> Result<bool>,
+    no_force: bool,
+) -> Result<Option<crate::UpdateOutput>> {
     crate::ensure_supported_platform()?;
     #[cfg(windows)]
     crate::backend::windows::ensure_not_elevated()?;
     let daemon = Daemon::from_environment()?;
     let settings = daemon.load_settings().await?;
     let source = InstallContext::current().package_layout.as_ref();
-    if !Box::pin(prepare_from_package(
+    let prepared = Box::pin(prepare_from_package(
         &daemon,
         &settings,
-        InstallMode::Replace,
+        if no_force {
+            InstallMode::ReplaceNoForce
+        } else {
+            InstallMode::Replace
+        },
         source.map(|layout| layout.package_dir.as_path()),
         &std::env::current_exe()?,
         confirm,
     ))
-    .await?
-    {
+    .await;
+    let prepared = match prepared {
+        Ok(prepared) => prepared,
+        Err(error) => {
+            if let Some(stopped) = error.downcast_ref::<NoForceUpdateError>() {
+                return Ok(Some(crate::UpdateOutput {
+                    status: stopped.status,
+                    managed_codex_path: daemon.managed_codex_bin.clone(),
+                    installed_version: None,
+                    running_version: None,
+                    message: format!(
+                        "{error:#}. The selected package was not changed and no replacement was started. \
+                         The previous process may still be draining; shutdown cannot be undone. \
+                         Reconcile its state before requesting another update; do not automatically retry."
+                    ),
+                }));
+            }
+            return Err(error);
+        }
+    };
+    if !prepared {
         return Ok(None);
     }
     let managed_codex_path = daemon.current_managed_codex_bin()?;
@@ -82,7 +115,28 @@ pub async fn update_from_cli(
 enum InstallMode {
     Missing,
     Replace,
+    ReplaceNoForce,
 }
+
+impl InstallMode {
+    fn replacing(self) -> bool {
+        self != Self::Missing
+    }
+}
+
+#[derive(Debug)]
+struct NoForceUpdateError {
+    status: crate::UpdateStatus,
+    error: anyhow::Error,
+}
+
+impl std::fmt::Display for NoForceUpdateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "non-forcing update was not applied: {:#}", self.error)
+    }
+}
+
+impl std::error::Error for NoForceUpdateError {}
 
 async fn prepare_from_package(
     daemon: &Daemon,
@@ -173,7 +227,7 @@ async fn prepare_from_package(
     validate_package(source, source_entrypoint)?;
     // A local build may replace the executable while confirmation is pending.
     let running_identity = managed_install::executable_identity(running_exe).await?;
-    if mode == InstallMode::Replace {
+    if mode.replacing() {
         if !confirm(&InstallRequest {
             source: source.to_path_buf(),
             version: version.clone(),
@@ -197,18 +251,42 @@ async fn prepare_from_package(
     }
     // Confirmation must not block lifecycle commands. Recheck the approved
     // selection and running state once this operation owns both locks.
-    let _operation_lock = if mode == InstallMode::Replace {
+    let _operation_lock = if mode.replacing() {
         Some(daemon.acquire_operation_lock().await?)
     } else {
         None // Initial startup already holds the operation lock.
     };
-    let current_settings = if mode == InstallMode::Replace {
+    let current_settings = if mode.replacing() {
         Some(daemon.load_settings().await?)
     } else {
         None
     };
     let settings = current_settings.as_ref().unwrap_or(settings);
-    let _install_lock = acquire_install_lock(&root).await?;
+    let installer_locks = async {
+        let dedicated = acquire_install_lock(&root).await?;
+        // A legacy updater can still have an installer in its standalone root.
+        // Keep both roots quiescent until selection and server startup finish.
+        let standalone = home.join("packages/standalone");
+        let legacy = if mode == InstallMode::ReplaceNoForce && standalone.try_exists()? {
+            Some(acquire_install_lock(&standalone).await?)
+        } else {
+            None
+        };
+        Ok::<_, anyhow::Error>((dedicated, legacy))
+    }
+    .await;
+    let (_install_lock, _legacy_install_lock) = installer_locks.map_err(|error| {
+        if mode == InstallMode::ReplaceNoForce {
+            NoForceUpdateError {
+                status: crate::UpdateStatus::ShutdownOutcomeUnknown,
+                error: error
+                    .context("installer quiescence was not established; no shutdown was requested"),
+            }
+            .into()
+        } else {
+            error
+        }
+    })?;
     anyhow::ensure!(
         managed_install::package_root(home) == previous_root,
         "daemon package location changed; retry the command"
@@ -340,30 +418,59 @@ async fn prepare_from_package(
     }
     #[cfg(windows)]
     windows::validate_selection(&root)?;
-    if mode == InstallMode::Replace {
+    if mode.replacing() {
         let stopped = async {
-            crate::backend::pid_update_loop_backend(daemon.backend_paths(settings))
-                .stop()
-                .await?;
+            if mode != InstallMode::ReplaceNoForce {
+                let updater =
+                    crate::backend::pid_update_loop_backend(daemon.backend_paths(settings));
+                updater.stop().await?;
+            }
+            // Never signal an updater in no-force mode: even its graceful exit
+            // cancels installer descendants (Unix SIGKILL / Windows Job close).
+            // R28 and newer recheck the selected latest-channel binary under the
+            // operation lock before restarting a server. Our local pin revokes
+            // that authority; an old legacy updater may finish its own package
+            // update, but cannot restart this newly selected dedicated server.
             anyhow::ensure!(
                 managed_install::package_root(home) == previous_root
                     && previous_root.join("current").canonicalize().ok() == previous_release,
                 "daemon selection changed while preparing its package; retry the command"
             );
             if let Some(backend) = &backend {
-                if let Err(error) = crate::thread_recovery::discard_pending(daemon) {
+                if mode != InstallMode::ReplaceNoForce
+                    && let Err(error) = crate::thread_recovery::discard_pending(daemon)
+                {
                     eprintln!(
                         "warning: failed to clear stale daemon recovery before replacement: {error}"
                     );
                 }
-                backend
-                    .stop_with_grace(settings.shutdown_grace_seconds)
-                    .await?;
+                if mode == InstallMode::ReplaceNoForce {
+                    backend
+                        .stop_without_force(settings.shutdown_grace_seconds)
+                        .await
+                        .context("managed app-server shutdown")?;
+                } else {
+                    backend
+                        .stop_with_grace(settings.shutdown_grace_seconds)
+                        .await?;
+                }
             }
             Ok::<(), anyhow::Error>(())
         }
         .await;
         if let Err(error) = stopped {
+            if mode == InstallMode::ReplaceNoForce {
+                let status = match error.downcast_ref::<crate::backend::NoForceStopError>() {
+                    Some(crate::backend::NoForceStopError::RequestUnconfirmed(_)) => {
+                        crate::UpdateStatus::ShutdownUnconfirmed
+                    }
+                    Some(crate::backend::NoForceStopError::TimedOut) => {
+                        crate::UpdateStatus::ShutdownTimedOut
+                    }
+                    None => crate::UpdateStatus::ShutdownOutcomeUnknown,
+                };
+                return Err(NoForceUpdateError { status, error }.into());
+            }
             if let Err(restore_error) = async {
                 daemon
                     .current_installation()?

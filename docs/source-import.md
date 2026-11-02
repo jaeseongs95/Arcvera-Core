@@ -1,8 +1,10 @@
-# 공식 0.166.0 기반 R32 소스 후보
+# 공식 0.166.0 기반 R33 개발 소스 후보
 
-고정 Git 소스는 `278f41f74f26b72cd2f3bf068400d8454a00ff75`이며, 공개 입력은 `SOURCE_BASELINE.json`과 `upstream/source-inventory.json`으로 대조한다. 공식 원본은 `6ff1e1ca3b30fc8b914720681fcf5fe62e95f856`, 이전 공개 기준은 `3f2185d69aa14ff8cb9f0991f119bdc6f222de7e`다. R33 후속 변경은 R32 소스의 메시지 재생 3파일에 한정된다. 원본의 관련 시험 33개와 공개 출처 검증은 통과했으며, 공개 checkout의 새 빌드·실제 앱 실행·설치·릴리스는 미검증이다. [R33 검증 요약](r33-replay-verification.ko.md)을 따른다.
+고정 Git 소스는 `76c0a7ab3b971918cd3d9f30daf8e1344941359c`이며, 공개 입력은 `SOURCE_BASELINE.json`과 `upstream/source-inventory.json`으로 대조한다. 공식 원본은 `6ff1e1ca3b30fc8b914720681fcf5fe62e95f856`, 이전 공개 기준은 `5537d7bf4f0730969dfaf1c1ed876acb8920a5e1`다. R33 개발 후보로서 메시지 재생 수정 위에 비강제 갱신·수동 상태 조회·캐시 관측 설정을 더했다. 전체 Cargo 버전은 아직 `0.166.0+native-r32.20261101`이다. 공개 출처 검증은 통과했으나 R33 제품 스탬프·최종 통합 실행 파일·실제 사용 환경·설치·릴리스는 미완료다. [후보별 검증 요약](r33-development-verification.ko.md)을 따른다.
 
-기본 수정 고지는 R32로 보존하고 `export.py`의 `NOTICE_OVERRIDES`에 지정한 세 파일만 R33 고지를 사용한다. 따라서 `SOURCE_BASELINE.json`의 `modifiedNoticeLabel`·`modifiedNoticeDate`는 기본 고지이며, 각 파일의 실제 공개 바이트는 inventory의 `publishedSha256`과 검증기의 동일한 고지 선택으로 검사한다. 내장 프롬프트 38개의 소스 바이트·Windows 바이트 해시는 유지하고 catalog의 `sourceCommit`만 현재 고정 소스에 맞췄다.
+비강제 전환의 drain 중 재요청이 강제 종료로 승격되는 결함(F2)이 확인되어, 이 고정 소스는 후속 수정 전 배포 불가인 개발 초안이다. 출처 검증의 통과가 이 제품 결함의 해소를 뜻하지 않는다.
+
+기본 수정 고지는 R32로 보존하고 `export.py`의 `NOTICE_OVERRIDES`에 지정한 16경로만 R33 고지를 사용한다. 기존 재생 3경로와 `278f41f` 이후 델타 13경로이며, 두 Markdown 문서는 HTML 고지를 사용한다. 따라서 `SOURCE_BASELINE.json`의 `modifiedNoticeLabel`·`modifiedNoticeDate`는 기본 고지이며, 각 파일의 실제 공개 바이트는 inventory의 `publishedSha256`과 검증기의 동일한 고지 선택으로 검사한다. 새 [캐시 관측 문서](native-cli-r33-cache-observation.ko.md)도 명시적 source prefix로 포함한다. 내장 프롬프트 38개의 소스 바이트·Windows 바이트 해시는 유지하고 catalog의 `sourceCommit`만 현재 고정 소스에 맞췄다.
 
 ## 이전 후보의 수입 이력
 
@@ -52,7 +54,7 @@ R29 고정 소스 `af098cef617d62fdfce51d5e1fbd0afb4533f75d`는 공식 0.165.0 �
 
 현재 후보의 제품 변경과 시험 보강 범위는 [시험 안내](TESTING.md#빈-미저장-대화-이력-복원-후속-후보)에 정리했다.
 
-The selected public Git paths are `codex-rs`, `third_party`, `patches`, `.cargo/config.toml` and `tools/windows-cli`, `docs/native-cli-r27.ko.md`, `docs/native-cli-cron.ko.md`, plus the root `.gitattributes`. Existing public attributes are preserved before a managed block containing the pinned source's generated-file and LF rules; `checks/.gitattributes` is excluded. The full Rust workspace and its local path dependencies are retained: exporting just CLI/app-server would omit shared build inputs. Compressed schema resources, Rust include files, source fixtures and vendored license files are build inputs, not installable binaries. Upstream automation within the selected source is not enabled. No local `checks`, logs, profiles, caches, target directories, credentials, receipts, private desktop assets or source-repository Git history are copied.
+The selected public Git paths are `codex-rs`, `third_party`, `patches`, `.cargo/config.toml` and `tools/windows-cli`, `docs/native-cli-r27.ko.md`, `docs/native-cli-cron.ko.md`, `docs/native-cli-r33-cache-observation.ko.md`, plus the root `.gitattributes`. Existing public attributes are preserved before a managed block containing the pinned source's generated-file and LF rules; `checks/.gitattributes` is excluded. The full Rust workspace and its local path dependencies are retained: exporting just CLI/app-server would omit shared build inputs. Compressed schema resources, Rust include files, source fixtures and vendored license files are build inputs, not installable binaries. Upstream automation within the selected source is not enabled. No local `checks`, logs, profiles, caches, target directories, credentials, receipts, private desktop assets or source-repository Git history are copied.
 
 The main entry points are `codex-rs/cli` and `codex-rs/app-server`. Shared implementations include `core`, `codex-mcp`, `rmcp-client` and `utils/pty`. Cargo.lock keeps dependency provenance, including registry `mio 1.2.4`; no machine-specific dependency path override is added. Follow `codex-rs/rust-toolchain.toml` and install the matching platform build tools. Network dependency downloads require a separately prepared build environment.
 
