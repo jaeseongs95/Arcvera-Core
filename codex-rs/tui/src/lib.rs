@@ -1252,19 +1252,6 @@ async fn run_ratatui_app(
     let workload_identity_selected = is_workload_identity_selected();
     tooltips::announcement::prewarm(initial_config.http_client_factory());
 
-    // Forward panic reports through tracing so they appear in the UI status
-    // line, but do not swallow the default/color-eyre panic handler.
-    // Chain to the previous hook so users still get a rich panic report
-    // (including backtraces) after we restore the terminal.
-    static PANIC_HOOK: std::sync::Once = std::sync::Once::new();
-    PANIC_HOOK.call_once(|| {
-        let prev_hook = std::panic::take_hook();
-        std::panic::set_hook(Box::new(move |info| {
-            let _ = tui::restore_after_exit();
-            tracing::error!("panic: {info}");
-            prev_hook(info);
-        }));
-    });
     let (mut tui, mut terminal_restore_guard, mut startup_draft) = startup_draft.into_parts();
 
     #[cfg(not(debug_assertions))]

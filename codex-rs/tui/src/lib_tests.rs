@@ -36,6 +36,22 @@ fn tui_startup_future_stays_bounded() {
 fn startup_error_reporting_precedes_reports_and_survives_reentry() {
     const CHILD: &str = "CODEX_TEST_STARTUP_ERROR_REPORTING";
     if let Some(case) = std::env::var_os(CHILD) {
+        if case == "concurrent-init" {
+            let barrier = std::sync::Barrier::new(8);
+            std::thread::scope(|scope| {
+                for _ in 0..8 {
+                    let barrier = &barrier;
+                    scope.spawn(move || {
+                        barrier.wait();
+                        initialize_error_reporting().expect("concurrent process initialization");
+                    });
+                }
+            });
+            let report = color_eyre::eyre::eyre!("first report after concurrent initialization");
+            assert!(report.handler().is::<color_eyre::Handler>());
+            initialize_error_reporting().expect("sequential entry after concurrent initialization");
+            return;
+        }
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -90,7 +106,7 @@ fn startup_error_reporting_precedes_reports_and_survives_reentry() {
         return;
     }
 
-    for case in ["startup-reentry", "late-install"] {
+    for case in ["startup-reentry", "late-install", "concurrent-init"] {
         let home = TempDir::new().expect("isolated test home");
         let output = std::process::Command::new(std::env::current_exe().expect("test executable"))
             .args([

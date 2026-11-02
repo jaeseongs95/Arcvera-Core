@@ -148,6 +148,56 @@ mod tests {
     use ratatui::layout::Rect;
     use ratatui::text::Line;
 
+    // The process hook cannot be reset between tests. Observe the real wrapper
+    // in a fresh process; terminal mode restoration is covered by the PTY test.
+    #[test]
+    fn panic_hook_reentry_keeps_previous_handler_and_emits_one_trace() {
+        const CHILD: &str = "CODEX_TEST_TUI_PANIC_HOOK_REENTRY";
+        if std::env::var_os(CHILD).is_some() {
+            crate::initialize_error_reporting().expect("initialize rich error reporting");
+            tracing::subscriber::set_global_default(
+                tracing_subscriber::fmt()
+                    .with_writer(std::io::stderr)
+                    .with_ansi(false)
+                    .without_time()
+                    .with_target(false)
+                    .finish(),
+            )
+            .expect("capture panic tracing");
+            let prior_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let observed = std::sync::Arc::clone(&prior_calls);
+            let rich_hook = std::panic::take_hook();
+            std::panic::set_hook(Box::new(move |info| {
+                observed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                rich_hook(info);
+            }));
+            for _ in 0..3 {
+                super::set_panic_hook();
+                crate::initialize_error_reporting().expect("reentry preserves terminal hook");
+            }
+            assert!(std::panic::catch_unwind(|| panic!("panic hook reentry probe")).is_err());
+            assert_eq!(prior_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+            return;
+        }
+        let output = std::process::Command::new(std::env::current_exe().expect("test executable"))
+            .args([
+                "--exact",
+                "tui::tests::panic_hook_reentry_keeps_previous_handler_and_emits_one_trace",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .output()
+            .expect("start isolated panic hook test");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "{stderr}");
+        assert_eq!(stderr.matches("panic: panicked at").count(), 1, "{stderr}");
+        assert_eq!(
+            stderr.matches("The application panicked").count(),
+            1,
+            "{stderr}"
+        );
+    }
+
     #[test]
     fn unfocused_notification_condition_is_suppressed_when_focused() {
         assert!(!should_emit_notification(
@@ -634,11 +684,17 @@ fn probe_windows_default_colors() {
 }
 
 fn set_panic_hook() {
-    let hook = panic::take_hook();
-    panic::set_hook(Box::new(move |panic_info| {
-        let _ = restore_after_exit(); // ignore any errors as we are already failing
-        hook(panic_info);
-    }));
+    // Terminal initialization can repeat during startup recovery. Keep one
+    // restore/tracing wrapper and retain the process's color-eyre panic handler.
+    static PANIC_HOOK: std::sync::Once = std::sync::Once::new();
+    PANIC_HOOK.call_once(|| {
+        let hook = panic::take_hook();
+        panic::set_hook(Box::new(move |panic_info| {
+            let _ = restore_after_exit(); // ignore any errors as we are already failing
+            tracing::error!("panic: {panic_info}");
+            hook(panic_info);
+        }));
+    });
 }
 
 #[derive(Clone, Debug)]
