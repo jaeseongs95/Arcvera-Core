@@ -1,4 +1,4 @@
-# Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
+# Modified for OpenDIY Codex R33 (2026-11-03); see MODIFICATIONS.md.
 [CmdletBinding()]
 param(
     [string]$UpdaterPath,
@@ -341,6 +341,20 @@ try {
         Assert-Equal $script:Disabled $true 'Disable must be implemented'
         $status = Invoke-OpenDiyUpdate 'Status' $install $bootstrap.root $bootstrap.manifest
         Assert-Equal $status.schedule.state 'disabled' 'Status must observe the live disabled task'
+        $definition = Get-ScheduleDefinition $install
+        foreach ($owner in @($definition.user, $definition.sid, [Environment]::UserName)) {
+            $script:Scheduled.Principal.UserId = $owner
+            $status = Invoke-OpenDiyUpdate 'Status' $install $bootstrap.root $bootstrap.manifest
+            Assert-Equal $status.schedule.state 'disabled' 'Equivalent account spellings must resolve to the same owner'
+        }
+        $script:Scheduled.Principal.UserId = $definition.sid
+        $script:Scheduled.Principal.RunLevel = 'Highest'
+        Assert-Fails { Assert-OwnedSchedule $script:Scheduled $definition } 'schedule_conflict'
+        $script:Scheduled.Principal.RunLevel = 'Limited'
+        $script:Scheduled.Principal.UserId = 'S-1-5-18'
+        Assert-Fails { Assert-OwnedSchedule $script:Scheduled $definition } 'schedule_conflict'
+        $script:Scheduled.Principal.UserId = 'OpenDIY-unresolvable-' + [Guid]::NewGuid().ToString('N')
+        Assert-Fails { Assert-OwnedSchedule $script:Scheduled $definition } 'schedule_conflict'
         $script:Scheduled.Principal.UserId = 'another-user'
         $status = Invoke-OpenDiyUpdate 'Status' $install $bootstrap.root $bootstrap.manifest
         Assert-Equal $status.schedule.state 'conflict' 'A different task owner must not be reported as this updater'

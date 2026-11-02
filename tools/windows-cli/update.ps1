@@ -1,4 +1,4 @@
-# Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
+# Modified for OpenDIY Codex R33 (2026-11-03); see MODIFICATIONS.md.
 [CmdletBinding()]
 param(
     [ValidateSet('Update', 'Check', 'Status', 'Enable', 'Disable')][string]$Action = 'Update',
@@ -327,8 +327,22 @@ function Assert-OwnedSchedule($Existing, $Definition) {
     if ($Existing -and (@($Existing.Actions).Count -ne 1 -or $Existing.Actions[0].Execute -ine $Definition.wscript -or $Existing.Actions[0].Arguments -cne $Definition.arguments)) {
         Stop-Update 'schedule_conflict' 'The installation task name belongs to a different action.'
     }
-    if ($Existing -and (($Existing.Principal.UserId -ine $Definition.user -and $Existing.Principal.UserId -ine $Definition.sid) -or [string]$Existing.Principal.RunLevel -ne 'Limited')) {
-        Stop-Update 'schedule_conflict' 'The installation task belongs to a different user or privilege level.'
+    if ($Existing) {
+        # Task Scheduler can return DOMAIN\user, a local short name, or a SID
+        # for the same identity. Compare resolved SIDs and fail closed otherwise.
+        try {
+            $owner = [string]$Existing.Principal.UserId
+            if ($owner -match '^S-1-') {
+                $ownerSid = (New-Object Security.Principal.SecurityIdentifier($owner)).Value
+            } else {
+                $ownerSid = (New-Object Security.Principal.NTAccount($owner)).Translate([Security.Principal.SecurityIdentifier]).Value
+            }
+        } catch {
+            Stop-Update 'schedule_conflict' 'The installation task owner cannot be resolved.'
+        }
+        if ($ownerSid -ine $Definition.sid -or [string]$Existing.Principal.RunLevel -ne 'Limited') {
+            Stop-Update 'schedule_conflict' 'The installation task belongs to a different user or privilege level.'
+        }
     }
 }
 
@@ -506,6 +520,9 @@ function Invoke-OpenDiyUpdate([string]$Mode, [string]$RootPath, [string]$Bootstr
 
 if ($MyInvocation.InvocationName -ne '.') {
     try {
+        # The native CLI forwards these bytes as UTF-8, including Korean paths.
+        # Keep this process-local; dot-sourcing must preserve the caller's encoding.
+        [Console]::OutputEncoding = $script:Utf8
         $result = Invoke-OpenDiyUpdate $Action $InstallationRoot $PackageRoot $ManifestSha256 $IntervalMinutes
         $result | ConvertTo-Json -Depth 12 -Compress
         exit 0

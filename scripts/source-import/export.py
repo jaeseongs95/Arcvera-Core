@@ -9,8 +9,8 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='36ae395a552fd55962e19409cbf29b1fdf03b0ec'
-PREVIOUS_PUBLIC='5300c7238a23cd29d29e4ffdfbcaf3ac53366886'
+PATCHED='bd2ed8ec7854d64905caa67d0f77758e758a930c'
+PREVIOUS_PUBLIC='cccc67a3d2ca8150de9bb8f55b7f95f893336fb2'
 PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
@@ -72,6 +72,11 @@ NOTICE_OVERRIDES={path:('R33','2026-11-02') for path in (
     'tools/windows-cli/package_cli.py',
     'tools/windows-cli/test_package_cli.py',
 )}
+NOTICE_OVERRIDES.update({path: ('R33', '2026-11-03') for path in (
+    'tools/windows-cli/update.ps1',
+    'tools/windows-cli/test_update.ps1',
+    'tools/windows-cli/test_update_output.py',
+)})
 ATTR_BEGIN=b'# BEGIN OpenDIY pinned source attributes\n'
 ATTR_END=b'# END OpenDIY pinned source attributes\n'
 WINDOWS_INPUTS_PATH='upstream/windows-prompt-inputs.json'

@@ -2,11 +2,11 @@
   "schema": 2,
   "upstream": "https://github.com/openai/codex",
   "officialVersion": "0.166.0",
-  "previousPublicCommit": "5300c7238a23cd29d29e4ffdfbcaf3ac53366886",
+  "previousPublicCommit": "cccc67a3d2ca8150de9bb8f55b7f95f893336fb2",
   "officialCommit": "6ff1e1ca3b30fc8b914720681fcf5fe62e95f856",
-  "patchedCommit": "36ae395a552fd55962e19409cbf29b1fdf03b0ec",
+  "patchedCommit": "bd2ed8ec7854d64905caa67d0f77758e758a930c",
   "officialTree": "03f3b46689faf274f126dc78508ed238564da8ba",
-  "patchedTree": "a5559de65dab7093d3642a45fc791ea401a86ce3",
+  "patchedTree": "25bbd13f37419d7e4bdab992ee62c7405d2c300a",
   "selectedPrefixes": [
     "codex-rs",
     "third_party",
@@ -19,12 +19,12 @@
     "docs/native-cli-r33-cache-observation.ko.md"
   ],
   "patchPath": "upstream/official-0.166.0.patch",
-  "patchSha256": "fa44bd569fad24c8b71822b11bcf6f698ab672813963b1feb7675d5eb6b42a2e",
-  "sourceInventorySha256": "eeb869c1f65078c18271950d700137c03f4e7d4cd229f88dcfa52a0376540790",
+  "patchSha256": "ac10a952ce341767ad9b0e8ad905c6e76d6fb4dffd5c55bb33678a5f7d13e39c",
+  "sourceInventorySha256": "24cb499d457cff87626a680b6f2ed35789cc6ed1dbd042511204143162b1b8be",
   "windowsPromptInputsPath": "upstream/windows-prompt-inputs.json",
-  "windowsPromptInputsSha256": "5688477071e881b13e5ee6d1bb7498a12cc2c379fe536beadc87224ca47ab9a7",
-  "sourceFileCount": 9412,
-  "publishedBytes": 93148916,
+  "windowsPromptInputsSha256": "30879b9c4ec14d8a8d2f88f0eb6f4388c5f84684c26ffdda24721ffb59d5a8c1",
+  "sourceFileCount": 9413,
+  "publishedBytes": 93156944,
   "modifiedNoticeDate": "2026-11-01",
   "modifiedNoticeLabel": "R32",
   "modifiedFiles": [
@@ -5584,20 +5584,30 @@
     {
       "path": "tools/windows-cli/test_update.ps1",
       "gitMode": "100644",
-      "gitBlob": "3e3c7f376fba5e1f06526c5aa41cbb2290ba3e59",
-      "sourceSha256": "7a73dbb041e54882e396cdbb47e0d14c3d586a936fc4c6a378babf50ff77c193",
-      "publishedSha256": "43ab3182a0cb6d63887160c1938af638e2348f3542de55aa984c3a50fdf98dc0",
-      "bytes": 31544,
+      "gitBlob": "5ff5afa10e6881476fc9c89d9281d5d07b9e2724",
+      "sourceSha256": "46640f47aac1fb8abb59b72b07afccdd0aad997d2c9bf20112964342a820409d",
+      "publishedSha256": "5451c781edbd6ea2097337e081bb3958cb6e1a71ddf8ff32cf1156b6d7b0dabf",
+      "bytes": 32596,
+      "modified": true,
+      "noticeOnly": true
+    },
+    {
+      "path": "tools/windows-cli/test_update_output.py",
+      "gitMode": "100644",
+      "gitBlob": "d8432dfea2310005c3e31f8295ad8da5b0ae09fd",
+      "sourceSha256": "5bd05a798ef6899824c36ff4746c1e7276eeb0946ac3af156dfc6f3677b2981f",
+      "publishedSha256": "41608dcf734d98c1aa697dbb0a97d7a3d30d169ec4d45f382cb1d3fbf8c8fe8e",
+      "bytes": 6157,
       "modified": true,
       "noticeOnly": true
     },
     {
       "path": "tools/windows-cli/update.ps1",
       "gitMode": "100644",
-      "gitBlob": "9be398fa6121b32788e554db3e512de09041af37",
-      "sourceSha256": "81c26d4744130029944926c031c239ebc9ce6f2cae567c995e0e1d55ac4b22ce",
-      "publishedSha256": "94684a480816c2200a14e0bb0649667a65bf5903186a5a33a85c0def0f94e15d",
-      "bytes": 31722,
+      "gitBlob": "50c33158083bd36b807d73be1efca573aac93ae7",
+      "sourceSha256": "9da5bb1358bfa72ed0c41faeb0f744d784d3086fe33e0593b4db617b8bb6e0bf",
+      "publishedSha256": "b6cb20034a0b36b7be4c0d12f1d72144e77e6848ce0a581f28677929ab74019c",
+      "bytes": 32541,
       "modified": true,
       "noticeOnly": true
     },
@@ -5615,8 +5625,8 @@
   "preservedRepositoryDocuments": {
     "LICENSE": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc",
     "NOTICE": "56e8f508896d981a2c375183d4c4d92d390cc7b4541247932c615b8a4af8b67d",
-    "README.md": "80dc676767ec7587d3a7d7be4a3cbcfada1f314aff0790608309089b30ce6cf9",
-    "README.ko.md": "621c0582d6c7ee1da15a3a34c1fccde8904c397cb518993d80c92ac8fb75bd5e"
+    "README.md": "4527f96e7093d475b40bc60f41af8591b5c510c5266d9cb20bf9c70c48052a0a",
+    "README.ko.md": "8aba35e72c82612dc4134334b240780b150761668f112457c4c198e9de200bbf"
   },
   "limitations": [
     "This public export has not been built or run as a fresh public checkout.",

@@ -180,10 +180,13 @@ class VerifierChecks(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(EXPORT.notice(path),b'<!-- Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md. -->\n')
         for path in ['codex-rs/Cargo.toml', 'codex-rs/Cargo.lock',
-                     'codex-rs/app-server-daemon/Cargo.toml',
-                     'tools/windows-cli/update.ps1', 'tools/windows-cli/test_update.ps1']:
+                     'codex-rs/app-server-daemon/Cargo.toml']:
             with self.subTest(path=path):
                 self.assertEqual(EXPORT.notice(path),b'# Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n')
+        for path in ['tools/windows-cli/update.ps1', 'tools/windows-cli/test_update.ps1',
+                     'tools/windows-cli/test_update_output.py']:
+            with self.subTest(path=path):
+                self.assertEqual(EXPORT.notice(path),b'# Modified for OpenDIY Codex R33 (2026-11-03); see MODIFICATIONS.md.\n')
         self.assertEqual(EXPORT.notice('tools/windows-cli/update.vbs'),b"' Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n")
         self.assertEqual(EXPORT.notice('codex-rs/cli/src/bin/opendiy_codex_launcher.rs'),b'// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n')
         self.assertEqual(EXPORT.notice('codex-rs/app-server-daemon/scripts/install/install.ps1'),b'')
