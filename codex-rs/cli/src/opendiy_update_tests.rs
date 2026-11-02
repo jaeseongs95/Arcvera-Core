@@ -14,6 +14,7 @@ impl Fixture {
         fs::create_dir_all(package.join("bin"))?;
         fs::create_dir_all(package.join("updater"))?;
         fs::write(package.join("bin/codex.exe"), b"fixture executable")?;
+        fs::write(package.join("bin/codex-app-server.exe"), b"fixture server")?;
         fs::write(package.join("updater/update.ps1"), b"fixture updater")?;
         let fixture = Self { directory, package };
         fixture.write_metadata()?;
@@ -33,6 +34,7 @@ impl Fixture {
             "binarySha256": binary_hash,
             "files": [
                 {"path": "bin/codex.exe", "sha256": binary_hash},
+                {"path": "bin/codex-app-server.exe", "sha256": file_sha256(&self.package.join("bin/codex-app-server.exe"))?},
                 {"path": "updater/update.ps1", "sha256": file_sha256(&self.package.join("updater/update.ps1"))?}
             ]
         });
@@ -320,6 +322,74 @@ exit 0
         if action == Action::Disable {
             assert!(String::from_utf8(output.stderr)?.contains("fixture stderr"));
         }
+    }
+    Ok(())
+}
+
+#[test]
+fn resolve_reports_verified_pair_without_spawning_and_rejects_tampering() -> anyhow::Result<()> {
+    let fixture = Fixture::new()?;
+    let value = resolve_selected(fixture.root())?;
+    assert_eq!(value["schema"], 1);
+    assert_eq!(value["version"], "0.166.0+native-r33.20261102");
+    assert_eq!(value["revision"], 33);
+    assert_eq!(value["sourceCommit"], "a".repeat(40));
+    assert_eq!(
+        value["manifestSha256"],
+        fixture.pointer()?["manifestSha256"]
+    );
+    for (key, expected) in [
+        ("installationRoot", fixture.root()),
+        ("packageRoot", fixture.package.as_path()),
+    ] {
+        assert_eq!(
+            PathBuf::from(value[key].as_str().context("resolved package path")?).canonicalize()?,
+            expected.canonicalize()?
+        );
+    }
+    for (path_key, hash_key, relative) in [
+        ("cliPath", "cliSha256", "bin/codex.exe"),
+        (
+            "appServerPath",
+            "appServerSha256",
+            "bin/codex-app-server.exe",
+        ),
+    ] {
+        assert_eq!(
+            PathBuf::from(
+                value[path_key]
+                    .as_str()
+                    .context("resolved executable path")?
+            )
+            .canonicalize()?,
+            fixture.package.canonicalize()?.join(relative)
+        );
+        assert_eq!(
+            value[hash_key],
+            file_sha256(&fixture.package.join(relative))?
+        );
+    }
+    // These fixture bytes are not runnable executables. Successful resolution
+    // therefore proves the exact query did not attempt to start either child.
+    assert!(
+        launch_or_resolve(fixture.root(), [OsString::from("--opendiy-resolve-json")])?.is_none()
+    );
+    let forwarded = selected_command(fixture.root(), [OsString::from("--version")])?;
+    assert_eq!(
+        forwarded.get_args().collect::<Vec<_>>(),
+        vec![std::ffi::OsStr::new("--version")]
+    );
+    for relative in ["bin/codex-app-server.exe", "bin/codex.exe"] {
+        fs::write(fixture.package.join(relative), b"tampered")?;
+        assert!(resolve_selected(fixture.root()).is_err());
+        fs::write(
+            fixture.package.join(relative),
+            if relative == "bin/codex.exe" {
+                b"fixture executable".as_slice()
+            } else {
+                b"fixture server".as_slice()
+            },
+        )?;
     }
     Ok(())
 }

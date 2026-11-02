@@ -230,14 +230,62 @@ fn installation_root_for_cli(executable: &Path) -> anyhow::Result<PathBuf> {
     )
 }
 
-/// Start the selected CLI with the launcher's arguments, working directory and
-/// standard handles unchanged. The caller returns the exact child exit code.
-pub fn launch() -> anyhow::Result<ExitStatus> {
+/// Resolve the verified CLI/server pair for the exact private query, or start
+/// the selected CLI with the original arguments, working directory and handles.
+/// None means a successful resolution with no child; Some preserves child status.
+pub fn launch() -> anyhow::Result<Option<ExitStatus>> {
     let executable = std::env::current_exe()?.canonicalize()?;
     let installation_root = executable
         .parent()
         .context("OpenDIY launcher has no installation directory")?;
-    launch_selected(installation_root, std::env::args_os().skip(1))
+    launch_or_resolve(installation_root, std::env::args_os().skip(1))
+}
+
+fn launch_or_resolve(
+    installation_root: &Path,
+    args: impl IntoIterator<Item = OsString>,
+) -> anyhow::Result<Option<ExitStatus>> {
+    use std::io::Write;
+    let args: Vec<_> = args.into_iter().collect();
+    if args.len() == 1 && args[0] == "--opendiy-resolve-json" {
+        let resolved = resolve_selected(installation_root)?;
+        let mut stdout = std::io::stdout().lock();
+        serde_json::to_writer(&mut stdout, &resolved)?;
+        stdout.write_all(b"\n")?;
+        return Ok(None);
+    }
+    launch_selected(installation_root, args).map(Some)
+}
+
+fn resolve_selected(installation_root: &Path) -> anyhow::Result<serde_json::Value> {
+    let package = verify_current_package(installation_root)?;
+    let cli = package.file("bin/codex.exe")?;
+    let server = package.file("bin/codex-app-server.exe")?;
+    let server_sha256 = &package
+        .receipt
+        .files
+        .iter()
+        .find(|entry| entry.path == "bin/codex-app-server.exe")
+        .context("Missing verified OpenDIY app-server receipt entry")?
+        .sha256;
+    let version = package
+        .receipt
+        .version
+        .strip_prefix("codex-cli ")
+        .unwrap_or(&package.receipt.version);
+    Ok(serde_json::json!({
+        "schema": 1,
+        "installationRoot": codex_utils_path::normalize_for_native_workdir(&package.installation_root),
+        "packageRoot": codex_utils_path::normalize_for_native_workdir(&package.package_root),
+        "manifestSha256": package.manifest_sha256,
+        "version": version,
+        "revision": native_revision(version).context("Invalid OpenDIY package revision")?,
+        "sourceCommit": package.receipt.source_commit,
+        "cliPath": codex_utils_path::normalize_for_native_workdir(&cli),
+        "cliSha256": package.receipt.binary_sha256,
+        "appServerPath": codex_utils_path::normalize_for_native_workdir(&server),
+        "appServerSha256": server_sha256
+    }))
 }
 
 fn launch_selected(
