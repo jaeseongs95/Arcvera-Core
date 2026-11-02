@@ -28,7 +28,7 @@ pub(super) fn omit_messages_covered_by_history(snapshot: &mut ThreadEventSnapsho
                     item,
                     ThreadItemPayload::UserMessage { .. } | ThreadItemPayload::AgentMessage { .. }
                 ) && !item.id().is_empty())
-                .then_some(((turn.id.as_str(), item.id()), item))
+                .then_some(((turn.id.clone(), item.id().to_string()), item))
             })
         })
         .collect::<HashMap<_, _>>();
@@ -53,7 +53,7 @@ pub(super) fn omit_messages_covered_by_history(snapshot: &mut ThreadEventSnapsho
             continue;
         }
         for item in items {
-            let key = (turn_id, item.id());
+            let key = (turn_id.to_string(), item.id().to_string());
             if covered
                 .get(&key)
                 .is_some_and(|previous| *previous != &item.payload)
@@ -70,7 +70,7 @@ pub(super) fn omit_messages_covered_by_history(snapshot: &mut ThreadEventSnapsho
         };
         match notification.as_mut() {
             ServerNotification::ItemCompleted(n) if n.thread_id == thread_id => {
-                let key = (n.turn_id.as_str(), n.item.id());
+                let key = (n.turn_id.clone(), n.item.id().to_string());
                 if covered
                     .get(&key)
                     .is_some_and(|previous| *previous == &n.item.payload)
@@ -86,7 +86,7 @@ pub(super) fn omit_messages_covered_by_history(snapshot: &mut ThreadEventSnapsho
             }
             ServerNotification::TurnCompleted(n) if n.thread_id == thread_id => {
                 for item in &mut n.turn.items {
-                    let key = (n.turn.id.as_str(), item.id());
+                    let key = (n.turn.id.clone(), item.id().to_string());
                     if covered
                         .get(&key)
                         .is_some_and(|previous| *previous == &item.payload)
