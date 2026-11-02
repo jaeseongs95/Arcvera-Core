@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.
 use clap::Args;
 use clap::CommandFactory;
 use clap::Parser;
@@ -1114,6 +1114,7 @@ fn stage_str(stage: Stage) -> &'static str {
 }
 
 fn main() -> anyhow::Result<()> {
+    codex_tui::initialize_error_reporting()?;
     let desktop_cron_bootstrap = codex_tui::take_desktop_cron_bootstrap_from_env();
     codex_build_info::initialize!();
     let remote_control_disabled = codex_app_server::take_remote_control_disabled_env();

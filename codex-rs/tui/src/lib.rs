@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.
 // Forbid accidental stdout/stderr writes in the *library* portion of the TUI.
 // The standalone `codex-tui` binary prints a short help message before the
 // alternate‑screen mode starts; that file opts‑out locally via `allow`.
@@ -1156,6 +1156,21 @@ fn restore_terminal_before_fatal_exit() {
     startup_recovery::print_unsent_draft();
 }
 
+/// Install process-wide report hooks before startup can construct an eyre report.
+/// CLI entry points call this before resolving remote addresses; `run_main` also
+/// calls it for library users and recovery attempts in the same process.
+pub fn initialize_error_reporting() -> std::io::Result<()> {
+    static INSTALLED: std::sync::OnceLock<color_eyre::Result<()>> = std::sync::OnceLock::new();
+    INSTALLED
+        .get_or_init(color_eyre::install)
+        .as_ref()
+        .map(|()| ())
+        .map_err(|error| {
+            let source: &'static (dyn std::error::Error + Send + Sync) = error.as_ref();
+            std::io::Error::other(source)
+        })
+}
+
 pub async fn run_main(
     cli: Cli,
     arg0_paths: Arg0DispatchPaths,
@@ -1163,6 +1178,7 @@ pub async fn run_main(
     explicit_remote_endpoint: Option<RemoteAppServerEndpoint>,
     desktop_cron_bootstrap: DesktopCronBootstrap,
 ) -> std::io::Result<AppExitInfo> {
+    initialize_error_reporting()?;
     let desktop_cron_bootstrap = if cli.desktop_cron_control.is_some() {
         desktop_cron_bootstrap
     } else {
@@ -1235,20 +1251,8 @@ async fn run_ratatui_app(
     let backend_id = crate::backend_id::BackendId::new();
     let uses_remote_workspace = app_server_target.uses_remote_workspace();
     let workload_identity_selected = is_workload_identity_selected();
-    color_eyre::install()?;
-
     tooltips::announcement::prewarm(initial_config.http_client_factory());
 
-    // Forward panic reports through tracing so they appear in the UI status
-    // line, but do not swallow the default/color-eyre panic handler.
-    // Chain to the previous hook so users still get a rich panic report
-    // (including backtraces) after we restore the terminal.
-    let prev_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        let _ = tui::restore_after_exit();
-        tracing::error!("panic: {info}");
-        prev_hook(info);
-    }));
     let (mut tui, mut terminal_restore_guard, mut startup_draft) = startup_draft.into_parts();
 
     #[cfg(not(debug_assertions))]

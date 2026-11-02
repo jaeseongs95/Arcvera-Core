@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.
 //! The main Codex TUI chat surface.
 //!
 //! `ChatWidget` consumes protocol events, builds and updates history cells, and drives rendering
@@ -1320,31 +1320,31 @@ impl ChatWidget {
         &mut self,
         cell: &dyn HistoryCell,
     ) -> Option<Box<dyn HistoryCell>> {
+        let active = self.transcript.active_cell.as_ref()?;
         // Keep the placeholder session header as the active cell until real session info arrives,
         // so we can merge headers instead of committing a duplicate box to history.
-        let keep_placeholder_header_active = !self.is_session_configured()
-            && self
-                .transcript
-                .active_cell
-                .as_ref()
-                .is_some_and(|c| c.as_any().is::<history_cell::SessionHeaderHistoryCell>());
+        if !self.is_session_configured()
+            && active
+                .as_any()
+                .is::<history_cell::SessionHeaderHistoryCell>()
+        {
+            return None;
+        }
         let history_width = self
             .last_rendered_width
             .get()
             .map(|width| self.history_wrap_width(width))
             .unwrap_or(u16::MAX);
 
-        if !keep_placeholder_header_active
-            && !cell
-                .display_lines_for_mode(history_width, self.history_render_mode())
-                .is_empty()
+        if !cell
+            .display_lines_for_mode(history_width, self.history_render_mode())
+            .is_empty()
         {
             // Only break exec grouping if the cell renders visible lines.
             if !self.has_active_stream_tail() {
                 return self.transcript.take_active_cell();
             }
-        } else if !keep_placeholder_header_active
-            && self.has_completed_tool_activity()
+        } else if self.has_completed_tool_activity()
             && !cell.transcript_lines(history_width).is_empty()
         {
             return self.transcript.take_active_cell();

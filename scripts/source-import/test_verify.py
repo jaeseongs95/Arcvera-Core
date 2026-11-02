@@ -168,7 +168,6 @@ class VerifierChecks(unittest.TestCase):
                      'codex-rs/app-server-daemon/src/prepare_install_tests.rs',
                      'codex-rs/app-server-daemon/src/status.rs',
                      'codex-rs/cli/src/daemon_telemetry.rs',
-                     'codex-rs/cli/src/main.rs',
                      'codex-rs/codex-api/tests/cache_batch_boundary.rs',
                      'codex-rs/diagnostics/src/cache_diagnostics.rs']:
             with self.subTest(path=path):
@@ -179,14 +178,13 @@ class VerifierChecks(unittest.TestCase):
                      'tools/windows-cli/UPDATE.ko.md']:
             with self.subTest(path=path):
                 self.assertEqual(EXPORT.notice(path),b'<!-- Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md. -->\n')
-        for path in ['codex-rs/Cargo.toml', 'codex-rs/Cargo.lock',
-                     'codex-rs/app-server-daemon/Cargo.toml']:
+        for path in ['codex-rs/app-server-daemon/Cargo.toml']:
             with self.subTest(path=path):
                 self.assertEqual(EXPORT.notice(path),b'# Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n')
         for path in ['tools/windows-cli/update.ps1', 'tools/windows-cli/test_update.ps1',
                      'tools/windows-cli/test_update_output.py']:
             with self.subTest(path=path):
-                self.assertEqual(EXPORT.notice(path),b'# Modified for OpenDIY Codex R33 (2026-11-03); see MODIFICATIONS.md.\n')
+                self.assertEqual(EXPORT.notice(path),b'# Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.\n')
         self.assertEqual(EXPORT.notice('tools/windows-cli/update.vbs'),b"' Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n")
         self.assertEqual(EXPORT.notice('codex-rs/cli/src/bin/opendiy_codex_launcher.rs'),b'// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n')
         self.assertEqual(EXPORT.notice('codex-rs/app-server-daemon/scripts/install/install.ps1'),b'')
@@ -201,5 +199,19 @@ class VerifierChecks(unittest.TestCase):
         process=subprocess.run([sys.executable,'-B','-O',str(SCRIPT)],capture_output=True,text=True)
         self.assertNotEqual(process.returncode,0)
         self.assertIn('without Python optimization',process.stderr)
+
+    def test_r34_notice_marks_only_reviewed_startup_and_upstream_files(self):
+        for path in ['codex-rs/cli/src/main.rs', 'codex-rs/tui/src/main.rs',
+                     'codex-rs/tui/src/lib.rs', 'codex-rs/tui/src/lib_tests.rs',
+                     'codex-rs/tui/src/tui.rs', 'codex-rs/tui/src/tui_panic_tests.rs',
+                     'codex-rs/cli/tests/daemon_startup.rs',
+                     'codex-rs/tui/src/app_server_session/history.rs',
+                     'codex-rs/tui/src/chatwidget.rs', 'codex-rs/tui/src/keymap.rs',
+                     'codex-rs/tui/src/app/tests/startup_defaults_tests.rs']:
+            with self.subTest(path=path):
+                self.assertEqual(EXPORT.notice(path), b'// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.\n')
+        for path in ['codex-rs/Cargo.toml', 'codex-rs/Cargo.lock', 'codex-rs/cli/Cargo.toml']:
+            with self.subTest(path=path):
+                self.assertEqual(EXPORT.notice(path), b'# Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.\n')
 
 if __name__=='__main__':unittest.main()

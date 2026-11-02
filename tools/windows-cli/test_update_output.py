@@ -1,4 +1,4 @@
-# Modified for OpenDIY Codex R33 (2026-11-03); see MODIFICATIONS.md.
+# Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.
 """Windows host regression using an explicitly supplied, verified native package.
 
 No real installation, network update, task registration, daemon or user HOME is used.
