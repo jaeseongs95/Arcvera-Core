@@ -1,16 +1,16 @@
 use super::Process;
 use pretty_assertions::assert_eq;
+use std::os::windows::fs::OpenOptionsExt;
 use std::os::windows::io::AsRawHandle;
 use std::os::windows::io::FromRawHandle;
 use std::os::windows::io::OwnedHandle;
-use std::os::windows::fs::OpenOptionsExt;
 use std::os::windows::process::CommandExt;
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::io::AsyncReadExt;
 use windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED;
-use windows_sys::Win32::Foundation::HANDLE_FLAG_INHERIT;
 use windows_sys::Win32::Foundation::GetHandleInformation;
+use windows_sys::Win32::Foundation::HANDLE_FLAG_INHERIT;
 use windows_sys::Win32::Foundation::SetHandleInformation;
 use windows_sys::Win32::System::JobObjects::IsProcessInJob;
 use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
@@ -92,21 +92,21 @@ async fn captured_stdio_closes_while_child_is_alive() {
             0
         );
         let mut command = tokio::process::Command::new(executable);
+        let stderr_log = std::fs::File::create(home.join("child.log")).unwrap();
         command
             .args(["--exact", TEST, "--nocapture"])
             .env(ROLE, "child")
             .env_remove(REMOVED)
             .env(CHANGED, "변경된 value")
             .current_dir(&home)
-            // The CI job may forbid breakaway; it does not affect inheritance.
-            .creation_flags(DETACHED_PROCESS)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(std::fs::File::create(home.join("child.log")).unwrap());
+            .env(CHANGED.to_ascii_lowercase(), "변경된 value");
         for skip in SKIPS {
             command.args(["--skip", skip]);
         }
-        let child = super::spawn_without_inheriting_stdio(&mut command).unwrap();
+        // The CI job may forbid breakaway; it does not affect inheritance.
+        let child =
+            super::spawn_without_inheriting_stdio(command.as_std(), &stderr_log, DETACHED_PROCESS)
+                .unwrap();
         let pid = child.id().unwrap();
         let started = Process::open(pid).unwrap().unwrap().start_time().unwrap();
         std::fs::write(
@@ -160,8 +160,16 @@ async fn captured_stdio_closes_while_child_is_alive() {
                 tokio::time::sleep(Duration::from_millis(25)).await;
             }
             tokio::try_join!(
-                launcher.stdout.as_mut().unwrap().read_to_string(&mut stdout),
-                launcher.stderr.as_mut().unwrap().read_to_string(&mut stderr),
+                launcher
+                    .stdout
+                    .as_mut()
+                    .unwrap()
+                    .read_to_string(&mut stdout),
+                launcher
+                    .stderr
+                    .as_mut()
+                    .unwrap()
+                    .read_to_string(&mut stderr),
             )
         })
         .await;
@@ -179,24 +187,83 @@ async fn captured_stdio_closes_while_child_is_alive() {
         .await;
         // Cleanup only this identity if the normal shutdown fixture failed.
         if stopped.is_err() {
-            child.terminate().expect("cleanup child after shutdown timeout");
+            child
+                .terminate()
+                .expect("cleanup child after shutdown timeout");
         }
 
-        captured.expect("launcher output must close while child is alive").unwrap();
+        captured
+            .expect("launcher output must close while child is alive")
+            .unwrap();
         stopped.expect("child must exit normally after shutdown request");
         assert!(status.success(), "{role}: {stderr}");
         assert!(
             still_running.unwrap(),
             "{role}: child exited before its launcher output closed"
         );
-        assert!(unrelated.is_ok(), "{role}: child inherited an unrelated handle");
-        assert_eq!(std::fs::read(home.join("inheritance-preserved")).unwrap(), [1]);
+        assert!(
+            unrelated.is_ok(),
+            "{role}: child inherited an unrelated handle"
+        );
+        assert_eq!(
+            std::fs::read(home.join("inheritance-preserved")).unwrap(),
+            [1]
+        );
         assert!(stdout.contains("launcher stdout"));
         assert!(stderr.contains("launcher stderr"));
         let child_log = std::fs::read_to_string(home.join("child.log")).unwrap();
         assert!(child_log.contains("child stderr"));
         assert!(child_log.contains("child shutdown"));
     }
+}
+
+#[test]
+fn failed_detached_spawn_releases_owned_handles() {
+    const ROLE: &str = "CODEX_TEST_FAILED_DETACHED_SPAWN";
+    const TEST: &str = "backend::windows::tests::failed_detached_spawn_releases_owned_handles";
+    if std::env::var_os(ROLE).is_none() {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", TEST, "--nocapture"])
+            .env(ROLE, "1")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+    let home = tempfile::tempdir().unwrap();
+    let stderr = std::fs::File::create(home.path().join("child.log")).unwrap();
+    let command = std::process::Command::new(home.path().join("missing.exe"));
+    let count = || {
+        let mut count = 0;
+        assert_ne!(
+            unsafe {
+                windows_sys::Win32::System::Threading::GetProcessHandleCount(
+                    super::GetCurrentProcess(),
+                    &mut count,
+                )
+            },
+            0
+        );
+        count
+    };
+    let before = count();
+    for _ in 0..32 {
+        let error = match super::spawn_without_inheriting_stdio(&command, &stderr, DETACHED_PROCESS)
+        {
+            Ok(_) => panic!("missing executable unexpectedly launched"),
+            Err(error) => error,
+        };
+        assert!(error.root_cause().is::<std::io::Error>(), "{error:#}");
+    }
+    assert_eq!(
+        count(),
+        before,
+        "failed detached spawns leaked owned handles"
+    );
 }
 
 #[test]
@@ -318,17 +385,12 @@ fn detached_launch_preflight_allows_residual_job() {
             return;
         }
         let temp = tempfile::tempdir().expect("temp dir");
-        let script = temp.path().join("codex.cmd");
-        std::fs::write(
-            &script,
-            "@echo off\r\nif \"%3\"==\"--help\" exit /b 1\r\necho ready > \"%~dp0ready\"\r\nfor /l %%i in (1,1,10000000) do @rem\r\n",
-        )
-        .expect("write daemon fixture");
-        let backend = crate::backend::pid::PidBackend::new(
-            script,
+        let mut backend = crate::backend::pid::PidBackend::new(
+            executable.clone(),
             temp.path().join("state").join("daemon.pid"),
             /*remote_control_enabled*/ false,
         );
+        backend.test_command = Some("backend::pid::tests::managed_child_fixture");
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -341,10 +403,12 @@ fn detached_launch_preflight_allows_residual_job() {
             .expect("open daemon")
             .expect("live daemon");
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while !temp.path().join("ready").exists() && std::time::Instant::now() < deadline {
+        while !temp.path().join("state/workdir/launched.cwd").exists()
+            && std::time::Instant::now() < deadline
+        {
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
-        let ready = temp.path().join("ready").exists();
+        let ready = temp.path().join("state/workdir/launched.cwd").exists();
         let outer_checked = unsafe {
             IsProcessInJob(
                 process.0.as_raw_handle(),

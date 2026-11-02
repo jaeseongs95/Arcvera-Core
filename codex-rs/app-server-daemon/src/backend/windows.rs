@@ -18,14 +18,10 @@ use std::process::Stdio;
 use anyhow::Context;
 use anyhow::Result;
 use windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED;
-use windows_sys::Win32::Foundation::ERROR_INVALID_HANDLE;
 use windows_sys::Win32::Foundation::ERROR_INVALID_PARAMETER;
 use windows_sys::Win32::Foundation::ERROR_LOCK_VIOLATION;
 use windows_sys::Win32::Foundation::FILETIME;
 use windows_sys::Win32::Foundation::HANDLE;
-use windows_sys::Win32::Foundation::HANDLE_FLAG_INHERIT;
-use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
-use windows_sys::Win32::Foundation::SetHandleInformation;
 use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
 use windows_sys::Win32::Foundation::WAIT_TIMEOUT;
 use windows_sys::Win32::Security::GetTokenInformation;
@@ -57,37 +53,10 @@ use windows_sys::Win32::System::Threading::PROCESS_TERMINATE;
 use windows_sys::Win32::System::Threading::TerminateProcess;
 use windows_sys::Win32::System::Threading::WaitForSingleObject;
 
-pub(super) fn spawn_without_inheriting_stdio(
-    command: &mut tokio::process::Command,
-) -> Result<tokio::process::Child> {
-    // The daemon must not inherit the launcher's output pipes: callers wait for
-    // them to close after the launcher exits. Leave the flags cleared so concurrent
-    // launches cannot inherit them either; Rust duplicates the child's chosen stdio.
-    for (name, handle) in [
-        ("stdin", io::stdin().as_raw_handle()),
-        ("stdout", io::stdout().as_raw_handle()),
-        ("stderr", io::stderr().as_raw_handle()),
-    ] {
-        if handle.is_null() || handle == INVALID_HANDLE_VALUE {
-            continue;
-        }
-        // SAFETY: these are borrowed standard handles; changing the inherit
-        // flag neither closes them nor changes their read/write access.
-        if unsafe {
-            SetHandleInformation(handle, HANDLE_FLAG_INHERIT, /*dwflags*/ 0)
-        } == 0
-        {
-            let error = io::Error::last_os_error();
-            // An already-closed handle cannot be inherited.
-            if error.raw_os_error() == Some(ERROR_INVALID_HANDLE as i32) {
-                continue;
-            }
-            return Err(error)
-                .with_context(|| format!("failed to clear launcher {name} inheritance"));
-        }
-    }
-    Ok(command.spawn()?)
-}
+#[path = "windows_spawn.rs"]
+mod spawn;
+
+pub(super) use spawn::spawn_without_inheriting_stdio;
 
 /// Reports whether this process has administrator privileges, rather than
 /// merely belonging to an administrator account.
