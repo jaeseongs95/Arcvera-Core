@@ -185,7 +185,7 @@ enum Subcommand {
     Completion(CompletionCommand),
 
     /// Update Codex to the latest version.
-    Update,
+    Update(UpdateCommand),
 
     /// Diagnose local Codex installation, config, auth, and runtime health.
     Doctor(DoctorCommand),
@@ -843,6 +843,9 @@ fn run_update_action(
         println!("Relaunch Codex to reconnect.");
         return Ok(());
     }
+    if codex_tui::is_opendiy_version(env!("CARGO_PKG_VERSION")) || action == UpdateAction::OpenDiy {
+        return codex_cli::opendiy_update::run_update();
+    }
     println!();
     let cmd_str = action.command_str();
     println!("Updating Codex via `{cmd_str}`...");
@@ -908,7 +911,51 @@ fn resolve_windows_update_command_from_path(
         .ok_or_else(|| anyhow::anyhow!("could not find update command `{command}` on PATH"))
 }
 
-fn run_update_command() -> anyhow::Result<()> {
+#[derive(Debug, Default, Args)]
+#[command(group(clap::ArgGroup::new("update_action").args(["check", "status", "enable", "disable"]).multiple(false)))]
+struct UpdateCommand {
+    /// Check for an OpenDIY package update without applying it.
+    #[arg(long)]
+    check: bool,
+    /// Show the selected OpenDIY package and automatic update status.
+    #[arg(long)]
+    status: bool,
+    /// Enable automatic OpenDIY package updates (every 60 minutes by default).
+    #[arg(long)]
+    enable: bool,
+    /// Disable automatic OpenDIY package updates.
+    #[arg(long)]
+    disable: bool,
+    /// Automatic update interval in minutes (OpenDIY only; requires --enable).
+    #[arg(long, requires = "enable", value_parser = clap::value_parser!(u32).range(5..=1440))]
+    interval_minutes: Option<u32>,
+}
+
+impl UpdateCommand {
+    fn action(&self) -> codex_cli::opendiy_update::Action {
+        use codex_cli::opendiy_update::Action;
+        if self.check {
+            Action::Check
+        } else if self.status {
+            Action::Status
+        } else if self.enable {
+            Action::Enable
+        } else if self.disable {
+            Action::Disable
+        } else {
+            Action::Update
+        }
+    }
+}
+
+fn run_update_command(command: UpdateCommand) -> anyhow::Result<()> {
+    if codex_tui::is_opendiy_version(env!("CARGO_PKG_VERSION")) {
+        return codex_cli::opendiy_update::run_action(command.action(), command.interval_minutes);
+    }
+    anyhow::ensure!(
+        command.action() == codex_cli::opendiy_update::Action::Update,
+        "--check, --status, --enable and --disable are available only in OpenDIY builds"
+    );
     #[cfg(debug_assertions)]
     {
         anyhow::bail!(
@@ -1808,13 +1855,13 @@ async fn cli_main(
             )?;
             print_completion(completion_cli);
         }
-        Some(Subcommand::Update) => {
+        Some(Subcommand::Update(update_cli)) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
                 root_remote_auth_token_env.as_deref(),
                 "update",
             )?;
-            run_update_command()?;
+            run_update_command(update_cli)?;
         }
         Some(Subcommand::Doctor(doctor_cli)) => {
             reject_remote_mode_for_subcommand(
@@ -2469,7 +2516,7 @@ fn unsupported_subcommand_name_for_strict_config(
         Some(Subcommand::Login(_)) => Some("login"),
         Some(Subcommand::Logout(_)) => Some("logout"),
         Some(Subcommand::Completion(_)) => Some("completion"),
-        Some(Subcommand::Update) => Some("update"),
+        Some(Subcommand::Update(_)) => Some("update"),
         Some(Subcommand::Cloud(_)) => Some("cloud"),
         Some(Subcommand::Sandbox(_)) => Some("sandbox"),
         Some(Subcommand::Debug(_)) => Some("debug"),
@@ -3774,7 +3821,48 @@ enabled = true
     #[test]
     fn update_parses_as_update_subcommand() {
         let cli = MultitoolCli::try_parse_from(["codex", "update"]).expect("parse");
-        assert!(matches!(cli.subcommand, Some(Subcommand::Update)));
+        assert!(matches!(cli.subcommand, Some(Subcommand::Update(_))));
+    }
+
+    #[test]
+    fn update_options_select_actions_and_reject_conflicts() {
+        use codex_cli::opendiy_update::Action;
+        for (flag, expected) in [
+            ("--check", Action::Check),
+            ("--status", Action::Status),
+            ("--enable", Action::Enable),
+            ("--disable", Action::Disable),
+        ] {
+            let cli =
+                MultitoolCli::try_parse_from(["codex", "update", flag]).expect("parse update flag");
+            let Some(Subcommand::Update(command)) = cli.subcommand else {
+                panic!("expected update");
+            };
+            assert_eq!(command.action(), expected);
+        }
+        for args in [
+            vec!["codex", "update", "--enable", "--disable"],
+            vec!["codex", "update", "--check", "--status"],
+            vec!["codex", "update", "--interval-minutes", "60"],
+            vec!["codex", "update", "--enable", "--interval-minutes", "4"],
+            vec!["codex", "update", "--enable", "--interval-minutes", "1441"],
+        ] {
+            assert!(MultitoolCli::try_parse_from(args).is_err());
+        }
+        for interval in ["5", "60", "1440"] {
+            let cli = MultitoolCli::try_parse_from([
+                "codex",
+                "update",
+                "--enable",
+                "--interval-minutes",
+                interval,
+            ])
+            .expect("parse interval");
+            let Some(Subcommand::Update(command)) = cli.subcommand else {
+                panic!("expected update");
+            };
+            assert_eq!(command.interval_minutes, interval.parse().ok());
+        }
     }
 
     #[test]

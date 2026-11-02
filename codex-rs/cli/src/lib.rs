@@ -2,6 +2,7 @@ pub mod cloud_config;
 pub(crate) mod debug_sandbox;
 mod exit_status;
 pub(crate) mod login;
+pub mod opendiy_update;
 
 use clap::Args;
 use clap::Parser;

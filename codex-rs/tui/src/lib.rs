@@ -267,6 +267,7 @@ pub use update_action::DaemonUpdateSource;
 pub use update_action::UpdateAction;
 #[cfg(not(debug_assertions))]
 pub use update_action::get_update_action;
+pub use update_action::is_opendiy_version;
 mod update_prompt;
 mod update_versions;
 mod updates;

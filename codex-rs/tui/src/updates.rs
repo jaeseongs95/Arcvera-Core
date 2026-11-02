@@ -25,7 +25,12 @@ use crate::version::CODEX_CLI_VERSION;
 pub(crate) use crate::updates_cache::dismiss_version;
 
 pub fn get_upgrade_version(config: &Config) -> Option<String> {
-    if !config.check_for_update_on_startup || is_source_build_version(CODEX_CLI_VERSION) {
+    // OpenDIY checks are owned by the packaged scheduled updater. Do not read
+    // official cached alerts or contact the upstream feeds for a fork build.
+    if update_action::is_opendiy_version(CODEX_CLI_VERSION)
+        || !config.check_for_update_on_startup
+        || is_source_build_version(CODEX_CLI_VERSION)
+    {
         return None;
     }
 
@@ -76,13 +81,18 @@ async fn check_for_update(
     action: Option<UpdateAction>,
     http_client_factory: HttpClientFactory,
 ) -> anyhow::Result<()> {
+    if update_action::is_opendiy_version(CODEX_CLI_VERSION)
+        || matches!(action, Some(UpdateAction::OpenDiy))
+    {
+        return Ok(());
+    }
     let client_pool = RouteAwareClientPool::with_chatgpt_cloudflare_cookies(
         http_client_factory,
         ClientRouteClass::Other,
     )
     .with_legacy_custom_ca_fallback();
     let latest_version = match action {
-        Some(UpdateAction::Daemon(_)) => return Ok(()),
+        Some(UpdateAction::Daemon(_) | UpdateAction::OpenDiy) => return Ok(()),
         Some(UpdateAction::BrewUpgrade) => {
             let HomebrewCaskInfo { version } = client_pool
                 .get(HOMEBREW_CASK_API_URL)
