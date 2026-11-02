@@ -250,155 +250,33 @@ fn failed_detached_spawn_releases_owned_handles() {
         );
         count
     };
-    // Diagnostic snapshots are limited to this isolated process. Record numeric
-    // handle types/access only; never query object names or another process.
-    #[repr(C)]
-    #[derive(Clone, Copy)]
-    struct HandleEntry {
-        handle: super::HANDLE,
-        handle_count: usize,
-        pointer_count: usize,
-        granted_access: u32,
-        object_type: u32,
-        attributes: u32,
-        reserved: u32,
-    }
-    #[link(name = "ntdll")]
-    unsafe extern "system" {
-        #[link_name = "NtQueryInformationProcess"]
-        fn query_process_handles(
-            process: super::HANDLE,
-            class: u32,
-            information: *mut std::ffi::c_void,
-            size: u32,
-            returned: *mut u32,
-        ) -> i32;
-    }
-    fn handles() -> Result<Vec<(usize, u32, u32)>, i32> {
-        let mut storage = vec![0usize; 8192];
-        let mut returned = 0;
-        // ProcessHandleInformation returns two ULONG_PTR header fields followed
-        // by PROCESS_HANDLE_TABLE_ENTRY_INFO entries. Aligned storage is bounded.
-        let status = unsafe {
-            query_process_handles(
-                super::GetCurrentProcess(),
-                51,
-                storage.as_mut_ptr().cast(),
-                std::mem::size_of_val(storage.as_slice()) as u32,
-                &mut returned,
-            )
-        };
-        if status < 0 {
-            return Err(status);
-        }
-        let length = storage[0];
-        let bytes = length
-            .checked_mul(std::mem::size_of::<HandleEntry>())
-            .and_then(|size| size.checked_add(2 * std::mem::size_of::<usize>()));
-        if bytes.is_none_or(|size| size > std::mem::size_of_val(storage.as_slice())) {
-            return Err(0xC0000004u32 as i32);
-        }
-        let entries = unsafe {
-            std::slice::from_raw_parts(storage.as_ptr().add(2).cast::<HandleEntry>(), length)
-        };
-        Ok(entries
-            .iter()
-            .map(|entry| {
-                (
-                    entry.handle as usize,
-                    entry.object_type,
-                    entry.granted_access,
-                )
-            })
-            .collect())
-    }
-
-    // Keep the original pre-first-call baseline and 32-call assertion. Additional
-    // observations do not warm up the helper or alter the expected handle count.
-    let before = count();
-    let baseline_handles = handles();
-    let after_snapshot = count();
-    // Independent cold control: do not invoke or warm up the daemon helper.
-    // Drop both the standard error and builder before measuring its residue.
+    // Independent std spawn reproduces process-wide first-use initialization.
+    // Initialize it before the baseline, without ever warming up our helper.
     let mut standard = std::process::Command::new(command.get_program());
     standard
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .creation_flags(DETACHED_PROCESS);
-    let standard_error = standard.spawn().expect_err("missing control executable");
-    let after_standard_spawn = count();
-    let standard_error_code = standard_error.raw_os_error();
-    drop(standard_error);
+    let error = standard.spawn().expect_err("missing control executable");
+    drop(error);
     drop(standard);
-    let after_standard_drop = count();
-    let mut counts = Vec::new();
-    let mut snapshots = Vec::new();
-    let mut after_32 = None;
-    for iteration in 1..=64 {
+
+    let before = count();
+    for iteration in 1..=32 {
         let error = match super::spawn_without_inheriting_stdio(&command, &stderr, DETACHED_PROCESS)
         {
             Ok(_) => panic!("missing executable unexpectedly launched"),
             Err(error) => error,
         };
-        let after_spawn = count();
         assert!(error.root_cause().is::<std::io::Error>(), "{error:#}");
-        let after_error_chain = count();
         drop(error);
-        let after_error_drop = count();
-        if matches!(iteration, 1 | 2 | 32 | 64) {
-            counts.push((iteration, after_spawn, after_error_chain, after_error_drop));
-            snapshots.push((iteration, handles()));
-        }
-        if iteration == 32 {
-            after_32 = Some(after_error_drop);
-        }
+        assert_eq!(
+            count(),
+            before,
+            "failed detached spawn {iteration} leaked owned handles"
+        );
     }
-    eprintln!(
-        "standard spawn cold control: after_spawn={after_standard_spawn}, after_error_and_builder_drop={after_standard_drop}, os_error={standard_error_code:?}"
-    );
-    eprintln!(
-        "failed spawn handle counts: baseline={before}, after_baseline_snapshot={after_snapshot}, (iteration, after_spawn, after_error_chain, after_error_drop)={counts:?}"
-    );
-    match &baseline_handles {
-        Ok(baseline) => {
-            let file_type = baseline
-                .iter()
-                .find(|(handle, _, _)| *handle == stderr.as_raw_handle() as usize)
-                .map(|(_, kind, _)| *kind);
-            for (iteration, snapshot) in snapshots {
-                match snapshot {
-                    Ok(current) => {
-                        let added = current
-                            .iter()
-                            .filter(|entry| !baseline.contains(entry))
-                            .map(|(handle, kind, access)| {
-                                let file_class = (Some(*kind) == file_type).then(|| unsafe {
-                                    windows_sys::Win32::Storage::FileSystem::GetFileType(
-                                        *handle as super::HANDLE,
-                                    )
-                                });
-                                (*handle, *kind, *access, file_class)
-                            })
-                            .collect::<Vec<_>>();
-                        eprintln!(
-                            "handle snapshot iteration={iteration} total={} baseline_file_type={file_type:?} added_or_changed=(value,type,access,file_class){added:?}",
-                            current.len()
-                        );
-                    }
-                    Err(status) => {
-                        eprintln!("handle snapshot iteration={iteration} status={status:#x}")
-                    }
-                }
-            }
-        }
-        Err(status) => eprintln!("baseline handle snapshot status={status:#x}"),
-    }
-    assert_eq!(
-        after_32.expect("observed the original 32-call boundary"),
-        before,
-        "failed detached spawns leaked owned handles"
-    );
 }
 
 #[test]
