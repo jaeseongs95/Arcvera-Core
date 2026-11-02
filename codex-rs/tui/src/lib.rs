@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 // Forbid accidental stdout/stderr writes in the *library* portion of the TUI.
 // The standalone `codex-tui` binary prints a short help message before the
 // alternate‑screen mode starts; that file opts‑out locally via `allow`.
@@ -78,6 +78,8 @@ use codex_utils_oss::get_default_model_for_oss_provider;
 use color_eyre::eyre::WrapErr;
 use crossterm::SynchronizedUpdate;
 use cwd_prompt::CwdPromptAction;
+pub use cleanup_agents_command::CleanupAgentsCommandOptions;
+pub use cleanup_agents_command::run_cleanup_agents_command;
 pub use daemon_startup::uses_wsl_drvfs;
 pub use session_archive_commands::DeleteConfirmation;
 pub use session_archive_commands::SessionArchiveAction;
@@ -125,6 +127,7 @@ mod backend_id;
 mod bottom_pane;
 mod branch_summary;
 mod chatwidget;
+mod cleanup_agents_command;
 mod cli;
 mod clipboard_copy;
 mod clipboard_html;
@@ -265,6 +268,7 @@ pub use update_action::DaemonUpdateSource;
 pub use update_action::UpdateAction;
 #[cfg(not(debug_assertions))]
 pub use update_action::get_update_action;
+pub use update_action::is_opendiy_version;
 mod update_prompt;
 mod update_versions;
 mod updates;

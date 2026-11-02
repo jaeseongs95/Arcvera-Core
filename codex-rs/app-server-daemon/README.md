@@ -64,6 +64,16 @@ exit, an already-sent shutdown cannot be undone, and these outcomes must not be
 automatically retried. `--no-force` requires `--from-cli`; omitting it preserves
 the existing force-after-grace behavior.
 
+On Unix, non-forcing daemon shutdown uses `SIGHUP`, which R28 and newer treat
+as graceful-only even when already draining. On Windows it sends
+`graceful:<pid>` on the existing managed `/daemon/shutdown` control connection
+and requires the identical acknowledgment. This graceful-only extension needs
+an updated server. R28/R32 reject it without a shutdown event, so a Windows
+R28/R32-to-R33 non-forcing automatic transition is unsupported: it returns
+`shutdownUnconfirmed`, preserves the selection, and never falls back to the
+legacy forceable PID-only request. Repeating a no-force request cannot escalate
+an existing graceful drain. Default shutdown requests keep their forceable policy.
+
 `status --json` is a passive observation: `status` is `running`, `stopped`, or
 `unknown`, with `managedCodexPath`, `managedCodexVersion`, `appServerVersion`,
 `socketPath`, `cliVersion`, and `reason`. Missing/unobserved values are null.

@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 //! Local daemon launch policy. Explicit embedded launches never discover or start a daemon;
 //! optional attachment may fall back to embedded mode, while automatic launches
 //! require a compatible shared server and a successful connection, except when
@@ -159,7 +160,9 @@ pub(super) async fn compatibility_warning(
         // Connect even without overrides so startup can recover from an unreachable daemon.
         let client = app_server_connection::connect(target)
             .await
-            .map_err(|_| "could not connect to check daemon feature settings".to_string())?;
+            .map_err(|error| {
+                format!("could not connect to check daemon feature settings: {error}")
+            })?;
         if requested.is_empty() {
             let _ = client.shutdown().await;
             return Ok(());

@@ -9,8 +9,8 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='76c0a7ab3b971918cd3d9f30daf8e1344941359c'
-PREVIOUS_PUBLIC='5537d7bf4f0730969dfaf1c1ed876acb8920a5e1'
+PATCHED='0c588be6c85098f0ff139ec7a9bc119c1da71f20'
+PREVIOUS_PUBLIC='8f52cad14bf45e76ef123aeea9f7fcfa22ac3b73'
 PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
@@ -33,6 +33,36 @@ NOTICE_OVERRIDES={path:('R33','2026-11-02') for path in (
     'codex-rs/codex-api/tests/cache_batch_boundary.rs',
     'codex-rs/diagnostics/src/cache_diagnostics.rs',
     'docs/native-cli-r33-cache-observation.ko.md',
+    'codex-rs/Cargo.lock',
+    'codex-rs/Cargo.toml',
+    'codex-rs/app-server-daemon/src/client.rs',
+    'codex-rs/app-server-transport/src/transport/mod.rs',
+    'codex-rs/app-server-transport/src/transport/remote_control/client_tracker.rs',
+    'codex-rs/app-server-transport/src/transport/unix_socket.rs',
+    'codex-rs/app-server-transport/src/transport/unix_socket_tests.rs',
+    'codex-rs/app-server/src/lib.rs',
+    'codex-rs/app-server/src/lib_tests.rs',
+    'codex-rs/cli/Cargo.toml',
+    'codex-rs/cli/src/bin/opendiy_codex_launcher.rs',
+    'codex-rs/cli/src/cleanup_agents.rs',
+    'codex-rs/cli/src/lib.rs',
+    'codex-rs/cli/src/opendiy_update.rs',
+    'codex-rs/cli/src/opendiy_update_tests.rs',
+    'codex-rs/cli/tests/update.rs',
+    'codex-rs/tui/src/app_server_connection.rs',
+    'codex-rs/tui/src/cleanup_agents_command.rs',
+    'codex-rs/tui/src/daemon_startup.rs',
+    'codex-rs/tui/src/daemon_startup_tests.rs',
+    'codex-rs/tui/src/lib.rs',
+    'codex-rs/tui/src/update_action.rs',
+    'codex-rs/tui/src/updates.rs',
+    'tools/windows-cli/README.md',
+    'tools/windows-cli/UPDATE.ko.md',
+    'tools/windows-cli/test_update.ps1',
+    'tools/windows-cli/update.ps1',
+    'tools/windows-cli/update.vbs',
+    'tools/windows-cli/package_cli.py',
+    'tools/windows-cli/test_package_cli.py',
 )}
 ATTR_BEGIN=b'# BEGIN OpenDIY pinned source attributes\n'
 ATTR_END=b'# END OpenDIY pinned source attributes\n'
@@ -48,6 +78,8 @@ def notice(path):
     if path.startswith('codex-rs/app-server-protocol/schema/typescript/') and path.endswith('.ts'):return b''
     if path.endswith(('.rs','.ts')):prefix='//'
     elif path.endswith(('.py','.toml','Cargo.lock','.gitattributes','.gitignore')):prefix='#'
+    elif path.endswith('.ps1') and path in NOTICE_OVERRIDES:prefix='#'
+    elif path.endswith('.vbs') and path in NOTICE_OVERRIDES:prefix="'"
     elif path.endswith('.md') and (path.startswith('docs/') or path in NOTICE_OVERRIDES):return f'<!-- Modified for OpenDIY Codex {label} ({date}); see MODIFICATIONS.md. -->\n'.encode()
     else:return b''  # Data formats and snapshots stay exact; MODIFICATIONS.md lists each one.
     return f'{prefix} Modified for OpenDIY Codex {label} ({date}); see MODIFICATIONS.md.\n'.encode()

@@ -170,9 +170,18 @@ class VerifierChecks(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(EXPORT.notice(path),b'// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n')
         for path in ['codex-rs/app-server-daemon/README.md',
-                     'docs/native-cli-r33-cache-observation.ko.md']:
+                     'docs/native-cli-r33-cache-observation.ko.md',
+                     'tools/windows-cli/README.md',
+                     'tools/windows-cli/UPDATE.ko.md']:
             with self.subTest(path=path):
                 self.assertEqual(EXPORT.notice(path),b'<!-- Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md. -->\n')
+        for path in ['codex-rs/Cargo.toml', 'codex-rs/Cargo.lock',
+                     'tools/windows-cli/update.ps1', 'tools/windows-cli/test_update.ps1']:
+            with self.subTest(path=path):
+                self.assertEqual(EXPORT.notice(path),b'# Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n')
+        self.assertEqual(EXPORT.notice('tools/windows-cli/update.vbs'),b"' Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n")
+        self.assertEqual(EXPORT.notice('codex-rs/cli/src/bin/opendiy_codex_launcher.rs'),b'// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n')
+        self.assertEqual(EXPORT.notice('codex-rs/app-server-daemon/scripts/install/install.ps1'),b'')
         self.assertEqual(EXPORT.notice('codex-rs/core/src/lib.rs'),b'// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.\n')
     def test_runtime_markdown_prompts_do_not_receive_local_notices(self):
         for path in EXPORT.WINDOWS_INPUTS:

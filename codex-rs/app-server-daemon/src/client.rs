@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 use std::path::Path;
 use std::time::Duration;
 
@@ -74,26 +75,42 @@ async fn connect_at(socket_path: &Path, url: &str) -> Result<WebSocketStream<Uni
     Ok(websocket)
 }
 
-#[cfg(windows)]
-pub(crate) async fn request_shutdown(socket_path: &Path, pid: u32) -> Result<()> {
+#[cfg(any(windows, test))]
+pub(crate) async fn request_shutdown(
+    socket_path: &Path,
+    pid: u32,
+    graceful_only: bool,
+) -> Result<()> {
+    // Older servers require exactly the PID and reject this extended frame
+    // without a shutdown event. Never fall back to their forceable request.
+    let request = if graceful_only {
+        format!("graceful:{pid}")
+    } else {
+        pid.to_string()
+    };
     timeout(CONTROL_SOCKET_RESPONSE_TIMEOUT, async {
         let mut websocket = connect_at(socket_path, "ws://localhost/daemon/shutdown").await?;
         websocket
-            .send(Message::Text(pid.to_string().into()))
+            .send(Message::Text(request.clone().into()))
             .await?;
         let reply = websocket
             .next()
             .await
             .context("shutdown socket closed without acknowledgment")??;
         anyhow::ensure!(
-            matches!(reply, Message::Text(ack) if ack == pid.to_string()),
-            "shutdown acknowledgment did not match the managed process {pid}"
+            matches!(reply, Message::Text(ack) if ack == request),
+            "shutdown acknowledgment did not match the requested shutdown mode and managed process {pid}"
         );
         websocket.close(None).await?;
-        Ok(())
+        Ok::<(), anyhow::Error>(())
     })
     .await
     .context("timed out waiting for managed app-server shutdown acknowledgment")?
+    .with_context(|| if graceful_only {
+        "graceful-only shutdown was not acknowledged; the server may not support it; no forceable request was sent"
+    } else {
+        "managed app-server shutdown was not acknowledged"
+    })
 }
 
 pub(crate) async fn initialize<S>(
@@ -183,11 +200,48 @@ fn parse_version_from_user_agent(user_agent: &str) -> Result<String> {
     Ok(version.to_string())
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
+    use futures::SinkExt;
+    use futures::StreamExt;
     use pretty_assertions::assert_eq;
+    use tokio_tungstenite::tungstenite::Message;
 
     use super::parse_version_from_user_agent;
+
+    #[tokio::test]
+    async fn graceful_shutdown_requires_its_own_ack_and_never_falls_back_to_legacy() {
+        for mode in ["legacy", "pidOnlyAck", "graceful"] {
+            let temp = tempfile::TempDir::new().unwrap();
+            let socket = temp.path().join("control.sock");
+            let mut listener = codex_uds::UnixListener::bind(&socket).await.unwrap();
+            let pid = std::process::id();
+            let peer = tokio::spawn(async move {
+                let stream = listener.accept().await.unwrap();
+                let mut websocket = tokio_tungstenite::accept_async(stream).await.unwrap();
+                let frame = websocket.next().await.unwrap().unwrap();
+                assert_eq!(frame, Message::Text(format!("graceful:{pid}").into()));
+                if mode == "legacy" {
+                    // R28/R32 run_daemon_shutdown accepts exactly the PID. An
+                    // extended request is rejected without ACK or shutdown event.
+                    let shutdown_event =
+                        matches!(frame, Message::Text(request) if request == pid.to_string());
+                    assert!(!shutdown_event);
+                    return;
+                }
+                let ack = if mode == "pidOnlyAck" {
+                    pid.to_string()
+                } else {
+                    format!("graceful:{pid}")
+                };
+                websocket.send(Message::Text(ack.into())).await.unwrap();
+                let _ = websocket.next().await;
+            });
+            let result = super::request_shutdown(&socket, pid, true).await;
+            assert_eq!(result.is_ok(), mode == "graceful");
+            peer.await.unwrap();
+        }
+    }
 
     #[test]
     fn parses_version_from_codex_user_agent() {

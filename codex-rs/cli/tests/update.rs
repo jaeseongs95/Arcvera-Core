@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 use anyhow::Result;
 use predicates::str::contains;
 use std::path::Path;
@@ -14,11 +15,16 @@ fn codex_command(codex_home: &Path) -> Result<assert_cmd::Command> {
 async fn update_does_not_start_interactive_prompt() -> Result<()> {
     let codex_home = TempDir::new()?;
 
+    let expected_error = if codex_tui::is_opendiy_version(env!("CARGO_PKG_VERSION")) {
+        "OpenDIY update requires an installation under"
+    } else {
+        "`codex update` is not available in debug builds"
+    };
     codex_command(codex_home.path())?
         .arg("update")
         .assert()
         .failure()
-        .stderr(contains("`codex update` is not available in debug builds"));
+        .stderr(contains(expected_error));
 
     Ok(())
 }

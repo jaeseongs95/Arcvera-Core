@@ -1,4 +1,4 @@
-# Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+# Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 """Prepare a separate Windows CLI package; never replace an existing installation."""
 
 import argparse
@@ -71,6 +71,7 @@ def package(source, freeze_file, binary, vendor, output, expected_version):
     if digest(target) != binary_hash:
         raise ValueError("CLI binary changed during copy")
     metadata["version"] = expected_version
+    metadata["opendiyUpdate"] = {"schema": 1, "minLauncher": 1}
     (output / "codex-package.json").write_text(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8", newline="\n"
     )
