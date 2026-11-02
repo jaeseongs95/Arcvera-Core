@@ -622,3 +622,10 @@ MCP 회귀 요청에는 필수 `io.modelcontextprotocol/protocolVersion`·`io.mo
 TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미조회 상태를 보존하고 입력·실시간 이벤트를 계속 처리하도록 변경했다. 오류를 한 번 표시하거나 새 이벤트를 받았다는 이유로 이력을 조회 완료로 바꾸지 않는다. 빈 재생에도 종료 이벤트를 보내 현재 표시 대화의 이력 상태를 반영하고, 이전 커서가 없는 `Home` 동작이 로딩 상태에 고정되지 않도록 했다. 명시적인 이력 조회 성공 뒤에만 해당 미조회 상태를 해제하도록 작성했다.
 
 실제 원격 요청·응답과 화면 이벤트를 통과하는 회귀, 오류 코드·표식의 부정 경계, 삭제된 저장 이력의 기존 계약 검사를 보강했다. 소스·시험 코드를 반영한 것이며 새 후보의 실행 결과나 전체 제품 완료를 뜻하지 않는다. [후속 시험 방법](docs/TESTING.md#빈-미저장-대화-이력-복원-후속-후보)을 참고한다.
+
+## R33 Windows updater follow-up (2026-11-03)
+
+- Development source: `bd2ed8ec7854d64905caa67d0f77758e758a930c`; this is a source-only repair candidate, not a rebuilt or reinstalled release.
+- Resolve task-owner account spellings to SIDs while preserving exact action and Limited-privilege checks.
+- Emit UTF-8 from the updater process so Korean installation paths survive native CLI forwarding and hidden execution.
+- Add native-host output regression and extend existing scheduler ownership tests. The published R33 assets remain unchanged.
