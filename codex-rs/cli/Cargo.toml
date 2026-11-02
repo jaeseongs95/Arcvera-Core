@@ -1,4 +1,4 @@
-# Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+# Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 [package]
 name = "codex-cli"
 version.workspace = true
@@ -10,6 +10,10 @@ default-run = "codex"
 [[bin]]
 name = "codex"
 path = "src/main.rs"
+
+[[bin]]
+name = "opendiy-codex-launcher"
+path = "src/bin/opendiy_codex_launcher.rs"
 
 [[bin]]
 name = "logs_client"
@@ -94,6 +98,7 @@ owo-colors = { workspace = true }
 regex-lite = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
 sqlx = { workspace = true }
 supports-color = { workspace = true }
 sys-locale = { workspace = true }
@@ -124,6 +129,7 @@ windows-sys = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_Storage_Packaging_Appx",
     "Win32_System_Console",
+    "Win32_System_SystemInformation",
     "Win32_System_Threading",
 ] }
 
@@ -140,7 +146,6 @@ insta = { workspace = true }
 jsonwebtoken = { workspace = true }
 predicates = { workspace = true }
 pretty_assertions = { workspace = true }
-sha2 = { workspace = true }
 tar = { workspace = true }
 tokio-tungstenite = { workspace = true }
 vt100 = { workspace = true }

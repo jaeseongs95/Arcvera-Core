@@ -368,7 +368,13 @@ impl PidBackend {
                     Duration::ZERO
                 };
             #[cfg(unix)]
-            if let Err(error) = self.terminate_process(pid) {
+            if let Err(error) = if force {
+                self.terminate_process(pid)
+            } else {
+                // SIGTERM is forceable on a daemon that is already draining.
+                // R28 and newer treat every SIGHUP as graceful-only.
+                signal_process(pid, libc::SIGHUP)
+            } {
                 if !force {
                     return Err(NoForceStopError::RequestUnconfirmed(error).into());
                 }
@@ -400,7 +406,8 @@ impl PidBackend {
                         let socket_path =
                             codex_app_server_transport::app_server_control_socket_path(codex_home)?;
                         if let Err(err) =
-                            crate::client::request_shutdown(socket_path.as_path(), pid).await
+                            crate::client::request_shutdown(socket_path.as_path(), pid, !force)
+                                .await
                         {
                             if !force {
                                 return Err(NoForceStopError::RequestUnconfirmed(err).into());
@@ -748,9 +755,14 @@ fn process_exists(pid: u32) -> bool {
 
 #[cfg(unix)]
 fn terminate_process(pid: u32) -> Result<()> {
+    signal_process(pid, libc::SIGTERM)
+}
+
+#[cfg(unix)]
+fn signal_process(pid: u32, signal: libc::c_int) -> Result<()> {
     let raw_pid = libc::pid_t::try_from(pid)
         .with_context(|| format!("pid-managed app server pid {pid} is out of range"))?;
-    let result = unsafe { libc::kill(raw_pid, libc::SIGTERM) };
+    let result = unsafe { libc::kill(raw_pid, signal) };
     if result == 0 {
         return Ok(());
     }

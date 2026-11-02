@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 #[cfg(any(not(debug_assertions), test))]
 use codex_install_context::InstallContext;
 #[cfg(any(not(debug_assertions), test))]
@@ -10,6 +11,8 @@ use codex_install_context::StandalonePlatform;
 pub enum UpdateAction {
     /// Replace the local daemon after restoring the terminal.
     Daemon(DaemonUpdateSource),
+    /// Update through the verified updater shipped in this OpenDIY package.
+    OpenDiy,
     /// Update via `npm install -g @openai/codex@latest`.
     NpmGlobalLatest,
     /// Update via `bun install -g @openai/codex@latest`.
@@ -47,6 +50,7 @@ impl UpdateAction {
     pub fn command_args(self) -> (&'static str, &'static [&'static str]) {
         match self {
             UpdateAction::Daemon(source) => ("codex", source.command_args()),
+            UpdateAction::OpenDiy => ("codex", &["update"]),
             UpdateAction::NpmGlobalLatest => ("npm", &["install", "-g", "@openai/codex"]),
             UpdateAction::BunGlobalLatest => ("bun", &["install", "-g", "@openai/codex"]),
             UpdateAction::VitePlusGlobalLatest => ("vp", &["install", "-g", "@openai/codex"]),
@@ -81,7 +85,17 @@ impl UpdateAction {
 
 #[cfg(not(debug_assertions))]
 pub fn get_update_action() -> Option<UpdateAction> {
+    if is_opendiy_version(env!("CARGO_PKG_VERSION")) {
+        return Some(UpdateAction::OpenDiy);
+    }
     UpdateAction::from_install_context(InstallContext::current())
+}
+
+/// Fork builds must never use the official installer or update feed.
+pub fn is_opendiy_version(version: &str) -> bool {
+    version
+        .split_once("+native-r")
+        .is_some_and(|(_, suffix)| suffix.as_bytes().first().is_some_and(u8::is_ascii_digit))
 }
 
 #[cfg(test)]
@@ -89,6 +103,14 @@ mod tests {
     use super::*;
     use codex_utils_absolute_path::AbsolutePathBuf;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn recognizes_full_opendiy_build_version() {
+        assert!(is_opendiy_version("0.166.0+native-r33.20261102"));
+        assert!(is_opendiy_version("0.166.0-alpha.1+native-r33"));
+        assert!(!is_opendiy_version("0.166.0"));
+        assert!(!is_opendiy_version("0.166.0+native-r"));
+    }
 
     #[test]
     fn maps_install_context_to_update_action() {

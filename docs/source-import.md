@@ -1,10 +1,10 @@
 # 공식 0.166.0 기반 R33 개발 소스 후보
 
-고정 Git 소스는 `76c0a7ab3b971918cd3d9f30daf8e1344941359c`이며, 공개 입력은 `SOURCE_BASELINE.json`과 `upstream/source-inventory.json`으로 대조한다. 공식 원본은 `6ff1e1ca3b30fc8b914720681fcf5fe62e95f856`, 이전 공개 기준은 `5537d7bf4f0730969dfaf1c1ed876acb8920a5e1`다. R33 개발 후보로서 메시지 재생 수정 위에 비강제 갱신·수동 상태 조회·캐시 관측 설정을 더했다. 전체 Cargo 버전은 아직 `0.166.0+native-r32.20261101`이다. 공개 출처 검증은 통과했으나 R33 제품 스탬프·최종 통합 실행 파일·실제 사용 환경·설치·릴리스는 미완료다. [후보별 검증 요약](r33-development-verification.ko.md)을 따른다.
+이번 고정 소스는 `0c588be6c85098f0ff139ec7a9bc119c1da71f20`이며, 공개 입력은 `SOURCE_BASELINE.json`과 `upstream/source-inventory.json`으로 대조한다. 공식 원본은 `6ff1e1ca3b30fc8b914720681fcf5fe62e95f856`, 이전 공개 기준은 `8f52cad14bf45e76ef123aeea9f7fcfa22ac3b73`이다. 전체 Cargo 버전은 `0.166.0+native-r33.20261102`다. 기존 변경 위에 F2 graceful-only 수정·Windows 자동 CLI 선택·Rust launcher·cleanup 시작 경로·암시적 로컬 전체 버전 일치를 더했다. 개발용 시험 컴파일과 표적 Rust 19그룹 73개 시험은 종료 0이다. 최종 제품 실행 파일·실제 사용 환경·설치·릴리스는 미완료이며 [후보별 검증 요약](r33-development-verification.ko.md)을 따른다.
 
-비강제 전환의 drain 중 재요청이 강제 종료로 승격되는 결함(F2)이 확인되어, 이 고정 소스는 후속 수정 전 배포 불가인 개발 초안이다. 출처 검증의 통과가 이 제품 결함의 해소를 뜻하지 않는다.
+F2 수정 소스와 반복 graceful-only 요청의 drain 보존 회귀시험 통과를 포함한다. Unix 전용 daemon handoff 시험은 Windows에서 실행하지 않았다. Windows 구 R28/R32 서버로의 비강제 자동 전환은 지원하지 않으며, 요청 거절 뒤 강제 가능 방식으로 fallback하지 않도록 작성했다. 출처 검사·스크립트 fixture 통과는 제품 runtime의 검증이나 배포 완료를 뜻하지 않는다.
 
-기본 수정 고지는 R32로 보존하고 `export.py`의 `NOTICE_OVERRIDES`에 지정한 16경로만 R33 고지를 사용한다. 기존 재생 3경로와 `278f41f` 이후 델타 13경로이며, 두 Markdown 문서는 HTML 고지를 사용한다. 따라서 `SOURCE_BASELINE.json`의 `modifiedNoticeLabel`·`modifiedNoticeDate`는 기본 고지이며, 각 파일의 실제 공개 바이트는 inventory의 `publishedSha256`과 검증기의 동일한 고지 선택으로 검사한다. 새 [캐시 관측 문서](native-cli-r33-cache-observation.ko.md)도 명시적 source prefix로 포함한다. 내장 프롬프트 38개의 소스 바이트·Windows 바이트 해시는 유지하고 catalog의 `sourceCommit`만 현재 고정 소스에 맞췄다.
+기본 수정 고지는 R32로 보존하고 `export.py`의 `NOTICE_OVERRIDES`에 지정한 추가 source/tools만 R33 고지를 사용한다. Rust·TOML·lockfile·Markdown·PowerShell·VBS 각각의 주석 형식으로 표시하며, 기존 PowerShell 파일과 내장 프롬프트에 고지를 일괄 추가하지 않는다. 따라서 `SOURCE_BASELINE.json`의 `modifiedNoticeLabel`·`modifiedNoticeDate`는 기본 고지이며, 각 공개 바이트는 inventory의 `publishedSha256`과 검증기의 동일한 고지 선택으로 검사한다. [캐시 관측 문서](native-cli-r33-cache-observation.ko.md)와 `tools/windows-cli` 전체는 source prefix로 포함한다. 내장 프롬프트 38개의 원본·Windows 바이트 해시는 유지한다.
 
 ## 이전 후보의 수입 이력
 

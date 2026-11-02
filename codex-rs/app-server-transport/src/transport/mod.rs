@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 use crate::outgoing_message::ConnectionId;
 use crate::outgoing_message::OutgoingError;
 use crate::outgoing_message::OutgoingMessage;
@@ -181,7 +181,9 @@ impl FromStr for AppServerTransport {
 #[derive(Debug)]
 pub enum TransportEvent {
     /// Accepted on the managed local control socket, outside JSON-RPC.
-    DaemonShutdown,
+    DaemonShutdown {
+        graceful_only: bool,
+    },
     ConnectionOpened {
         connection_id: ConnectionId,
         origin: ConnectionOrigin,

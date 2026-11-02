@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 use super::AppServerTransport;
 use super::CHANNEL_CAPACITY;
 use super::DaemonShutdownAccess;
@@ -252,46 +253,53 @@ async fn shutdown_is_only_accepted_on_managed_local_socket_for_its_own_pid() {
     )
     .await
     .expect("managed acceptor");
-    let stream = connect_to_socket(socket_path.as_path())
-        .await
-        .expect("connect");
-    let (mut websocket, _) = client_async("ws://localhost/daemon/shutdown", stream)
-        .await
-        .expect("upgrade");
-    websocket
-        .send(WebSocketMessage::Text("0".into()))
-        .await
-        .expect("wrong pid");
-    assert!(!matches!(
-        websocket.next().await,
-        Some(Ok(WebSocketMessage::Text(_)))
-    ));
-    assert!(rx.try_recv().is_err());
+    for wrong_pid in ["0", "graceful:0"] {
+        let stream = connect_to_socket(socket_path.as_path())
+            .await
+            .expect("connect");
+        let (mut websocket, _) = client_async("ws://localhost/daemon/shutdown", stream)
+            .await
+            .expect("upgrade");
+        websocket
+            .send(WebSocketMessage::Text(wrong_pid.into()))
+            .await
+            .expect("wrong pid");
+        assert!(!matches!(
+            websocket.next().await,
+            Some(Ok(WebSocketMessage::Text(_)))
+        ));
+        assert!(rx.try_recv().is_err());
+    }
 
-    let stream = connect_to_socket(socket_path.as_path())
-        .await
-        .expect("connect");
-    let (mut websocket, _) = client_async("ws://localhost/daemon/shutdown", stream)
-        .await
-        .expect("upgrade");
-    let pid = std::process::id().to_string();
-    websocket
-        .send(WebSocketMessage::Text(pid.clone().into()))
-        .await
-        .expect("request");
-    assert_eq!(
-        websocket.next().await.expect("ack").expect("ack frame"),
-        WebSocketMessage::Text(pid.into())
-    );
-    assert!(
-        rx.try_recv().is_err(),
-        "server must wait until the ack is received"
-    );
-    websocket.close(None).await.expect("confirm receipt");
-    assert!(matches!(
-        timeout(Duration::from_secs(2), rx.recv()).await,
-        Ok(Some(TransportEvent::DaemonShutdown))
-    ));
+    for graceful_only in [false, true, true] {
+        let stream = connect_to_socket(socket_path.as_path())
+            .await
+            .expect("connect");
+        let (mut websocket, _) = client_async("ws://localhost/daemon/shutdown", stream)
+            .await
+            .expect("upgrade");
+        let pid = std::process::id();
+        let request = if graceful_only {
+            format!("graceful:{pid}")
+        } else {
+            pid.to_string()
+        };
+        websocket
+            .send(WebSocketMessage::Text(request.clone().into()))
+            .await
+            .expect("request");
+        assert_eq!(
+            websocket.next().await.expect("ack").expect("ack frame"),
+            WebSocketMessage::Text(request.into())
+        );
+        assert!(
+            rx.try_recv().is_err(),
+            "server must wait until the ack is received"
+        );
+        websocket.close(None).await.expect("confirm receipt");
+        assert!(matches!(timeout(Duration::from_secs(2), rx.recv()).await,
+            Ok(Some(TransportEvent::DaemonShutdown { graceful_only: actual })) if actual == graceful_only));
+    }
     shutdown.cancel();
     acceptor.await.expect("acceptor shutdown");
 }

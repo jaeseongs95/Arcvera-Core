@@ -349,7 +349,7 @@ async fn no_force_timeout_does_not_select_or_start_replacement() {
         .unwrap();
     let ready = temp.path().join("ready");
     let fixture = format!(
-        "#!/bin/sh\ncase \"$*\" in *--help*) exit 1;; esac\nif [ \"$1\" = --version ]; then echo 'codex 0.152.0'; exit 0; fi\ntrap '' TERM\ntouch '{}'\nwhile :; do sleep 1; done\n",
+        "#!/bin/sh\ncase \"$*\" in *--help*) exit 1;; esac\nif [ \"$1\" = --version ]; then echo 'codex 0.152.0'; exit 0; fi\ntrap '' TERM HUP\ntouch '{}'\nwhile :; do sleep 1; done\n",
         ready.display()
     );
     codex_utils_cargo_bin::write_executable(&selected.managed_codex_bin, &fixture).unwrap();

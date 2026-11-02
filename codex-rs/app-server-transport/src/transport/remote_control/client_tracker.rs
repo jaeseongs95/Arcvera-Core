@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 use super::CHANNEL_CAPACITY;
 use super::TransportEvent;
 use super::next_connection_id;
@@ -426,7 +427,7 @@ fn transport_event_name(event: &TransportEvent) -> &'static str {
         TransportEvent::ConnectionOpened { .. } => "connection_opened",
         TransportEvent::ConnectionClosed { .. } => "connection_closed",
         TransportEvent::IncomingMessage { .. } => "incoming_message",
-        TransportEvent::DaemonShutdown => "daemon_shutdown",
+        TransportEvent::DaemonShutdown { .. } => "daemon_shutdown",
     }
 }
 
