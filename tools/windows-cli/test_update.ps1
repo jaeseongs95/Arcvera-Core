@@ -45,11 +45,11 @@ function Test-Case([string]$Name, [scriptblock]$Run) {
     }
 }
 function Write-TestJson([string]$Path, $Value) { [IO.File]::WriteAllText($Path, ($Value | ConvertTo-Json -Depth 12), $script:TestUtf8) }
-function New-TestPackage([int]$Revision, [string]$Name = '') {
+function New-TestPackage([int]$Revision, [string]$Name = '', [string]$Version = '') {
     if (-not $Name) { $Name = "package-r$Revision" }
     $path = Join-Path $WorkRoot $Name
     New-Item -ItemType Directory -Path (Join-Path $path 'bin'), (Join-Path $path 'updater'), (Join-Path $path 'tools') | Out-Null
-    $version = "0.166.0+native-r$Revision.20261102"
+    if (-not $Version) { $version = "0.166.0+native-r$Revision.20261102" }
     [IO.File]::WriteAllText((Join-Path $path 'bin/codex.exe'), "Not executable; daemon requests must never run. Revision $Revision", $script:TestUtf8)
     [IO.File]::WriteAllText((Join-Path $path 'bin/codex-app-server.exe'), 'Not executable; standalone server must not be launched.', $script:TestUtf8)
     $launcherFixture = if ($Revision -eq 33) { 'where.exe' } else { 'hostname.exe' }
@@ -79,11 +79,12 @@ function New-TestArchive($Package, [string]$Name, [string]$Extra = '', [int]$Att
     } finally { $zip.Dispose() }
     return $archive
 }
-function Set-TestRelease([int]$Revision, [string]$Archive) {
+function Set-TestRelease([int]$Revision, [string]$Archive, [string]$Tag = '') {
+    if (-not $Tag) { $Tag = "v0.166.0-r$Revision.20261102" }
     $name = "opendiy-codex-r$Revision-windows-x86_64.zip"
-    $prefix = "https://github.com/jaeseongs95/opendiy-codex/releases/download/v0.166.0-r$Revision.20261102/"
+    $prefix = "https://github.com/jaeseongs95/opendiy-codex/releases/download/$Tag/"
     $digest = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash.ToLowerInvariant()
-    $metadata = @{ tag_name = "v0.166.0-r$Revision.20261102"; draft = $false; prerelease = $false; assets = @(@{ name = $name; browser_download_url = "$prefix$name"; digest = "sha256:$digest" }, @{ name = 'SHA256SUMS.txt'; browser_download_url = "${prefix}SHA256SUMS.txt" }) }
+    $metadata = @{ tag_name = $Tag; draft = $false; prerelease = $false; assets = @(@{ name = $name; browser_download_url = "$prefix$name"; digest = "sha256:$digest" }, @{ name = 'SHA256SUMS.txt'; browser_download_url = "${prefix}SHA256SUMS.txt" }) }
     $metadataPath = Join-Path $WorkRoot 'fixture-release.json'
     Write-TestJson $metadataPath $metadata
     $sums = Join-Path $WorkRoot 'fixture-SHA256SUMS.txt'
@@ -197,6 +198,35 @@ try {
         finally { if ($script:PointerGuard) { $script:PointerGuard.Dispose() }; $script:OnArchiveRequest = $null }
         Assert-Equal ([IO.File]::ReadAllText($pointerPath)) $before 'Atomic replacement failure must preserve old pointer bytes'
     }
+    Test-Case 'C3 package admission matches native Cargo versions, exact receipt paths and release tags' {
+        $before = [IO.File]::ReadAllText($pointerPath)
+        $badVersion = New-TestPackage 38 'bad-cargo-version' '0.166.0-r38.20261102'
+        Set-TestRelease 38 (New-TestArchive $badVersion 'bad-cargo-version.zip')
+        Assert-Fails { Invoke-OpenDiyUpdate 'Update' $install $bootstrap.root $bootstrap.manifest } 'invalid_package_version'
+        Assert-Equal ([IO.File]::ReadAllText($pointerPath)) $before 'Non-native Cargo format must be rejected before selection'
+        $badCase = New-TestPackage 38 'bad-receipt-case'
+        $receiptPath = Join-Path $badCase.root 'package-receipt.json'
+        $receipt = [IO.File]::ReadAllText($receiptPath) | ConvertFrom-Json
+        ($receipt.files | Where-Object { $_.path -ceq 'bin/codex.exe' }).path = 'BIN/CODEX.EXE'
+        Write-TestJson $receiptPath $receipt
+        Set-TestRelease 38 (New-TestArchive $badCase 'bad-receipt-case.zip')
+        Assert-Fails { Invoke-OpenDiyUpdate 'Update' $install $bootstrap.root $bootstrap.manifest } 'incomplete_package'
+        Assert-Equal ([IO.File]::ReadAllText($pointerPath)) $before 'Wrong required path case must be rejected before selection'
+        $wrongTag = New-TestPackage 38 'wrong-release-tag' '0.167.0+native-r38.20261103'
+        Set-TestRelease 38 (New-TestArchive $wrongTag 'wrong-release-tag.zip')
+        Assert-Fails { Invoke-OpenDiyUpdate 'Update' $install $bootstrap.root $bootstrap.manifest } 'release_identity_mismatch'
+        Assert-Equal ([IO.File]::ReadAllText($pointerPath)) $before 'Full version/tag mismatch must preserve selection'
+        $i = 0
+        foreach ($base in @('0.167.0', '0.167.0-alpha.1')) {
+            $package = New-TestPackage 38 "future-base-$i" "$base+native-r38.20261103"
+            Set-TestRelease 38 (New-TestArchive $package "future-base-$i.zip") "v$base-r38.20261103"
+            $check = Invoke-OpenDiyUpdate 'Check' $install $bootstrap.root $bootstrap.manifest
+            Assert-Equal $check.status 'available' 'New stable and alpha Cargo bases must remain supported'
+            Assert-Equal $check.available.version "$base+native-r38.20261103" 'Full Cargo version must be preserved'
+            $i++
+        }
+        Assert-Equal ([IO.File]::ReadAllText($pointerPath)) $before 'Admission checks must not change actual selection'
+    }
     Test-Case 'C1 independent Windows process excludes a concurrent update' {
         $lastBefore = [IO.File]::ReadAllText((Join-Path $install 'last-update.json'))
         $ready = Join-Path $WorkRoot 'lock.ready'
@@ -248,33 +278,63 @@ try {
     Test-Case 'C2 schedule contract uses one hidden user action and supports disable (scheduler mocked)' {
         $script:Scheduled = $null
         $script:Disabled = $false
-        function Get-ScheduledTask { param($TaskName, $ErrorAction); return $script:Scheduled }
+        $script:ScheduleReadFailure = $false
+        $script:ScheduleWrites = 0
+        function Get-ScheduledTask { param($TaskName, $TaskPath, $ErrorAction, $ErrorVariable); if ($script:ScheduleReadFailure) { throw 'Fixture scheduler unavailable.' }; return $script:Scheduled }
         function New-ScheduledTaskAction { param($Execute, $Argument); return [pscustomobject]@{ Execute = $Execute; Arguments = $Argument } }
-        function New-ScheduledTaskTrigger { param([switch]$Once, $At, $RepetitionInterval); return @{ interval = $RepetitionInterval } }
+        function New-ScheduledTaskTrigger { param([switch]$Once, $At, $RepetitionInterval); return [pscustomobject]@{ Repetition = [pscustomobject]@{ Interval = [Xml.XmlConvert]::ToString($RepetitionInterval) } } }
         function New-ScheduledTaskSettingsSet { param($MultipleInstances, $ExecutionTimeLimit, [switch]$StartWhenAvailable); return @{} }
         function Register-ScheduledTask {
             param($TaskName, $Action, $Trigger, $Settings, $User, $RunLevel, $Description, [switch]$Force)
             Assert-Equal $RunLevel 'Limited' 'Scheduled update must run without elevation'
-            $script:Scheduled = [pscustomobject]@{ TaskName = $TaskName; Actions = @($Action); Principal = [pscustomobject]@{ UserId = $User; RunLevel = $RunLevel } }
+            $script:ScheduleWrites++
+            $script:Scheduled = [pscustomobject]@{ TaskName = $TaskName; State = 'Ready'; Triggers = @($Trigger); Actions = @($Action); Principal = [pscustomobject]@{ UserId = $User; RunLevel = $RunLevel } }
         }
-        function Disable-ScheduledTask { param($TaskName); Assert-Equal $TaskName $script:Scheduled.TaskName 'Disable must address the same task'; $script:Disabled = $true }
+        function Disable-ScheduledTask { param($TaskName, $TaskPath); Assert-Equal $TaskName $script:Scheduled.TaskName 'Disable must address the same task'; $script:Disabled = $true; $script:Scheduled.State = 'Disabled'; $script:ScheduleWrites++ }
+        $status = Invoke-OpenDiyUpdate 'Status' $install $bootstrap.root $bootstrap.manifest
+        Assert-Equal $status.schedule.state 'not_registered' 'A missing task must be reported independently of last result'
         $enabled = Invoke-OpenDiyUpdate 'Enable' $install $selected.packageRoot $selected.manifestSha256 60
         Assert-Equal $enabled.status 'enabled' 'Enable must configure the updater'
         Assert-Equal $script:Scheduled.Actions[0].Execute (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) 'wscript.exe') 'Exactly one wscript action is required'
         if (-not $script:Scheduled.Actions[0].Arguments.Contains('update.vbs')) { throw 'Hidden action must use the VBS runner.' }
         if (-not $script:Scheduled.Actions[0].Arguments.Contains('"-Dispatch"')) { throw 'Task must dispatch the currently selected helper through the stable launcher.' }
+        $status = Invoke-OpenDiyUpdate 'Status' $install $bootstrap.root $bootstrap.manifest
+        Assert-Equal $status.schedule.state 'enabled' 'Status must observe the live enabled task'
+        Assert-Equal $status.schedule.intervalMinutes 60 'Status must report the actual repetition interval'
+        Assert-Equal $status.schedule.taskName $enabled.taskName 'Read and write must use the same task identity'
+        Set-TestRelease 34 $archive34
+        Invoke-OpenDiyUpdate 'Update' $install $bootstrap.root $bootstrap.manifest | Out-Null
+        $status = Invoke-OpenDiyUpdate 'Status' $install $bootstrap.root $bootstrap.manifest
+        Assert-Equal $status.lastResult.status 'current' 'A check result must replace the previous enable result'
+        Assert-Equal $status.schedule.state 'enabled' 'A check result must not hide the actual enabled task'
+        Assert-Equal $script:ScheduleWrites 1 'Status and Update must not modify task state'
         $disabled = Invoke-OpenDiyUpdate 'Disable' $install $bootstrap.root $bootstrap.manifest 60
         Assert-Equal $disabled.taskName $enabled.taskName 'Enable and disable must use one installation identity'
         Assert-Equal $script:Disabled $true 'Disable must be implemented'
+        $status = Invoke-OpenDiyUpdate 'Status' $install $bootstrap.root $bootstrap.manifest
+        Assert-Equal $status.schedule.state 'disabled' 'Status must observe the live disabled task'
+        $script:Scheduled.Principal.UserId = 'another-user'
+        $status = Invoke-OpenDiyUpdate 'Status' $install $bootstrap.root $bootstrap.manifest
+        Assert-Equal $status.schedule.state 'conflict' 'A different task owner must not be reported as this updater'
+        $script:ScheduleReadFailure = $true
+        $status = Invoke-OpenDiyUpdate 'Status' $install $bootstrap.root $bootstrap.manifest
+        Assert-Equal $status.schedule.state 'unavailable' 'Query failure must not be reported as an absent or disabled task'
+        Assert-Equal $script:ScheduleWrites 2 'Read-only schedule status must never register or disable tasks'
         Assert-Equal (Get-FileDigest (Join-Path $install 'opendiy-codex-launcher.exe')) (Get-FileDigest (Join-Path $bootstrap.root 'tools/opendiy-codex-launcher.exe')) 'Enable from a new package must preserve the bootstrap launcher'
     }
     Test-Case 'C2 native script JSON and hidden VBS runner preserve daemon state' {
+        $pointerBeforeStatus = Get-FileDigest $pointerPath
+        $resultBeforeStatus = Get-FileDigest (Join-Path $install 'last-update.json')
         $systemPowerShell = Join-Path $env:WINDIR 'System32/WindowsPowerShell/v1.0/powershell.exe'
         $output = & $systemPowerShell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $UpdaterPath -Action Status -InstallationRoot $install -PackageRoot $bootstrap.root -ManifestSha256 $bootstrap.manifest
         Assert-Equal $LASTEXITCODE 0 'Native CLI process must succeed'
         $json = $output | ConvertFrom-Json
         Assert-Equal $json.cli.revision 34 'JSON must resolve the selected package'
         Assert-Equal $json.daemon.updateRequested $false 'JSON must explicitly preserve daemon'
+        if ($json.schedule.state -notin @('not_registered', 'unavailable')) { throw 'Native fixture query must not find a registered task.' }
+        if (-not $json.schedule.taskName.StartsWith('OpenDIY-Codex-Update-')) { throw 'Native fixture query must use the installation task identity.' }
+        Assert-Equal (Get-FileDigest $pointerPath) $pointerBeforeStatus 'Native Status must not modify the pointer'
+        Assert-Equal (Get-FileDigest (Join-Path $install 'last-update.json')) $resultBeforeStatus 'Native Status must not modify operation state'
         & (Join-Path $env:WINDIR 'System32/cscript.exe') //nologo (Join-Path ([IO.Path]::GetDirectoryName($UpdaterPath)) 'update.vbs') -Action Status -InstallationRoot $install -PackageRoot $bootstrap.root -ManifestSha256 $bootstrap.manifest
         Assert-Equal $LASTEXITCODE 0 'VBS must forward paths with spaces and child exit code'
         $oldPath = $env:PATH

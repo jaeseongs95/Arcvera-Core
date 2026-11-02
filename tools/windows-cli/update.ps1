@@ -80,7 +80,10 @@ function Read-Package([string]$Root, [string]$ExpectedManifest) {
     if ($receipt.sourceCommit -notmatch '^[a-fA-F0-9]{40}$' -or $receipt.sourceFreezeSha256 -notmatch '^[a-fA-F0-9]{64}$' -or $receipt.binarySha256 -notmatch '^[a-fA-F0-9]{64}$') {
         Stop-Update 'invalid_receipt' 'Package source or binary identity is invalid.'
     }
-    $version = ([string]$receipt.version) -replace '^codex-cli ', ''
+    $version = ([string]$receipt.version) -creplace '^codex-cli ', ''
+    if ($version -cnotmatch '^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-alpha(?:\.(?:0|[1-9][0-9]*)){0,2})?\+native-r[1-9][0-9]*\.[0-9]{8}$') {
+        Stop-Update 'invalid_package_version' 'Package version must be a stable or alpha Cargo base plus native-rNN and an eight-digit date.'
+    }
     $revision = Get-Revision $version
     $files = @{}
     foreach ($entry in $receipt.files) {
@@ -90,8 +93,9 @@ function Read-Package([string]$Root, [string]$ExpectedManifest) {
         }
         $files[$relative] = ([string]$entry.sha256).ToLowerInvariant()
     }
+    $receiptPaths = @($receipt.files | ForEach-Object { [string]$_.path })
     foreach ($required in @('codex-package.json', 'bin/codex.exe', 'bin/codex-app-server.exe', 'tools/opendiy-codex-launcher.exe', 'updater/update.ps1', 'updater/update.vbs')) {
-        if (-not $files.ContainsKey($required)) { Stop-Update 'incomplete_package' "Required package file is missing: $required" }
+        if ($receiptPaths -cnotcontains $required) { Stop-Update 'incomplete_package' "Required exact receipt path is missing: $required" }
     }
     $directories = New-Object 'System.Collections.Generic.Queue[string]'
     $directories.Enqueue($Root)
@@ -296,7 +300,7 @@ function Read-LastResult([string]$Root) {
     } catch { return @{ status = 'unavailable'; error = @{ code = 'invalid_last_result'; message = 'The previous update result could not be read safely.' } } }
 }
 
-function Set-UpdateSchedule([string]$Mode, [string]$Root, $Bootstrap, [int]$Minutes) {
+function Get-ScheduleDefinition([string]$Root) {
     $hash = [Security.Cryptography.SHA256]::Create()
     try { $identity = ([BitConverter]::ToString($hash.ComputeHash($script:Utf8.GetBytes($Root.ToLowerInvariant())))).Replace('-', '').Substring(0, 16) }
     finally { $hash.Dispose() }
@@ -305,17 +309,54 @@ function Set-UpdateSchedule([string]$Mode, [string]$Root, $Bootstrap, [int]$Minu
     $null = Get-LocalRoot $stable
     $wscript = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) 'wscript.exe'
     $arguments = '"' + (Join-Path $stable 'update.vbs') + '" "-Dispatch" "' + $Root + '"'
-    $existing = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
     $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $user = $currentUser.Name
-    if ($existing -and (@($existing.Actions).Count -ne 1 -or $existing.Actions[0].Execute -ine $wscript -or $existing.Actions[0].Arguments -cne $arguments)) {
+    try { $user = $currentUser.Name; $sid = $currentUser.User.Value } finally { $currentUser.Dispose() }
+    return @{ taskName = $taskName; stable = $stable; wscript = $wscript; arguments = $arguments; user = $user; sid = $sid }
+}
+
+function Assert-OwnedSchedule($Existing, $Definition) {
+    if ($Existing -and (@($Existing.Actions).Count -ne 1 -or $Existing.Actions[0].Execute -ine $Definition.wscript -or $Existing.Actions[0].Arguments -cne $Definition.arguments)) {
         Stop-Update 'schedule_conflict' 'The installation task name belongs to a different action.'
     }
-    if ($existing -and (($existing.Principal.UserId -ine $user -and $existing.Principal.UserId -ine $currentUser.User.Value) -or [string]$existing.Principal.RunLevel -ne 'Limited')) {
+    if ($Existing -and (($Existing.Principal.UserId -ine $Definition.user -and $Existing.Principal.UserId -ine $Definition.sid) -or [string]$Existing.Principal.RunLevel -ne 'Limited')) {
         Stop-Update 'schedule_conflict' 'The installation task belongs to a different user or privilege level.'
     }
+}
+
+function Read-UpdateSchedule([string]$Root) {
+    $definition = Get-ScheduleDefinition $Root
+    $result = [ordered]@{ taskName = $definition.taskName; state = 'unavailable' }
+    try {
+        $queryErrors = @()
+        $existing = Get-ScheduledTask -TaskName $definition.taskName -TaskPath '\' -ErrorAction SilentlyContinue -ErrorVariable queryErrors
+        if (-not $existing) {
+            if (@($queryErrors | Where-Object { $_.CategoryInfo.Category -ne 'ObjectNotFound' }).Count -eq 0) { $result.state = 'not_registered' }
+            return $result
+        }
+        Assert-OwnedSchedule $existing $definition
+        switch ([string]$existing.State) {
+            'Disabled' { $result.state = 'disabled' }
+            { $_ -in @('Ready', 'Running', 'Queued') } { $result.state = 'enabled' }
+        }
+        if (@($existing.Triggers).Count -eq 1 -and $existing.Triggers[0].Repetition.Interval) {
+            try {
+                $minutes = [Xml.XmlConvert]::ToTimeSpan([string]$existing.Triggers[0].Repetition.Interval).TotalMinutes
+                if ($minutes -gt 0) { $result['intervalMinutes'] = $minutes }
+            } catch {} # State remains observable even when the scheduler cannot supply an interval.
+        }
+    } catch {
+        if ($_.Exception.Data['UpdateCode'] -eq 'schedule_conflict') { $result.state = 'conflict' }
+    }
+    return $result
+}
+
+function Set-UpdateSchedule([string]$Mode, [string]$Root, $Bootstrap, [int]$Minutes) {
+    $definition = Get-ScheduleDefinition $Root
+    $taskName, $stable, $wscript, $arguments, $user = $definition.taskName, $definition.stable, $definition.wscript, $definition.arguments, $definition.user
+    $existing = Get-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction SilentlyContinue
+    Assert-OwnedSchedule $existing $definition
     if ($Mode -eq 'Disable') {
-        if ($existing) { Disable-ScheduledTask -TaskName $taskName | Out-Null }
+        if ($existing) { Disable-ScheduledTask -TaskName $taskName -TaskPath '\' | Out-Null }
     } else {
         $stableLauncher = Join-Path $Root 'opendiy-codex-launcher.exe'
         $null = Get-LocalRoot $stableLauncher
@@ -345,6 +386,7 @@ function Invoke-OpenDiyUpdate([string]$Mode, [string]$RootPath, [string]$Bootstr
     if ($Mode -eq 'Status') {
         $result = Get-UpdateResult 'current' (Read-Selection $root $bootstrap)
         $result['lastResult'] = Read-LastResult $root
+        $result['schedule'] = Read-UpdateSchedule $root
         return $result
     }
     New-Item -ItemType Directory -Path $root -Force | Out-Null
@@ -383,6 +425,9 @@ function Invoke-OpenDiyUpdate([string]$Mode, [string]$RootPath, [string]$Bootstr
         if ($release.draft -or $release.prerelease) { Stop-Update 'unstable_release' 'Only published stable OpenDIY releases are eligible.' }
         $revision = Get-Revision ([string]$release.tag_name)
         if ($revision -lt $selected.revision) { Stop-Update 'downgrade_refused' 'The release feed is older than the selected OpenDIY revision.' }
+        if ($revision -eq $selected.revision -and $release.tag_name -cne ('v' + $selected.version.Replace('+native-r', '-r'))) {
+            Stop-Update 'release_identity_mismatch' 'Release tag differs from the selected Cargo package version.'
+        }
         $assetName = "opendiy-codex-r$revision-windows-x86_64.zip"
         $assets = @($release.assets | Where-Object { $_.name -ceq $assetName })
         $checksums = @($release.assets | Where-Object { $_.name -ceq 'SHA256SUMS.txt' })
@@ -411,7 +456,9 @@ function Invoke-OpenDiyUpdate([string]$Mode, [string]$RootPath, [string]$Bootstr
         $stage = Join-Path $scratch 'package'
         New-Item -ItemType Directory -Path $stage | Out-Null
         $candidate = Expand-CheckedArchive $archive $stage
-        if ($candidate.revision -ne $revision) { Stop-Update 'release_identity_mismatch' 'Release tag revision differs from package receipt revision.' }
+        if ($candidate.revision -ne $revision -or $release.tag_name -cne ('v' + $candidate.version.Replace('+native-r', '-r'))) {
+            Stop-Update 'release_identity_mismatch' 'Release tag differs from the full Cargo package version.'
+        }
         $candidate['archiveSha256'] = $archiveDigest
         if ($revision -eq $selected.revision) {
             if ($candidate.manifestSha256 -cne $selected.manifestSha256) { Stop-Update 'revision_mutated' 'An existing revision changed its package receipt.' }
