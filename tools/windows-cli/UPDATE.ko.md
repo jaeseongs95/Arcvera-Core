@@ -10,6 +10,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File PACKAGE\updater\update.p
 
 패키지 전체 버전은 `정식 또는 alpha 기반 버전+native-rNN.8자리날짜` 형식이며, 릴리스 태그는 이 문자열의 `+native-r`를 `-r`로 바꾸고 `v`를 앞에 붙인 값과 정확히 같아야 한다. 필수 receipt 경로의 소문자 표기도 native launcher와 동일하게 검사한다.
 
+`package_cli.py`는 `codex-package.json`에 `opendiyUpdate:{schema:1,minLauncher:1}`을 생성한다. 고정 bootstrap launcher 1이 지원하는 두 정수 값 1만 자동 선택하며, 다른 요구나 누락은 선택 전에 거부한다. 지원 범위를 바꾸려면 별도 수동 bootstrap 업그레이드가 필요하다.
+
 같은 인자에서 `-Action Check`는 확인만, `Status`는 로컬 선택 조회, `Enable -IntervalMinutes 60`은 사용자 작업 스케줄러 한 항목 등록, `Disable`은 그 항목 비활성화다. 간격은 5~1440분이다. 예약 실행은 OS의 `wscript.exe → ROOT/updater/update.vbs -Dispatch ROOT → ROOT/opendiy-codex-launcher.exe update`로 창 없이 실행한다. launcher는 현재 선택된 CLI와 그 패키지의 검증된 helper를 실행하므로 후속 릴리스의 updater 개선도 반영된다. `Enable`은 stable launcher를 초기 receipt의 `tools/opendiy-codex-launcher.exe` 해시와 대조하고 보존한다. VBS의 직접 helper 실행 모드는 시스템 PowerShell에 `-WindowStyle Hidden`을 전달한다.
 
 초기 포인터는 `schema:1`, `installationRoot`, `bootstrapPackageRoot`, `bootstrapManifestSha256`, `packageRoot`, `manifestSha256`, 숫자 `revision`, 전체 `version`(`codex-cli ` 접두 제외), `sourceCommit`을 담는다. 두 package root는 `ROOT/versions`의 직계 자식이고 초기 receipt 결속은 갱신 뒤에도 보존한다. 릴리스 ZIP의 `archiveSha256`도 초기 설치 때 넣어야 같은 revision의 ZIP 교체를 첫 확인부터 탐지한다. 없으면 첫 동일 revision 확인에서 기존 receipt와 비교한 뒤 ZIP 해시를 결속한다. 모든 포인터 작성자는 `ROOT/update.lock`의 배타 잠금을 따라야 한다.

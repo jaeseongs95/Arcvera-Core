@@ -58,9 +58,22 @@ class PackageTests(unittest.TestCase):
         self.assertEqual((self.output / "helper.dat").read_bytes(), b"preserved helper")
         self.assertEqual(self.asset.read_bytes(), b"frozen prompt\r\n")
         self.assertEqual(receipt, json.loads((self.output / "package-receipt.json").read_text()))
+        metadata = json.loads((self.output / "codex-package.json").read_text())
+        self.assertEqual(metadata["opendiyUpdate"], {"schema": 1, "minLauncher": 1})
         for item in receipt["files"]:
             self.assertFalse(Path(item["path"]).is_absolute())
             self.assertEqual(item["sha256"], digest(self.output / item["path"]))
+
+    def test_update_contract_is_generated_instead_of_trusting_vendor_metadata(self):
+        metadata = json.loads(self.metadata.read_text())
+        metadata["opendiyUpdate"] = {"schema": 2, "minLauncher": "2"}
+        self.metadata.write_text(json.dumps(metadata), encoding="utf-8")
+        self.build()
+        generated = json.loads((self.output / "codex-package.json").read_text())
+        self.assertEqual(generated["opendiyUpdate"], {"schema": 1, "minLauncher": 1})
+        self.assertIs(type(generated["opendiyUpdate"]["schema"]), int)
+        self.assertIs(type(generated["opendiyUpdate"]["minLauncher"]), int)
+        self.assertEqual(json.loads(self.metadata.read_text()), metadata)
 
     def test_launcher_uses_adjacent_binary_and_preserves_arguments_exit(self):
         self.build()

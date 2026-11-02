@@ -70,6 +70,7 @@ def package(source, freeze_file, binary, vendor, output, expected_version):
     if digest(target) != binary_hash:
         raise ValueError("CLI binary changed during copy")
     metadata["version"] = expected_version
+    metadata["opendiyUpdate"] = {"schema": 1, "minLauncher": 1}
     (output / "codex-package.json").write_text(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8", newline="\n"
     )

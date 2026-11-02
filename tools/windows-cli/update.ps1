@@ -119,6 +119,14 @@ function Read-Package([string]$Root, [string]$ExpectedManifest) {
     if ($package.entrypoint -cne 'bin/codex.exe' -or $package.version -cne $version -or $files['bin/codex.exe'] -cne ([string]$receipt.binarySha256).ToLowerInvariant()) {
         Stop-Update 'package_identity_mismatch' 'Package metadata and receipt identity differ.'
     }
+    $contract = $package.PSObject.Properties['opendiyUpdate']
+    if (-not $contract -or $contract.Value -isnot [pscustomobject]) { Stop-Update 'unsupported_package_contract' 'OpenDIY update schema and launcher requirements are missing.' }
+    foreach ($member in @('schema', 'minLauncher')) {
+        $field = $contract.Value.PSObject.Properties[$member]
+        if (-not $field -or ($field.Value -isnot [int] -and $field.Value -isnot [long]) -or $field.Value -ne 1) {
+            Stop-Update 'unsupported_package_contract' 'Only integer update schema 1 and launcher requirement 1 are supported.'
+        }
+    }
     return [ordered]@{ packageRoot = $Root; manifestSha256 = $manifestDigest; revision = $revision; version = $version; sourceCommit = $receipt.sourceCommit }
 }
 

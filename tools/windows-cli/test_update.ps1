@@ -54,7 +54,7 @@ function New-TestPackage([int]$Revision, [string]$Name = '', [string]$Version = 
     [IO.File]::WriteAllText((Join-Path $path 'bin/codex-app-server.exe'), 'Not executable; standalone server must not be launched.', $script:TestUtf8)
     $launcherFixture = if ($Revision -eq 33) { 'where.exe' } else { 'hostname.exe' }
     Copy-Item -LiteralPath (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) $launcherFixture) -Destination (Join-Path $path 'tools/opendiy-codex-launcher.exe')
-    Write-TestJson (Join-Path $path 'codex-package.json') @{ version = $version; target = 'x86_64-pc-windows-msvc'; entrypoint = 'bin/codex.exe' }
+    Write-TestJson (Join-Path $path 'codex-package.json') @{ version = $version; target = 'x86_64-pc-windows-msvc'; entrypoint = 'bin/codex.exe'; opendiyUpdate = @{ schema = 1; minLauncher = 1 } }
     Copy-Item -LiteralPath $UpdaterPath -Destination (Join-Path $path 'updater/update.ps1')
     Copy-Item -LiteralPath (Join-Path ([IO.Path]::GetDirectoryName($UpdaterPath)) 'update.vbs') -Destination (Join-Path $path 'updater/update.vbs')
     $files = @(Get-ChildItem -LiteralPath $path -Recurse -File | Sort-Object FullName | ForEach-Object { @{ path = $_.FullName.Substring($path.Length + 1).Replace('\', '/'); sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() } })
@@ -226,6 +226,33 @@ try {
             $i++
         }
         Assert-Equal ([IO.File]::ReadAllText($pointerPath)) $before 'Admission checks must not change actual selection'
+    }
+    Test-Case 'C3 unsupported or missing package and launcher contracts preserve the selected pointer' {
+        $before = [IO.File]::ReadAllText($pointerPath)
+        $contracts = @(
+            @{ name = 'missing-contract'; value = $null },
+            @{ name = 'schema-two'; value = @{ schema = 2; minLauncher = 1 } },
+            @{ name = 'launcher-two'; value = @{ schema = 1; minLauncher = 2 } },
+            @{ name = 'missing-launcher'; value = @{ schema = 1 } },
+            @{ name = 'missing-schema'; value = @{ minLauncher = 1 } },
+            @{ name = 'string-launcher'; value = @{ schema = 1; minLauncher = '1' } },
+            @{ name = 'boolean-schema'; value = @{ schema = $true; minLauncher = 1 } }
+        )
+        foreach ($contract in $contracts) {
+            $package = New-TestPackage 39 $contract.name
+            $metadataPath = Join-Path $package.root 'codex-package.json'
+            $metadata = [IO.File]::ReadAllText($metadataPath) | ConvertFrom-Json
+            if ($null -eq $contract.value) { $metadata.PSObject.Properties.Remove('opendiyUpdate') }
+            else { $metadata.opendiyUpdate = $contract.value }
+            Write-TestJson $metadataPath $metadata
+            $receiptPath = Join-Path $package.root 'package-receipt.json'
+            $receipt = [IO.File]::ReadAllText($receiptPath) | ConvertFrom-Json
+            ($receipt.files | Where-Object { $_.path -ceq 'codex-package.json' }).sha256 = Get-FileDigest $metadataPath
+            Write-TestJson $receiptPath $receipt
+            Set-TestRelease 39 (New-TestArchive $package ($contract.name + '.zip'))
+            Assert-Fails { Invoke-OpenDiyUpdate 'Update' $install $bootstrap.root $bootstrap.manifest } 'unsupported_package_contract'
+            Assert-Equal ([IO.File]::ReadAllText($pointerPath)) $before 'Unsupported bootstrap requirements must be rejected before pointer selection'
+        }
     }
     Test-Case 'C1 independent Windows process excludes a concurrent update' {
         $lastBefore = [IO.File]::ReadAllText((Join-Path $install 'last-update.json'))
