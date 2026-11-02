@@ -28,13 +28,13 @@ pub struct CacheMode {
 impl CacheMode {
     pub fn resolve(logging_enabled: bool, settings: Settings, explicit_wire: bool) -> Self {
         let response_enabled = logging_enabled && settings.response;
-        let wire_enabled = response_enabled && settings.wire && explicit_wire;
+        let wire_enabled = response_enabled && settings.wire;
         Self {
             response_requested: settings.response,
             wire_requested: settings.wire,
-            // Preserve the existing explicit producer opt-in even when batch
-            // output is off: another existing tracing layer may consume it.
-            wire_producer_enabled: explicit_wire,
+            // Batch configuration is an explicit producer opt-in too. Preserve
+            // the legacy environment opt-in for other tracing consumers.
+            wire_producer_enabled: explicit_wire || wire_enabled,
             response_enabled,
             wire_enabled,
             wire_disabled_reason: if wire_enabled {
@@ -43,10 +43,8 @@ impl CacheMode {
                 Some("logging_disabled")
             } else if !settings.response {
                 Some("response_disabled")
-            } else if !settings.wire {
-                Some("wire_not_selected")
             } else {
-                Some("producer_not_selected")
+                Some("wire_not_selected")
             },
         }
     }
