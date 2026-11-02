@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "sourceCommit": "3d9eb86445925caa920dd2f958496cf1aa4ad7e2",
+  "sourceCommit": "36ae395a552fd55962e19409cbf29b1fdf03b0ec",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -13848,10 +13848,10 @@
     {
       "path": "codex-rs/app-server/src/bespoke_event_handling.rs",
       "gitMode": "100644",
-      "gitBlob": "3bc410d571c69f1a983a320315dc5c8b29e14fd4",
-      "sourceSha256": "0072f4e5610fd09a523c54fe96c0e9e81cdb9f58e70b817ad2a41496fa10fe02",
-      "publishedSha256": "0ae2d1067bceac1887b41152401554044bc206d8b5070eb30346ad93e3616a68",
-      "bytes": 160612,
+      "gitBlob": "5b1c71ff7047811f5b3e467adc01b89cd0a90cb6",
+      "sourceSha256": "a7da0b4447cc2aa7200ba9d65605e9bec3854daee87f6e9c97372697523830d5",
+      "publishedSha256": "b1a21211002c33ec7d096e343bf37d7d3fb4c8d8f62bbf47aaa21e2087951f14",
+      "bytes": 166802,
       "modified": true,
       "noticeOnly": true
     },
@@ -14458,10 +14458,10 @@
     {
       "path": "codex-rs/app-server/src/outgoing_message.rs",
       "gitMode": "100644",
-      "gitBlob": "46f033dc40ac4f22ae1f1e4a9f87923acdced4a2",
-      "sourceSha256": "55607f3d850355f0dcc4b01e04a8e46c2003274dfb4614c2e82860666f21cdd8",
-      "publishedSha256": "b11b2c9286dcbf7649c9a94701dca020a47337cb824eefd5d7aa0f96fea76d3b",
-      "bytes": 75180,
+      "gitBlob": "ee6260a329e6ac4bcc6047231b0349fb19ee4876",
+      "sourceSha256": "fbf66c6e22e37bf6c43e56351347ca22d23fa113e2a67eb2013fc4bd37a9b9c3",
+      "publishedSha256": "9c90c6fd1594aa9ef1c63f79e918885f363178a51a6f87f4635d5d209fe717cb",
+      "bytes": 82888,
       "modified": true,
       "noticeOnly": true
     },
@@ -15358,12 +15358,12 @@
     {
       "path": "codex-rs/app-server/src/thread_status.rs",
       "gitMode": "100644",
-      "gitBlob": "a9a4cefde3a8f778f27b9e46451e80c4bbe45c39",
-      "sourceSha256": "82e31a2d76e2a51bf2e2d9aa55d2ca2cff53426ea79aacf43a39fe24f017172f",
-      "publishedSha256": "82e31a2d76e2a51bf2e2d9aa55d2ca2cff53426ea79aacf43a39fe24f017172f",
-      "bytes": 29389,
-      "modified": false,
-      "noticeOnly": false
+      "gitBlob": "987c704ae599c0de3b690fd5fc5026b73eb3989d",
+      "sourceSha256": "755447c93fed5ac3d99d3aa05c3a9b9f0a69c5d67075ce8c945056ebfbcfbeb9",
+      "publishedSha256": "a3c647001fc213c174ed4dfe6718202473943c6d093dd9eb8e4b580277087351",
+      "bytes": 41127,
+      "modified": true,
+      "noticeOnly": true
     },
     {
       "path": "codex-rs/app-server/src/transport.rs",

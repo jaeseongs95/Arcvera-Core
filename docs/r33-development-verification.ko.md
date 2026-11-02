@@ -1,4 +1,45 @@
-# R33 Windows 핸들 경계 수정 후보의 검증 범위
+# R33 graceful 완료 통지 경계 수정 후보의 검증 범위
+
+현재 고정 소스는 `36ae395a552fd55962e19409cbf29b1fdf03b0ec`, 이전 공개 기준은 `5300c7238a23cd29d29e4ffdfbcaf3ac53366886`다. 이전 `3d9` 후보에서 달라진 제품 소스는 `bespoke_event_handling.rs`, `outgoing_message.rs`, `thread_status.rs`의 3경로다. 완료·중단 알림의 쓰기 확인이 끝날 때까지 drain 책임을 유지하고 기존 idle 알림 순서를 보존하는 후속 개발 후보다. 제품 버전은 `0.166.0+native-r33.20261102`를 유지한다.
+
+개발용 시험 컴파일은 종료 코드 0으로 완료했고 표적 시험 34개가 중복 없이 통과했다. 개발용 서버 컴파일은 진행 중이며 새 후보의 runtime·Desktop 공동 시험·최종 독립감사는 미완료다. 새 release 빌드·패키지 생성은 시작하지 않았다. 이전 `3d9` package03의 graceful 완료 통지 누락과 최종 독립감사 FAIL 기록은 그대로 보존하며 전체 수용·릴리스·설치를 보류한다. 이전 후보의 시험·빌드·부분 Desktop 공동 시험 통과를 새 후보의 통과나 결함 해소로 확대하지 않는다.
+
+## 현재 후보의 동결과 red 근거
+
+동결 목록은 54경로이며 SHA-256은 `3d3171fe1058f04f540343deb61f4ccd9ffe946814de8ceaa77d3021848ab084`다. 원본 Windows 작업파일 54개와 줄바꿈을 정규화한 고정 Git blob 54개를 직접 대조했다. 개발용 시험 컴파일은 2026-11-02 12:30:28 UTC에 종료 코드 0으로 완료됐고 Cargo가 보고한 소요 시간은 1분 25초였다.
+
+회귀시험을 먼저 추가한 `dafb5af70c5d4eb4f43ff1075e859c6b72b2301b`의 같은 시험 실행 파일(SHA-256 `e208da3986bb9584baa5bf513a7a66c118207dc75c2603e03e758d2acd05c537`)로 다음 exact 시험을 실행했다. 프로젝트의 `RUST_MIN_STACK=8388608` 조건을 적용한 두 실행의 receipt·stdout·stderr를 대조했다.
+
+| red 실행 | 통과 | 실패 | 종료 코드 |
+| --- | ---: | ---: | ---: |
+| `turn_complete_stays_running_until_terminal_write` | 0 | 1 | 101 |
+| `turn_interrupted_stays_running_until_terminal_write` | 0 | 1 | 101 |
+
+두 실행은 terminal 쓰기 확인을 보류한 상태에서 drain count가 기대값 1 대신 0이 되는 assertion에서 실패했다. 스택 조건을 적용하지 않아 stack overflow로 종료한 앞선 실행은 유효한 red 근거로 세지 않는다. 이 red 결과를 후속 후보의 green 검증으로 대체하지 않는다.
+
+## 현재 후보의 표적 green 시험
+
+개발용 시험 실행 파일 SHA-256은 `a03f1c4d8f3e95d15548c18387056ac425bb8ba776fa3673d677589b782b2fd4`다. 컴파일 receipt와 두 실행 receipt의 소스 pin·실행 파일 해시를 연결하고 stdout·stderr 해시 및 통과한 시험 이름을 직접 대조했다.
+
+| 표적 범위 | 통과 | 실패 | 종료 코드 |
+| --- | ---: | ---: | ---: |
+| 완료 알림 쓰기 보류 exact | 1 | 0 | 0 |
+| 중단 알림 쓰기 보류 exact | 1 | 0 | 0 |
+| terminal sender | 4 | 0 | 0 |
+| thread status | 20 | 0 | 0 |
+| 완료 payload | 3 | 0 | 0 |
+| 중단 payload | 1 | 0 | 0 |
+| graceful 재요청 exact (보완 실행) | 1 | 0 | 0 |
+| admitted request·force exact (보완 실행) | 1 | 0 | 0 |
+| turn admission (보완 실행) | 2 | 0 | 0 |
+
+첫 실행의 6그룹에서 30개가 통과했고 마지막 `lib_tests::` 필터는 0개를 선택했다. 첫 runner의 전체 종료 코드는 1이며 이 빈 필터를 검증 오류로 보존한다. 제품 시험 실패나 통과한 시험으로 세지 않는다. 올바른 shutdown exact 2개와 admission 2개를 별도 실행해 4개 통과·종료 0을 확인했다. 두 실행에서 통과한 시험 이름은 중복 없이 총 34개이며 위 red 2개와 같은 exact 선택도 green에서 각각 통과했다. 이 결과는 개발용 library의 표적 경계에 한정하며 전체 시험·새 제품 패키지·실제 drain runtime·Desktop 조합·최종 감사의 통과를 뜻하지 않는다.
+
+## 이번 공개 소스의 출처
+
+source 9,412개·공식 대비 수정 558개를 고정 Git blob에서 수집한다. 기존 R32 기본 고지와 R33 개별 고지 51경로를 보존하고 이번 3경로를 더해 R33 고지는 총 54경로다. 원본 Apache 고지·LICENSE·NOTICE와 내장 프롬프트 38개의 원본·Windows 바이트 해시는 유지한다. 프롬프트 catalog의 source commit만 현재 후보에 연결한다. 원시 로그·실행 파일·개인 경로는 공개하지 않는다. README는 기존 구조를 유지하면서 후보와 검증 범위를 갱신하고 루트 문서 해시에 다시 결속한다. 출처 검사는 제품 컴파일·실행이나 릴리스 승인을 대신하지 않는다.
+
+## 이전 3d9 후보 기록
 
 현재 고정 소스는 `3d9eb86445925caa920dd2f958496cf1aa4ad7e2`, 이전 공개 기준은 `b1a8780e283c3f3514387ec209ded2d78c6e91b7`이다. 이전 private 후보 `0c588be6c85098f0ff139ec7a9bc119c1da71f20` 이후 추가·변경은 7경로이고 새 파일은 1개다. Windows 공통 spawn의 표준 핸들 전달을 `HANDLE_LIST`로 제한하는 `windows_spawn.rs`와 관련 PID·분리 실행 fixture를 포함한다.
 

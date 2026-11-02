@@ -1,6 +1,7 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 use crate::notification_media::without_notification_media;
 use crate::outgoing_message::ClientRequestResult;
+use crate::outgoing_message::TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT;
 use crate::outgoing_message::ThreadScopedOutgoingMessageSender;
 use crate::request_processors::thread_settings_from_config_snapshot;
 use crate::server_request_error::is_turn_transition_server_request_error;
@@ -194,7 +195,9 @@ pub(crate) async fn apply_bespoke_event_handling(
             outgoing.abort_pending_server_requests().await;
             respond_to_pending_interrupts(&thread_state, &outgoing).await;
             let turn_failed = thread_state.lock().await.turn_summary.last_error.is_some();
-            thread_watch_manager
+            // Preserve idle -> turn/completed ordering while retaining a separate drain
+            // responsibility until terminal delivery succeeds or explicitly fails.
+            let terminal_delivery = thread_watch_manager
                 .note_turn_completed(&conversation_id.to_string(), turn_failed)
                 .await;
             handle_turn_complete(
@@ -203,8 +206,10 @@ pub(crate) async fn apply_bespoke_event_handling(
                 turn_complete_event,
                 &outgoing,
                 &thread_state,
+                terminal_delivery.deadline(),
             )
             .await;
+            terminal_delivery.finish().await;
         }
         EventMsg::McpStartupUpdate(update) => {
             let (status, error, failure_reason) = match update.status {
@@ -1231,6 +1236,7 @@ pub(crate) async fn apply_bespoke_event_handling(
                         duration_ms: aborted.duration_ms,
                     },
                     &outgoing,
+                    tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
                 )
                 .await;
             }
@@ -1281,7 +1287,7 @@ pub(crate) async fn apply_bespoke_event_handling(
             outgoing.abort_pending_server_requests().await;
             respond_to_pending_interrupts(&thread_state, &outgoing).await;
 
-            thread_watch_manager
+            let terminal_delivery = thread_watch_manager
                 .note_turn_interrupted(&conversation_id.to_string())
                 .await;
             handle_turn_interrupted(
@@ -1290,8 +1296,10 @@ pub(crate) async fn apply_bespoke_event_handling(
                 turn_aborted_event,
                 &outgoing,
                 &thread_state,
+                terminal_delivery.deadline(),
             )
             .await;
+            terminal_delivery.finish().await;
         }
         EventMsg::ThreadGoalUpdated(thread_goal_event) => {
             let notification = ThreadGoalUpdatedNotification {
@@ -1401,6 +1409,7 @@ async fn emit_turn_completed_with_status(
     event_turn_id: String,
     turn_completion_metadata: TurnCompletionMetadata,
     outgoing: &ThreadScopedOutgoingMessageSender,
+    delivery_deadline: tokio::time::Instant,
 ) {
     let (items, items_view) = match turn_completion_metadata.last_agent_message {
         Some(item) => (vec![item], TurnItemsView::Summary),
@@ -1421,7 +1430,10 @@ async fn emit_turn_completed_with_status(
         },
     };
     outgoing
-        .send_server_notification(ServerNotification::TurnCompleted(notification))
+        .send_terminal_notification_and_wait(
+            ServerNotification::TurnCompleted(notification),
+            delivery_deadline,
+        )
         .await;
 }
 
@@ -1580,6 +1592,7 @@ async fn handle_turn_complete(
     turn_complete_event: TurnCompleteEvent,
     outgoing: &ThreadScopedOutgoingMessageSender,
     thread_state: &Arc<Mutex<ThreadState>>,
+    delivery_deadline: tokio::time::Instant,
 ) {
     let turn_summary = find_and_remove_turn_summary(conversation_id, thread_state).await;
 
@@ -1601,6 +1614,7 @@ async fn handle_turn_complete(
             duration_ms: turn_complete_event.duration_ms,
         },
         outgoing,
+        delivery_deadline,
     )
     .await;
 }
@@ -1611,6 +1625,7 @@ async fn handle_turn_interrupted(
     turn_aborted_event: TurnAbortedEvent,
     outgoing: &ThreadScopedOutgoingMessageSender,
     thread_state: &Arc<Mutex<ThreadState>>,
+    delivery_deadline: tokio::time::Instant,
 ) {
     let turn_summary = find_and_remove_turn_summary(conversation_id, thread_state).await;
 
@@ -1632,6 +1647,7 @@ async fn handle_turn_interrupted(
             duration_ms: turn_aborted_event.duration_ms,
         },
         outgoing,
+        delivery_deadline,
     )
     .await;
 }
@@ -2269,6 +2285,27 @@ mod tests {
             bail!("unexpected message: {message:?}");
         };
         Ok(envelope.notification)
+    }
+
+    fn acknowledge_notification_writes(
+        mut rx: mpsc::Receiver<OutgoingEnvelope>,
+    ) -> mpsc::Receiver<OutgoingEnvelope> {
+        let (tx, forwarded_rx) = mpsc::channel(CHANNEL_CAPACITY);
+        tokio::spawn(async move {
+            while let Some(mut envelope) = rx.recv().await {
+                if let OutgoingEnvelope::ToConnection {
+                    write_complete_tx, ..
+                } = &mut envelope
+                    && let Some(write_complete_tx) = write_complete_tx.take()
+                {
+                    let _ = write_complete_tx.send(());
+                }
+                if tx.send(envelope).await.is_err() {
+                    break;
+                }
+            }
+        });
+        forwarded_rx
     }
 
     fn turn_complete_event(turn_id: &str) -> TurnCompleteEvent {
@@ -3282,6 +3319,109 @@ mod tests {
         Ok(())
     }
 
+    async fn assert_terminal_write_precedes_idle(
+        terminal_event: EventMsg,
+        expected_status: TurnStatus,
+    ) -> Result<()> {
+        let codex_home = TempDir::new()?;
+        let config = load_default_config_for_test(&codex_home).await;
+        let thread_manager = Arc::new(
+            codex_core::test_support::thread_manager_with_models_provider_and_home(
+                CodexAuth::create_dummy_chatgpt_auth_for_testing(),
+                config.model_provider.clone(),
+                config.codex_home.to_path_buf(),
+                Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
+            ),
+        );
+        let codex_core::NewThread {
+            thread_id: conversation_id,
+            thread: conversation,
+            ..
+        } = thread_manager
+            .start_thread(codex_core::StartThreadOptions::new(config))
+            .await?;
+        let thread_watch_manager = ThreadWatchManager::new();
+        thread_watch_manager
+            .note_turn_started(&conversation_id.to_string())
+            .await;
+        let running_turn_count = thread_watch_manager.subscribe_running_turn_count();
+        let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let outgoing = ThreadScopedOutgoingMessageSender::new(
+            Arc::new(OutgoingMessageSender::new(
+                tx,
+                codex_analytics::AnalyticsEventsClient::disabled(),
+            )),
+            vec![ConnectionId(1)],
+            conversation_id,
+        );
+        let mut handling = Box::pin(apply_bespoke_event_handling(
+            Event {
+                id: "terminal-turn".to_string(),
+                msg: terminal_event,
+            },
+            conversation_id,
+            conversation.clone(),
+            thread_manager,
+            outgoing,
+            new_thread_state(),
+            thread_watch_manager.clone(),
+        ));
+
+        // Poll the listener until its terminal write is queued, but withhold the writer's ACK.
+        let progress = futures::poll!(&mut handling);
+        let envelope = rx
+            .try_recv()
+            .expect("terminal notification should be queued");
+        assert_eq!(
+            *running_turn_count.borrow(),
+            1,
+            "graceful drain must not observe idle before the terminal notification is written"
+        );
+        assert!(
+            progress.is_pending(),
+            "listener must wait for the terminal write"
+        );
+        let OutgoingEnvelope::ToConnection {
+            message: OutgoingMessage::AppServerNotification(envelope),
+            write_complete_tx,
+            ..
+        } = envelope
+        else {
+            bail!("expected a targeted terminal notification");
+        };
+        let ServerNotification::TurnCompleted(notification) = envelope.notification else {
+            bail!("expected turn/completed");
+        };
+        assert_eq!(notification.turn.status, expected_status);
+        write_complete_tx
+            .expect("terminal notification must request write completion")
+            .send(())
+            .expect("listener must still be waiting");
+        handling.await;
+        assert_eq!(*running_turn_count.borrow(), 0);
+        assert_eq!(thread_watch_manager.running_turn_count().await, 0);
+        conversation.shutdown_and_wait().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn turn_complete_stays_running_until_terminal_write() -> Result<()> {
+        assert_terminal_write_precedes_idle(
+            EventMsg::TurnComplete(turn_complete_event("terminal-turn")),
+            TurnStatus::Completed,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn turn_interrupted_stays_running_until_terminal_write() -> Result<()> {
+        assert_terminal_write_precedes_idle(
+            EventMsg::TurnAborted(turn_aborted_event("terminal-turn")),
+            TurnStatus::Interrupted,
+        )
+        .await
+    }
+
     #[tokio::test]
     async fn interrupted_subagent_activity_removes_missing_thread_watch() -> Result<()> {
         let codex_home = TempDir::new()?;
@@ -3466,7 +3606,8 @@ mod tests {
     async fn test_handle_turn_complete_emits_completed_without_error() -> Result<()> {
         let conversation_id = ThreadId::new();
         let event_turn_id = "complete1".to_string();
-        let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let mut rx = acknowledge_notification_writes(rx);
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tx,
             codex_analytics::AnalyticsEventsClient::disabled(),
@@ -3544,6 +3685,7 @@ mod tests {
             event,
             &outgoing,
             &thread_state,
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
         )
         .await;
 
@@ -3585,7 +3727,8 @@ mod tests {
             &thread_state,
         )
         .await;
-        let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let mut rx = acknowledge_notification_writes(rx);
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tx,
             codex_analytics::AnalyticsEventsClient::disabled(),
@@ -3605,6 +3748,7 @@ mod tests {
             },
             &outgoing,
             &thread_state,
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
         )
         .await;
 
@@ -3640,7 +3784,8 @@ mod tests {
             &thread_state,
         )
         .await;
-        let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let mut rx = acknowledge_notification_writes(rx);
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tx,
             codex_analytics::AnalyticsEventsClient::disabled(),
@@ -3657,6 +3802,7 @@ mod tests {
             turn_complete_event(&event_turn_id),
             &outgoing,
             &thread_state,
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
         )
         .await;
 
@@ -3867,7 +4013,8 @@ mod tests {
         let conversation_b = ThreadId::new();
         let thread_state = new_thread_state();
 
-        let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let mut rx = acknowledge_notification_writes(rx);
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tx,
             codex_analytics::AnalyticsEventsClient::disabled(),
@@ -3897,6 +4044,7 @@ mod tests {
             turn_complete_event(&a_turn1),
             &outgoing,
             &thread_state,
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
         )
         .await;
 
@@ -3919,6 +4067,7 @@ mod tests {
             turn_complete_event(&b_turn1),
             &outgoing,
             &thread_state,
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
         )
         .await;
 
@@ -3930,6 +4079,7 @@ mod tests {
             turn_complete_event(&a_turn2),
             &outgoing,
             &thread_state,
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
         )
         .await;
 

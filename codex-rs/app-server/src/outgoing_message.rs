@@ -1,10 +1,11 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::atomic::AtomicI64;
 use std::sync::atomic::Ordering;
+use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
@@ -43,6 +44,11 @@ pub(crate) use codex_app_server_transport::QueuedOutgoingMessage;
 use codex_protocol::account::PlanType;
 
 pub(crate) type ClientRequestResult = std::result::Result<Result, JSONRPCErrorError>;
+
+// One deadline covers idle enqueue, terminal enqueue and transport write confirmation.
+// A stalled subscriber must not hold the listener (and graceful drain) forever. Delivery
+// failure is logged separately from the turn's execution status.
+pub(crate) const TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT: Duration = Duration::from_secs(5);
 
 static IN_FLIGHT_REQUESTS: Gauge = Gauge::new("app.requests.in_flight");
 static PENDING_SERVER_REQUESTS: Gauge = Gauge::new("app.server_requests.pending");
@@ -265,6 +271,51 @@ impl ThreadScopedOutgoingMessageSender {
         self.outgoing
             .send_server_notification_to_connections(self.connection_ids.as_slice(), notification)
             .await;
+    }
+
+    pub(crate) async fn send_terminal_notification_and_wait(
+        &self,
+        notification: ServerNotification,
+        delivery_deadline: tokio::time::Instant,
+    ) -> bool {
+        self.outgoing
+            .analytics_events_client
+            .track_notification(&notification);
+        // Queue subscribers concurrently rather than waiting for one writer before enqueueing
+        // the next notification. The deadline includes waiting for outbound queue space.
+        futures::future::join_all(self.connection_ids.iter().map(|&connection_id| {
+            let notification = notification.clone();
+            async move {
+                match tokio::time::timeout_at(
+                    delivery_deadline,
+                    self.outgoing
+                        .send_server_notification_to_connection_and_wait(
+                            connection_id,
+                            notification,
+                        ),
+                )
+                .await
+                {
+                    Ok(true) => true,
+                    Ok(false) => {
+                        warn!(thread_id = %self.thread_id, ?connection_id, "terminal notification was not written");
+                        false
+                    }
+                    Err(_) => {
+                        warn!(
+                            thread_id = %self.thread_id,
+                            ?connection_id,
+                            timeout_secs = TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT.as_secs(),
+                            "terminal notification delivery timed out"
+                        );
+                        false
+                    }
+                }
+            }
+        }))
+        .await
+        .into_iter()
+        .all(|written| written)
     }
 
     pub(crate) async fn send_global_server_notification(&self, notification: ServerNotification) {
@@ -1696,6 +1747,150 @@ mod tests {
             .await
             .expect("send task should finish after write completion is signaled")
             .expect("send task should not panic");
+    }
+
+    fn terminal_test_notification() -> ServerNotification {
+        ServerNotification::ConfigWarning(ConfigWarningNotification {
+            summary: "terminal delivery test".to_string(),
+            details: None,
+            path: None,
+            range: None,
+        })
+    }
+
+    #[tokio::test]
+    async fn terminal_notification_waits_for_all_subscribers_and_reports_dropped_write() {
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(2);
+        let outgoing = ThreadScopedOutgoingMessageSender::new(
+            Arc::new(OutgoingMessageSender::new(
+                tx,
+                codex_analytics::AnalyticsEventsClient::disabled(),
+            )),
+            vec![ConnectionId(1), ConnectionId(2)],
+            ThreadId::new(),
+        );
+        let mut delivery = Box::pin(outgoing.send_terminal_notification_and_wait(
+            terminal_test_notification(),
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
+        ));
+        assert!(futures::poll!(&mut delivery).is_pending());
+        // Both writes must be enqueued before either subscriber acknowledges its write.
+        let mut writes = Vec::new();
+        for expected_id in [ConnectionId(1), ConnectionId(2)] {
+            let OutgoingEnvelope::ToConnection {
+                connection_id,
+                write_complete_tx,
+                ..
+            } = rx
+                .try_recv()
+                .expect("each subscriber should receive the notification")
+            else {
+                panic!("expected targeted notification");
+            };
+            assert_eq!(connection_id, expected_id);
+            writes.push(write_complete_tx.expect("write completion should be requested"));
+        }
+        writes
+            .remove(0)
+            .send(())
+            .expect("first writer should be awaited");
+        assert!(futures::poll!(&mut delivery).is_pending());
+        drop(writes);
+        assert!(
+            !delivery.await,
+            "a closed or filtered writer is failed delivery"
+        );
+    }
+
+    #[tokio::test]
+    async fn terminal_notification_without_subscribers_does_not_broadcast() {
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        let outgoing = ThreadScopedOutgoingMessageSender::new(
+            Arc::new(OutgoingMessageSender::new(
+                tx,
+                codex_analytics::AnalyticsEventsClient::disabled(),
+            )),
+            vec![],
+            ThreadId::new(),
+        );
+        assert!(
+            outgoing
+                .send_terminal_notification_and_wait(
+                    terminal_test_notification(),
+                    tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
+                )
+                .await
+        );
+        assert!(
+            rx.try_recv().is_err(),
+            "an empty thread scope must not broadcast"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn terminal_notification_deadline_bounds_a_stalled_writer() {
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        let outgoing = ThreadScopedOutgoingMessageSender::new(
+            Arc::new(OutgoingMessageSender::new(
+                tx,
+                codex_analytics::AnalyticsEventsClient::disabled(),
+            )),
+            vec![ConnectionId(1)],
+            ThreadId::new(),
+        );
+        let mut delivery = Box::pin(outgoing.send_terminal_notification_and_wait(
+            terminal_test_notification(),
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
+        ));
+        assert!(futures::poll!(&mut delivery).is_pending());
+        let OutgoingEnvelope::ToConnection {
+            write_complete_tx, ..
+        } = rx.try_recv().expect("notification should be queued")
+        else {
+            panic!("expected targeted notification");
+        };
+        let write_complete_tx = write_complete_tx.expect("write completion should be requested");
+        tokio::time::advance(TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT).await;
+        assert!(
+            !delivery.await,
+            "a stalled writer must not count as delivery"
+        );
+        assert!(
+            write_complete_tx.send(()).is_err(),
+            "deadline must release the waiter"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn terminal_notification_deadline_includes_outgoing_queue_backpressure() {
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        let outgoing = Arc::new(OutgoingMessageSender::new(
+            tx,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        ));
+        outgoing
+            .send_server_notification(terminal_test_notification())
+            .await;
+        let outgoing = ThreadScopedOutgoingMessageSender::new(
+            outgoing,
+            vec![ConnectionId(1)],
+            ThreadId::new(),
+        );
+        let mut delivery = Box::pin(outgoing.send_terminal_notification_and_wait(
+            terminal_test_notification(),
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
+        ));
+        assert!(futures::poll!(&mut delivery).is_pending());
+        tokio::time::advance(TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT).await;
+        assert!(!delivery.await, "enqueue must also have a finite deadline");
+        assert!(matches!(
+            rx.try_recv(),
+            Ok(OutgoingEnvelope::Broadcast { .. })
+        ));
+        assert!(
+            rx.try_recv().is_err(),
+            "timed-out enqueue must be cancelled"
+        );
     }
 
     #[tokio::test]

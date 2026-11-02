@@ -9,8 +9,8 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='3d9eb86445925caa920dd2f958496cf1aa4ad7e2'
-PREVIOUS_PUBLIC='b1a8780e283c3f3514387ec209ded2d78c6e91b7'
+PATCHED='36ae395a552fd55962e19409cbf29b1fdf03b0ec'
+PREVIOUS_PUBLIC='5300c7238a23cd29d29e4ffdfbcaf3ac53366886'
 PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
@@ -46,6 +46,9 @@ NOTICE_OVERRIDES={path:('R33','2026-11-02') for path in (
     'codex-rs/app-server-transport/src/transport/unix_socket.rs',
     'codex-rs/app-server-transport/src/transport/unix_socket_tests.rs',
     'codex-rs/app-server/src/lib.rs',
+    'codex-rs/app-server/src/bespoke_event_handling.rs',
+    'codex-rs/app-server/src/outgoing_message.rs',
+    'codex-rs/app-server/src/thread_status.rs',
     'codex-rs/app-server/src/lib_tests.rs',
     'codex-rs/cli/Cargo.toml',
     'codex-rs/cli/src/bin/opendiy_codex_launcher.rs',
