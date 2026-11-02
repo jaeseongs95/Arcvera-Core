@@ -1695,8 +1695,11 @@ async fn cli_main(
         Some(Subcommand::CleanupAgents(command)) => {
             cleanup_agents::run(
                 command,
+                interactive,
+                root_config_overrides.clone(),
                 root_remote.clone(),
                 root_remote_auth_token_env.clone(),
+                arg0_paths.clone(),
             )
             .await?;
         }

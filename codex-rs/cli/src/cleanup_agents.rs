@@ -1,17 +1,10 @@
-use anyhow::Context;
 use clap::Parser;
-use codex_app_server_client::RemoteAppServerClient;
-use codex_app_server_client::RemoteAppServerConnectArgs;
-use codex_app_server_client::RemoteAppServerEndpoint;
-use codex_app_server_protocol::ClientRequest;
-use codex_app_server_protocol::RequestId;
-use codex_app_server_protocol::ThreadCleanupCompletedParams;
-use codex_app_server_protocol::ThreadCleanupCompletedResponse;
-use std::io::IsTerminal;
-use std::io::Write;
 
 #[derive(Debug, Parser)]
-#[command(about = "현재 부모 아래 로컬 2세대 서브에이전트의 종료 대화를 미리 보고 정리합니다.", long_about = "읽기 전용 미리보기가 기본입니다. --apply는 미리보기 뒤 명시 확인을 받습니다. 실행 중이거나 상태가 불명확한 항목, 다른 세대·원격 소유·이전 방식 항목은 보존합니다. --thread를 반복하면 정확한 선택 집합만 정리하며 선택하지 않은 후손은 보존합니다.")]
+#[command(
+    about = "현재 부모 아래 로컬 2세대 서브에이전트의 종료 대화를 미리 보고 정리합니다.",
+    long_about = "읽기 전용 미리보기가 기본입니다. --apply는 미리보기 뒤 명시 확인을 받습니다. 실행 중이거나 상태가 불명확한 항목, 다른 세대·원격 소유·이전 방식 항목은 보존합니다. --thread를 반복하면 정확한 선택 집합만 정리하며 선택하지 않은 후손은 보존합니다."
+)]
 pub(crate) struct CleanupAgentsCommand {
     /// 현재 대화 UUID. 생략하면 CODEX_THREAD_ID를 사용합니다.
     #[arg(long, env = "CODEX_THREAD_ID")]
@@ -34,117 +27,51 @@ pub(crate) struct CleanupAgentsCommand {
 
 pub(crate) async fn run(
     command: CleanupAgentsCommand,
+    interactive: codex_tui::Cli,
+    root_config_overrides: codex_utils_cli::CliConfigOverrides,
     root_remote: Option<String>,
     root_auth: Option<String>,
+    arg0_paths: codex_arg0::Arg0DispatchPaths,
 ) -> anyhow::Result<()> {
-    let explicit = crate::resolve_remote_endpoint(
-        command.remote.remote.or(root_remote),
-        command.remote.remote_auth_token_env.or(root_auth),
+    let options = session_options(
+        &command,
+        interactive,
+        root_config_overrides,
+        root_remote,
+        root_auth,
+        arg0_paths,
     )?;
-    let local = explicit.is_none();
-    let endpoint = match explicit {
-        Some(endpoint) => endpoint,
-        None => {
-            let home = codex_core::config::find_codex_home()?;
-            let socket = codex_app_server_client::app_server_control_socket_path(&home)?;
-            let socket = codex_app_server_client::verified_local_daemon_socket(socket.as_path())?
-                .context(
-                "실행 중인 로컬 서버를 확인할 수 없습니다. 대상 서버의 --remote 주소를 지정하세요.",
-            )?;
-            RemoteAppServerEndpoint::UnixSocket {
-                socket_path: socket,
-            }
-        }
-    };
-    let args = RemoteAppServerConnectArgs {
-        endpoint,
-        client_name: "codex-cli".into(),
-        client_version: env!("CARGO_PKG_VERSION").into(),
-        experimental_api: true,
-        mcp_server_openai_form_elicitation: false,
-        opt_out_notification_methods: Vec::new(),
-        channel_capacity: codex_app_server_client::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
-    };
-    #[cfg(windows)]
-    let client = if local {
-        RemoteAppServerClient::connect_local_daemon(args).await?
-    } else {
-        RemoteAppServerClient::connect(args).await?
-    };
-    #[cfg(not(windows))]
-    let client = {
-        let _ = local;
-        RemoteAppServerClient::connect(args).await?
-    };
-    let parent = command.parent.unwrap_or_else(|| command.current.clone());
-    let preview: ThreadCleanupCompletedResponse = client
-        .request_typed(ClientRequest::ThreadCleanupCompleted {
-            request_id: RequestId::Integer(1),
-            params: ThreadCleanupCompletedParams {
-                parent_thread_id: parent.clone(),
-                current_thread_id: command.current.clone(),
-                confirmed: false,
-                selection: Vec::new(),
-            },
-        })
-        .await?;
-    println!("{}", serde_json::to_string_pretty(&preview)?);
-    let mut selected = Vec::new();
-    for result in preview.results {
-        if command.threads.is_empty() || command.threads.contains(&result.thread_id) {
-            if let Some(snapshot) = result.snapshot {
-                selected.push(snapshot);
-            }
-        }
-    }
-    for id in &command.threads {
-        if !selected.iter().any(|item| &item.thread_id == id) {
-            anyhow::bail!("선택한 항목은 종료 상태를 확정할 수 없어 보존됩니다: {id}");
-        }
-    }
-    if !command.apply || selected.is_empty() {
-        client.shutdown().await?;
-        return Ok(());
-    }
-    if !command.confirm {
-        if !std::io::stdin().is_terminal() {
-            anyhow::bail!("실제 정리에는 터미널 확인 또는 --apply --confirm이 필요합니다.");
-        }
-        eprint!(
-            "위 미리보기에서 선택한 {}개 대화를 영구 삭제하려면 '정리'를 입력하세요: ",
-            selected.len()
-        );
-        std::io::stderr().flush()?;
-        let mut answer = String::new();
-        std::io::stdin().read_line(&mut answer)?;
-        if answer.trim() != "정리" {
-            client.shutdown().await?;
-            return Ok(());
-        }
-    }
-    let result: ThreadCleanupCompletedResponse = client
-        .request_typed(ClientRequest::ThreadCleanupCompleted {
-            request_id: RequestId::Integer(2),
-            params: ThreadCleanupCompletedParams {
-                parent_thread_id: parent,
-                current_thread_id: command.current,
-                confirmed: true,
-                selection: selected,
-            },
-        })
-        .await?;
-    println!("{}", serde_json::to_string_pretty(&result)?);
-    client.shutdown().await?;
-    if result
-        .results
-        .iter()
-        .any(|entry| entry.outcome != "deleted")
-    {
-        anyhow::bail!(
-            "일부 항목을 보존했거나 정리 결과를 확정하지 못했습니다. 출력된 항목별 결과를 확인하세요."
-        );
-    }
-    Ok(())
+    codex_tui::run_cleanup_agents_command(
+        codex_tui::CleanupAgentsCommandOptions {
+            current: command.current,
+            parent: command.parent,
+            threads: command.threads,
+            apply: command.apply,
+            confirm: command.confirm,
+        },
+        options,
+    )
+    .await
+    .map_err(|error| anyhow::anyhow!("{error}"))
+}
+
+fn session_options(
+    command: &CleanupAgentsCommand,
+    mut interactive: codex_tui::Cli,
+    root_config_overrides: codex_utils_cli::CliConfigOverrides,
+    root_remote: Option<String>,
+    root_auth: Option<String>,
+    arg0_paths: codex_arg0::Arg0DispatchPaths,
+) -> anyhow::Result<codex_tui::SessionArchiveCommandOptions> {
+    crate::prepend_config_flags(&mut interactive.config_overrides, root_config_overrides);
+    Ok(codex_tui::SessionArchiveCommandOptions {
+        cli: interactive,
+        arg0_paths,
+        explicit_remote_endpoint: crate::resolve_remote_endpoint(
+            command.remote.remote.clone().or(root_remote),
+            command.remote.remote_auth_token_env.clone().or(root_auth),
+        )?,
+    })
 }
 
 #[cfg(test)]
@@ -179,5 +106,65 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(command.threads, ["one", "two"]);
+    }
+
+    #[test]
+    fn cleanup_preserves_no_daemon_and_root_configuration() {
+        let command =
+            CleanupAgentsCommand::try_parse_from(["cleanup-agents", "--current", "current"])
+                .unwrap();
+        let interactive = codex_tui::Cli::try_parse_from(["codex", "--no-daemon"]).unwrap();
+        let arg0_paths = codex_arg0::Arg0DispatchPaths {
+            codex_self_exe: Some("matching-cli.exe".into()),
+            ..Default::default()
+        };
+        let options = session_options(
+            &command,
+            interactive,
+            codex_utils_cli::CliConfigOverrides {
+                raw_overrides: vec!["model=\"selected\"".into()],
+            },
+            None,
+            None,
+            arg0_paths.clone(),
+        )
+        .unwrap();
+        assert!(options.cli.no_daemon);
+        assert_eq!(
+            options.cli.config_overrides.raw_overrides,
+            ["model=\"selected\""]
+        );
+        assert_eq!(options.arg0_paths, arg0_paths);
+        assert!(options.explicit_remote_endpoint.is_none());
+    }
+
+    #[test]
+    fn cleanup_keeps_the_explicit_remote_instead_of_the_root_endpoint() {
+        let command = CleanupAgentsCommand::try_parse_from([
+            "cleanup-agents",
+            "--current",
+            "current",
+            "--remote",
+            "ws://127.0.0.1:12345",
+        ])
+        .unwrap();
+        let options = session_options(
+            &command,
+            codex_tui::Cli::try_parse_from(["codex"]).unwrap(),
+            codex_utils_cli::CliConfigOverrides::default(),
+            Some("ws://127.0.0.1:23456".into()),
+            None,
+            codex_arg0::Arg0DispatchPaths::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            options.explicit_remote_endpoint,
+            Some(
+                codex_app_server_client::RemoteAppServerEndpoint::WebSocket {
+                    websocket_url: "ws://127.0.0.1:12345".into(),
+                    auth_token: None,
+                }
+            ),
+        );
     }
 }
