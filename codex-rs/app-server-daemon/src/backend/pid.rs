@@ -192,6 +192,8 @@ pub(crate) struct PidBackend {
     pid_file: PathBuf,
     lock_file: PathBuf,
     command_kind: PidCommandKind,
+    #[cfg(all(test, windows))]
+    pub(super) test_command: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -264,6 +266,8 @@ impl PidBackend {
         Self {
             feature_overrides: BTreeMap::new(),
             preserve_recovery: false,
+            #[cfg(all(test, windows))]
+            test_command: None,
             codex_bin,
             pid_file,
             lock_file,
@@ -282,6 +286,8 @@ impl PidBackend {
         Self {
             feature_overrides: BTreeMap::new(),
             preserve_recovery: false,
+            #[cfg(all(test, windows))]
+            test_command: None,
             codex_bin,
             pid_file,
             lock_file,
@@ -610,6 +616,15 @@ impl PidBackend {
 
     #[cfg(any(unix, windows))]
     fn command_args(&self) -> Vec<Cow<'_, str>> {
+        #[cfg(all(test, windows))]
+        if let Some(test) = self.test_command {
+            return vec![
+                "--exact".into(),
+                test.into(),
+                "--ignored".into(),
+                "--nocapture".into(),
+            ];
+        }
         let mut args = match &self.command_kind {
             PidCommandKind::AppServer {
                 remote_control_enabled: true,

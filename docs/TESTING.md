@@ -1,3 +1,13 @@
+# R33 Windows 핸들 경계 수정 후보 시험 상태
+
+현재 고정 소스는 `3d9eb86445925caa920dd2f958496cf1aa4ad7e2`다. 앞선 package02의 중첩 launcher PIPE EOF 실패를 수정하기 위한 Windows 공통 `HANDLE_LIST` 경로와 PID fixture를 포함한다. 같은 후보의 개발용 시험 컴파일은 종료 0이고 daemon 전체 시험은 66개 통과·0개 실패·native fixture 1개 무시였다. nested stdio 경계의 개별 재실행도 1개 통과했다. 개별 재실행은 전체 시험과 겹치므로 고유 시험 67개로 합산하지 않는다. 최적화 CLI·앱 서버·launcher 빌드와 package03 생성·해시 결속은 확인했다. 자연 EOF 8경계·격리 GUI 복원 범위의 Desktop 공동 시험은 통과했으나 graceful 완료 통지 실패로 전체 수용·릴리스·설치를 보류한다. 최종 독립감사는 이 차단 결함으로 FAIL이다. 실행 패키지 공개·실제 예약 등록·모바일·장기 부하는 미검증이다.
+
+별도 standalone stdio 합성 시험에서는 실제 3턴을 저장하고 서버 재시작 뒤 복원했다. 저장된 상태의 `thread/items/list(limit=1)`과 `thread/items/read`도 성공했다. 앞선 unmaterialized probe의 `not supported yet`를 일반적인 item API 미지원으로 해석하지 않는다. 이 시험은 중첩 launcher의 PIPE EOF 문제나 Desktop GUI를 검증하지 않는다. [실행 범위와 한계](r33-development-verification.ko.md)를 따른다.
+
+## 이전 0c588 후보 기록
+
+아래는 이전 후보의 기록이며 새 핸들 경계 수정 후보의 검증 결과가 아니다.
+
 # R33 제품 소스 후보 시험 상태
 
 현재 고정 소스는 `0c588be6c85098f0ff139ec7a9bc119c1da71f20`, 전체 버전은 `0.166.0+native-r33.20261102`다. F2 graceful-only 수정, Windows 자동 CLI 선택과 daemon 보존, 공통 cleanup 시작 경로, 암시적 로컬 서버의 전체 버전 일치 소스를 포함한다. 같은 소스의 개발용 시험 컴파일은 종료 0이며, 표적 Rust 시험은 19그룹 73개 통과·0개 실패였다. Unix 전용 daemon handoff 시험은 Windows에서 실행하지 않았다.

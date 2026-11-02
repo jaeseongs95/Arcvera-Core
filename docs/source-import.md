@@ -1,3 +1,13 @@
+# R33 Windows 핸들 경계 수정 소스
+
+이번 고정 소스는 `3d9eb86445925caa920dd2f958496cf1aa4ad7e2`, 이전 공개 기준은 `b1a8780e283c3f3514387ec209ded2d78c6e91b7`이다. 공식 pin·source prefix·기본 R32 고지는 유지하고 추가 7경로를 고정 Git blob에서 export했다. 새 Rust 파일 `codex-rs/app-server-daemon/src/backend/windows_spawn.rs`도 기존 `codex-rs` prefix 안에서 수집한다. source 9,412개·공식 대비 수정 557개이며 개별 R33 고지는 총 51경로다.
+
+현재 후보의 개발용 시험 컴파일과 daemon 전체 66개 시험 및 nested stdio 개별 재실행 1개는 통과했고 native fixture 1개는 무시됐다. 최적화 CLI·앱 서버·launcher 빌드와 package03 생성·해시 결속을 확인했다. 자연 EOF 8경계·격리 GUI 복원 범위의 Desktop 공동 시험은 통과했으나 graceful 완료 통지 실패로 전체 수용·릴리스·설치를 보류한다. 최종 독립감사는 이 차단 결함으로 FAIL이다. 실행 패키지 공개·실제 예약 등록·모바일·장기 부하는 미검증이다. 아래 이전 `0c588` 후보의 컴파일·73개 시험을 이 후보의 통과 결과로 합산하지 않는다. 원본·고지·공식 대비 patch·inventory·프롬프트 38개의 결속 방식은 유지하며 [후보별 검증 범위](r33-development-verification.ko.md)를 따른다.
+
+## 이전 0c588 후보 기록
+
+아래는 이전 후보의 기록이며 새 핸들 경계 수정 후보의 검증 결과가 아니다.
+
 # 공식 0.166.0 기반 R33 개발 소스 후보
 
 이번 고정 소스는 `0c588be6c85098f0ff139ec7a9bc119c1da71f20`이며, 공개 입력은 `SOURCE_BASELINE.json`과 `upstream/source-inventory.json`으로 대조한다. 공식 원본은 `6ff1e1ca3b30fc8b914720681fcf5fe62e95f856`, 이전 공개 기준은 `8f52cad14bf45e76ef123aeea9f7fcfa22ac3b73`이다. 전체 Cargo 버전은 `0.166.0+native-r33.20261102`다. 기존 변경 위에 F2 graceful-only 수정·Windows 자동 CLI 선택·Rust launcher·cleanup 시작 경로·암시적 로컬 전체 버전 일치를 더했다. 개발용 시험 컴파일과 표적 Rust 19그룹 73개 시험은 종료 0이다. 최종 제품 실행 파일·실제 사용 환경·설치·릴리스는 미완료이며 [후보별 검증 요약](r33-development-verification.ko.md)을 따른다.

@@ -9,8 +9,8 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='0c588be6c85098f0ff139ec7a9bc119c1da71f20'
-PREVIOUS_PUBLIC='8f52cad14bf45e76ef123aeea9f7fcfa22ac3b73'
+PATCHED='3d9eb86445925caa920dd2f958496cf1aa4ad7e2'
+PREVIOUS_PUBLIC='b1a8780e283c3f3514387ec209ded2d78c6e91b7'
 PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
@@ -24,6 +24,11 @@ NOTICE_OVERRIDES={path:('R33','2026-11-02') for path in (
     'codex-rs/app-server-daemon/src/backend/mod.rs',
     'codex-rs/app-server-daemon/src/backend/pid.rs',
     'codex-rs/app-server-daemon/src/backend/pid_tests.rs',
+    'codex-rs/app-server-daemon/Cargo.toml',
+    'codex-rs/app-server-daemon/src/backend/pid_start.rs',
+    'codex-rs/app-server-daemon/src/backend/windows.rs',
+    'codex-rs/app-server-daemon/src/backend/windows_spawn.rs',
+    'codex-rs/app-server-daemon/src/backend/windows_tests.rs',
     'codex-rs/app-server-daemon/src/lib.rs',
     'codex-rs/app-server-daemon/src/prepare_install.rs',
     'codex-rs/app-server-daemon/src/prepare_install_tests.rs',

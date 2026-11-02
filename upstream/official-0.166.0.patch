@@ -1855,6 +1855,16 @@ index ad8d28bce..334e2888d 100644
                              metadata.server_version = response
                                  .result
                                  .get("userAgent")
+diff --git a/codex-rs/app-server-daemon/Cargo.toml b/codex-rs/app-server-daemon/Cargo.toml
+index 4bd167840..13cf2c1d0 100644
+--- a/codex-rs/app-server-daemon/Cargo.toml
++++ b/codex-rs/app-server-daemon/Cargo.toml
+@@ -49,4 +49,4 @@ tokio = { workspace = true, features = ["test-util"] }
+ tracing-subscriber = { workspace = true }
+ 
+ [target.'cfg(windows)'.dependencies]
+-windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_JobObjects", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Threading"] }
++windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Globalization", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_JobObjects", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Threading"] }
 diff --git a/codex-rs/app-server-daemon/README.md b/codex-rs/app-server-daemon/README.md
 index c0877c5ba..3baa95fe7 100644
 --- a/codex-rs/app-server-daemon/README.md
@@ -1933,10 +1943,10 @@ index 1c2ea755e..387440306 100644
  
  #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 diff --git a/codex-rs/app-server-daemon/src/backend/pid.rs b/codex-rs/app-server-daemon/src/backend/pid.rs
-index 97738dd8e..a5c18ae45 100644
+index 97738dd8e..dc07f57a1 100644
 --- a/codex-rs/app-server-daemon/src/backend/pid.rs
 +++ b/codex-rs/app-server-daemon/src/backend/pid.rs
-@@ -34,10 +34,159 @@ const STOP_FORCE_TIMEOUT: Duration = Duration::from_secs(10);
+@@ -34,14 +34,165 @@ const STOP_FORCE_TIMEOUT: Duration = Duration::from_secs(10);
  const START_TIMEOUT: Duration = Duration::from_secs(10);
  const STDERR_LOG_TAIL_BYTES: u64 = 4096;
  
@@ -2096,23 +2106,33 @@ index 97738dd8e..a5c18ae45 100644
      codex_bin: PathBuf,
      pid_file: PathBuf,
      lock_file: PathBuf,
-@@ -113,6 +262,7 @@ impl PidBackend {
+     command_kind: PidCommandKind,
++    #[cfg(all(test, windows))]
++    pub(super) test_command: Option<&'static str>,
+ }
+ 
+ #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+@@ -113,6 +264,9 @@ impl PidBackend {
          let lock_file = pid_file.with_extension("pid.lock");
          Self {
              feature_overrides: BTreeMap::new(),
 +            preserve_recovery: false,
++            #[cfg(all(test, windows))]
++            test_command: None,
              codex_bin,
              pid_file,
              lock_file,
-@@ -130,6 +280,7 @@ impl PidBackend {
+@@ -130,6 +284,9 @@ impl PidBackend {
          let lock_file = pid_file.with_extension("pid.lock");
          Self {
              feature_overrides: BTreeMap::new(),
 +            preserve_recovery: false,
++            #[cfg(all(test, windows))]
++            test_command: None,
              codex_bin,
              pid_file,
              lock_file,
-@@ -137,6 +288,11 @@ impl PidBackend {
+@@ -137,6 +294,11 @@ impl PidBackend {
          }
      }
  
@@ -2124,7 +2144,7 @@ index 97738dd8e..a5c18ae45 100644
      pub(crate) async fn is_starting_or_running(&self) -> Result<bool> {
          loop {
              match self.read_pid_file_state().await? {
-@@ -170,6 +326,14 @@ impl PidBackend {
+@@ -170,6 +332,14 @@ impl PidBackend {
      }
  
      pub(crate) async fn stop_with_grace(&self, grace_seconds: u32) -> Result<()> {
@@ -2139,7 +2159,7 @@ index 97738dd8e..a5c18ae45 100644
          loop {
              let Some(record) = self.wait_for_pid_start().await? else {
                  return Ok(());
-@@ -177,23 +341,58 @@ impl PidBackend {
+@@ -177,23 +347,58 @@ impl PidBackend {
              if !self.record_is_active(&record).await? {
                  match self.refresh_after_stale_record(&record).await? {
                      PidFileState::Missing => return Ok(()),
@@ -2200,7 +2220,7 @@ index 97738dd8e..a5c18ae45 100644
                      continue;
                  }
                  match self.command_kind {
-@@ -206,15 +405,26 @@ impl PidBackend {
+@@ -206,15 +411,26 @@ impl PidBackend {
                          let socket_path =
                              codex_app_server_transport::app_server_control_socket_path(codex_home)?;
                          if let Err(err) =
@@ -2231,7 +2251,7 @@ index 97738dd8e..a5c18ae45 100644
                      }
                  }
                  process
-@@ -231,13 +441,21 @@ impl PidBackend {
+@@ -231,13 +447,21 @@ impl PidBackend {
                  if !self.record_is_active(&record).await? {
                      match self.refresh_after_stale_record(&record).await? {
                          PidFileState::Missing => return Ok(()),
@@ -2254,7 +2274,23 @@ index 97738dd8e..a5c18ae45 100644
                      crate::diagnostics::event("shutdown_forced", serde_json::json!({ "pid": pid }));
                      #[cfg(unix)]
                      self.force_terminate_process(pid)?;
-@@ -536,9 +754,14 @@ fn process_exists(pid: u32) -> bool {
+@@ -391,6 +615,15 @@ impl PidBackend {
+ 
+     #[cfg(any(unix, windows))]
+     fn command_args(&self) -> Vec<Cow<'_, str>> {
++        #[cfg(all(test, windows))]
++        if let Some(test) = self.test_command {
++            return vec![
++                "--exact".into(),
++                test.into(),
++                "--ignored".into(),
++                "--nocapture".into(),
++            ];
++        }
+         let mut args = match &self.command_kind {
+             PidCommandKind::AppServer {
+                 remote_control_enabled: true,
+@@ -536,9 +769,14 @@ fn process_exists(pid: u32) -> bool {
  
  #[cfg(unix)]
  fn terminate_process(pid: u32) -> Result<()> {
@@ -2271,7 +2307,7 @@ index 97738dd8e..a5c18ae45 100644
          return Ok(());
      }
 diff --git a/codex-rs/app-server-daemon/src/backend/pid_start.rs b/codex-rs/app-server-daemon/src/backend/pid_start.rs
-index 6eca5d885..61703928f 100644
+index 6eca5d885..2f5284241 100644
 --- a/codex-rs/app-server-daemon/src/backend/pid_start.rs
 +++ b/codex-rs/app-server-daemon/src/backend/pid_start.rs
 @@ -21,6 +21,21 @@ impl PidBackend {
@@ -2312,9 +2348,22 @@ index 6eca5d885..61703928f 100644
          let launched_identity =
              if matches!(self.command_kind, super::PidCommandKind::AppServer { .. }) {
                  executable_identity(&codex_bin).await.ok()
-@@ -113,25 +131,11 @@ impl PidBackend {
+@@ -105,33 +123,22 @@ impl PidBackend {
+                 return Err(err);
+             }
+         };
++        let stderr_log = stderr_log.into_std().await;
+         command
+             // Handoff suppression belongs to the foreground CLI, not its long-lived children.
+             .env_remove(crate::telemetry::HANDOFF_ENV)
+-            .args(self.command_args().iter().map(std::borrow::Cow::as_ref))
++            .args(self.command_args().iter().map(std::borrow::Cow::as_ref));
++        #[cfg(not(windows))]
++        command
+             .stdin(Stdio::null())
              .stdout(Stdio::null())
-             .stderr(Stdio::from(stderr_log.into_std().await));
+-            .stderr(Stdio::from(stderr_log.into_std().await));
++            .stderr(Stdio::from(stderr_log));
          // Older or pinned managed binaries may predate this optional startup flag.
 -        let managed_app_server =
 -            matches!(self.command_kind, super::PidCommandKind::AppServer { .. });
@@ -2340,7 +2389,44 @@ index 6eca5d885..61703928f 100644
              let codex_home = self
                  .pid_file
                  .parent()
-@@ -313,3 +317,24 @@ impl PidBackend {
+@@ -171,16 +178,10 @@ impl PidBackend {
+ 
+         #[cfg(windows)]
+         {
+-            use windows_sys::Win32::System::Threading::CREATE_BREAKAWAY_FROM_JOB;
+-            use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
+-            use windows_sys::Win32::System::Threading::DETACHED_PROCESS;
+             // A Windows process pins its working directory for its lifetime.
+             // Keep both managed children out of the launching project's directory.
+             // Sandbox setup may broaden the cwd ACL, so do not use the private state directory.
+             command.current_dir(&workdir);
+-            // Never retry inside the parent's Job Object: that would report a
+-            // successful launch that dies when the terminal/SSH session closes.
+-            command.creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS | CREATE_BREAKAWAY_FROM_JOB);
+             if matches!(self.command_kind, PidCommandKind::UpdateLoop { .. }) {
+                 match fs::remove_file(self.pid_file.with_extension("ready")).await {
+                     Ok(()) => {}
+@@ -211,7 +212,18 @@ impl PidBackend {
+ 
+         let started = std::time::Instant::now();
+         #[cfg(windows)]
+-        let child = super::super::windows::spawn_without_inheriting_stdio(&mut command);
++        let child = {
++            use windows_sys::Win32::System::Threading::CREATE_BREAKAWAY_FROM_JOB;
++            use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
++            use windows_sys::Win32::System::Threading::DETACHED_PROCESS;
++            // Never retry inside the parent's Job Object: that would report a
++            // successful launch that dies when the terminal/SSH session closes.
++            super::super::windows::spawn_without_inheriting_stdio(
++                command.as_std(),
++                &stderr_log,
++                CREATE_NO_WINDOW | DETACHED_PROCESS | CREATE_BREAKAWAY_FROM_JOB,
++            )
++        };
+         #[cfg(not(windows))]
+         let child = command.spawn().map_err(anyhow::Error::from);
+         let child = crate::diagnostics::result("process_spawn", started, child);
+@@ -313,3 +325,24 @@ impl PidBackend {
          Ok(Some(pid))
      }
  }
@@ -2366,7 +2452,7 @@ index 6eca5d885..61703928f 100644
 +    Ok(())
 +}
 diff --git a/codex-rs/app-server-daemon/src/backend/pid_tests.rs b/codex-rs/app-server-daemon/src/backend/pid_tests.rs
-index 3c47d1249..f5d7e6a2f 100644
+index 3c47d1249..3a9fcde51 100644
 --- a/codex-rs/app-server-daemon/src/backend/pid_tests.rs
 +++ b/codex-rs/app-server-daemon/src/backend/pid_tests.rs
 @@ -22,13 +22,18 @@ use super::try_lock_file;
@@ -2598,15 +2684,17 @@ index 3c47d1249..f5d7e6a2f 100644
  #[cfg(unix)]
  #[tokio::test]
  async fn stopping_updater_signals_its_installer_process_group() {
-@@ -693,6 +881,7 @@ async fn exited_unreaped_updater_is_reaped() {
+@@ -693,6 +881,9 @@ async fn exited_unreaped_updater_is_reaped() {
  fn update_loop_uses_hidden_app_server_subcommand() {
      let backend = PidBackend {
          feature_overrides: Default::default(),
 +        preserve_recovery: false,
++        #[cfg(windows)]
++        test_command: None,
          codex_bin: "codex".into(),
          pid_file: "updater.pid".into(),
          lock_file: "updater.pid.lock".into(),
-@@ -707,6 +896,44 @@ fn update_loop_uses_hidden_app_server_subcommand() {
+@@ -707,6 +898,44 @@ fn update_loop_uses_hidden_app_server_subcommand() {
      );
  }
  
@@ -2651,7 +2739,7 @@ index 3c47d1249..f5d7e6a2f 100644
  #[test]
  fn app_server_remote_control_uses_runtime_flag() {
      let backend = PidBackend::new(
-@@ -820,6 +1047,94 @@ async fn stale_creation_time_never_stops_reused_pid() {
+@@ -820,6 +1049,117 @@ async fn stale_creation_time_never_stops_reused_pid() {
      }
  }
  
@@ -2743,9 +2831,847 @@ index 3c47d1249..f5d7e6a2f 100644
 +    }
 +}
 +
++#[cfg(windows)]
++#[tokio::test]
++#[ignore = "native subprocess fixture selected by managed-child launch tests"]
++async fn managed_child_fixture() {
++    // Only an explicit exact/ignored test command reaches this native fixture.
++    tokio::fs::write("launched.cwd", []).await.unwrap();
++    eprintln!("managed child fixture");
++    let shutdown = std::env::var_os(codex_app_server_transport::DAEMON_SHUTDOWN_FILE_ENV)
++        .map(std::path::PathBuf::from);
++    if let Some(shutdown) = &shutdown {
++        tokio::fs::write(shutdown.with_extension("ready"), [])
++            .await
++            .unwrap();
++    }
++    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
++    while tokio::time::Instant::now() < deadline {
++        if shutdown.as_ref().is_some_and(|path| path.exists()) {
++            break;
++        }
++        sleep(Duration::from_millis(25)).await;
++    }
++}
++
  #[cfg(windows)]
  #[tokio::test]
  async fn managed_children_launch_in_workdir_without_changing_private_state_directory() {
+@@ -828,17 +1168,7 @@ async fn managed_children_launch_in_workdir_without_changing_private_state_direc
+     }
+     let temp = TempDir::new().expect("temp dir");
+     let state_dir = temp.path().join("state");
+-    let codex_bin = temp.path().join("codex.cmd");
+-    tokio::fs::write(
+-        &codex_bin,
+-        "@echo off\r\n\
+-         if \"%3\"==\"--help\" exit /b 1\r\n\
+-         echo ready > launched.cwd\r\n\
+-         if defined CODEX_DAEMON_SHUTDOWN_FILE (for %%F in (\"%CODEX_DAEMON_SHUTDOWN_FILE%\") do type nul > \"%%~dpnF.ready\")\r\n\
+-         for /l %%i in (1,1,10000000) do @rem\r\n",
+-    )
+-    .await
+-    .expect("write daemon fixture");
++    let codex_bin = std::env::current_exe().expect("native test fixture");
+     let backends = [
+         PidBackend::new(
+             codex_bin.clone(),
+@@ -851,7 +1181,8 @@ async fn managed_children_launch_in_workdir_without_changing_private_state_direc
+             /*restore_release*/ None,
+         ),
+     ];
+-    for backend in backends {
++    for mut backend in backends {
++        backend.test_command = Some("backend::pid::tests::managed_child_fixture");
+         backend.start().await.expect("launch managed child");
+         let marker = state_dir.join("workdir/launched.cwd");
+         let launched_in_workdir = tokio::time::timeout(Duration::from_secs(5), async {
+diff --git a/codex-rs/app-server-daemon/src/backend/windows.rs b/codex-rs/app-server-daemon/src/backend/windows.rs
+index 0c2022fd5..5e1a667df 100644
+--- a/codex-rs/app-server-daemon/src/backend/windows.rs
++++ b/codex-rs/app-server-daemon/src/backend/windows.rs
+@@ -18,14 +18,10 @@ use std::process::Stdio;
+ use anyhow::Context;
+ use anyhow::Result;
+ use windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED;
+-use windows_sys::Win32::Foundation::ERROR_INVALID_HANDLE;
+ use windows_sys::Win32::Foundation::ERROR_INVALID_PARAMETER;
+ use windows_sys::Win32::Foundation::ERROR_LOCK_VIOLATION;
+ use windows_sys::Win32::Foundation::FILETIME;
+ use windows_sys::Win32::Foundation::HANDLE;
+-use windows_sys::Win32::Foundation::HANDLE_FLAG_INHERIT;
+-use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
+-use windows_sys::Win32::Foundation::SetHandleInformation;
+ use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
+ use windows_sys::Win32::Foundation::WAIT_TIMEOUT;
+ use windows_sys::Win32::Security::GetTokenInformation;
+@@ -57,37 +53,10 @@ use windows_sys::Win32::System::Threading::PROCESS_TERMINATE;
+ use windows_sys::Win32::System::Threading::TerminateProcess;
+ use windows_sys::Win32::System::Threading::WaitForSingleObject;
+ 
+-pub(super) fn spawn_without_inheriting_stdio(
+-    command: &mut tokio::process::Command,
+-) -> Result<tokio::process::Child> {
+-    // The daemon must not inherit the launcher's output pipes: callers wait for
+-    // them to close after the launcher exits. Leave the flags cleared so concurrent
+-    // launches cannot inherit them either; Rust duplicates the child's chosen stdio.
+-    for (name, handle) in [
+-        ("stdin", io::stdin().as_raw_handle()),
+-        ("stdout", io::stdout().as_raw_handle()),
+-        ("stderr", io::stderr().as_raw_handle()),
+-    ] {
+-        if handle.is_null() || handle == INVALID_HANDLE_VALUE {
+-            continue;
+-        }
+-        // SAFETY: these are borrowed standard handles; changing the inherit
+-        // flag neither closes them nor changes their read/write access.
+-        if unsafe {
+-            SetHandleInformation(handle, HANDLE_FLAG_INHERIT, /*dwflags*/ 0)
+-        } == 0
+-        {
+-            let error = io::Error::last_os_error();
+-            // An already-closed handle cannot be inherited.
+-            if error.raw_os_error() == Some(ERROR_INVALID_HANDLE as i32) {
+-                continue;
+-            }
+-            return Err(error)
+-                .with_context(|| format!("failed to clear launcher {name} inheritance"));
+-        }
+-    }
+-    Ok(command.spawn()?)
+-}
++#[path = "windows_spawn.rs"]
++mod spawn;
++
++pub(super) use spawn::spawn_without_inheriting_stdio;
+ 
+ /// Reports whether this process has administrator privileges, rather than
+ /// merely belonging to an administrator account.
+diff --git a/codex-rs/app-server-daemon/src/backend/windows_spawn.rs b/codex-rs/app-server-daemon/src/backend/windows_spawn.rs
+new file mode 100644
+index 000000000..c7f4f2205
+--- /dev/null
++++ b/codex-rs/app-server-daemon/src/backend/windows_spawn.rs
+@@ -0,0 +1,334 @@
++//! Native detached spawn with an explicit inherited-handle allowlist.
++//! This consumes the daemon builder's program, regular arguments, environment
++//! changes and cwd; stdio and creation flags are deliberately explicit.
++
++use std::cmp::Ordering;
++use std::ffi::OsStr;
++use std::fs::File;
++use std::io;
++use std::os::windows::ffi::OsStrExt;
++use std::os::windows::io::AsRawHandle;
++use std::os::windows::io::FromRawHandle;
++use std::os::windows::io::OwnedHandle;
++use std::process::Command;
++
++use anyhow::Context;
++use anyhow::Result;
++use windows_sys::Win32::Foundation::DUPLICATE_SAME_ACCESS;
++use windows_sys::Win32::Foundation::DuplicateHandle;
++use windows_sys::Win32::Foundation::HANDLE;
++use windows_sys::Win32::Globalization::CompareStringOrdinal;
++use windows_sys::Win32::System::Threading::CREATE_UNICODE_ENVIRONMENT;
++use windows_sys::Win32::System::Threading::CreateProcessW;
++use windows_sys::Win32::System::Threading::DeleteProcThreadAttributeList;
++use windows_sys::Win32::System::Threading::EXTENDED_STARTUPINFO_PRESENT;
++use windows_sys::Win32::System::Threading::GetCurrentProcess;
++use windows_sys::Win32::System::Threading::InitializeProcThreadAttributeList;
++use windows_sys::Win32::System::Threading::LPPROC_THREAD_ATTRIBUTE_LIST;
++use windows_sys::Win32::System::Threading::PROC_THREAD_ATTRIBUTE_HANDLE_LIST;
++use windows_sys::Win32::System::Threading::STARTF_USESTDHANDLES;
++use windows_sys::Win32::System::Threading::STARTUPINFOEXW;
++use windows_sys::Win32::System::Threading::UpdateProcThreadAttribute;
++
++/// The PID-managed builder uses inherited environment plus explicit deltas and
++/// regular arguments, never env_clear/raw_arg or implicit stdio inheritance.
++pub(in crate::backend) fn spawn_without_inheriting_stdio(
++    command: &Command,
++    stderr: &File,
++    creation_flags: u32,
++) -> Result<DetachedChild> {
++    let mut application = utf16(command.get_program())?;
++    application.push(0);
++    let mut command_line = Vec::new();
++    append_argument(command.get_program(), &mut command_line)?;
++    for arg in command.get_args() {
++        command_line.push(b' ' as u16);
++        append_argument(arg, &mut command_line)?;
++    }
++    command_line.push(0);
++    let environment = environment_block(command)?;
++    let directory = command
++        .get_current_dir()
++        .map(|path| {
++            let mut wide = utf16(path.as_os_str())?;
++            wide.push(0);
++            Ok::<_, io::Error>(wide)
++        })
++        .transpose()?;
++
++    let null = File::options()
++        .read(true)
++        .write(true)
++        .open("NUL")
++        .context("failed to open detached daemon null stdio")?;
++    let stdio = [
++        inheritable_duplicate(null.as_raw_handle())?,
++        inheritable_duplicate(null.as_raw_handle())?,
++        inheritable_duplicate(stderr.as_raw_handle())?,
++    ];
++    let handles = stdio.each_ref().map(AsRawHandle::as_raw_handle);
++    let mut attributes = HandleList::new(&handles)
++        .context("failed to restrict detached daemon handle inheritance")?;
++    let mut startup: STARTUPINFOEXW = unsafe { std::mem::zeroed() };
++    startup.StartupInfo.cb = std::mem::size_of::<STARTUPINFOEXW>() as u32;
++    startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
++    startup.StartupInfo.hStdInput = handles[0];
++    startup.StartupInfo.hStdOutput = handles[1];
++    startup.StartupInfo.hStdError = handles[2];
++    startup.lpAttributeList = attributes.as_mut_ptr();
++    let mut process = unsafe { std::mem::zeroed() };
++    // SAFETY: all UTF16 buffers are terminated and remain alive through this call.
++    // The initialized attribute list references only our live inheritable
++    // duplicates, excluding every pre-existing launcher handle. No global flags
++    // are changed. The requested job/console flags are never relaxed on failure.
++    if unsafe {
++        CreateProcessW(
++            application.as_ptr(),
++            command_line.as_mut_ptr(),
++            std::ptr::null(),
++            std::ptr::null(),
++            /*binherithandles*/ 1,
++            creation_flags | CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
++            environment.as_ptr().cast(),
++            directory
++                .as_ref()
++                .map_or(std::ptr::null(), |wide| wide.as_ptr()),
++            &startup.StartupInfo,
++            &mut process,
++        )
++    } == 0
++    {
++        return Err(io::Error::last_os_error()).context("failed to create detached daemon process");
++    }
++    let process_handle = unsafe { OwnedHandle::from_raw_handle(process.hProcess) };
++    let _thread = unsafe { OwnedHandle::from_raw_handle(process.hThread) };
++    Ok(DetachedChild {
++        _process: process_handle,
++        pid: process.dwProcessId,
++    })
++}
++
++/// Retain the original process identity until PID/start-time publication finishes,
++/// just as tokio::process::Child did. Closing it later does not stop the daemon.
++pub(in crate::backend) struct DetachedChild {
++    _process: OwnedHandle,
++    pid: u32,
++}
++
++impl DetachedChild {
++    pub(in crate::backend) fn id(&self) -> Option<u32> {
++        Some(self.pid)
++    }
++}
++
++fn inheritable_duplicate(handle: HANDLE) -> io::Result<OwnedHandle> {
++    let mut duplicate = std::ptr::null_mut();
++    // SAFETY: the borrowed source remains live; only the new owned handle gets
++    // the inheritance bit. No caller-owned handle or global state is modified.
++    if unsafe {
++        DuplicateHandle(
++            GetCurrentProcess(),
++            handle,
++            GetCurrentProcess(),
++            &mut duplicate,
++            0,
++            /*binherithandle*/ 1,
++            DUPLICATE_SAME_ACCESS,
++        )
++    } == 0
++    {
++        return Err(io::Error::last_os_error());
++    }
++    Ok(unsafe { OwnedHandle::from_raw_handle(duplicate) })
++}
++
++struct HandleList(Vec<usize>);
++
++impl HandleList {
++    fn new(handles: &[HANDLE]) -> io::Result<Self> {
++        let mut size = 0;
++        unsafe { InitializeProcThreadAttributeList(std::ptr::null_mut(), 1, 0, &mut size) };
++        if size == 0 {
++            return Err(io::Error::last_os_error());
++        }
++        // Unlike a byte vector, usize storage guarantees pointer alignment.
++        let mut storage = vec![0usize; size.div_ceil(std::mem::size_of::<usize>())];
++        let list = storage.as_mut_ptr().cast();
++        if unsafe { InitializeProcThreadAttributeList(list, 1, 0, &mut size) } == 0 {
++            return Err(io::Error::last_os_error());
++        }
++        let mut list = Self(storage);
++        // SAFETY: handles and their owned duplicates remain live until after
++        // process creation and DeleteProcThreadAttributeList.
++        if unsafe {
++            UpdateProcThreadAttribute(
++                list.as_mut_ptr(),
++                0,
++                PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
++                handles.as_ptr().cast_mut().cast(),
++                std::mem::size_of_val(handles),
++                std::ptr::null_mut(),
++                std::ptr::null_mut(),
++            )
++        } == 0
++        {
++            return Err(io::Error::last_os_error());
++        }
++        Ok(list)
++    }
++
++    fn as_mut_ptr(&mut self) -> LPPROC_THREAD_ATTRIBUTE_LIST {
++        self.0.as_mut_ptr().cast()
++    }
++}
++
++impl Drop for HandleList {
++    fn drop(&mut self) {
++        unsafe { DeleteProcThreadAttributeList(self.as_mut_ptr()) };
++    }
++}
++
++fn utf16(value: &OsStr) -> io::Result<Vec<u16>> {
++    let wide: Vec<_> = value.encode_wide().collect();
++    if wide.contains(&0) {
++        return Err(io::Error::new(
++            io::ErrorKind::InvalidInput,
++            "embedded NUL in daemon launch",
++        ));
++    }
++    Ok(wide)
++}
++
++// Quote regular Windows CRT arguments, including empty values, embedded quotes
++// and trailing backslashes. Preserve UTF16 directly instead of lossy UTF8.
++fn append_argument(value: &OsStr, line: &mut Vec<u16>) -> io::Result<()> {
++    line.push(b'"' as u16);
++    let mut slashes = 0;
++    for unit in utf16(value)? {
++        if unit == b'\\' as u16 {
++            slashes += 1;
++            continue;
++        }
++        let count = if unit == b'"' as u16 {
++            slashes * 2 + 1
++        } else {
++            slashes
++        };
++        line.extend(std::iter::repeat_n(b'\\' as u16, count));
++        line.push(unit);
++        slashes = 0;
++    }
++    line.extend(std::iter::repeat_n(b'\\' as u16, slashes * 2));
++    line.push(b'"' as u16);
++    Ok(())
++}
++
++fn compare_keys(left: &[u16], right: &[u16]) -> io::Result<Ordering> {
++    let length = |key: &[u16]| {
++        i32::try_from(key.len())
++            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "environment key too long"))
++    };
++    match unsafe {
++        CompareStringOrdinal(
++            left.as_ptr(),
++            length(left)?,
++            right.as_ptr(),
++            length(right)?,
++            1,
++        )
++    } {
++        1 => Ok(Ordering::Less),
++        2 => Ok(Ordering::Equal),
++        3 => Ok(Ordering::Greater),
++        _ => Err(io::Error::last_os_error()),
++    }
++}
++
++fn update_environment(
++    entries: &mut Vec<(Vec<u16>, Vec<u16>)>,
++    key: Vec<u16>,
++    value: Option<Vec<u16>>,
++) -> io::Result<()> {
++    let mut index = 0;
++    while index < entries.len() {
++        match compare_keys(&key, &entries[index].0)? {
++            Ordering::Less => break,
++            Ordering::Equal => {
++                entries.remove(index);
++                break;
++            }
++            Ordering::Greater => index += 1,
++        }
++    }
++    if let Some(value) = value {
++        entries.insert(index, (key, value));
++    }
++    Ok(())
++}
++
++fn environment_block(command: &Command) -> io::Result<Vec<u16>> {
++    let mut entries = Vec::new();
++    for (key, value) in std::env::vars_os() {
++        update_environment(&mut entries, utf16(&key)?, Some(utf16(&value)?))?;
++    }
++    for (key, value) in command.get_envs() {
++        let key = utf16(key)?;
++        if key.is_empty() || key.contains(&(b'=' as u16)) {
++            return Err(io::Error::new(
++                io::ErrorKind::InvalidInput,
++                "invalid daemon environment key",
++            ));
++        }
++        update_environment(&mut entries, key, value.map(utf16).transpose()?)?;
++    }
++    let mut block = Vec::new();
++    for (key, value) in entries {
++        block.extend(key);
++        block.push(b'=' as u16);
++        block.extend(value);
++        block.push(0);
++    }
++    if block.is_empty() {
++        block.push(0);
++    }
++    block.push(0);
++    Ok(block)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn quotes_empty_unicode_quotes_and_trailing_backslashes() {
++        for (input, expected) in [
++            ("", "\"\""),
++            ("한글 space", "\"한글 space\""),
++            ("a\"b", "\"a\\\"b\""),
++            ("tail \\", "\"tail \\\\\""),
++            ("\\\"quoted", "\"\\\\\\\"quoted\""),
++        ] {
++            let mut actual = Vec::new();
++            append_argument(OsStr::new(input), &mut actual).unwrap();
++            assert_eq!(String::from_utf16(&actual).unwrap(), expected);
++        }
++        assert!(append_argument(OsStr::new("a\0b"), &mut Vec::new()).is_err());
++    }
++
++    #[test]
++    fn environment_merges_windows_ordinal_case_and_removal() {
++        let mut entries = Vec::new();
++        let wide = |value: &str| utf16(OsStr::new(value)).unwrap();
++        update_environment(&mut entries, wide("Z"), Some(wide("last"))).unwrap();
++        update_environment(&mut entries, wide("Ä_NAME"), Some(wide("before"))).unwrap();
++        update_environment(&mut entries, wide("ä_name"), Some(wide("변경"))).unwrap();
++        assert_eq!(entries.len(), 2);
++        assert!(
++            entries
++                .iter()
++                .any(|(k, v)| *k == wide("ä_name") && *v == wide("변경"))
++        );
++        update_environment(&mut entries, wide("Ä_NAME"), None).unwrap();
++        assert_eq!(entries, vec![(wide("Z"), wide("last"))]);
++    }
++}
+diff --git a/codex-rs/app-server-daemon/src/backend/windows_tests.rs b/codex-rs/app-server-daemon/src/backend/windows_tests.rs
+index 1311dfd79..98ee7d692 100644
+--- a/codex-rs/app-server-daemon/src/backend/windows_tests.rs
++++ b/codex-rs/app-server-daemon/src/backend/windows_tests.rs
+@@ -1,5 +1,6 @@
+ use super::Process;
+ use pretty_assertions::assert_eq;
++use std::os::windows::fs::OpenOptionsExt;
+ use std::os::windows::io::AsRawHandle;
+ use std::os::windows::io::FromRawHandle;
+ use std::os::windows::io::OwnedHandle;
+@@ -8,6 +9,7 @@ use std::process::Stdio;
+ use std::time::Duration;
+ use tokio::io::AsyncReadExt;
+ use windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED;
++use windows_sys::Win32::Foundation::GetHandleInformation;
+ use windows_sys::Win32::Foundation::HANDLE_FLAG_INHERIT;
+ use windows_sys::Win32::Foundation::SetHandleInformation;
+ use windows_sys::Win32::System::JobObjects::IsProcessInJob;
+@@ -20,17 +22,36 @@ async fn captured_stdio_closes_while_child_is_alive() {
+     const TEST: &str = "backend::windows::tests::captured_stdio_closes_while_child_is_alive";
+     const ROLE: &str = "CODEX_TEST_STDIO_ROLE";
+     const HOME: &str = "CODEX_TEST_STDIO_HOME";
++    const REMOVED: &str = "CODEX_TEST_STDIO_REMOVED";
++    const CHANGED: &str = "CODEX_TEST_STDIO_CHANGED";
++    const SKIPS: &[&str] = &["한글 space", "a\"b", "ends in slash \\", "\\\"quoted"];
+     let executable = std::env::current_exe().expect("test executable");
+ 
+     if let Ok(role) = std::env::var(ROLE) {
+         let home = std::path::PathBuf::from(std::env::var_os(HOME).expect("test home"));
+         if role == "child" {
++            assert_eq!(std::env::current_dir().unwrap(), home);
++            assert!(std::env::var_os(REMOVED).is_none());
++            assert_eq!(std::env::var(CHANGED).unwrap(), "변경된 value");
++            let args = std::env::args().collect::<Vec<_>>();
++            for skip in SKIPS {
++                assert!(args.windows(2).any(|a| a[0] == "--skip" && a[1] == *skip));
++            }
+             eprintln!("child stderr");
+             std::fs::write(home.join("ready"), []).unwrap();
+-            tokio::time::sleep(Duration::from_secs(30)).await;
++            // A file models the daemon's normal shutdown request. Keep a fallback
++            // deadline so even a broken fixture cannot leave an unbounded child.
++            let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
++            while !home.join("shutdown").exists() && tokio::time::Instant::now() < deadline {
++                tokio::time::sleep(Duration::from_millis(25)).await;
++            }
++            eprintln!("child shutdown");
+             return;
+         }
+ 
++        // Deliberately retain the original captured pipe handles as inheritable.
++        // Rust's nested launcher duplicates stdio, so the originals are then
++        // invisible to GetStdHandle in the inner launcher.
+         let handles = [
+             std::io::stdout().as_raw_handle(),
+             std::io::stderr().as_raw_handle(),
+@@ -41,16 +62,51 @@ async fn captured_stdio_closes_while_child_is_alive() {
+                 0
+             );
+         }
++        if role == "wrapper" {
++            let status = tokio::process::Command::new(executable)
++                .args(["--exact", TEST, "--nocapture"])
++                .env(ROLE, "launcher")
++                .stdin(Stdio::null())
++                .stdout(Stdio::inherit())
++                .stderr(Stdio::inherit())
++                .status()
++                .await
++                .unwrap();
++            assert!(status.success());
++            return;
++        }
++
++        let unrelated = std::fs::OpenOptions::new()
++            .write(true)
++            .share_mode(0)
++            .open(home.join("unrelated"))
++            .unwrap();
++        assert_ne!(
++            unsafe {
++                SetHandleInformation(
++                    unrelated.as_raw_handle(),
++                    HANDLE_FLAG_INHERIT,
++                    HANDLE_FLAG_INHERIT,
++                )
++            },
++            0
++        );
+         let mut command = tokio::process::Command::new(executable);
++        let stderr_log = std::fs::File::create(home.join("child.log")).unwrap();
+         command
+             .args(["--exact", TEST, "--nocapture"])
+             .env(ROLE, "child")
+-            // The CI job may forbid breakaway; it does not affect stdio inheritance.
+-            .creation_flags(DETACHED_PROCESS)
+-            .stdin(Stdio::null())
+-            .stdout(Stdio::null())
+-            .stderr(std::fs::File::create(home.join("child.log")).unwrap());
+-        let child = super::spawn_without_inheriting_stdio(&mut command).unwrap();
++            .env_remove(REMOVED)
++            .env(CHANGED, "변경된 value")
++            .current_dir(&home)
++            .env(CHANGED.to_ascii_lowercase(), "변경된 value");
++        for skip in SKIPS {
++            command.args(["--skip", skip]);
++        }
++        // The CI job may forbid breakaway; it does not affect inheritance.
++        let child =
++            super::spawn_without_inheriting_stdio(command.as_std(), &stderr_log, DETACHED_PROCESS)
++                .unwrap();
+         let pid = child.id().unwrap();
+         let started = Process::open(pid).unwrap().unwrap().start_time().unwrap();
+         std::fs::write(
+@@ -58,77 +114,169 @@ async fn captured_stdio_closes_while_child_is_alive() {
+             serde_json::to_vec(&(pid, started)).unwrap(),
+         )
+         .unwrap();
++        let unchanged = handles.into_iter().all(|handle| {
++            let mut flags = 0;
++            (unsafe { GetHandleInformation(handle, &mut flags) }) != 0
++                && flags & HANDLE_FLAG_INHERIT != 0
++        });
++        std::fs::write(home.join("inheritance-preserved"), [u8::from(unchanged)]).unwrap();
+         println!("launcher stdout");
+         eprintln!("launcher stderr");
+         return;
+     }
+ 
+-    let home = tempfile::tempdir().unwrap();
+-    let mut launcher = tokio::process::Command::new(executable)
+-        .args(["--exact", TEST, "--nocapture"])
+-        .env(ROLE, "launcher")
+-        .env(HOME, home.path())
+-        .stdout(Stdio::piped())
+-        .stderr(Stdio::piped())
+-        .kill_on_drop(true)
+-        .spawn()
+-        .unwrap();
+-    let status = tokio::time::timeout(Duration::from_secs(10), launcher.wait())
+-        .await
+-        .expect("launcher exit")
+-        .unwrap();
+-    let (pid, started): (u32, String) =
+-        serde_json::from_slice(&std::fs::read(home.path().join("pid")).unwrap()).unwrap();
+-    let child = Process::open(pid).unwrap().expect("live child");
+-    assert_eq!(
+-        child.start_time().unwrap(),
+-        started,
+-        "fixture PID was reused"
+-    );
+-    let mut stdout = String::new();
+-    let mut stderr = String::new();
+-    let captured = tokio::time::timeout(Duration::from_secs(5), async {
+-        let ready = home.path().join("ready");
+-        while !ready.exists() {
+-            tokio::time::sleep(Duration::from_millis(25)).await;
+-        }
+-        tokio::try_join!(
+-            launcher
+-                .stdout
+-                .as_mut()
+-                .unwrap()
+-                .read_to_string(&mut stdout),
+-            launcher
+-                .stderr
+-                .as_mut()
+-                .unwrap()
+-                .read_to_string(&mut stderr),
+-        )
+-    })
+-    .await;
+-    let still_running = child.is_running();
+-    child.terminate().expect("cleanup child");
+-    tokio::time::timeout(Duration::from_secs(5), async {
+-        while child.is_running().unwrap() {
+-            tokio::time::sleep(Duration::from_millis(25)).await;
++    for role in ["wrapper", "launcher"] {
++        let temp = tempfile::tempdir().unwrap();
++        let home = temp.path().join("경로 with spaces");
++        std::fs::create_dir(&home).unwrap();
++        std::fs::write(home.join("unrelated"), []).unwrap();
++        let mut launcher = tokio::process::Command::new(&executable)
++            .args(["--exact", TEST, "--nocapture"])
++            .env(ROLE, role)
++            .env(HOME, &home)
++            .env(REMOVED, "must be removed")
++            .env(CHANGED, "must be changed")
++            .stdout(Stdio::piped())
++            .stderr(Stdio::piped())
++            .kill_on_drop(true)
++            .spawn()
++            .unwrap();
++        let status = tokio::time::timeout(Duration::from_secs(10), launcher.wait())
++            .await
++            .expect("launcher exit")
++            .unwrap();
++        let (pid, started): (u32, String) =
++            serde_json::from_slice(&std::fs::read(home.join("pid")).unwrap()).unwrap();
++        let child = Process::open(pid).unwrap().expect("live child");
++        assert_eq!(
++            child.start_time().unwrap(),
++            started,
++            "fixture PID was reused"
++        );
++        let mut stdout = String::new();
++        let mut stderr = String::new();
++        let captured = tokio::time::timeout(Duration::from_secs(5), async {
++            while !home.join("ready").exists() {
++                tokio::time::sleep(Duration::from_millis(25)).await;
++            }
++            tokio::try_join!(
++                launcher
++                    .stdout
++                    .as_mut()
++                    .unwrap()
++                    .read_to_string(&mut stdout),
++                launcher
++                    .stderr
++                    .as_mut()
++                    .unwrap()
++                    .read_to_string(&mut stderr),
++            )
++        })
++        .await;
++        let still_running = child.is_running();
++        let unrelated = std::fs::OpenOptions::new()
++            .write(true)
++            .share_mode(0)
++            .open(home.join("unrelated"));
++        std::fs::write(home.join("shutdown"), []).expect("request normal child shutdown");
++        let stopped = tokio::time::timeout(Duration::from_secs(5), async {
++            while child.is_running().unwrap() {
++                tokio::time::sleep(Duration::from_millis(25)).await;
++            }
++        })
++        .await;
++        // Cleanup only this identity if the normal shutdown fixture failed.
++        if stopped.is_err() {
++            child
++                .terminate()
++                .expect("cleanup child after shutdown timeout");
+         }
+-    })
+-    .await
+-    .expect("child exit after cleanup");
+ 
+-    captured.expect("launcher output must close").unwrap();
+-    assert!(status.success(), "{stderr}");
+-    assert!(
+-        still_running.unwrap(),
+-        "child exited before its launcher output closed"
+-    );
+-    assert!(stdout.contains("launcher stdout"));
+-    assert!(stderr.contains("launcher stderr"));
+-    assert!(
+-        std::fs::read_to_string(home.path().join("child.log"))
+-            .unwrap()
+-            .contains("child stderr")
+-    );
++        captured
++            .expect("launcher output must close while child is alive")
++            .unwrap();
++        stopped.expect("child must exit normally after shutdown request");
++        assert!(status.success(), "{role}: {stderr}");
++        assert!(
++            still_running.unwrap(),
++            "{role}: child exited before its launcher output closed"
++        );
++        assert!(
++            unrelated.is_ok(),
++            "{role}: child inherited an unrelated handle"
++        );
++        assert_eq!(
++            std::fs::read(home.join("inheritance-preserved")).unwrap(),
++            [1]
++        );
++        assert!(stdout.contains("launcher stdout"));
++        assert!(stderr.contains("launcher stderr"));
++        let child_log = std::fs::read_to_string(home.join("child.log")).unwrap();
++        assert!(child_log.contains("child stderr"));
++        assert!(child_log.contains("child shutdown"));
++    }
++}
++
++#[test]
++fn failed_detached_spawn_releases_owned_handles() {
++    const ROLE: &str = "CODEX_TEST_FAILED_DETACHED_SPAWN";
++    const TEST: &str = "backend::windows::tests::failed_detached_spawn_releases_owned_handles";
++    if std::env::var_os(ROLE).is_none() {
++        let output = std::process::Command::new(std::env::current_exe().unwrap())
++            .args(["--exact", TEST, "--nocapture"])
++            .env(ROLE, "1")
++            .output()
++            .unwrap();
++        assert!(
++            output.status.success(),
++            "{}",
++            String::from_utf8_lossy(&output.stderr)
++        );
++        return;
++    }
++    let home = tempfile::tempdir().unwrap();
++    let stderr = std::fs::File::create(home.path().join("child.log")).unwrap();
++    let command = std::process::Command::new(home.path().join("missing.exe"));
++    let count = || {
++        let mut count = 0;
++        assert_ne!(
++            unsafe {
++                windows_sys::Win32::System::Threading::GetProcessHandleCount(
++                    super::GetCurrentProcess(),
++                    &mut count,
++                )
++            },
++            0
++        );
++        count
++    };
++    // Independent std spawn reproduces process-wide first-use initialization.
++    // Initialize it before the baseline, without ever warming up our helper.
++    let mut standard = std::process::Command::new(command.get_program());
++    standard
++        .stdin(Stdio::null())
++        .stdout(Stdio::null())
++        .stderr(Stdio::null())
++        .creation_flags(DETACHED_PROCESS);
++    let error = standard.spawn().expect_err("missing control executable");
++    drop(error);
++    drop(standard);
++
++    let before = count();
++    for iteration in 1..=32 {
++        let error = match super::spawn_without_inheriting_stdio(&command, &stderr, DETACHED_PROCESS)
++        {
++            Ok(_) => panic!("missing executable unexpectedly launched"),
++            Err(error) => error,
++        };
++        assert!(error.root_cause().is::<std::io::Error>(), "{error:#}");
++        drop(error);
++        assert_eq!(
++            count(),
++            before,
++            "failed detached spawn {iteration} leaked owned handles"
++        );
++    }
+ }
+ 
+ #[test]
+@@ -250,17 +398,12 @@ fn detached_launch_preflight_allows_residual_job() {
+             return;
+         }
+         let temp = tempfile::tempdir().expect("temp dir");
+-        let script = temp.path().join("codex.cmd");
+-        std::fs::write(
+-            &script,
+-            "@echo off\r\nif \"%3\"==\"--help\" exit /b 1\r\necho ready > \"%~dp0ready\"\r\nfor /l %%i in (1,1,10000000) do @rem\r\n",
+-        )
+-        .expect("write daemon fixture");
+-        let backend = crate::backend::pid::PidBackend::new(
+-            script,
++        let mut backend = crate::backend::pid::PidBackend::new(
++            executable.clone(),
+             temp.path().join("state").join("daemon.pid"),
+             /*remote_control_enabled*/ false,
+         );
++        backend.test_command = Some("backend::pid::tests::managed_child_fixture");
+         let runtime = tokio::runtime::Builder::new_current_thread()
+             .enable_all()
+             .build()
+@@ -273,10 +416,12 @@ fn detached_launch_preflight_allows_residual_job() {
+             .expect("open daemon")
+             .expect("live daemon");
+         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+-        while !temp.path().join("ready").exists() && std::time::Instant::now() < deadline {
++        while !temp.path().join("state/workdir/launched.cwd").exists()
++            && std::time::Instant::now() < deadline
++        {
+             std::thread::sleep(std::time::Duration::from_millis(50));
+         }
+-        let ready = temp.path().join("ready").exists();
++        let ready = temp.path().join("state/workdir/launched.cwd").exists();
+         let outer_checked = unsafe {
+             IsProcessInJob(
+                 process.0.as_raw_handle(),
 diff --git a/codex-rs/app-server-daemon/src/client.rs b/codex-rs/app-server-daemon/src/client.rs
 index c3cee7dc9..7390c7bca 100644
 --- a/codex-rs/app-server-daemon/src/client.rs

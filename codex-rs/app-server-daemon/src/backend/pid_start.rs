@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 //! Detached process launch and PID publication. Hold the reservation lock until
 //! the record is published, and on Windows until an updater acknowledges startup.
 //! Windows children use a separate working directory to preserve the state directory ACL.
@@ -124,13 +124,16 @@ impl PidBackend {
                 return Err(err);
             }
         };
+        let stderr_log = stderr_log.into_std().await;
         command
             // Handoff suppression belongs to the foreground CLI, not its long-lived children.
             .env_remove(crate::telemetry::HANDOFF_ENV)
-            .args(self.command_args().iter().map(std::borrow::Cow::as_ref))
+            .args(self.command_args().iter().map(std::borrow::Cow::as_ref));
+        #[cfg(not(windows))]
+        command
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::from(stderr_log.into_std().await));
+            .stderr(Stdio::from(stderr_log));
         // Older or pinned managed binaries may predate this optional startup flag.
         if managed_app_server
             && (self.preserve_recovery || require_managed_daemon_support(&codex_bin).await.is_ok())
@@ -176,16 +179,10 @@ impl PidBackend {
 
         #[cfg(windows)]
         {
-            use windows_sys::Win32::System::Threading::CREATE_BREAKAWAY_FROM_JOB;
-            use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
-            use windows_sys::Win32::System::Threading::DETACHED_PROCESS;
             // A Windows process pins its working directory for its lifetime.
             // Keep both managed children out of the launching project's directory.
             // Sandbox setup may broaden the cwd ACL, so do not use the private state directory.
             command.current_dir(&workdir);
-            // Never retry inside the parent's Job Object: that would report a
-            // successful launch that dies when the terminal/SSH session closes.
-            command.creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS | CREATE_BREAKAWAY_FROM_JOB);
             if matches!(self.command_kind, PidCommandKind::UpdateLoop { .. }) {
                 match fs::remove_file(self.pid_file.with_extension("ready")).await {
                     Ok(()) => {}
@@ -216,7 +213,18 @@ impl PidBackend {
 
         let started = std::time::Instant::now();
         #[cfg(windows)]
-        let child = super::super::windows::spawn_without_inheriting_stdio(&mut command);
+        let child = {
+            use windows_sys::Win32::System::Threading::CREATE_BREAKAWAY_FROM_JOB;
+            use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
+            use windows_sys::Win32::System::Threading::DETACHED_PROCESS;
+            // Never retry inside the parent's Job Object: that would report a
+            // successful launch that dies when the terminal/SSH session closes.
+            super::super::windows::spawn_without_inheriting_stdio(
+                command.as_std(),
+                &stderr_log,
+                CREATE_NO_WINDOW | DETACHED_PROCESS | CREATE_BREAKAWAY_FROM_JOB,
+            )
+        };
         #[cfg(not(windows))]
         let child = command.spawn().map_err(anyhow::Error::from);
         let child = crate::diagnostics::result("process_spawn", started, child);

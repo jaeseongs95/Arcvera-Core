@@ -14,7 +14,7 @@ Windows용 Codex CLI·Rust App Server 비공식 수정판입니다. 요청 취�
 | **R31** | 0.166.0 | 별도 릴리스 취소, 수정 사항은 R32에 통합 |
 | **R33 소스 후보** | 0.166.0 | `0.166.0+native-r33.20261102`, 미배포 |
 
-현재 소스는 `0c588be6c85098f0ff139ec7a9bc119c1da71f20`에 고정되어 있으며 R32 다운로드와 다릅니다. 개발용 시험 컴파일과 표적 Rust 73개 시험, PowerShell 13개·패키징 13개 시험을 통과했습니다. 별도 전달 준비 검사기는 초기 21개, 후속 보강 뒤 23개 fixture를 통과했습니다. 제품용 빌드와 실제 설치·예약 등록·CLI/daemon runtime 검증은 아직 완료하지 않았습니다. [R33 검증 범위](docs/r33-development-verification.ko.md)와 [소스 출처](SOURCE_BASELINE.json)에서 후보와 근거를 구분합니다.
+현재 소스는 `3d9eb86445925caa920dd2f958496cf1aa4ad7e2`에 고정되어 있으며 R32 다운로드와 다릅니다. 이전 `0c588` 후보의 개발용 시험 컴파일과 표적 Rust 73개 시험, PowerShell 13개·패키징 13개 시험은 통과했습니다. 현재 후보의 개발용 시험 컴파일과 daemon 시험 66개, nested stdio 경계의 개별 재실행 1개는 통과했으며 native fixture 1개는 무시됐습니다. 개별 재실행은 전체 시험과 겹칩니다. 별도 전달 준비 검사기는 초기 21개, 후속 보강 뒤 23개 fixture를 통과했습니다. 최적화 CLI·앱 서버·launcher 빌드와 package03 생성·해시 결속을 확인했습니다. 자연 EOF 8경계·격리 GUI 복원 범위의 Desktop 공동 시험은 통과했으나 graceful 완료 통지 실패로 전체 수용·릴리스·설치를 보류합니다. 최종 독립감사는 이 차단 결함으로 FAIL입니다. 실행 패키지 공개·실제 예약 등록·모바일·장기 부하는 미검증입니다. [R33 검증 범위](docs/r33-development-verification.ko.md)와 [소스 출처](SOURCE_BASELINE.json)에서 후보와 근거를 구분합니다.
 
 ## 주요 기능
 
@@ -67,7 +67,7 @@ codex update
 
 로그는 명시적으로 선택해 수집합니다. 파일 내보내기 성공이 클라우드 업로드를 뜻하지 않으며, 캐시 진단 시험은 실제 서버의 캐시 적중률 향상을 입증하지 않습니다. 화면 이력 제한도 프로세스 전체 메모리 상한은 아닙니다.
 
-[OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop)은 별도 화면·다중 세션 프로젝트입니다. Desktop 1.0.0 후보와 현재 R33의 실제 조합은 미검증이며 CI 실행 상태를 호환성 보증으로 사용하지 않습니다. 실제 모바일 연결·장시간 부하·원래 지연과 메모리 증가의 해결도 미검증입니다.
+[OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop)은 별도 화면·다중 세션 프로젝트입니다. Desktop 1.0.1 후보(`36f54c0d5b8c8ee9ca7fed435c26f8a246bc4985`)와 현재 R33의 공동 시험은 자연 EOF 8경계와 격리 GUI 복원 범위에서 통과했습니다. graceful 완료 통지 실패로 전체 조합 수용은 보류하며 CI 실행 상태를 호환성 보증으로 사용하지 않습니다. 실제 모바일 연결·장시간 부하·원래 지연과 메모리 증가의 해결도 미검증입니다.
 
 ## 빌드와 라이선스
 

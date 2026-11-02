@@ -14,7 +14,7 @@ An unofficial Windows edition of Codex CLI and Rust App Server, with changes to 
 | **R31** | 0.166.0 | Separate release cancelled; changes integrated into R32 |
 | **R33 source candidate** | 0.166.0 | `0.166.0+native-r33.20261102`; not released |
 
-The source is pinned to `0c588be6c85098f0ff139ec7a9bc119c1da71f20` and differs from the R32 download. Development test compilation and 73 targeted Rust tests passed, as did 13 PowerShell and 13 packaging tests. A separate delivery-preparation checker passed its initial 21 fixtures and 23 fixtures after further hardening. Product builds, actual installation, task registration, and CLI/daemon runtime validation are not complete. See the [R33 validation scope](docs/r33-development-verification.ko.md) and [source provenance](SOURCE_BASELINE.json).
+The source is pinned to `3d9eb86445925caa920dd2f958496cf1aa4ad7e2` and differs from the R32 download. Development test compilation and 73 targeted Rust tests passed on the previous `0c588` candidate, as did 13 PowerShell and 13 packaging tests. Development test compilation, 66 daemon tests, and one exact nested-stdio rerun passed on the current candidate; one native fixture was ignored. The exact rerun overlaps the full suite. A separate delivery-preparation checker passed its initial 21 fixtures and 23 fixtures after further hardening. Optimized CLI, App Server, and launcher builds completed, and package03 was created with verified artifact hashes. Desktop joint tests passed for eight natural EOF boundaries and isolated GUI restoration, but the graceful completion-notification failure keeps overall acceptance, release, and installation on hold. The final independent audit is FAIL because of this blocking defect. Binary publication, actual task registration, mobile access, and sustained workloads remain unverified. See the [R33 validation scope](docs/r33-development-verification.ko.md) and [source provenance](SOURCE_BASELINE.json).
 
 ## Features
 
@@ -67,7 +67,7 @@ These commands require an installation configured for automatic updates. They ar
 
 Logging requires explicit selection. File publication does not confirm cloud upload, and cache-diagnostic tests do not establish improved cache hit rates on the actual service. Display-history limits are not a total process-memory cap.
 
-[OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop) is the separate UI and multi-session project. The Desktop 1.0.0 candidate has not been tested as an actual pair with the current R33 candidate; CI status is not a compatibility guarantee. Actual mobile access, sustained workloads, and resolution of the original latency and memory-growth issues remain unverified.
+[OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop) is the separate UI and multi-session project. Joint tests with the Desktop 1.0.1 candidate (`36f54c0d5b8c8ee9ca7fed435c26f8a246bc4985`) passed for eight natural EOF boundaries and isolated GUI restoration. Overall pair acceptance remains on hold because of the graceful completion-notification failure; CI status is not a compatibility guarantee. Actual mobile access, sustained workloads, and resolution of the original latency and memory-growth issues remain unverified.
 
 ## Build and license
 
