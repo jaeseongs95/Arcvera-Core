@@ -261,7 +261,31 @@ async fn prepare_from_package(
         None
     };
     let settings = current_settings.as_ref().unwrap_or(settings);
-    let _install_lock = acquire_install_lock(&root).await?;
+    let installer_locks = async {
+        let dedicated = acquire_install_lock(&root).await?;
+        // A legacy updater can still have an installer in its standalone root.
+        // Keep both roots quiescent until selection and server startup finish.
+        let standalone = home.join("packages/standalone");
+        let legacy = if mode == InstallMode::ReplaceNoForce && standalone.try_exists()? {
+            Some(acquire_install_lock(&standalone).await?)
+        } else {
+            None
+        };
+        Ok::<_, anyhow::Error>((dedicated, legacy))
+    }
+    .await;
+    let (_install_lock, _legacy_install_lock) = installer_locks.map_err(|error| {
+        if mode == InstallMode::ReplaceNoForce {
+            NoForceUpdateError {
+                status: crate::UpdateStatus::ShutdownOutcomeUnknown,
+                error: error
+                    .context("installer quiescence was not established; no shutdown was requested"),
+            }
+            .into()
+        } else {
+            error
+        }
+    })?;
     anyhow::ensure!(
         managed_install::package_root(home) == previous_root,
         "daemon package location changed; retry the command"
@@ -395,15 +419,17 @@ async fn prepare_from_package(
     windows::validate_selection(&root)?;
     if mode.replacing() {
         let stopped = async {
-            let updater = crate::backend::pid_update_loop_backend(daemon.backend_paths(settings));
-            if mode == InstallMode::ReplaceNoForce {
-                updater
-                    .stop_without_force(settings.shutdown_grace_seconds)
-                    .await
-                    .context("managed updater shutdown")?;
-            } else {
+            if mode != InstallMode::ReplaceNoForce {
+                let updater =
+                    crate::backend::pid_update_loop_backend(daemon.backend_paths(settings));
                 updater.stop().await?;
             }
+            // Never signal an updater in no-force mode: even its graceful exit
+            // cancels installer descendants (Unix SIGKILL / Windows Job close).
+            // R28 and newer recheck the selected latest-channel binary under the
+            // operation lock before restarting a server. Our local pin revokes
+            // that authority; an old legacy updater may finish its own package
+            // update, but cannot restart this newly selected dedicated server.
             anyhow::ensure!(
                 managed_install::package_root(home) == previous_root
                     && previous_root.join("current").canonicalize().ok() == previous_release,

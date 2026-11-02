@@ -43,8 +43,14 @@ codex app-server daemon bootstrap --remote-control
 ```
 
 `update --from-cli --no-force` selects the invoking complete package only after
-the existing updater and daemon finish graceful shutdown. Unlike the default
-update, it never force-kills a managed process. A failed request or elapsed
+holding the operation lock and both existing package roots' installer locks,
+and after the existing daemon finishes graceful shutdown. It never requests
+updater shutdown: that path can force-kill installer descendants even when the
+updater receives only a graceful request. The old updater remains alive. The
+new dedicated local pin prevents it from restarting the selected server; a
+legacy updater may still finish an independent standalone-root package update.
+Unlike the default update, this operation never force-kills a managed process
+or its installer descendants. Installer-lock failure, a failed request or elapsed
 shutdown grace leaves `current` unchanged and does not start a replacement or
 automatically restart the updater. A staged release may remain on disk.
 

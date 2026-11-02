@@ -351,6 +351,11 @@ impl PidBackend {
             }
 
             let pid = record.pid;
+            if !force && matches!(self.command_kind, PidCommandKind::UpdateLoop { .. }) {
+                bail!(
+                    "non-forcing updater shutdown is unsupported: its installer descendants may be force-killed; no shutdown was requested"
+                );
+            }
             crate::diagnostics::event("shutdown_requested", serde_json::json!({ "pid": pid }));
             let started_at = tokio::time::Instant::now();
             let force_after = Duration::from_secs(grace_seconds.into());

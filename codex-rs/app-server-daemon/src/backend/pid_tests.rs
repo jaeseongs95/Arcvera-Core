@@ -632,21 +632,31 @@ async fn no_force_timeout_keeps_process_and_pid_record() {
             executable_identity: None,
         };
         tokio::fs::write(&pid_file, serde_json::to_vec(&record)?).await?;
-        #[cfg(unix)]
-        let backend = PidBackend::new(temp.path().join("codex"), pid_file.clone(), false);
-        #[cfg(windows)]
-        let backend =
-            PidBackend::new_update_loop(temp.path().join("codex"), pid_file.clone(), None);
-        let error = backend
-            .stop_without_force(0)
-            .await
-            .expect_err("must not force a live fixture");
-        anyhow::ensure!(matches!(
-            error.downcast_ref::<super::NoForceStopError>(),
-            Some(super::NoForceStopError::TimedOut)
-        ));
-        anyhow::ensure!(backend.record_is_active(&record).await?);
-        anyhow::ensure!(pid_file.is_file());
+        for updater in [false, true] {
+            if cfg!(windows) && !updater {
+                continue; // The fixture does not implement the app-server shutdown RPC.
+            }
+            let backend = if updater {
+                PidBackend::new_update_loop(temp.path().join("codex"), pid_file.clone(), None)
+            } else {
+                PidBackend::new(temp.path().join("codex"), pid_file.clone(), false)
+            };
+            let error = backend
+                .stop_without_force(0)
+                .await
+                .expect_err("must not force a live fixture");
+            if updater {
+                anyhow::ensure!(error.to_string().contains("no shutdown was requested"));
+                anyhow::ensure!(!pid_file.with_extension("shutdown").exists());
+            } else {
+                anyhow::ensure!(matches!(
+                    error.downcast_ref::<super::NoForceStopError>(),
+                    Some(super::NoForceStopError::TimedOut)
+                ));
+            }
+            anyhow::ensure!(backend.record_is_active(&record).await?);
+            anyhow::ensure!(pid_file.is_file());
+        }
         Ok::<(), anyhow::Error>(())
     }
     .await;
