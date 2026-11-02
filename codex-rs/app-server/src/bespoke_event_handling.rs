@@ -3281,6 +3281,109 @@ mod tests {
         Ok(())
     }
 
+    async fn assert_terminal_write_precedes_idle(
+        terminal_event: EventMsg,
+        expected_status: TurnStatus,
+    ) -> Result<()> {
+        let codex_home = TempDir::new()?;
+        let config = load_default_config_for_test(&codex_home).await;
+        let thread_manager = Arc::new(
+            codex_core::test_support::thread_manager_with_models_provider_and_home(
+                CodexAuth::create_dummy_chatgpt_auth_for_testing(),
+                config.model_provider.clone(),
+                config.codex_home.to_path_buf(),
+                Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
+            ),
+        );
+        let codex_core::NewThread {
+            thread_id: conversation_id,
+            thread: conversation,
+            ..
+        } = thread_manager
+            .start_thread(codex_core::StartThreadOptions::new(config))
+            .await?;
+        let thread_watch_manager = ThreadWatchManager::new();
+        thread_watch_manager
+            .note_turn_started(&conversation_id.to_string())
+            .await;
+        let running_turn_count = thread_watch_manager.subscribe_running_turn_count();
+        let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let outgoing = ThreadScopedOutgoingMessageSender::new(
+            Arc::new(OutgoingMessageSender::new(
+                tx,
+                codex_analytics::AnalyticsEventsClient::disabled(),
+            )),
+            vec![ConnectionId(1)],
+            conversation_id,
+        );
+        let mut handling = Box::pin(apply_bespoke_event_handling(
+            Event {
+                id: "terminal-turn".to_string(),
+                msg: terminal_event,
+            },
+            conversation_id,
+            conversation.clone(),
+            thread_manager,
+            outgoing,
+            new_thread_state(),
+            thread_watch_manager.clone(),
+        ));
+
+        // Poll the listener until its terminal write is queued, but withhold the writer's ACK.
+        let progress = futures::poll!(&mut handling);
+        let envelope = rx
+            .try_recv()
+            .expect("terminal notification should be queued");
+        assert_eq!(
+            *running_turn_count.borrow(),
+            1,
+            "graceful drain must not observe idle before the terminal notification is written"
+        );
+        assert!(
+            progress.is_pending(),
+            "listener must wait for the terminal write"
+        );
+        let OutgoingEnvelope::ToConnection {
+            message: OutgoingMessage::AppServerNotification(envelope),
+            write_complete_tx,
+            ..
+        } = envelope
+        else {
+            bail!("expected a targeted terminal notification");
+        };
+        let ServerNotification::TurnCompleted(notification) = envelope.notification else {
+            bail!("expected turn/completed");
+        };
+        assert_eq!(notification.turn.status, expected_status);
+        write_complete_tx
+            .expect("terminal notification must request write completion")
+            .send(())
+            .expect("listener must still be waiting");
+        handling.await;
+        assert_eq!(*running_turn_count.borrow(), 0);
+        assert_eq!(thread_watch_manager.running_turn_count().await, 0);
+        conversation.shutdown_and_wait().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn turn_complete_stays_running_until_terminal_write() -> Result<()> {
+        assert_terminal_write_precedes_idle(
+            EventMsg::TurnComplete(turn_complete_event("terminal-turn")),
+            TurnStatus::Completed,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn turn_interrupted_stays_running_until_terminal_write() -> Result<()> {
+        assert_terminal_write_precedes_idle(
+            EventMsg::TurnAborted(turn_aborted_event("terminal-turn")),
+            TurnStatus::Interrupted,
+        )
+        .await
+    }
+
     #[tokio::test]
     async fn interrupted_subagent_activity_removes_missing_thread_watch() -> Result<()> {
         let codex_home = TempDir::new()?;
