@@ -318,6 +318,20 @@ fn failed_detached_spawn_releases_owned_handles() {
     let before = count();
     let baseline_handles = handles();
     let after_snapshot = count();
+    // Independent cold control: do not invoke or warm up the daemon helper.
+    // Drop both the standard error and builder before measuring its residue.
+    let mut standard = std::process::Command::new(command.get_program());
+    standard
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(DETACHED_PROCESS);
+    let standard_error = standard.spawn().expect_err("missing control executable");
+    let after_standard_spawn = count();
+    let standard_error_code = standard_error.raw_os_error();
+    drop(standard_error);
+    drop(standard);
+    let after_standard_drop = count();
     let mut counts = Vec::new();
     let mut snapshots = Vec::new();
     let mut after_32 = None;
@@ -340,6 +354,9 @@ fn failed_detached_spawn_releases_owned_handles() {
             after_32 = Some(after_error_drop);
         }
     }
+    eprintln!(
+        "standard spawn cold control: after_spawn={after_standard_spawn}, after_error_and_builder_drop={after_standard_drop}, os_error={standard_error_code:?}"
+    );
     eprintln!(
         "failed spawn handle counts: baseline={before}, after_baseline_snapshot={after_snapshot}, (iteration, after_spawn, after_error_chain, after_error_drop)={counts:?}"
     );
