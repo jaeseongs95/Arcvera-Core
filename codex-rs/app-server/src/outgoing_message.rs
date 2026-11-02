@@ -44,10 +44,10 @@ use codex_protocol::account::PlanType;
 
 pub(crate) type ClientRequestResult = std::result::Result<Result, JSONRPCErrorError>;
 
-// Bound terminal enqueue + transport write confirmation so a stalled subscriber cannot
-// hold the thread listener (and graceful drain) forever. Delivery failure is logged separately
-// from the turn's execution status.
-const TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT: Duration = Duration::from_secs(5);
+// One deadline covers idle enqueue, terminal enqueue and transport write confirmation.
+// A stalled subscriber must not hold the listener (and graceful drain) forever. Delivery
+// failure is logged separately from the turn's execution status.
+pub(crate) const TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT: Duration = Duration::from_secs(5);
 
 static IN_FLIGHT_REQUESTS: Gauge = Gauge::new("app.requests.in_flight");
 static PENDING_SERVER_REQUESTS: Gauge = Gauge::new("app.server_requests.pending");
@@ -275,6 +275,7 @@ impl ThreadScopedOutgoingMessageSender {
     pub(crate) async fn send_terminal_notification_and_wait(
         &self,
         notification: ServerNotification,
+        delivery_deadline: tokio::time::Instant,
     ) -> bool {
         self.outgoing
             .analytics_events_client
@@ -284,8 +285,8 @@ impl ThreadScopedOutgoingMessageSender {
         futures::future::join_all(self.connection_ids.iter().map(|&connection_id| {
             let notification = notification.clone();
             async move {
-                match tokio::time::timeout(
-                    TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
+                match tokio::time::timeout_at(
+                    delivery_deadline,
                     self.outgoing
                         .send_server_notification_to_connection_and_wait(
                             connection_id,
@@ -1767,8 +1768,10 @@ mod tests {
             vec![ConnectionId(1), ConnectionId(2)],
             ThreadId::new(),
         );
-        let mut delivery =
-            Box::pin(outgoing.send_terminal_notification_and_wait(terminal_test_notification()));
+        let mut delivery = Box::pin(outgoing.send_terminal_notification_and_wait(
+            terminal_test_notification(),
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
+        ));
         assert!(futures::poll!(&mut delivery).is_pending());
         // Both writes must be enqueued before either subscriber acknowledges its write.
         let mut writes = Vec::new();
@@ -1811,7 +1814,10 @@ mod tests {
         );
         assert!(
             outgoing
-                .send_terminal_notification_and_wait(terminal_test_notification())
+                .send_terminal_notification_and_wait(
+                    terminal_test_notification(),
+                    tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
+                )
                 .await
         );
         assert!(
@@ -1831,8 +1837,10 @@ mod tests {
             vec![ConnectionId(1)],
             ThreadId::new(),
         );
-        let mut delivery =
-            Box::pin(outgoing.send_terminal_notification_and_wait(terminal_test_notification()));
+        let mut delivery = Box::pin(outgoing.send_terminal_notification_and_wait(
+            terminal_test_notification(),
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
+        ));
         assert!(futures::poll!(&mut delivery).is_pending());
         let OutgoingEnvelope::ToConnection {
             write_complete_tx, ..
@@ -1867,8 +1875,10 @@ mod tests {
             vec![ConnectionId(1)],
             ThreadId::new(),
         );
-        let mut delivery =
-            Box::pin(outgoing.send_terminal_notification_and_wait(terminal_test_notification()));
+        let mut delivery = Box::pin(outgoing.send_terminal_notification_and_wait(
+            terminal_test_notification(),
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
+        ));
         assert!(futures::poll!(&mut delivery).is_pending());
         tokio::time::advance(TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT).await;
         assert!(!delivery.await, "enqueue must also have a finite deadline");

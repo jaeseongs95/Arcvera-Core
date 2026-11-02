@@ -1,5 +1,6 @@
 use crate::notification_media::without_notification_media;
 use crate::outgoing_message::ClientRequestResult;
+use crate::outgoing_message::TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT;
 use crate::outgoing_message::ThreadScopedOutgoingMessageSender;
 use crate::request_processors::thread_settings_from_config_snapshot;
 use crate::server_request_error::is_turn_transition_server_request_error;
@@ -193,19 +194,21 @@ pub(crate) async fn apply_bespoke_event_handling(
             outgoing.abort_pending_server_requests().await;
             respond_to_pending_interrupts(&thread_state, &outgoing).await;
             let turn_failed = thread_state.lock().await.turn_summary.last_error.is_some();
+            // Preserve idle -> turn/completed ordering while retaining a separate drain
+            // responsibility until terminal delivery succeeds or explicitly fails.
+            let terminal_delivery = thread_watch_manager
+                .note_turn_completed(&conversation_id.to_string(), turn_failed)
+                .await;
             handle_turn_complete(
                 conversation_id,
                 event_turn_id,
                 turn_complete_event,
                 &outgoing,
                 &thread_state,
+                terminal_delivery.deadline(),
             )
             .await;
-            // Publishing idle allows graceful shutdown to disconnect every client. Keep
-            // the turn running until its terminal notification is written or delivery fails.
-            thread_watch_manager
-                .note_turn_completed(&conversation_id.to_string(), turn_failed)
-                .await;
+            terminal_delivery.finish().await;
         }
         EventMsg::McpStartupUpdate(update) => {
             let (status, error, failure_reason) = match update.status {
@@ -1232,6 +1235,7 @@ pub(crate) async fn apply_bespoke_event_handling(
                         duration_ms: aborted.duration_ms,
                     },
                     &outgoing,
+                    tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
                 )
                 .await;
             }
@@ -1282,17 +1286,19 @@ pub(crate) async fn apply_bespoke_event_handling(
             outgoing.abort_pending_server_requests().await;
             respond_to_pending_interrupts(&thread_state, &outgoing).await;
 
+            let terminal_delivery = thread_watch_manager
+                .note_turn_interrupted(&conversation_id.to_string())
+                .await;
             handle_turn_interrupted(
                 conversation_id,
                 event_turn_id,
                 turn_aborted_event,
                 &outgoing,
                 &thread_state,
+                terminal_delivery.deadline(),
             )
             .await;
-            thread_watch_manager
-                .note_turn_interrupted(&conversation_id.to_string())
-                .await;
+            terminal_delivery.finish().await;
         }
         EventMsg::ThreadGoalUpdated(thread_goal_event) => {
             let notification = ThreadGoalUpdatedNotification {
@@ -1402,6 +1408,7 @@ async fn emit_turn_completed_with_status(
     event_turn_id: String,
     turn_completion_metadata: TurnCompletionMetadata,
     outgoing: &ThreadScopedOutgoingMessageSender,
+    delivery_deadline: tokio::time::Instant,
 ) {
     let (items, items_view) = match turn_completion_metadata.last_agent_message {
         Some(item) => (vec![item], TurnItemsView::Summary),
@@ -1422,7 +1429,10 @@ async fn emit_turn_completed_with_status(
         },
     };
     outgoing
-        .send_terminal_notification_and_wait(ServerNotification::TurnCompleted(notification))
+        .send_terminal_notification_and_wait(
+            ServerNotification::TurnCompleted(notification),
+            delivery_deadline,
+        )
         .await;
 }
 
@@ -1581,6 +1591,7 @@ async fn handle_turn_complete(
     turn_complete_event: TurnCompleteEvent,
     outgoing: &ThreadScopedOutgoingMessageSender,
     thread_state: &Arc<Mutex<ThreadState>>,
+    delivery_deadline: tokio::time::Instant,
 ) {
     let turn_summary = find_and_remove_turn_summary(conversation_id, thread_state).await;
 
@@ -1602,6 +1613,7 @@ async fn handle_turn_complete(
             duration_ms: turn_complete_event.duration_ms,
         },
         outgoing,
+        delivery_deadline,
     )
     .await;
 }
@@ -1612,6 +1624,7 @@ async fn handle_turn_interrupted(
     turn_aborted_event: TurnAbortedEvent,
     outgoing: &ThreadScopedOutgoingMessageSender,
     thread_state: &Arc<Mutex<ThreadState>>,
+    delivery_deadline: tokio::time::Instant,
 ) {
     let turn_summary = find_and_remove_turn_summary(conversation_id, thread_state).await;
 
@@ -1633,6 +1646,7 @@ async fn handle_turn_interrupted(
             duration_ms: turn_aborted_event.duration_ms,
         },
         outgoing,
+        delivery_deadline,
     )
     .await;
 }
@@ -3670,6 +3684,7 @@ mod tests {
             event,
             &outgoing,
             &thread_state,
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
         )
         .await;
 
@@ -3732,6 +3747,7 @@ mod tests {
             },
             &outgoing,
             &thread_state,
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
         )
         .await;
 
@@ -3785,6 +3801,7 @@ mod tests {
             turn_complete_event(&event_turn_id),
             &outgoing,
             &thread_state,
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
         )
         .await;
 
@@ -4026,6 +4043,7 @@ mod tests {
             turn_complete_event(&a_turn1),
             &outgoing,
             &thread_state,
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
         )
         .await;
 
@@ -4048,6 +4066,7 @@ mod tests {
             turn_complete_event(&b_turn1),
             &outgoing,
             &thread_state,
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
         )
         .await;
 
@@ -4059,6 +4078,7 @@ mod tests {
             turn_complete_event(&a_turn2),
             &outgoing,
             &thread_state,
+            tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
         )
         .await;
 
