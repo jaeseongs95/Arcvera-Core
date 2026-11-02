@@ -193,9 +193,6 @@ pub(crate) async fn apply_bespoke_event_handling(
             outgoing.abort_pending_server_requests().await;
             respond_to_pending_interrupts(&thread_state, &outgoing).await;
             let turn_failed = thread_state.lock().await.turn_summary.last_error.is_some();
-            thread_watch_manager
-                .note_turn_completed(&conversation_id.to_string(), turn_failed)
-                .await;
             handle_turn_complete(
                 conversation_id,
                 event_turn_id,
@@ -204,6 +201,11 @@ pub(crate) async fn apply_bespoke_event_handling(
                 &thread_state,
             )
             .await;
+            // Publishing idle allows graceful shutdown to disconnect every client. Keep
+            // the turn running until its terminal notification is written or delivery fails.
+            thread_watch_manager
+                .note_turn_completed(&conversation_id.to_string(), turn_failed)
+                .await;
         }
         EventMsg::McpStartupUpdate(update) => {
             let (status, error, failure_reason) = match update.status {
@@ -1280,9 +1282,6 @@ pub(crate) async fn apply_bespoke_event_handling(
             outgoing.abort_pending_server_requests().await;
             respond_to_pending_interrupts(&thread_state, &outgoing).await;
 
-            thread_watch_manager
-                .note_turn_interrupted(&conversation_id.to_string())
-                .await;
             handle_turn_interrupted(
                 conversation_id,
                 event_turn_id,
@@ -1291,6 +1290,9 @@ pub(crate) async fn apply_bespoke_event_handling(
                 &thread_state,
             )
             .await;
+            thread_watch_manager
+                .note_turn_interrupted(&conversation_id.to_string())
+                .await;
         }
         EventMsg::ThreadGoalUpdated(thread_goal_event) => {
             let notification = ThreadGoalUpdatedNotification {
@@ -1420,7 +1422,7 @@ async fn emit_turn_completed_with_status(
         },
     };
     outgoing
-        .send_server_notification(ServerNotification::TurnCompleted(notification))
+        .send_terminal_notification_and_wait(ServerNotification::TurnCompleted(notification))
         .await;
 }
 
@@ -2268,6 +2270,27 @@ mod tests {
             bail!("unexpected message: {message:?}");
         };
         Ok(envelope.notification)
+    }
+
+    fn acknowledge_notification_writes(
+        mut rx: mpsc::Receiver<OutgoingEnvelope>,
+    ) -> mpsc::Receiver<OutgoingEnvelope> {
+        let (tx, forwarded_rx) = mpsc::channel(CHANNEL_CAPACITY);
+        tokio::spawn(async move {
+            while let Some(mut envelope) = rx.recv().await {
+                if let OutgoingEnvelope::ToConnection {
+                    write_complete_tx, ..
+                } = &mut envelope
+                    && let Some(write_complete_tx) = write_complete_tx.take()
+                {
+                    let _ = write_complete_tx.send(());
+                }
+                if tx.send(envelope).await.is_err() {
+                    break;
+                }
+            }
+        });
+        forwarded_rx
     }
 
     fn turn_complete_event(turn_id: &str) -> TurnCompleteEvent {
@@ -3568,7 +3591,8 @@ mod tests {
     async fn test_handle_turn_complete_emits_completed_without_error() -> Result<()> {
         let conversation_id = ThreadId::new();
         let event_turn_id = "complete1".to_string();
-        let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let mut rx = acknowledge_notification_writes(rx);
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tx,
             codex_analytics::AnalyticsEventsClient::disabled(),
@@ -3687,7 +3711,8 @@ mod tests {
             &thread_state,
         )
         .await;
-        let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let mut rx = acknowledge_notification_writes(rx);
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tx,
             codex_analytics::AnalyticsEventsClient::disabled(),
@@ -3742,7 +3767,8 @@ mod tests {
             &thread_state,
         )
         .await;
-        let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let mut rx = acknowledge_notification_writes(rx);
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tx,
             codex_analytics::AnalyticsEventsClient::disabled(),
@@ -3969,7 +3995,8 @@ mod tests {
         let conversation_b = ThreadId::new();
         let thread_state = new_thread_state();
 
-        let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let mut rx = acknowledge_notification_writes(rx);
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tx,
             codex_analytics::AnalyticsEventsClient::disabled(),
