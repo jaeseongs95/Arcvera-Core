@@ -33,12 +33,28 @@ initialize the connection, the TUI starts an embedded server instead. Explicit
 codex app-server daemon start
 codex app-server daemon restart
 codex app-server daemon update
+codex app-server daemon update --from-cli --no-force
 codex app-server daemon enable-remote-control
 codex app-server daemon disable-remote-control
 codex app-server daemon stop
 codex app-server daemon version
 codex app-server daemon bootstrap --remote-control
 ```
+
+`update --from-cli --no-force` selects the invoking complete package only after
+the existing updater and daemon finish graceful shutdown. Unlike the default
+update, it never force-kills a managed process. A failed request or elapsed
+shutdown grace leaves `current` unchanged and does not start a replacement or
+automatically restart the updater. A staged release may remain on disk.
+
+Success retains the existing `status: "updated"` JSON. An incomplete non-forcing
+stop prints the same output fields with `shutdownUnconfirmed` (request/ACK
+failed), `shutdownTimedOut` (grace elapsed), or `shutdownOutcomeUnknown` (state
+could not be reconciled), and exits unsuccessfully. Version fields are null when
+not re-observed. The old process may still be draining: an ACK is not process
+exit, an already-sent shutdown cannot be undone, and these outcomes must not be
+automatically retried. `--no-force` requires `--from-cli`; omitting it preserves
+the existing force-after-grace behavior.
 
 On success, every command writes exactly one JSON object to stdout. Consumers
 should parse that JSON rather than relying on human-readable text. Lifecycle

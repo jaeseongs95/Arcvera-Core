@@ -155,6 +155,76 @@ async fn seeds_full_package() {
 }
 
 #[tokio::test]
+async fn no_force_timeout_does_not_select_or_start_replacement() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    let bin = package(&source, "0.152.0");
+    let home = temp.path().join("home");
+    let settings = DaemonSettings {
+        shutdown_grace_seconds: 0,
+        ..DaemonSettings::default()
+    };
+    prepare_from_package(
+        &daemon(&home),
+        &settings,
+        InstallMode::Missing,
+        Some(&source),
+        &bin,
+        |_| Ok(true),
+    )
+    .await
+    .unwrap();
+    let selected = daemon(&home);
+    let old_selection = home
+        .join("packages/app-server-daemon/current")
+        .canonicalize()
+        .unwrap();
+    let ready = temp.path().join("ready");
+    let fixture = format!(
+        "#!/bin/sh\ncase \"$*\" in *--help*) exit 1;; esac\nif [ \"$1\" = --version ]; then echo 'codex 0.152.0'; exit 0; fi\ntrap '' TERM\ntouch '{}'\nwhile :; do sleep 1; done\n",
+        ready.display()
+    );
+    codex_utils_cargo_bin::write_executable(&selected.managed_codex_bin, &fixture).unwrap();
+    let backend = crate::backend::pid_backend(selected.backend_paths(&settings));
+    backend.start().await.unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while !ready.exists() {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let recovery = selected.recovery_file().unwrap();
+    std::fs::write(&recovery, b"preserve pending recovery").unwrap();
+    let replacement = temp.path().join("replacement");
+    let replacement_bin = package(&replacement, "0.153.0");
+    let result = prepare_from_package(
+        &selected,
+        &settings,
+        InstallMode::ReplaceNoForce,
+        Some(&replacement),
+        &replacement_bin,
+        |_| Ok(true),
+    )
+    .await;
+    let unchanged = home
+        .join("packages/app-server-daemon/current")
+        .canonicalize()
+        .unwrap()
+        == old_selection;
+    let alive = backend.is_starting_or_running().await.unwrap();
+    let recovery_preserved = std::fs::read(&recovery).unwrap() == b"preserve pending recovery";
+    backend.stop_with_grace(0).await.unwrap(); // Fixture cleanup after capturing the no-force result.
+    let error = result.expect_err("live old process must prevent selection");
+    assert!(
+        matches!(error.downcast_ref::<super::NoForceUpdateError>(), Some(error) if error.status == crate::UpdateStatus::ShutdownTimedOut)
+    );
+    assert!(unchanged);
+    assert!(alive);
+    assert!(recovery_preserved);
+}
+
+#[tokio::test]
 async fn incomplete_source_fails_without_selecting_it() {
     let temp = tempfile::TempDir::new().expect("temp");
     let source = temp.path().join("package");

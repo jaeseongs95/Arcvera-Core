@@ -578,6 +578,57 @@ async fn shutdown_grace_handles_process_exit() {
     }
 }
 
+#[tokio::test]
+async fn no_force_timeout_keeps_process_and_pid_record() {
+    let temp = TempDir::new().expect("temp dir");
+    let ready = temp.path().join("fixture.ready");
+    let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "backend::pid::tests::shutdown_grace_child"])
+        .env("CODEX_TEST_SHUTDOWN_GRACE_READY", &ready)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let pid = child.id();
+    let pid_file = ready.with_extension("pid");
+    let result = async {
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while !ready.exists() {
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("fixture readiness");
+        let record = PidRecord {
+            pid,
+            process_start_time: super::read_process_start_time(pid).await?,
+            process_identity: None,
+            executable_identity: None,
+        };
+        tokio::fs::write(&pid_file, serde_json::to_vec(&record)?).await?;
+        #[cfg(unix)]
+        let backend = PidBackend::new(temp.path().join("codex"), pid_file.clone(), false);
+        #[cfg(windows)]
+        let backend =
+            PidBackend::new_update_loop(temp.path().join("codex"), pid_file.clone(), None);
+        let error = backend
+            .stop_without_force(0)
+            .await
+            .expect_err("must not force a live fixture");
+        anyhow::ensure!(matches!(
+            error.downcast_ref::<super::NoForceStopError>(),
+            Some(super::NoForceStopError::TimedOut)
+        ));
+        anyhow::ensure!(backend.record_is_active(&record).await?);
+        anyhow::ensure!(pid_file.is_file());
+        Ok::<(), anyhow::Error>(())
+    }
+    .await;
+    let _ = child.kill(); // Test fixture cleanup, never part of the no-force product path.
+    let _ = child.wait();
+    result.unwrap();
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn stopping_updater_signals_its_installer_process_group() {

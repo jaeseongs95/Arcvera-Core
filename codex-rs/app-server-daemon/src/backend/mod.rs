@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
+pub(crate) use pid::NoForceStopError;
 pub(crate) use pid::PidBackend;
 pub(crate) use pid::wait_for_process_exit;
 

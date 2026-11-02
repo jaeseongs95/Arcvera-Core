@@ -19,6 +19,7 @@ mod prepare_install;
 mod release_pruning;
 pub use prepare_install::InstallRequest;
 pub use prepare_install::update_from_cli;
+pub use prepare_install::update_from_cli_with_no_force;
 mod remote_control_client;
 mod settings;
 pub mod telemetry;
@@ -144,6 +145,9 @@ pub enum UpdateStatus {
     Updated,
     NoUpdate,
     Unsupported,
+    ShutdownUnconfirmed,
+    ShutdownTimedOut,
+    ShutdownOutcomeUnknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]

@@ -35,6 +35,25 @@ const START_TIMEOUT: Duration = Duration::from_secs(10);
 const STDERR_LOG_TAIL_BYTES: u64 = 4096;
 
 #[derive(Debug)]
+pub(crate) enum NoForceStopError {
+    RequestUnconfirmed(anyhow::Error),
+    TimedOut,
+}
+
+impl std::fmt::Display for NoForceStopError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::RequestUnconfirmed(error) => {
+                write!(f, "graceful shutdown was not confirmed: {error:#}")
+            }
+            Self::TimedOut => f.write_str("graceful shutdown did not finish before its deadline"),
+        }
+    }
+}
+
+impl std::error::Error for NoForceStopError {}
+
+#[derive(Debug)]
 #[cfg_attr(not(any(unix, windows)), allow(dead_code))]
 pub(crate) struct PidBackend {
     pub(super) feature_overrides: BTreeMap<String, bool>,
@@ -178,6 +197,14 @@ impl PidBackend {
     }
 
     pub(crate) async fn stop_with_grace(&self, grace_seconds: u32) -> Result<()> {
+        self.stop_with_policy(grace_seconds, /*force*/ true).await
+    }
+
+    pub(crate) async fn stop_without_force(&self, grace_seconds: u32) -> Result<()> {
+        self.stop_with_policy(grace_seconds, /*force*/ false).await
+    }
+
+    async fn stop_with_policy(&self, grace_seconds: u32, force: bool) -> Result<()> {
         loop {
             let Some(record) = self.wait_for_pid_start().await? else {
                 return Ok(());
@@ -185,6 +212,11 @@ impl PidBackend {
             if !self.record_is_active(&record).await? {
                 match self.refresh_after_stale_record(&record).await? {
                     PidFileState::Missing => return Ok(()),
+                    PidFileState::Starting | PidFileState::Running(_) if !force => {
+                        bail!(
+                            "managed process ownership changed; non-forcing stop was not retried"
+                        );
+                    }
                     PidFileState::Starting | PidFileState::Running(_) => continue,
                 }
             }
@@ -193,15 +225,34 @@ impl PidBackend {
             crate::diagnostics::event("shutdown_requested", serde_json::json!({ "pid": pid }));
             let started_at = tokio::time::Instant::now();
             let force_after = Duration::from_secs(grace_seconds.into());
-            let deadline = started_at + force_after + STOP_FORCE_TIMEOUT;
+            let deadline = started_at
+                + force_after
+                + if force {
+                    STOP_FORCE_TIMEOUT
+                } else {
+                    Duration::ZERO
+                };
             #[cfg(unix)]
-            self.terminate_process(pid)?;
+            if let Err(error) = self.terminate_process(pid) {
+                if !force {
+                    return Err(NoForceStopError::RequestUnconfirmed(error).into());
+                }
+                return Err(error);
+            }
             #[cfg(windows)]
             let process = {
                 let Some(process) = super::windows::Process::open(pid)? else {
+                    if !force {
+                        bail!(
+                            "managed process disappeared before shutdown; non-forcing stop was not retried"
+                        );
+                    }
                     continue;
                 };
                 if process.start_time()? != record.process_start_time {
+                    if !force {
+                        bail!("managed process identity changed; non-forcing stop was not retried");
+                    }
                     continue;
                 }
                 match self.command_kind {
@@ -216,13 +267,23 @@ impl PidBackend {
                         if let Err(err) =
                             crate::client::request_shutdown(socket_path.as_path(), pid).await
                         {
+                            if !force {
+                                return Err(NoForceStopError::RequestUnconfirmed(err).into());
+                            }
                             tracing::warn!(%pid, %err, "managed app-server shutdown request failed; waiting for force deadline");
                         }
                     }
                     PidCommandKind::UpdateLoop { .. } => {
-                        fs::write(self.pid_file.with_extension("shutdown"), pid.to_string())
-                            .await
-                            .context("failed to request updater shutdown")?;
+                        let requested =
+                            fs::write(self.pid_file.with_extension("shutdown"), pid.to_string())
+                                .await
+                                .context("failed to request updater shutdown");
+                        if let Err(error) = requested {
+                            if !force {
+                                return Err(NoForceStopError::RequestUnconfirmed(error).into());
+                            }
+                            return Err(error);
+                        }
                     }
                 }
                 process
@@ -239,13 +300,21 @@ impl PidBackend {
                 if !self.record_is_active(&record).await? {
                     match self.refresh_after_stale_record(&record).await? {
                         PidFileState::Missing => return Ok(()),
+                        PidFileState::Starting | PidFileState::Running(_) if !force => {
+                            bail!(
+                                "managed process ownership changed after shutdown; non-forcing stop was not retried"
+                            );
+                        }
                         PidFileState::Starting | PidFileState::Running(_) => break,
                     }
                 }
                 if tokio::time::Instant::now() >= deadline {
+                    if !force {
+                        return Err(NoForceStopError::TimedOut.into());
+                    }
                     break;
                 }
-                if !forced && started_at.elapsed() >= force_after {
+                if force && !forced && started_at.elapsed() >= force_after {
                     crate::diagnostics::event("shutdown_forced", serde_json::json!({ "pid": pid }));
                     #[cfg(unix)]
                     self.force_terminate_process(pid)?;
