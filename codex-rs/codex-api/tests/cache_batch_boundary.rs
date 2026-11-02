@@ -80,31 +80,44 @@ fn events(id: &str, cached: Option<u64>) -> [Value; 2] {
 #[test]
 fn http_and_websocket_producers_reach_immutable_batches() {
     for wire in [false, true] {
-        let mut command = std::process::Command::new(std::env::current_exe().unwrap());
-        command
-            .args([
-                "--exact",
-                "boundary_child",
-                "--ignored",
-                "--nocapture",
-                "--test-threads=1",
-            ])
-            .env("APP_CACHE_WIRE_DIAGNOSTICS", if wire { "1" } else { "0" });
-        for name in [
-            "CODEX_HOME",
-            "OPENAI_API_KEY",
-            "HTTP_PROXY",
-            "HTTPS_PROXY",
-            "ALL_PROXY",
-        ] {
-            command.env_remove(name);
+        for explicit in [None, Some("0"), Some("1")] {
+            let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+            command
+                .args([
+                    "--exact",
+                    "boundary_child",
+                    "--ignored",
+                    "--nocapture",
+                    "--test-threads=1",
+                ])
+                .env("CODEX_TEST_CACHE_WIRE", wire.to_string());
+            match explicit {
+                Some(value) => {
+                    command.env("APP_CACHE_WIRE_DIAGNOSTICS", value);
+                }
+                None => {
+                    command.env_remove("APP_CACHE_WIRE_DIAGNOSTICS");
+                }
+            }
+            for name in [
+                "CODEX_HOME",
+                "OPENAI_API_KEY",
+                "HTTP_PROXY",
+                "HTTPS_PROXY",
+                "ALL_PROXY",
+            ] {
+                command.env_remove(name);
+            }
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                command.creation_flags(0x08000000);
+            }
+            assert!(
+                command.status().unwrap().success(),
+                "wire={wire}, explicit={explicit:?}"
+            );
         }
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            command.creation_flags(0x08000000);
-        }
-        assert!(command.status().unwrap().success(), "wire={wire}");
     }
 }
 
@@ -116,11 +129,12 @@ async fn boundary_child() -> anyhow::Result<()> {
         home.path().join("cli-logging.toml"),
         "enabled = true\nprocess = false\nrpc = false\nevents = false\n",
     )?;
+    let wire_enabled = std::env::var("CODEX_TEST_CACHE_WIRE")? == "true";
+    let explicit_wire = std::env::var("APP_CACHE_WIRE_DIAGNOSTICS").as_deref() == Ok("1");
     std::fs::write(
         home.path().join("cli-cache-diagnostics.toml"),
-        "response = true\nwire = true\n",
+        format!("response = true\nwire = {wire_enabled}\n"),
     )?;
-    let wire_enabled = std::env::var("APP_CACHE_WIRE_DIAGNOSTICS")? == "1";
     let (layer, guard) = codex_diagnostics::batch_log::start(home.path())?;
     let layer = layer.expect("batch enabled");
     let filter = layer.metadata_filter();
@@ -170,10 +184,10 @@ async fn boundary_child() -> anyhow::Result<()> {
             // Match the real client's permessage-deflate offer. The fork rejects
             // that header when the fixture has no extension configuration.
             let mut config = tungstenite::protocol::WebSocketConfig::default();
-            config.extensions.permessage_deflate = Some(
-                tungstenite::extensions::compression::deflate::DeflateConfig::default(),
-            );
-            let mut socket = tokio_tungstenite::accept_async_with_config(socket, Some(config)).await?;
+            config.extensions.permessage_deflate =
+                Some(tungstenite::extensions::compression::deflate::DeflateConfig::default());
+            let mut socket =
+                tokio_tungstenite::accept_async_with_config(socket, Some(config)).await?;
             for (id, cached, previous) in [
                 ("resp_ws_full", Some(0), None),
                 ("resp_ws_delta", None, Some("resp_ws_full")),
@@ -228,13 +242,15 @@ async fn boundary_child() -> anyhow::Result<()> {
             while let Some(event) = stream.next().await {
                 match event {
                     Ok(ResponseEvent::Completed { .. }) => completed += 1,
-                    Ok(_) => {},
-                    Err(error) if previous.is_some()
-                        && error.to_string().contains("missing field `cached_tokens`") => {
+                    Ok(_) => {}
+                    Err(error)
+                        if previous.is_some()
+                            && error.to_string().contains("missing field `cached_tokens`") =>
+                    {
                         // Raw presence must survive the existing protocol rejection;
                         // missing usage must not become a successful zero-token response.
                         rejected_usage += 1;
-                    },
+                    }
                     Err(error) => return Err(error.into()),
                 }
             }
@@ -270,6 +286,11 @@ async fn boundary_child() -> anyhow::Result<()> {
         .unwrap();
     let instance = startup["instance_id"].as_str().unwrap();
     assert_eq!(startup["run"]["cache"]["wire_enabled"], wire_enabled);
+    assert_eq!(startup["run"]["cache"]["response_enabled"], true);
+    assert_eq!(
+        startup["run"]["cache"]["wire_producer_enabled"],
+        wire_enabled || explicit_wire
+    );
     let observations: Vec<_> = rows
         .iter()
         .filter(|row| row["target"] == "codex_api::prompt_cache")
@@ -325,6 +346,7 @@ async fn boundary_child() -> anyhow::Result<()> {
     }
     for summary in rows.iter().filter(|row| row["kind"] == "batch_summary") {
         assert_eq!(summary["run"]["instance_id"], instance);
+        assert_eq!(summary["run"]["cache"], startup["run"]["cache"]);
         assert_eq!(summary["collector"]["dropped"], 0);
     }
     for (path, bytes) in batches {
