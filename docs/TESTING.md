@@ -1,3 +1,21 @@
+# R33 graceful 완료 통지 경계 수정 후보 시험 상태
+
+현재 고정 소스는 `36ae395a552fd55962e19409cbf29b1fdf03b0ec`, 이전 공개 기준은 `5300c7238a23cd29d29e4ffdfbcaf3ac53366886`다. 이전 `3d9` 후보에서 달라진 제품 소스는 `bespoke_event_handling.rs`, `outgoing_message.rs`, `thread_status.rs`의 3경로다. 완료·중단 알림의 쓰기 확인이 끝날 때까지 drain 책임을 유지하고 기존 idle 알림 순서를 보존하는 후속 개발 후보다. 제품 버전은 `0.166.0+native-r33.20261102`를 유지한다.
+
+개발용 시험 컴파일은 종료 코드 0으로 완료했고 표적 시험 34개가 중복 없이 통과했다. 개발용 서버 컴파일은 진행 중이며 새 후보의 runtime·Desktop 공동 시험·최종 독립감사는 미완료다. 새 release 빌드·패키지 생성은 시작하지 않았다. 이전 `3d9` package03의 graceful 완료 통지 누락과 최종 독립감사 FAIL 기록은 그대로 보존하며 전체 수용·릴리스·설치를 보류한다. 이전 후보의 시험·빌드·부분 Desktop 공동 시험 통과를 새 후보의 통과나 결함 해소로 확대하지 않는다.
+
+회귀시험을 먼저 추가한 `dafb5af70c5d4eb4f43ff1075e859c6b72b2301b`에서 완료·중단의 쓰기 확인을 보류하는 exact 시험 2개를 실행했다. 두 실행은 각각 통과 0개·실패 1개, 종료 코드 101이었고 drain count가 기대값 1 대신 0이 되는 assertion에서 실패했다. 이 red 근거는 새 후보의 green 결과가 아니다. [실행 범위와 한계](r33-development-verification.ko.md)를 따른다.
+
+## 이전 3d9 후보 기록
+
+현재 고정 소스는 `3d9eb86445925caa920dd2f958496cf1aa4ad7e2`다. 앞선 package02의 중첩 launcher PIPE EOF 실패를 수정하기 위한 Windows 공통 `HANDLE_LIST` 경로와 PID fixture를 포함한다. 같은 후보의 개발용 시험 컴파일은 종료 0이고 daemon 전체 시험은 66개 통과·0개 실패·native fixture 1개 무시였다. nested stdio 경계의 개별 재실행도 1개 통과했다. 개별 재실행은 전체 시험과 겹치므로 고유 시험 67개로 합산하지 않는다. 최적화 CLI·앱 서버·launcher 빌드와 package03 생성·해시 결속은 확인했다. 자연 EOF 8경계·격리 GUI 복원 범위의 Desktop 공동 시험은 통과했으나 graceful 완료 통지 실패로 전체 수용·릴리스·설치를 보류한다. 최종 독립감사는 이 차단 결함으로 FAIL이다. 실행 패키지 공개·실제 예약 등록·모바일·장기 부하는 미검증이다.
+
+별도 standalone stdio 합성 시험에서는 실제 3턴을 저장하고 서버 재시작 뒤 복원했다. 저장된 상태의 `thread/items/list(limit=1)`과 `thread/items/read`도 성공했다. 앞선 unmaterialized probe의 `not supported yet`를 일반적인 item API 미지원으로 해석하지 않는다. 이 시험은 중첩 launcher의 PIPE EOF 문제나 Desktop GUI를 검증하지 않는다. [실행 범위와 한계](r33-development-verification.ko.md)를 따른다.
+
+## 이전 0c588 후보 기록
+
+아래는 이전 후보의 기록이며 새 핸들 경계 수정 후보의 검증 결과가 아니다.
+
 # R33 제품 소스 후보 시험 상태
 
 현재 고정 소스는 `0c588be6c85098f0ff139ec7a9bc119c1da71f20`, 전체 버전은 `0.166.0+native-r33.20261102`다. F2 graceful-only 수정, Windows 자동 CLI 선택과 daemon 보존, 공통 cleanup 시작 경로, 암시적 로컬 서버의 전체 버전 일치 소스를 포함한다. 같은 소스의 개발용 시험 컴파일은 종료 0이며, 표적 Rust 시험은 19그룹 73개 통과·0개 실패였다. Unix 전용 daemon handoff 시험은 Windows에서 실행하지 않았다.

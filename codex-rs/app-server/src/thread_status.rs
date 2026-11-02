@@ -1,8 +1,10 @@
+// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 #[cfg(test)]
 use crate::outgoing_message::OutgoingEnvelope;
 #[cfg(test)]
 use crate::outgoing_message::OutgoingMessage;
 use crate::outgoing_message::OutgoingMessageSender;
+use crate::outgoing_message::TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ThreadActiveFlag;
 use codex_app_server_protocol::ThreadStatus;
@@ -20,6 +22,44 @@ pub(crate) struct ThreadWatchManager {
     state: Arc<Mutex<ThreadWatchState>>,
     outgoing: Option<Arc<OutgoingMessageSender>>,
     running_turn_count_tx: watch::Sender<usize>,
+}
+
+/// Owns one drain responsibility independently of the thread's UI/running state.
+#[must_use = "hold the guard until terminal notification delivery finishes"]
+pub(crate) struct ThreadWatchTerminalGuard {
+    manager: ThreadWatchManager,
+    thread_id: String,
+    handle: tokio::runtime::Handle,
+    deadline: tokio::time::Instant,
+    pending: bool,
+}
+
+impl ThreadWatchTerminalGuard {
+    pub(crate) fn deadline(&self) -> tokio::time::Instant {
+        self.deadline
+    }
+
+    pub(crate) async fn finish(mut self) {
+        self.manager.release_terminal_notification().await;
+        // Release and disarm complete in the same poll. Cancellation while acquiring
+        // the state lock still leaves Drop responsible for this one pending delivery.
+        self.pending = false;
+    }
+}
+
+impl Drop for ThreadWatchTerminalGuard {
+    fn drop(&mut self) {
+        if self.pending {
+            tracing::warn!(
+                thread_id = %self.thread_id,
+                "terminal notification delivery cancelled; releasing drain responsibility"
+            );
+            let manager = self.manager.clone();
+            self.handle.spawn(async move {
+                manager.release_terminal_notification().await;
+            });
+        }
+    }
 }
 
 pub(crate) struct ThreadWatchActiveGuard {
@@ -140,6 +180,8 @@ impl ThreadWatchManager {
             .count()
     }
 
+    // Shutdown observes active turns plus terminal notifications still being delivered.
+    // UI thread status and the actual runtime running flag do not include delivery guards.
     pub(crate) fn subscribe_running_turn_count(&self) -> watch::Receiver<usize> {
         self.running_turn_count_tx.subscribe()
     }
@@ -153,12 +195,16 @@ impl ThreadWatchManager {
         .await;
     }
 
-    pub(crate) async fn note_turn_completed(&self, thread_id: &str, _failed: bool) {
-        self.clear_active_state(thread_id).await;
+    pub(crate) async fn note_turn_completed(
+        &self,
+        thread_id: &str,
+        _failed: bool,
+    ) -> ThreadWatchTerminalGuard {
+        self.clear_active_state(thread_id).await
     }
 
-    pub(crate) async fn note_turn_interrupted(&self, thread_id: &str) {
-        self.clear_active_state(thread_id).await;
+    pub(crate) async fn note_turn_interrupted(&self, thread_id: &str) -> ThreadWatchTerminalGuard {
+        self.clear_active_state(thread_id).await
     }
 
     pub(crate) async fn note_thread_shutdown(&self, thread_id: &str) {
@@ -181,13 +227,49 @@ impl ThreadWatchManager {
         .await;
     }
 
-    async fn clear_active_state(&self, thread_id: &str) {
-        self.update_runtime_for_thread(thread_id, move |runtime| {
-            runtime.running = false;
-            runtime.pending_permission_requests = 0;
-            runtime.pending_user_input_requests = 0;
-        })
-        .await;
+    async fn clear_active_state(&self, thread_id: &str) -> ThreadWatchTerminalGuard {
+        let handle = tokio::runtime::Handle::current();
+        let (notification, guard) = {
+            let mut state = self.state.lock().await;
+            // Transfer running -> pending delivery under one lock, so shutdown can never
+            // observe zero between those responsibilities. The guard owns cleanup even
+            // if the following idle notification enqueue is cancelled before we return.
+            state.pending_terminal_notifications += 1;
+            let guard = ThreadWatchTerminalGuard {
+                manager: self.clone(),
+                thread_id: thread_id.to_string(),
+                handle,
+                deadline: tokio::time::Instant::now() + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT,
+                pending: true,
+            };
+            let notification = state.update_runtime(thread_id, |runtime| {
+                runtime.running = false;
+                runtime.pending_permission_requests = 0;
+                runtime.pending_user_input_requests = 0;
+            });
+            self.publish_drain_count(&state);
+            (notification, guard)
+        };
+        if tokio::time::timeout_at(
+            guard.deadline(),
+            self.send_status_notification(notification),
+        )
+        .await
+        .is_err()
+        {
+            tracing::warn!(
+                thread_id,
+                timeout_secs = TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT.as_secs(),
+                "terminal idle notification enqueue timed out"
+            );
+        }
+        guard
+    }
+
+    async fn release_terminal_notification(&self) {
+        let mut state = self.state.lock().await;
+        state.pending_terminal_notifications -= 1;
+        self.publish_drain_count(&state);
     }
 
     pub(crate) async fn note_permission_requested(
@@ -227,18 +309,28 @@ impl ThreadWatchManager {
         let notification = {
             let mut state = self.state.lock().await;
             let notification = mutate(&mut state);
-            let running_turn_count = state.running_turn_count;
-            self.running_turn_count_tx.send_if_modified(|current| {
-                if *current == running_turn_count {
-                    false
-                } else {
-                    *current = running_turn_count;
-                    true
-                }
-            });
+            self.publish_drain_count(&state);
             notification
         };
+        self.send_status_notification(notification).await;
+    }
 
+    fn publish_drain_count(&self, state: &ThreadWatchState) {
+        let drain_count = state.running_turn_count + state.pending_terminal_notifications;
+        self.running_turn_count_tx.send_if_modified(|current| {
+            if *current == drain_count {
+                false
+            } else {
+                *current = drain_count;
+                true
+            }
+        });
+    }
+
+    async fn send_status_notification(
+        &self,
+        notification: Option<ThreadStatusChangedNotification>,
+    ) {
         if let Some(notification) = notification
             && let Some(outgoing) = &self.outgoing
         {
@@ -305,6 +397,8 @@ struct ThreadWatchState {
     runtime_by_thread_id: HashMap<String, RuntimeFacts>,
     status_watcher_by_thread_id: HashMap<String, watch::Sender<ThreadStatus>>,
     running_turn_count: usize,
+    // Guard-owned delivery responsibilities survive thread removal or a new turn.
+    pending_terminal_notifications: usize,
 }
 
 impl ThreadWatchState {
@@ -565,6 +659,8 @@ mod tests {
 
         manager
             .note_turn_completed(INTERACTIVE_THREAD_ID, false)
+            .await
+            .finish()
             .await;
         assert_eq!(
             manager
@@ -685,6 +781,199 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn terminal_delivery_preserves_idle_notification_and_holds_drain_count() {
+        let (tx, mut rx) = mpsc::channel(2);
+        let manager = ThreadWatchManager::new_with_outgoing(Arc::new(OutgoingMessageSender::new(
+            tx,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        )));
+        let mut drain_count = manager.subscribe_running_turn_count();
+        manager.note_turn_started(INTERACTIVE_THREAD_ID).await;
+        assert_eq!(*drain_count.borrow_and_update(), 1);
+        assert!(matches!(
+            recv_status_changed_notification(&mut rx).await.status,
+            ThreadStatus::Active { .. }
+        ));
+
+        let delivery = manager
+            .note_turn_completed(INTERACTIVE_THREAD_ID, false)
+            .await;
+        assert_eq!(manager.running_turn_count().await, 0);
+        assert_eq!(
+            manager
+                .loaded_status_for_thread(INTERACTIVE_THREAD_ID)
+                .await,
+            ThreadStatus::Idle
+        );
+        assert_eq!(
+            recv_status_changed_notification(&mut rx).await.status,
+            ThreadStatus::Idle
+        );
+        assert_eq!(*drain_count.borrow(), 1);
+        assert!(
+            !drain_count.has_changed().expect("watch remains open"),
+            "running -> pending transfer must not publish a transient zero"
+        );
+        delivery.finish().await;
+        assert_eq!(*drain_count.borrow(), 0);
+    }
+
+    #[tokio::test]
+    async fn terminal_delivery_finish_preserves_a_new_running_turn() {
+        let manager = ThreadWatchManager::new();
+        let drain_count = manager.subscribe_running_turn_count();
+        manager.note_turn_started(INTERACTIVE_THREAD_ID).await;
+        let old_delivery = manager
+            .note_turn_completed(INTERACTIVE_THREAD_ID, false)
+            .await;
+        manager.note_turn_started(INTERACTIVE_THREAD_ID).await;
+        assert_eq!(*drain_count.borrow(), 2);
+        old_delivery.finish().await;
+        assert_eq!(*drain_count.borrow(), 1);
+        assert_eq!(manager.running_turn_count().await, 1);
+        assert!(matches!(
+            manager
+                .loaded_status_for_thread(INTERACTIVE_THREAD_ID)
+                .await,
+            ThreadStatus::Active { .. }
+        ));
+        manager
+            .note_turn_interrupted(INTERACTIVE_THREAD_ID)
+            .await
+            .finish()
+            .await;
+        assert_eq!(*drain_count.borrow(), 0);
+    }
+
+    #[tokio::test]
+    async fn terminal_delivery_guards_survive_thread_removal_and_overlap() {
+        let manager = ThreadWatchManager::new();
+        let drain_count = manager.subscribe_running_turn_count();
+        manager.note_turn_started(INTERACTIVE_THREAD_ID).await;
+        let first = manager
+            .note_turn_completed(INTERACTIVE_THREAD_ID, false)
+            .await;
+        manager.note_turn_started(INTERACTIVE_THREAD_ID).await;
+        let second = manager.note_turn_interrupted(INTERACTIVE_THREAD_ID).await;
+        manager.note_turn_started(NON_INTERACTIVE_THREAD_ID).await;
+        assert_eq!(*drain_count.borrow(), 3);
+        manager.remove_thread(INTERACTIVE_THREAD_ID).await;
+        manager
+            .note_thread_shutdown(NON_INTERACTIVE_THREAD_ID)
+            .await;
+        assert_eq!(
+            *drain_count.borrow(),
+            2,
+            "removing a thread must not release guard-owned deliveries"
+        );
+        first.finish().await;
+        assert_eq!(*drain_count.borrow(), 1);
+        second.finish().await;
+        assert_eq!(*drain_count.borrow(), 0);
+    }
+
+    #[tokio::test]
+    async fn cancelled_idle_enqueue_releases_terminal_delivery() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let manager = ThreadWatchManager::new_with_outgoing(Arc::new(OutgoingMessageSender::new(
+            tx,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        )));
+        let mut drain_count = manager.subscribe_running_turn_count();
+        manager.note_turn_started(INTERACTIVE_THREAD_ID).await;
+        assert_eq!(*drain_count.borrow_and_update(), 1);
+        // The queued Active notification blocks Idle enqueue before the guard is returned.
+        let mut completion = Box::pin(manager.note_turn_completed(INTERACTIVE_THREAD_ID, false));
+        assert!(futures::poll!(&mut completion).is_pending());
+        assert_eq!(manager.running_turn_count().await, 0);
+        assert_eq!(*drain_count.borrow(), 1);
+        assert!(!drain_count.has_changed().expect("watch remains open"));
+        drop(completion);
+        tokio::time::timeout(std::time::Duration::from_secs(1), drain_count.changed())
+            .await
+            .expect("cancelled begin must release its guard")
+            .expect("watch remains open");
+        assert_eq!(*drain_count.borrow(), 0);
+        assert!(rx.try_recv().is_ok());
+        assert!(
+            rx.try_recv().is_err(),
+            "cancelled idle enqueue must not remain queued"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelled_terminal_finish_releases_its_guard() {
+        let manager = ThreadWatchManager::new();
+        let mut drain_count = manager.subscribe_running_turn_count();
+        manager.note_turn_started(INTERACTIVE_THREAD_ID).await;
+        let delivery = manager
+            .note_turn_completed(INTERACTIVE_THREAD_ID, false)
+            .await;
+        assert_eq!(*drain_count.borrow_and_update(), 1);
+        let state = manager.state.lock().await;
+        let mut finish = Box::pin(delivery.finish());
+        assert!(futures::poll!(&mut finish).is_pending());
+        drop(finish);
+        drop(state);
+        tokio::time::timeout(std::time::Duration::from_secs(1), drain_count.changed())
+            .await
+            .expect("cancelled finish must retain cleanup responsibility")
+            .expect("watch remains open");
+        assert_eq!(*drain_count.borrow(), 0);
+        assert_eq!(manager.state.lock().await.pending_terminal_notifications, 0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn terminal_delivery_deadline_includes_idle_enqueue() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let outgoing = Arc::new(OutgoingMessageSender::new(
+            tx,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        ));
+        let manager = ThreadWatchManager::new_with_outgoing(outgoing.clone());
+        let drain_count = manager.subscribe_running_turn_count();
+        manager.note_turn_started(INTERACTIVE_THREAD_ID).await;
+        let started = tokio::time::Instant::now();
+        let mut completion = Box::pin(manager.note_turn_completed(INTERACTIVE_THREAD_ID, false));
+        assert!(futures::poll!(&mut completion).is_pending());
+        tokio::time::advance(TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT).await;
+        let delivery = completion.await;
+        assert_eq!(
+            delivery.deadline(),
+            started + TERMINAL_NOTIFICATION_DELIVERY_TIMEOUT
+        );
+        assert_eq!(*drain_count.borrow(), 1);
+        let scoped = crate::outgoing_message::ThreadScopedOutgoingMessageSender::new(
+            outgoing,
+            vec![crate::outgoing_message::ConnectionId(1)],
+            ThreadId::new(),
+        );
+        assert!(
+            !scoped
+                .send_terminal_notification_and_wait(
+                    ServerNotification::ThreadStatusChanged(ThreadStatusChangedNotification {
+                        thread_id: INTERACTIVE_THREAD_ID.to_string(),
+                        status: ThreadStatus::Idle,
+                    }),
+                    delivery.deadline(),
+                )
+                .await
+        );
+        assert_eq!(
+            tokio::time::Instant::now(),
+            delivery.deadline(),
+            "terminal enqueue must not receive a fresh five-second budget after idle timed out"
+        );
+        delivery.finish().await;
+        assert_eq!(*drain_count.borrow(), 0);
+        assert!(rx.try_recv().is_ok());
+        assert!(
+            rx.try_recv().is_err(),
+            "both expired enqueues must be cancelled"
+        );
+    }
+
+    #[tokio::test]
     async fn has_running_turns_tracks_runtime_running_flag_only() {
         let manager = ThreadWatchManager::new();
         manager.upsert_thread(INTERACTIVE_THREAD_ID).await;
@@ -701,6 +990,8 @@ mod tests {
 
         manager
             .note_turn_completed(INTERACTIVE_THREAD_ID, false)
+            .await
+            .finish()
             .await;
         assert_eq!(manager.running_turn_count().await, 0);
     }

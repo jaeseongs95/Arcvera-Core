@@ -883,6 +883,8 @@ fn update_loop_uses_hidden_app_server_subcommand() {
     let backend = PidBackend {
         feature_overrides: Default::default(),
         preserve_recovery: false,
+        #[cfg(windows)]
+        test_command: None,
         codex_bin: "codex".into(),
         pid_file: "updater.pid".into(),
         lock_file: "updater.pid.lock".into(),
@@ -1138,23 +1140,36 @@ async fn recovery_preserving_start_probe_failures_leave_windows_state_unchanged(
 
 #[cfg(windows)]
 #[tokio::test]
+#[ignore = "native subprocess fixture selected by managed-child launch tests"]
+async fn managed_child_fixture() {
+    // Only an explicit exact/ignored test command reaches this native fixture.
+    tokio::fs::write("launched.cwd", []).await.unwrap();
+    eprintln!("managed child fixture");
+    let shutdown = std::env::var_os(codex_app_server_transport::DAEMON_SHUTDOWN_FILE_ENV)
+        .map(std::path::PathBuf::from);
+    if let Some(shutdown) = &shutdown {
+        tokio::fs::write(shutdown.with_extension("ready"), [])
+            .await
+            .unwrap();
+    }
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    while tokio::time::Instant::now() < deadline {
+        if shutdown.as_ref().is_some_and(|path| path.exists()) {
+            break;
+        }
+        sleep(Duration::from_millis(25)).await;
+    }
+}
+
+#[cfg(windows)]
+#[tokio::test]
 async fn managed_children_launch_in_workdir_without_changing_private_state_directory() {
     if is_elevated_test_process().expect("query administrator membership") {
         return;
     }
     let temp = TempDir::new().expect("temp dir");
     let state_dir = temp.path().join("state");
-    let codex_bin = temp.path().join("codex.cmd");
-    tokio::fs::write(
-        &codex_bin,
-        "@echo off\r\n\
-         if \"%3\"==\"--help\" exit /b 1\r\n\
-         echo ready > launched.cwd\r\n\
-         if defined CODEX_DAEMON_SHUTDOWN_FILE (for %%F in (\"%CODEX_DAEMON_SHUTDOWN_FILE%\") do type nul > \"%%~dpnF.ready\")\r\n\
-         for /l %%i in (1,1,10000000) do @rem\r\n",
-    )
-    .await
-    .expect("write daemon fixture");
+    let codex_bin = std::env::current_exe().expect("native test fixture");
     let backends = [
         PidBackend::new(
             codex_bin.clone(),
@@ -1167,7 +1182,8 @@ async fn managed_children_launch_in_workdir_without_changing_private_state_direc
             /*restore_release*/ None,
         ),
     ];
-    for backend in backends {
+    for mut backend in backends {
+        backend.test_command = Some("backend::pid::tests::managed_child_fixture");
         backend.start().await.expect("launch managed child");
         let marker = state_dir.join("workdir/launched.cwd");
         let launched_in_workdir = tokio::time::timeout(Duration::from_secs(5), async {

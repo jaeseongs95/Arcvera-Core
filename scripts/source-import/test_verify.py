@@ -159,6 +159,10 @@ class VerifierChecks(unittest.TestCase):
                      'codex-rs/app-server-daemon/src/backend/mod.rs',
                      'codex-rs/app-server-daemon/src/backend/pid.rs',
                      'codex-rs/app-server-daemon/src/backend/pid_tests.rs',
+                     'codex-rs/app-server-daemon/src/backend/pid_start.rs',
+                     'codex-rs/app-server-daemon/src/backend/windows.rs',
+                     'codex-rs/app-server-daemon/src/backend/windows_spawn.rs',
+                     'codex-rs/app-server-daemon/src/backend/windows_tests.rs',
                      'codex-rs/app-server-daemon/src/lib.rs',
                      'codex-rs/app-server-daemon/src/prepare_install.rs',
                      'codex-rs/app-server-daemon/src/prepare_install_tests.rs',
@@ -176,6 +180,7 @@ class VerifierChecks(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(EXPORT.notice(path),b'<!-- Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md. -->\n')
         for path in ['codex-rs/Cargo.toml', 'codex-rs/Cargo.lock',
+                     'codex-rs/app-server-daemon/Cargo.toml',
                      'tools/windows-cli/update.ps1', 'tools/windows-cli/test_update.ps1']:
             with self.subTest(path=path):
                 self.assertEqual(EXPORT.notice(path),b'# Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n')

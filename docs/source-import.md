@@ -1,3 +1,21 @@
+# R33 graceful 완료 통지 경계 수정 소스
+
+현재 고정 소스는 `36ae395a552fd55962e19409cbf29b1fdf03b0ec`, 이전 공개 기준은 `5300c7238a23cd29d29e4ffdfbcaf3ac53366886`다. 이전 `3d9` 후보에서 달라진 제품 소스는 `bespoke_event_handling.rs`, `outgoing_message.rs`, `thread_status.rs`의 3경로다. 완료·중단 알림의 쓰기 확인이 끝날 때까지 drain 책임을 유지하고 기존 idle 알림 순서를 보존하는 후속 개발 후보다. 제품 버전은 `0.166.0+native-r33.20261102`를 유지한다.
+
+source 9,412개·공식 대비 수정 558개를 고정 Git blob에서 수집한다. 기존 R32 기본 고지와 R33 개별 고지 51경로를 보존하고 이번 3경로를 더해 R33 고지는 총 54경로다. 원본 Apache 고지·LICENSE·NOTICE와 내장 프롬프트 38개의 원본·Windows 바이트 해시는 유지한다. 프롬프트 catalog의 source commit만 현재 후보에 연결한다. 원시 로그·실행 파일·개인 경로는 공개하지 않는다. 공식 pin·source prefix·기본 고지·schema는 유지한다. 이전 공개 commit의 검증된 inventory를 기준으로 3경로만 갱신하고 patch·inventory·source pin을 함께 결속한다.
+
+개발용 시험 컴파일은 종료 코드 0으로 완료했고 표적 시험 34개가 중복 없이 통과했다. 개발용 서버 컴파일은 진행 중이며 새 후보의 runtime·Desktop 공동 시험·최종 독립감사는 미완료다. 새 release 빌드·패키지 생성은 시작하지 않았다. 이전 `3d9` package03의 graceful 완료 통지 누락과 최종 독립감사 FAIL 기록은 그대로 보존하며 전체 수용·릴리스·설치를 보류한다. 이전 후보의 시험·빌드·부분 Desktop 공동 시험 통과를 새 후보의 통과나 결함 해소로 확대하지 않는다. [후보별 검증 범위](r33-development-verification.ko.md)를 따른다.
+
+## 이전 3d9 후보 기록
+
+이번 고정 소스는 `3d9eb86445925caa920dd2f958496cf1aa4ad7e2`, 이전 공개 기준은 `b1a8780e283c3f3514387ec209ded2d78c6e91b7`이다. 공식 pin·source prefix·기본 R32 고지는 유지하고 추가 7경로를 고정 Git blob에서 export했다. 새 Rust 파일 `codex-rs/app-server-daemon/src/backend/windows_spawn.rs`도 기존 `codex-rs` prefix 안에서 수집한다. source 9,412개·공식 대비 수정 557개이며 개별 R33 고지는 총 51경로다.
+
+현재 후보의 개발용 시험 컴파일과 daemon 전체 66개 시험 및 nested stdio 개별 재실행 1개는 통과했고 native fixture 1개는 무시됐다. 최적화 CLI·앱 서버·launcher 빌드와 package03 생성·해시 결속을 확인했다. 자연 EOF 8경계·격리 GUI 복원 범위의 Desktop 공동 시험은 통과했으나 graceful 완료 통지 실패로 전체 수용·릴리스·설치를 보류한다. 최종 독립감사는 이 차단 결함으로 FAIL이다. 실행 패키지 공개·실제 예약 등록·모바일·장기 부하는 미검증이다. 아래 이전 `0c588` 후보의 컴파일·73개 시험을 이 후보의 통과 결과로 합산하지 않는다. 원본·고지·공식 대비 patch·inventory·프롬프트 38개의 결속 방식은 유지하며 [후보별 검증 범위](r33-development-verification.ko.md)를 따른다.
+
+## 이전 0c588 후보 기록
+
+아래는 이전 후보의 기록이며 새 핸들 경계 수정 후보의 검증 결과가 아니다.
+
 # 공식 0.166.0 기반 R33 개발 소스 후보
 
 이번 고정 소스는 `0c588be6c85098f0ff139ec7a9bc119c1da71f20`이며, 공개 입력은 `SOURCE_BASELINE.json`과 `upstream/source-inventory.json`으로 대조한다. 공식 원본은 `6ff1e1ca3b30fc8b914720681fcf5fe62e95f856`, 이전 공개 기준은 `8f52cad14bf45e76ef123aeea9f7fcfa22ac3b73`이다. 전체 Cargo 버전은 `0.166.0+native-r33.20261102`다. 기존 변경 위에 F2 graceful-only 수정·Windows 자동 CLI 선택·Rust launcher·cleanup 시작 경로·암시적 로컬 전체 버전 일치를 더했다. 개발용 시험 컴파일과 표적 Rust 19그룹 73개 시험은 종료 0이다. 최종 제품 실행 파일·실제 사용 환경·설치·릴리스는 미완료이며 [후보별 검증 요약](r33-development-verification.ko.md)을 따른다.
