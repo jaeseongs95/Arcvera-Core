@@ -912,7 +912,7 @@ fn resolve_windows_update_command_from_path(
 }
 
 #[derive(Debug, Default, Args)]
-#[command(group(clap::ArgGroup::new("update_action").args(["check", "status", "enable", "disable"]).multiple(false)))]
+#[command(group(clap::ArgGroup::new("update_action").args(["check", "status", "enable_updates", "disable_updates"]).multiple(false)))]
 struct UpdateCommand {
     /// Check for an OpenDIY package update without applying it.
     #[arg(long)]
@@ -922,12 +922,12 @@ struct UpdateCommand {
     status: bool,
     /// Enable automatic OpenDIY package updates (every 60 minutes by default).
     #[arg(long)]
-    enable: bool,
+    enable_updates: bool,
     /// Disable automatic OpenDIY package updates.
     #[arg(long)]
-    disable: bool,
-    /// Automatic update interval in minutes (OpenDIY only; requires --enable).
-    #[arg(long, requires = "enable", value_parser = clap::value_parser!(u32).range(5..=1440))]
+    disable_updates: bool,
+    /// Automatic update interval in minutes (OpenDIY only; requires --enable-updates).
+    #[arg(long, requires = "enable_updates", value_parser = clap::value_parser!(u32).range(5..=1440))]
     interval_minutes: Option<u32>,
 }
 
@@ -938,9 +938,9 @@ impl UpdateCommand {
             Action::Check
         } else if self.status {
             Action::Status
-        } else if self.enable {
+        } else if self.enable_updates {
             Action::Enable
-        } else if self.disable {
+        } else if self.disable_updates {
             Action::Disable
         } else {
             Action::Update
@@ -954,7 +954,7 @@ fn run_update_command(command: UpdateCommand) -> anyhow::Result<()> {
     }
     anyhow::ensure!(
         command.action() == codex_cli::opendiy_update::Action::Update,
-        "--check, --status, --enable and --disable are available only in OpenDIY builds"
+        "--check, --status, --enable-updates and --disable-updates are available only in OpenDIY builds"
     );
     #[cfg(debug_assertions)]
     {
@@ -3830,8 +3830,8 @@ enabled = true
         for (flag, expected) in [
             ("--check", Action::Check),
             ("--status", Action::Status),
-            ("--enable", Action::Enable),
-            ("--disable", Action::Disable),
+            ("--enable-updates", Action::Enable),
+            ("--disable-updates", Action::Disable),
         ] {
             let cli =
                 MultitoolCli::try_parse_from(["codex", "update", flag]).expect("parse update flag");
@@ -3841,11 +3841,23 @@ enabled = true
             assert_eq!(command.action(), expected);
         }
         for args in [
-            vec!["codex", "update", "--enable", "--disable"],
+            vec!["codex", "update", "--enable-updates", "--disable-updates"],
             vec!["codex", "update", "--check", "--status"],
             vec!["codex", "update", "--interval-minutes", "60"],
-            vec!["codex", "update", "--enable", "--interval-minutes", "4"],
-            vec!["codex", "update", "--enable", "--interval-minutes", "1441"],
+            vec![
+                "codex",
+                "update",
+                "--enable-updates",
+                "--interval-minutes",
+                "4",
+            ],
+            vec![
+                "codex",
+                "update",
+                "--enable-updates",
+                "--interval-minutes",
+                "1441",
+            ],
         ] {
             assert!(MultitoolCli::try_parse_from(args).is_err());
         }
@@ -3853,7 +3865,7 @@ enabled = true
             let cli = MultitoolCli::try_parse_from([
                 "codex",
                 "update",
-                "--enable",
+                "--enable-updates",
                 "--interval-minutes",
                 interval,
             ])
@@ -3862,6 +3874,52 @@ enabled = true
                 panic!("expected update");
             };
             assert_eq!(command.interval_minutes, interval.parse().ok());
+        }
+    }
+
+    #[test]
+    fn update_modes_preserve_global_feature_toggles_before_and_after_subcommand() {
+        use codex_cli::opendiy_update::Action;
+        for (mode, expected) in [
+            ("--enable-updates", Action::Enable),
+            ("--disable-updates", Action::Disable),
+        ] {
+            for args in [
+                vec![
+                    "codex",
+                    "--enable",
+                    "web_search_request",
+                    "--disable",
+                    "unified_exec",
+                    "update",
+                    mode,
+                ],
+                vec![
+                    "codex",
+                    "update",
+                    mode,
+                    "--enable",
+                    "web_search_request",
+                    "--disable",
+                    "unified_exec",
+                ],
+            ] {
+                let cli = MultitoolCli::try_parse_from(args)
+                    .expect("parse distinct update and feature flags");
+                assert_eq!(cli.feature_toggles.enable, vec!["web_search_request"]);
+                assert_eq!(cli.feature_toggles.disable, vec!["unified_exec"]);
+                assert_eq!(
+                    cli.feature_toggles.to_overrides().expect("valid features"),
+                    vec![
+                        "features.web_search_request=true",
+                        "features.unified_exec=false"
+                    ]
+                );
+                let Some(Subcommand::Update(command)) = cli.subcommand else {
+                    panic!("expected update");
+                };
+                assert_eq!(command.action(), expected);
+            }
         }
     }
 

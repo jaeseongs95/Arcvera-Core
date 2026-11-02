@@ -137,7 +137,7 @@ fn missing_or_modified_script_and_binary_are_rejected() -> anyhow::Result<()> {
 fn package_directory_symlink_cannot_escape_versions() -> anyhow::Result<()> {
     let fixture = Fixture::new()?;
     let outside = tempfile::tempdir()?;
-    let link = fixture.root().join("versions/escape");
+    let link = fixture.root().join("versions").join("escape");
     std::os::unix::fs::symlink(outside.path(), &link)?;
     let mut pointer = fixture.pointer()?;
     pointer["packageRoot"] = json!(link);
@@ -152,7 +152,7 @@ fn package_directory_junction_cannot_escape_versions() -> anyhow::Result<()> {
     use std::os::windows::process::CommandExt;
     let fixture = Fixture::new()?;
     let outside = tempfile::tempdir()?;
-    let link = fixture.root().join("versions/escape");
+    let link = fixture.root().join("versions").join("escape");
     let cmd = system_powershell()?
         .parent()
         .and_then(Path::parent)
@@ -166,6 +166,7 @@ fn package_directory_junction_cannot_escape_versions() -> anyhow::Result<()> {
         .creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW)
         .status()?;
     assert!(status.success());
+    assert_eq!(link.canonicalize()?, outside.path().canonicalize()?);
     let mut pointer = fixture.pointer()?;
     pointer["packageRoot"] = json!(link);
     fixture.write_pointer(pointer)?;
@@ -254,11 +255,33 @@ fn interval_is_rejected_before_any_package_or_process_access() {
 #[cfg(windows)]
 #[test]
 fn updater_uses_system_powershell_and_preserves_script_output_and_exit() -> anyhow::Result<()> {
+    if std::env::var_os("OPENDIY_TEST_MODULE_PATH_CHILD").is_none() {
+        // Pollute only a nested test process, never the test runner's environment.
+        let inherited_modules = tempfile::tempdir()?;
+        let utility = inherited_modules
+            .path()
+            .join("Microsoft.PowerShell.Utility");
+        fs::create_dir(&utility)?;
+        fs::write(utility.join("Microsoft.PowerShell.Utility.psd1"), b"@{ ModuleVersion='99.0.0'; PowerShellVersion='7.0'; RootModule='Microsoft.PowerShell.Utility.psm1'; FunctionsToExport=@('Get-FileHash') }")?;
+        fs::write(utility.join("Microsoft.PowerShell.Utility.psm1"), b"function Get-FileHash { throw 'untrusted fixture module imported' }; Export-ModuleMember -Function Get-FileHash")?;
+        let output = Command::new(std::env::current_exe()?)
+            .args(["--exact", "opendiy_update::tests::updater_uses_system_powershell_and_preserves_script_output_and_exit", "--nocapture"])
+            .env("OPENDIY_TEST_MODULE_PATH_CHILD", "1")
+            .env("OPENDIY_TEST_BAD_MODULE_PATH", inherited_modules.path())
+            .env("PSMODULEPATH", inherited_modules.path())
+            .output()?;
+        ensure!(
+            output.status.success(),
+            "Updater must work with a hostile inherited PSMODULEPATH: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return Ok(());
+    }
     let fixture = Fixture::new()?;
     fs::write(fixture.package.join("updater/update.ps1"), br#"
 param([string]$Action, [string]$InstallationRoot, [string]$PackageRoot, [string]$ManifestSha256, [int]$IntervalMinutes = 60)
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
-@{action=$Action; installationRoot=$InstallationRoot; packageRoot=$PackageRoot; manifestSha256=$ManifestSha256; intervalMinutes=$IntervalMinutes; cwd=(Get-Location).Path} | ConvertTo-Json -Compress
+@{action=$Action; installationRoot=$InstallationRoot; packageRoot=$PackageRoot; manifestSha256=$ManifestSha256; intervalMinutes=$IntervalMinutes; cwd=(Get-Location).Path; modulePath=$env:PSModulePath; hashCommand=(Get-Command Get-FileHash -ErrorAction Stop).Name; scriptSha256=(Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256 -ErrorAction Stop).Hash} | ConvertTo-Json -Compress
 if ($Action -eq 'Disable') { [Console]::Error.WriteLine('fixture stderr'); exit 23 }
 exit 0
 "#)?;
@@ -294,6 +317,15 @@ exit 0
             args.windows(2)
                 .any(|pair| pair == ["-Action", action.as_str()])
         );
+        let module_path = system_powershell()?
+            .parent()
+            .context("PowerShell directory")?
+            .join("Modules");
+        let child_environment: Vec<_> = command.get_envs().collect();
+        assert!(child_environment.iter().any(|(key, value)| {
+            key.to_string_lossy().eq_ignore_ascii_case("PSModulePath")
+                && *value == Some(module_path.as_os_str())
+        }));
         let output = command.output()?;
         assert_eq!(
             output.status.code(),
@@ -301,6 +333,33 @@ exit 0
         );
         let value: serde_json::Value = serde_json::from_slice(&output.stdout)?;
         assert_eq!(value["action"], action.as_str());
+        // Windows PowerShell may add its standard user/all-users module paths
+        // at startup. The explicit process environment is checked above; its
+        // runtime path must retain system modules and discard inherited poison.
+        let runtime_modules: Vec<_> = std::env::split_paths(std::ffi::OsStr::new(
+            value["modulePath"]
+                .as_str()
+                .context("fixture module path")?,
+        ))
+        .collect();
+        assert!(runtime_modules.iter().any(|path| {
+            path.to_string_lossy()
+                .eq_ignore_ascii_case(&module_path.to_string_lossy())
+        }));
+        let bad_path = std::env::var_os("OPENDIY_TEST_BAD_MODULE_PATH")
+            .context("hostile inherited module fixture")?;
+        assert!(!runtime_modules.iter().any(|path| {
+            path.to_string_lossy()
+                .eq_ignore_ascii_case(&bad_path.to_string_lossy())
+        }));
+        assert_eq!(value["hashCommand"], "Get-FileHash");
+        assert_eq!(
+            value["scriptSha256"]
+                .as_str()
+                .context("fixture script hash")?
+                .to_ascii_lowercase(),
+            file_sha256(&script)?
+        );
         assert_eq!(value["manifestSha256"], package.manifest_sha256);
         assert_eq!(value["intervalMinutes"], interval.unwrap_or(60));
         for key in ["installationRoot", "cwd"] {

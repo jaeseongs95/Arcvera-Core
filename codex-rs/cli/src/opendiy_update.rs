@@ -400,8 +400,17 @@ fn updater_command(
     let installation_root =
         codex_utils_path::normalize_for_native_workdir(&package.installation_root);
     let package_root = codex_utils_path::normalize_for_native_workdir(&package.package_root);
-    let mut command = Command::new(system_powershell()?);
+    let powershell = system_powershell()?;
+    let module_path = powershell
+        .parent()
+        .context("System PowerShell has no directory")?
+        .join("Modules");
+    let mut command = Command::new(powershell);
     command
+        // PowerShell 7's inherited module path can hide Windows PowerShell 5.1
+        // modules. Scope the trusted module path to this updater process only.
+        .env_remove("PSMODULEPATH")
+        .env("PSModulePath", module_path)
         .args([
             "-NoLogo",
             "-NoProfile",
