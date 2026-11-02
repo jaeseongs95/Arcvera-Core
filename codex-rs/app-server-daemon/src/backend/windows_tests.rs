@@ -125,7 +125,7 @@ async fn captured_stdio_closes_while_child_is_alive() {
         return;
     }
 
-    for role in ["launcher", "wrapper"] {
+    for role in ["wrapper", "launcher"] {
         let temp = tempfile::tempdir().unwrap();
         let home = temp.path().join("경로 with spaces");
         std::fs::create_dir(&home).unwrap();
