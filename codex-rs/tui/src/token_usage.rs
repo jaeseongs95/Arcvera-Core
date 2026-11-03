@@ -150,8 +150,7 @@ mod localization_tests {
             reasoning_output_tokens: 100,
             total_tokens: 500,
         };
-        let english =
-            "Token usage: total=450 input=150 (+ 50 cached) output=300 (reasoning 100)";
+        let english = "Token usage: total=450 input=150 (+ 50 cached) output=300 (reasoning 100)";
         for (locale, expected, so_far) in [
             (
                 crate::i18n::Locale::English,
