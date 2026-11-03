@@ -667,8 +667,11 @@ async fn process_sse_with_treatment(
         }
         let safety_buffering = event.safety_buffering(&safety_buffering_treatment);
         let metadata_events = event.metadata_events(safety_buffering);
+        let response_model = event.response_model();
+        // Observe terminal usage before consumer notifications can block or close.
+        let processed_event = process_responses_event(event);
 
-        if let Some(model) = event.response_model()
+        if let Some(model) = response_model
             && last_server_model.as_deref() != Some(model.as_str())
         {
             if tx_event
@@ -686,7 +689,7 @@ async fn process_sse_with_treatment(
             }
         }
 
-        match process_responses_event(event) {
+        match processed_event {
             Ok(Some(event)) => {
                 let is_completed = matches!(event, ResponseEvent::Completed { .. });
                 if tx_event.send(Ok(event)).await.is_err() {
