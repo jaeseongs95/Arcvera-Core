@@ -27,6 +27,17 @@ to another backend. Existing errors, events, admission semantics and managed-dae
 or desktop-cron-control contracts are unchanged. Do not probe mutating methods to
 find support or emulate atomic admission with a status-read followed by `turn/start`.
 
+`thread/subscribePassive` and `thread/compact/startIfIdle` do not require the
+`experimentalApi` opt-in. `turn/startUserIfIdle` uses the same field-level gates as
+`turn/start`: sending experimental turn parameters still requires that opt-in.
+
+An initialized connection is not automatically subscribed to every loaded thread.
+In particular, `turn/start` on another connection does not attach an event listener.
+Clients must complete an explicit attach operation and verify the returned thread
+identity before reporting a connection as attached or taking ownership of input.
+Keep method support and actual attachment as separate states. Do not create dummy
+input, fabricate history, or replace the thread to make attachment appear successful.
+
 # Thread memory summary (experimental)
 
 `thread/memory/read` takes `{threadId}` for a loaded thread and returns
