@@ -287,7 +287,7 @@ fn help_message_id(original: &str) -> Option<&'static str> {
         "현재 부모 아래 로컬 2세대 서브에이전트의 종료 대화를 미리 보고 정리합니다." => {
             Some("cli-cleanup-about")
         }
-        "읽기 전용 미리보기가 기본입니다. --apply는 미리보기 뒤 명시 확인을 받습니다. 실행 중이거나 상태가 불명확한 항목, 다른 세대·원격 소유·이전 방식 항목은 보존합니다. --thread를 반복하면 정확한 선택 집합만 정리하며 선택하지 않은 후손은 보존합니다." => {
+        "미리보기가 기본이며 각 항목의 reason에 정리·보존 사유를 표시합니다. --apply는 미리보기 뒤 명시 확인을 받습니다. 메모리에 없는 과거 종료 항목은 참조 안전성을 입증할 수 없어 reference_participants_unverified로 보존합니다. 해당 항목의 운영 정리 지원은 미완입니다. 실행 중이거나 상태가 불명확한 항목, 다른 세대·원격 소유·이전 방식 항목은 보존합니다. --thread를 반복하면 정확한 선택 집합만 정리하며 선택하지 않은 후손은 보존합니다." => {
             Some("cli-cleanup-long-about")
         }
         "Options for building a local Codex diagnostic report" => {
@@ -2337,6 +2337,31 @@ mod tests {
                     );
                 }
                 _ => {}
+            }
+        }
+    }
+
+    #[test]
+    fn r36_cleanup_localized_long_help_explains_default_unloaded_preservation() {
+        for (locale, expected) in [
+            (
+                Locale::English,
+                "Operational cleanup support for these items is incomplete.",
+            ),
+            (Locale::Korean, "해당 항목의 운영 정리 지원은 미완입니다."),
+        ] {
+            let error = localize_help(crate::MultitoolCli::command(), locale)
+                .try_get_matches_from(["codex", "cleanup-agents", "--help"])
+                .expect_err("the actual help argument prints localized long help");
+            assert_eq!(error.kind(), clap::error::ErrorKind::DisplayHelp);
+            let help = error.to_string();
+            let normalized = help.split_whitespace().collect::<Vec<_>>().join(" ");
+            assert!(normalized.contains(expected), "{help}");
+            assert!(help.contains("reference_participants_unverified"), "{help}");
+            assert!(help.contains("--apply"));
+            assert!(help.contains("--thread"));
+            if locale == Locale::English {
+                assert!(!help.chars().any(|c| ('가'..='힣').contains(&c)), "{help}");
             }
         }
     }
