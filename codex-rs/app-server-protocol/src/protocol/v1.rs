@@ -69,9 +69,33 @@ pub struct InitializeCapabilities {
     pub extensions: Option<HashMap<String, serde_json::Value>>,
 }
 
+/// Independent server support declarations, not session readiness or authorization.
+/// Missing fields default to false; clients enable each extension only for literal true.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenDiyCapabilities {
+    /// `thread/subscribePassive`: observe a loaded runtime without resuming pending work.
+    #[serde(default)]
+    pub passive_subscription: bool,
+    /// `turn/startUserIfIdle`: atomically admit user input only while idle.
+    #[serde(default)]
+    pub user_turn_start_if_idle: bool,
+    /// `thread/compact/startIfIdle`: atomically admit compaction only while idle.
+    #[serde(default)]
+    pub compact_start_if_idle: bool,
+    /// Summary itemsView in thread/turns/list and resume.initialTurnsPage.
+    /// Does not imply passive subscription, materialized items, or a summary DTO.
+    #[serde(default)]
+    pub history_summary: bool,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct InitializeResponse {
+    /// Optional support declarations for this connection's server. Absence is not support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub opendiy_capabilities: Option<OpenDiyCapabilities>,
     /// This server provides fenced operator commands and body-free child snapshots.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub supports_subagent_management: bool,

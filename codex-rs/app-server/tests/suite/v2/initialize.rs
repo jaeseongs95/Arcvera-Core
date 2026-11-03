@@ -55,6 +55,7 @@ async fn initialize_uses_client_info_name_as_originator() -> Result<()> {
         anyhow::bail!("expected initialize response, got {message:?}");
     };
     let InitializeResponse {
+        opendiy_capabilities,
         supports_subagent_management,
         supports_expected_turn_interrupt,
         user_agent,
@@ -63,6 +64,15 @@ async fn initialize_uses_client_info_name_as_originator() -> Result<()> {
         platform_os,
     } = to_response::<InitializeResponse>(response)?;
 
+    assert_eq!(
+        opendiy_capabilities,
+        Some(codex_app_server_protocol::OpenDiyCapabilities {
+            passive_subscription: true,
+            user_turn_start_if_idle: true,
+            compact_start_if_idle: true,
+            history_summary: true,
+        })
+    );
     assert!(supports_subagent_management);
     assert!(user_agent.starts_with("codex_vscode/"));
     assert_eq!(supports_expected_turn_interrupt, Some(true));
@@ -171,6 +181,7 @@ async fn initialize_respects_originator_override_env_var() -> Result<()> {
         anyhow::bail!("expected initialize response, got {message:?}");
     };
     let InitializeResponse {
+        opendiy_capabilities,
         supports_subagent_management,
         supports_expected_turn_interrupt: _,
         user_agent,
@@ -179,6 +190,15 @@ async fn initialize_respects_originator_override_env_var() -> Result<()> {
         platform_os,
     } = to_response::<InitializeResponse>(response)?;
 
+    assert_eq!(
+        opendiy_capabilities,
+        Some(codex_app_server_protocol::OpenDiyCapabilities {
+            passive_subscription: true,
+            user_turn_start_if_idle: true,
+            compact_start_if_idle: true,
+            history_summary: true,
+        })
+    );
     assert!(supports_subagent_management);
     assert!(user_agent.starts_with("codex_originator_via_env_var/"));
     assert_eq!(response_codex_home, expected_codex_home);

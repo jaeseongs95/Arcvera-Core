@@ -1,3 +1,32 @@
+# OpenDIY optional server capabilities (R35)
+
+The `initialize` result may contain `opendiyCapabilities`, an object with four
+independent boolean fields:
+
+- `passiveSubscription`: `thread/subscribePassive` observes an already loaded runtime
+  with an existing listener without cold resume or draining pending work.
+- `userTurnStartIfIdle`: `turn/startUserIfIdle` atomically admits explicit user input
+  only while idle. Refusal does not steer or wake pending work.
+- `compactStartIfIdle`: `thread/compact/startIfIdle` atomically admits compaction
+  only while idle. A started response is admission, not completion.
+- `historySummary`: `itemsView: "summary"` is supported by `thread/turns/list` and
+  `thread/resume.initialTurnsPage`. This is not a new history mode or summary DTO.
+
+Enable each extension only when its own field is the literal boolean `true`.
+An omitted/null object, missing field, or `false` is not an affirmative declaration.
+Unknown future fields are ignored. An absent history declaration must not disable
+standard bounded history when the standard backend independently supports it.
+The existing `supportsSubagentManagement` and `supportsExpectedTurnInterrupt` flags
+remain independent. Client `capabilities.experimentalApi` is an opt-in, not a server
+support declaration; client MCP `extensions` is not this object.
+
+These fields describe the server on the initialized connection, not authorization,
+current thread readiness, ownership transfer, replay completeness, or availability
+of materialized history. Reinitialize and rediscover capabilities after reconnecting
+to another backend. Existing errors, events, admission semantics and managed-daemon
+or desktop-cron-control contracts are unchanged. Do not probe mutating methods to
+find support or emulate atomic admission with a status-read followed by `turn/start`.
+
 # Thread memory summary (experimental)
 
 `thread/memory/read` takes `{threadId}` for a loaded thread and returns

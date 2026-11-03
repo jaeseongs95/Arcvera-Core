@@ -447,6 +447,7 @@ fn thread_resume_response_round_trips_initial_turns_page() {
 #[test]
 fn initialize_interrupt_capability_accepts_only_omission_or_boolean() {
     let response = crate::InitializeResponse {
+        opendiy_capabilities: None,
         supports_subagent_management: false,
         supports_expected_turn_interrupt: None,
         user_agent: "test-client".into(),
@@ -475,6 +476,84 @@ fn initialize_interrupt_capability_accepts_only_omission_or_boolean() {
         candidate["supportsExpectedTurnInterrupt"] = invalid;
         assert!(serde_json::from_value::<crate::InitializeResponse>(candidate).is_err());
     }
+}
+
+#[test]
+fn initialize_extension_capabilities_are_independent_and_fail_closed() {
+    let mut response = crate::InitializeResponse {
+        opendiy_capabilities: None,
+        supports_subagent_management: false,
+        supports_expected_turn_interrupt: None,
+        user_agent: "official-compatible".into(),
+        codex_home: absolute_path("tmp"),
+        platform_family: std::env::consts::FAMILY.into(),
+        platform_os: std::env::consts::OS.into(),
+    };
+    let legacy = serde_json::to_value(&response).unwrap();
+    assert!(legacy.get("opendiyCapabilities").is_none());
+    assert_eq!(
+        serde_json::from_value::<crate::InitializeResponse>(legacy.clone())
+            .unwrap()
+            .opendiy_capabilities,
+        None
+    );
+    let mut partial = legacy.clone();
+    partial["opendiyCapabilities"] = json!({"passiveSubscription": true});
+    let caps = serde_json::from_value::<crate::InitializeResponse>(partial)
+        .unwrap()
+        .opendiy_capabilities
+        .unwrap();
+    assert!(caps.passive_subscription);
+    assert!(!caps.user_turn_start_if_idle);
+    assert!(!caps.compact_start_if_idle);
+    assert!(!caps.history_summary);
+
+    // Mixed support must never be inferred from another flag or server version.
+    for mask in 0..16 {
+        let caps = crate::OpenDiyCapabilities {
+            passive_subscription: mask & 1 != 0,
+            user_turn_start_if_idle: mask & 2 != 0,
+            compact_start_if_idle: mask & 4 != 0,
+            history_summary: mask & 8 != 0,
+        };
+        response.opendiy_capabilities = Some(caps.clone());
+        let value = serde_json::to_value(&response).unwrap();
+        assert_eq!(
+            value["opendiyCapabilities"],
+            json!({
+                "passiveSubscription": mask & 1 != 0,
+                "userTurnStartIfIdle": mask & 2 != 0,
+                "compactStartIfIdle": mask & 4 != 0,
+                "historySummary": mask & 8 != 0,
+            })
+        );
+        assert_eq!(
+            serde_json::from_value::<crate::InitializeResponse>(value)
+                .unwrap()
+                .opendiy_capabilities,
+            Some(caps)
+        );
+    }
+    for field in [
+        "passiveSubscription",
+        "userTurnStartIfIdle",
+        "compactStartIfIdle",
+        "historySummary",
+    ] {
+        for invalid in [json!(null), json!("true"), json!(1), json!({}), json!([])] {
+            let mut value = legacy.clone();
+            value["opendiyCapabilities"] = json!({field: invalid});
+            assert!(serde_json::from_value::<crate::InitializeResponse>(value).is_err());
+        }
+    }
+    let mut future = legacy;
+    future["opendiyCapabilities"] = json!({"futureExtension": true});
+    assert_eq!(
+        serde_json::from_value::<crate::InitializeResponse>(future)
+            .unwrap()
+            .opendiy_capabilities,
+        Some(crate::OpenDiyCapabilities::default())
+    );
 }
 
 #[test]
