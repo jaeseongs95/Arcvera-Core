@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! App-server session facade used by the TUI event loop.
 //!
 //! This module owns the typed JSON-RPC calls needed by the TUI and keeps
@@ -345,6 +345,12 @@ pub(crate) struct AppServerSession {
     runtime_tool_registration_generation: u64,
     runtime_tool_registration_lifetime: tokio_util::sync::CancellationToken,
     pending_runtime_tool_resume: Mutex<Option<(u64, uuid::Uuid, ThreadResumeParams)>>,
+    pending_compact: Option<(
+        ThreadId,
+        String,
+        AppEventSender,
+        tokio_util::sync::CancellationToken,
+    )>,
     client: AppServerClient,
     next_request_id: i64,
     history_pagination: HashMap<ThreadId, history::ThreadHistoryPagination>,
@@ -492,6 +498,7 @@ impl AppServerSession {
             runtime_tool_registration_generation: 0,
             runtime_tool_registration_lifetime: tokio_util::sync::CancellationToken::new(),
             pending_runtime_tool_resume: Mutex::new(None),
+            pending_compact: None,
             client,
             next_request_id: 1,
             history_pagination: HashMap::new(),
@@ -971,6 +978,68 @@ impl AppServerSession {
         {
             self.connection_live
                 .store(false, std::sync::atomic::Ordering::Release);
+            self.pending_compact = None;
+        }
+        if let Some(codex_app_server_client::AppServerEvent::ServerNotification(notification)) =
+            &event
+            && let codex_app_server_protocol::ServerNotification::TurnCompleted(completed) =
+                notification.as_ref()
+            && self
+                .pending_compact
+                .as_ref()
+                .is_some_and(|(thread, turn, _, _)| {
+                    thread.to_string() == completed.thread_id && turn == &completed.turn.id
+                })
+            && let Some((thread, _, tx, lifetime)) = self.pending_compact.take()
+        {
+            if !lifetime.is_cancelled()
+                && completed.turn.status == codex_app_server_protocol::TurnStatus::Completed
+            {
+                let handle = self.request_handle();
+                // Event polling is cancellation-safe: deliver completion immediately,
+                // then make exactly one atomic idle admission on the captured connection.
+                tokio::spawn(async move {
+                    if lifetime.is_cancelled() {
+                        return;
+                    }
+                    let result = tokio::time::timeout(
+                        std::time::Duration::from_secs(20),
+                        handle.request_typed::<codex_app_server_protocol::TurnStartIfIdleResponse>(
+                            ClientRequest::ThreadCompactStartIfIdle {
+                                request_id: RequestId::String(uuid::Uuid::new_v4().to_string()),
+                                params: codex_app_server_protocol::ThreadCompactStartIfIdleParams {
+                                    thread_id: thread.to_string(),
+                                },
+                            },
+                        ),
+                    )
+                    .await;
+                    let message = match result {
+                        Ok(Ok(codex_app_server_protocol::TurnStartIfIdleResponse::Started {
+                            ..
+                        })) => crate::i18n::message("controls-compact-started", &[]).to_string(),
+                        Ok(Ok(codex_app_server_protocol::TurnStartIfIdleResponse::SkippedBusy)) => {
+                            crate::i18n::message("controls-compact-busy", &[]).to_string()
+                        }
+                        Ok(Ok(
+                            codex_app_server_protocol::TurnStartIfIdleResponse::NotStarted {
+                                reason,
+                            },
+                        )) => format!(
+                            "{} {reason}",
+                            crate::i18n::message("controls-compact-not-started", &[])
+                        ),
+                        Ok(Err(error)) => format!(
+                            "{} {error}",
+                            crate::i18n::message("controls-compact-failed", &[])
+                        ),
+                        Err(_) => crate::i18n::message("controls-compact-timeout", &[]).to_string(),
+                    };
+                    tx.send(crate::app_event::AppEvent::InsertHistoryCell(Box::new(
+                        crate::history_cell::new_warning_event(message),
+                    )));
+                });
+            }
         }
         event.map(|event| AppServerSessionEvent {
             backend_id: self.backend_id,
@@ -1747,6 +1816,10 @@ impl AppServerSession {
         thread_id: ThreadId,
         note: String,
     ) -> Result<codex_app_server_protocol::ThreadMemoryNoteAddResponse> {
+        let state = self.memory_read(thread_id).await?;
+        if matches!(state.status.as_deref(), Some("disabled" | "unavailable")) {
+            color_eyre::eyre::bail!("{}", crate::i18n::message("controls-memory-disabled", &[]));
+        }
         let request_id = self.next_request_id();
         self.client
             .request_typed(ClientRequest::ThreadMemoryNoteAdd {
@@ -1869,6 +1942,28 @@ impl AppServerSession {
             })
             .await
             .wrap_err("thread/compact/start failed in TUI")?;
+        Ok(())
+    }
+
+    pub(crate) fn compact_after_turn(
+        &mut self,
+        thread: ThreadId,
+        turn: String,
+        tx: AppEventSender,
+    ) -> Result<()> {
+        if self
+            .pending_compact
+            .as_ref()
+            .is_some_and(|(_, _, _, lifetime)| !lifetime.is_cancelled())
+        {
+            color_eyre::eyre::bail!("A compaction request is already pending for this connection");
+        }
+        self.pending_compact = Some((
+            thread,
+            turn,
+            tx,
+            self.runtime_tool_registration_lifetime.clone(),
+        ));
         Ok(())
     }
 
@@ -2296,6 +2391,31 @@ fn service_tier_override_from_config(config: &Config) -> Option<Option<String>> 
     })
 }
 
+fn service_tier_override_for_resume(config: &Config) -> Option<Option<String>> {
+    // Base defaults select new threads; only an explicit launch/profile selection
+    // may replace the tier saved with a resumed conversation.
+    config
+        .config_layer_stack
+        .layers_high_to_low()
+        .any(|layer| {
+            matches!(
+                &layer.name,
+                ConfigLayerSource::SessionFlags
+                    | ConfigLayerSource::User {
+                        profile: Some(_),
+                        ..
+                    }
+            ) && (layer.config.get("service_tier").is_some()
+                || layer
+                    .config
+                    .get("notices")
+                    .and_then(|notices| notices.get("fast_default_opt_out"))
+                    .is_some())
+        })
+        .then(|| service_tier_override_from_config(config))
+        .flatten()
+}
+
 fn sandbox_mode_from_permission_profile(
     permission_profile: &PermissionProfile,
     cwd: &std::path::Path,
@@ -2512,7 +2632,7 @@ fn thread_resume_params_from_config(
         thread_id: thread_id.to_string(),
         model,
         model_provider,
-        service_tier: service_tier_override_from_config(&config),
+        service_tier: service_tier_override_for_resume(&config),
         cwd: thread_cwd_from_config(&config, thread_params_mode, remote_cwd_override),
         runtime_workspace_roots: thread_params_mode.workspace_roots_from_config(&config),
         approval_policy: Some(config.permissions.approval_policy.value().into()),
@@ -4349,6 +4469,7 @@ mod tests {
         config.model_provider_id = "configured-provider".to_string();
         config.model_reasoning_effort = Some(ReasoningEffort::Ultra);
         config.model_reasoning_summary = Some(ReasoningSummary::Detailed);
+        config.service_tier = Some("flex".into());
 
         let params = thread_resume_params_from_config(
             config,
@@ -4362,6 +4483,132 @@ mod tests {
         assert_eq!(params.model, None);
         assert_eq!(params.model_provider, None);
         assert_eq!(params.config, None);
+        assert_eq!(params.service_tier, None);
+    }
+
+    #[tokio::test]
+    async fn resume_tier_preserves_saved_selection_unless_explicitly_overridden() -> Result<()> {
+        let home = tempfile::tempdir()?;
+        std::fs::write(home.path().join("config.toml"), "service_tier = 'flex'\n")?;
+        for tier in [None, Some("priority"), Some("default")] {
+            let config = ConfigBuilder::default()
+                .loader_overrides(codex_config::LoaderOverrides::without_managed_config_for_tests())
+                .codex_home(home.path().to_path_buf())
+                .fallback_cwd(Some(home.path().to_path_buf()))
+                .cli_overrides(
+                    tier.into_iter()
+                        .map(|tier| ("service_tier".into(), tier.into()))
+                        .collect(),
+                )
+                .build()
+                .await?;
+            for model_settings in [
+                ResumeModelSettings::RestoreFromThread,
+                ResumeModelSettings::OverrideFromCurrentConfig,
+            ] {
+                let params = thread_resume_params_from_config(
+                    config.clone(),
+                    ThreadId::new(),
+                    ThreadParamsMode::Embedded,
+                    None,
+                    model_settings,
+                    crate::resume_permissions::ResumePermissions::default(),
+                );
+                assert_eq!(params.service_tier, tier.map(|tier| Some(tier.to_string())));
+            }
+            assert_eq!(config.service_tier.as_deref(), Some(tier.unwrap_or("flex")));
+            assert_eq!(
+                service_tier_override_from_config(&config),
+                Some(Some(tier.unwrap_or("flex").into()))
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn cold_resume_restores_saved_tier_and_preserves_global_defaults() -> Result<()> {
+        let home = tempfile::tempdir()?;
+        // This regression assumes a model that actually supports ultrafast. An
+        // unsupported selected tier is intentionally absent from effective snapshots.
+        let mut catalog = codex_models_manager::bundled_models_response()?;
+        let model = catalog
+            .models
+            .iter_mut()
+            .find(|model| model.slug == "gpt-5.5")
+            .expect("bundled gpt-5.5 fixture");
+        model.service_tiers.push(ModelServiceTier {
+            id: "ultrafast".into(),
+            name: "Ultrafast".into(),
+            description: "Cold-resume regression fixture".into(),
+        });
+        let catalog_file = home.path().join("models.json");
+        std::fs::write(&catalog_file, serde_json::to_vec(&catalog)?)?;
+        let original = format!(
+            "service_tier = 'flex'\nmodel = 'gpt-5.5'\nmodel_catalog_json = {}\n[features]\nultrafast_mode = true\n",
+            toml::Value::String(catalog_file.to_string_lossy().into_owned())
+        );
+        let file = home.path().join("config.toml");
+        std::fs::write(&file, &original)?;
+        let config = ConfigBuilder::default()
+            .loader_overrides(codex_config::LoaderOverrides::without_managed_config_for_tests())
+            .codex_home(home.path().to_path_buf())
+            .fallback_cwd(Some(home.path().to_path_buf()))
+            .build()
+            .await?;
+        let mut first = crate::start_embedded_app_server_for_picker(&config).await?;
+        let thread = first.start_thread(&config).await?.session.thread_id;
+        first.thread_inject_items(thread, vec![serde_json::from_value(serde_json::json!({
+            "type":"message", "role":"assistant", "content":[{"type":"output_text","text":"saved tier fixture"}]
+        }))?]).await?;
+        assert!(
+            first
+                .thread_settings_update_confirmed(ThreadSettingsUpdateParams {
+                    thread_id: thread.to_string(),
+                    service_tier: Some(Some("ultrafast".into())),
+                    ..Default::default()
+                })
+                .await?
+        );
+        let updated = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                let event = first
+                    .next_event()
+                    .await
+                    .expect("live tier-update event stream");
+                if let codex_app_server_client::AppServerEvent::ServerNotification(notification) =
+                    event.event
+                    && let codex_app_server_protocol::ServerNotification::ThreadSettingsUpdated(
+                        notification,
+                    ) = *notification
+                    && notification.thread_id == thread.to_string()
+                {
+                    break notification;
+                }
+            }
+        })
+        .await?;
+        assert_eq!(
+            updated.thread_settings.service_tier.as_deref(),
+            Some("ultrafast"),
+            "the selected tier must be acknowledged before testing cold restoration"
+        );
+        first.shutdown().await?;
+        let mut second = crate::start_embedded_app_server_for_picker(&config).await?;
+        let resumed = second
+            .resume_thread(
+                &LocalSettings::from(&config),
+                config.clone(),
+                thread,
+                ResumeModelSettings::RestoreFromThread,
+            )
+            .await?
+            .session;
+        assert_eq!(resumed.service_tier.as_deref(), Some("ultrafast"));
+        let fresh = second.start_thread(&config).await?.session;
+        assert_eq!(fresh.service_tier.as_deref(), Some("flex"));
+        assert_eq!(std::fs::read(&file)?, original.as_bytes());
+        second.shutdown().await?;
+        Ok(())
     }
 
     #[tokio::test]

@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Bounded structural observations only; never log the response or complete usage object.
 use serde_json::Value;
 
@@ -349,5 +349,56 @@ mod tests {
             ));
             assert!(events.lock().unwrap().is_empty());
         }
+    }
+
+    #[tokio::test]
+    async fn completed_cache_usage_survives_notification_backpressure_and_receiver_close() {
+        use tracing::instrument::WithSubscriber;
+
+        let capture = Capture::default();
+        let observed = Arc::clone(&capture.0);
+        let response = json!({
+            "type": "response.completed",
+            "response": {
+                "id": "resp_cache_backpressure",
+                "headers": { "openai-model": "fixture-model" },
+                "usage": {
+                    "input_tokens": 2048,
+                    "input_tokens_details": { "cached_tokens": 1024 },
+                    "output_tokens": 1,
+                    "total_tokens": 2049
+                }
+            }
+        });
+        let body = format!("event: response.completed\ndata: {response}\n\n");
+        let stream = futures::stream::once(async move {
+            Ok::<_, codex_client::TransportError>(bytes::Bytes::from(body))
+        });
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        tx.send(Ok(ResponseEvent::Created { response_id: None }))
+            .await
+            .unwrap();
+        let processing = super::super::process_sse(
+            Box::pin(stream),
+            tx,
+            std::time::Duration::from_secs(1),
+            None,
+        )
+        .with_subscriber(capture);
+        tokio::pin!(processing);
+
+        // The model notification cannot enter the full channel. Usage must
+        // already be observed even if the consumer never drains that channel.
+        assert!(futures::poll!(&mut processing).is_pending());
+        {
+            let events = observed.lock().unwrap();
+            assert_eq!(events.len(), 1);
+            assert_eq!(events[0]["input_tokens"], "2048");
+            assert_eq!(events[0]["cached_tokens"], "1024");
+            assert_eq!(events[0]["cached_state"], "positive");
+        }
+        drop(rx);
+        processing.await;
+        assert_eq!(observed.lock().unwrap().len(), 1);
     }
 }

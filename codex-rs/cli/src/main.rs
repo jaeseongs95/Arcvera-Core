@@ -684,6 +684,9 @@ enum AppServerDaemonSubcommand {
         /// Use only the selected installation; preserve settings and updater state.
         #[arg(long)]
         existing_installation: bool,
+        /// Install only if no installation, settings, or recovery state exists under the lifecycle lock.
+        #[arg(long, conflicts_with = "existing_installation")]
+        first_installation: bool,
     },
 
     /// Restart the local app server daemon.
@@ -1430,9 +1433,12 @@ async fn cli_main(
                 Some(AppServerSubcommand::Daemon(daemon_cli)) => match daemon_cli.subcommand {
                     AppServerDaemonSubcommand::Start {
                         existing_installation,
+                        first_installation,
                     } => {
                         let command = if existing_installation {
                             AppServerLifecycleCommand::StartExistingInstallation
+                        } else if first_installation {
+                            AppServerLifecycleCommand::StartFirstInstallation
                         } else {
                             AppServerLifecycleCommand::Start
                         };
@@ -5197,7 +5203,8 @@ enabled = true
             app_server_from_args(["codex", "app-server", "daemon", "start"].as_ref()).subcommand,
             Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
                 subcommand: AppServerDaemonSubcommand::Start {
-                    existing_installation: false
+                    existing_installation: false,
+                    first_installation: false,
                 }
             }))
         ));
@@ -5255,10 +5262,45 @@ enabled = true
             .subcommand,
             Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
                 subcommand: AppServerDaemonSubcommand::Start {
-                    existing_installation: true
+                    existing_installation: true,
+                    first_installation: false,
                 }
             }))
         ));
+    }
+
+    #[test]
+    fn app_server_daemon_first_installation_start_parses_and_conflicts_with_existing() {
+        assert!(matches!(
+            app_server_from_args(
+                [
+                    "codex",
+                    "app-server",
+                    "daemon",
+                    "start",
+                    "--first-installation"
+                ]
+                .as_ref()
+            )
+            .subcommand,
+            Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
+                subcommand: AppServerDaemonSubcommand::Start {
+                    existing_installation: false,
+                    first_installation: true,
+                }
+            }))
+        ));
+        assert!(
+            MultitoolCli::try_parse_from([
+                "codex",
+                "app-server",
+                "daemon",
+                "start",
+                "--first-installation",
+                "--existing-installation",
+            ])
+            .is_err()
+        );
     }
 
     #[test]

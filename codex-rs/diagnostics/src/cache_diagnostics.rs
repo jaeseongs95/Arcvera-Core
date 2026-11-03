@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Immutable, process-local cache observation choices. This extension never
 //! changes the shared logging settings understood by older installations.
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,7 @@ use std::sync::OnceLock;
 
 static PROCESS_MODE: OnceLock<CacheMode> = OnceLock::new();
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Settings {
     pub response: bool,
@@ -18,6 +18,7 @@ pub struct Settings {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct CacheMode {
+    pub logging_enabled: bool,
     pub response_requested: bool,
     pub wire_requested: bool,
     pub wire_producer_enabled: bool,
@@ -31,6 +32,7 @@ impl CacheMode {
         let response_enabled = logging_enabled && settings.response;
         let wire_enabled = response_enabled && settings.wire;
         Self {
+            logging_enabled,
             response_requested: settings.response,
             wire_requested: settings.wire,
             // Batch configuration is an explicit producer opt-in too. Preserve
@@ -61,13 +63,22 @@ pub fn process_mode() -> CacheMode {
     *PROCESS_MODE.get_or_init(|| CacheMode::resolve(false, Settings::default(), explicit_wire()))
 }
 
-pub(crate) fn initialize(home: &Path, logging_enabled: bool) -> io::Result<CacheMode> {
-    let settings = match fs::read_to_string(home.join("cli-cache-diagnostics.toml")) {
+/// Observe startup selection without initializing or changing the process mode.
+pub fn initialized_process_mode() -> Option<CacheMode> {
+    PROCESS_MODE.get().copied()
+}
+
+pub fn read_settings(home: &Path) -> io::Result<Settings> {
+    match fs::read_to_string(home.join("cli-cache-diagnostics.toml")) {
         Ok(text) => toml::from_str::<Settings>(&text)
-            .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Settings::default(),
-        Err(error) => return Err(error),
-    };
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Settings::default()),
+        Err(error) => Err(error),
+    }
+}
+
+pub(crate) fn initialize(home: &Path, logging_enabled: bool) -> io::Result<CacheMode> {
+    let settings = read_settings(home)?;
     let mode = CacheMode::resolve(logging_enabled, settings, explicit_wire());
     match PROCESS_MODE.set(mode) {
         Ok(()) => Ok(mode),
@@ -109,6 +120,7 @@ mod tests {
             let wire = gates & 0b0010 != 0;
             let explicit = gates & 0b0001 != 0;
             let mode = CacheMode::resolve(logging, Settings { response, wire }, explicit);
+            assert_eq!(mode.logging_enabled, logging);
             assert_eq!(mode.response_requested, response);
             assert_eq!(mode.wire_requested, wire);
             assert_eq!(

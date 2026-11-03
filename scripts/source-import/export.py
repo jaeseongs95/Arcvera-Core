@@ -9,9 +9,9 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='0133cf002d1e1215e71292e004ed8d56cadba9dc'
-PREVIOUS_PUBLIC='40e952e5211ab2059de7250bbbec44b211aac19c'
-PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md']
+PATCHED="2e9f6050aac19bb230dfcff10138d255edc613f7"
+PREVIOUS_PUBLIC='28e34926069af7a647f07d3ee013fb4137bb0107'
+PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md','docs/native-cli-r35.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
 PATCH_PATH='upstream/official-0.166.0.patch'
@@ -90,6 +90,8 @@ NOTICE_OVERRIDES.update({path: ('R34', '2026-11-03') for path in (
     'tools/windows-cli/test_update_output.py',
 )})
 NOTICE_OVERRIDES.update({path: ('R35', '2026-11-03') for path in (
+    'codex-rs/codex-api/src/sse/responses.rs',
+    'codex-rs/codex-api/src/sse/cache_observation.rs',
     'codex-rs/Cargo.lock',
     'codex-rs/app-server-protocol/src/lib.rs',
     'codex-rs/app-server-protocol/src/protocol/common.rs',
@@ -235,6 +237,54 @@ NOTICE_OVERRIDES.update({path: ('R35', '2026-11-03') for path in (
     'codex-rs/tui/src/status/thread_usage_tests.rs',
     'codex-rs/tui/src/token_usage.rs',
     'codex-rs/tui/src/transcript_view/input_tests.rs',
+)})
+NOTICE_OVERRIDES.update({path: ('R35', '2026-11-03') for path in (
+    "codex-rs/Cargo.lock",
+    "codex-rs/Cargo.toml",
+    "codex-rs/app-server-daemon/src/lib.rs",
+    "codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.schemas.json",
+    "codex-rs/app-server-protocol/schema/json/v1/InitializeResponse.json",
+    "codex-rs/app-server-protocol/schema/precomputed/app-server-exports-experimental.json.zst",
+    "codex-rs/app-server-protocol/schema/precomputed/app-server-exports-stable.json.zst",
+    "codex-rs/app-server-protocol/schema/typescript/InitializeResponse.ts",
+    "codex-rs/app-server-protocol/schema/typescript/OpenDiyCapabilities.ts",
+    "codex-rs/app-server-protocol/schema/typescript/index.ts",
+    "codex-rs/cli/src/localization.rs",
+    "codex-rs/cli/src/main.rs",
+    "codex-rs/core/src/config/runtime_refresh.rs",
+    "codex-rs/core/src/config/runtime_refresh_tests.rs",
+    "codex-rs/diagnostics/Cargo.toml",
+    "codex-rs/diagnostics/src/batch_log.rs",
+    "codex-rs/diagnostics/src/cache_diagnostics.rs",
+    "codex-rs/diagnostics/src/lib.rs",
+    "codex-rs/diagnostics/src/settings_control.rs",
+    "codex-rs/diagnostics/src/settings_control_tests.rs",
+    "codex-rs/tui/locales/en/cli.ftl",
+    "codex-rs/tui/locales/en/controls.ftl",
+    "codex-rs/tui/locales/en/legacy.ftl",
+    "codex-rs/tui/locales/ko/cli.ftl",
+    "codex-rs/tui/locales/ko/controls.ftl",
+    "codex-rs/tui/locales/ko/legacy.ftl",
+    "codex-rs/tui/src/app.rs",
+    "codex-rs/tui/src/app/diagnostics_control.rs",
+    "codex-rs/tui/src/app/diagnostics_control_tests.rs",
+    "codex-rs/tui/src/app/memory.rs",
+    "codex-rs/tui/src/app/session_control.rs",
+    "codex-rs/tui/src/app/session_control_tests.rs",
+    "codex-rs/tui/src/app_server_connection.rs",
+    "codex-rs/tui/src/app_server_session.rs",
+    "codex-rs/tui/src/bottom_pane/async_questions/render.rs",
+    "codex-rs/tui/src/bottom_pane/async_questions/state_tests.rs",
+    "codex-rs/tui/src/bottom_pane/warnings_view_render.rs",
+    "codex-rs/tui/src/bottom_pane/warnings_view_tests.rs",
+    "codex-rs/tui/src/chatwidget/interaction.rs",
+    "codex-rs/tui/src/chatwidget/interaction_tests.rs",
+    "codex-rs/tui/src/cleanup_agents_command.rs",
+    "codex-rs/tui/src/cleanup_agents_command_tests.rs",
+    "codex-rs/tui/src/daemon_startup_tests.rs",
+    "codex-rs/tui/src/keymap.rs",
+    "codex-rs/tui/src/session_control.rs",
+    "docs/native-cli-r35.ko.md",
 )})
 ATTR_BEGIN=b'# BEGIN OpenDIY pinned source attributes\n'
 ATTR_END=b'# END OpenDIY pinned source attributes\n'

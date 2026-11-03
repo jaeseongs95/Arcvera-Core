@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Top-level TUI application state and runtime wiring.
 //!
 //! This module owns the `App` struct, shared imports, and the high-level run loop that coordinates
@@ -228,6 +228,7 @@ mod daemon_menu;
 mod daybreak;
 #[cfg(windows)]
 pub(crate) mod desktop_cron;
+mod diagnostics_control;
 mod empty_state_policy;
 mod event_dispatch;
 mod exit_summary;

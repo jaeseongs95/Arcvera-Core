@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Resolves refreshable MCP inputs without rebuilding unrelated session configuration.
 //! Existing sessions refresh ordinary MCP state without gaining enterprise authority.
 //! Validate the retained backend after applying the refreshable requirements.
@@ -125,6 +126,19 @@ impl Config {
                 }),
         );
         let mut config = self.clone();
+        if matches!(scope, RuntimeConfigRefresh::User) {
+            // Existing turn contexts retain their Arc snapshot. Future work and
+            // explicit memory RPCs must observe the same layered opt-in as new threads.
+            config
+                .features
+                .set_enabled(
+                    Feature::MemoryTool,
+                    incoming.features.enabled(Feature::MemoryTool),
+                )
+                .map_err(std::io::Error::other)?;
+            config.memories.use_memories = incoming.memories.use_memories;
+            config.memories.generate_memories = incoming.memories.generate_memories;
+        }
         if !matches!(scope, RuntimeConfigRefresh::UserFiles) {
             config.runtime_feature_defaults = incoming.runtime_feature_defaults.clone();
             config.mcp_optional_startup_grace = incoming.mcp_optional_startup_grace;

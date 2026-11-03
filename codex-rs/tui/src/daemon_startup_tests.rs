@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Opportunistic attachment may fall back; automatic startup requires a shared server.
 
 use crate::legacy_core::config::ConfigBuilder;
@@ -342,7 +342,13 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
         )
         .await;
         reject_handshake.abort();
-        if scenario == "explicit endpoint" || scenario.starts_with("required") {
+        if scenario.contains("version") {
+            let client = result?;
+            assert_eq!(target, original_target);
+            assert!(state_db.is_none());
+            assert!(matches!(client, AppServerClient::Remote(_)));
+            client.shutdown().await?;
+        } else if scenario == "explicit endpoint" || scenario.starts_with("required") {
             assert!(result.is_err());
             if scenario.starts_with("required") {
                 let message = result.err().unwrap().to_string();
@@ -471,7 +477,7 @@ fn daemon_exclusion_warning_snapshot() {
 }
 
 #[tokio::test]
-async fn local_daemon_requires_full_build_version_but_explicit_remote_is_preserved()
+async fn local_daemon_version_metadata_does_not_override_protocol_handshake()
 -> color_eyre::Result<()> {
     use futures::SinkExt;
     use futures::StreamExt;
@@ -528,7 +534,7 @@ async fn local_daemon_requires_full_build_version_but_explicit_remote_is_preserv
                 }
             };
             let result = app_server_connection::connect(&target).await;
-            let accepted = explicit_remote || version == Some(env!("CARGO_PKG_VERSION"));
+            let accepted = true;
             assert_eq!(
                 result.is_ok(),
                 accepted,
@@ -548,5 +554,73 @@ async fn local_daemon_requires_full_build_version_but_explicit_remote_is_preserv
             tokio::time::timeout(std::time::Duration::from_secs(5), server).await??;
         }
     }
+    Ok(())
+}
+
+#[tokio::test]
+async fn explicit_default_socket_accepts_other_build_on_initial_and_reconnect()
+-> color_eyre::Result<()> {
+    use futures::SinkExt;
+    use futures::StreamExt;
+    use serde_json::json;
+    use tokio_tungstenite::tungstenite::Message;
+
+    let home = TempDir::new()?;
+    let directory = home.path().join("control");
+    codex_uds::prepare_private_socket_directory(&directory).await?;
+    let socket_path = AbsolutePathBuf::from_absolute_path_checked(directory.join("server.sock"))?;
+    let mut listener = codex_uds::UnixListener::bind(socket_path.as_path()).await?;
+    let target = app_server_target_for_launch(
+        Some(RemoteAppServerEndpoint::UnixSocket {
+            socket_path: socket_path.clone(),
+        }),
+        Some(socket_path),
+        false,
+        false,
+        None,
+    )?;
+    assert!(matches!(
+        &target,
+        AppServerTarget::LocalDaemon {
+            allow_embedded_fallback: false,
+            ..
+        }
+    ));
+    assert!(!target.uses_remote_workspace());
+    let server = tokio::spawn(async move {
+        for _ in 0..2 {
+            let stream = listener.accept().await?;
+            let mut socket = tokio_tungstenite::accept_async(stream).await?;
+            let Some(Ok(Message::Text(request))) = socket.next().await else {
+                panic!("initialize request missing");
+            };
+            let request: serde_json::Value = serde_json::from_str(&request)?;
+            assert_eq!(request["method"], "initialize");
+            socket
+                .send(Message::Text(
+                    json!({
+                        "id": request["id"],
+                        "result": {"userAgent":"daemon-test/0.165.0+native-r28.20261029"}
+                    })
+                    .to_string()
+                    .into(),
+                ))
+                .await?;
+            while let Some(Ok(message)) = socket.next().await {
+                if let Message::Text(text) = message {
+                    let message: serde_json::Value = serde_json::from_str(&text)?;
+                    // Reconnection only closes this client; never mutate or stop the server.
+                    assert_eq!(message["method"], "initialized");
+                }
+            }
+        }
+        Ok::<_, color_eyre::Report>(())
+    });
+    for _ in 0..2 {
+        let client = app_server_connection::connect(&target).await?;
+        assert!(matches!(&client, AppServerClient::Remote(_)));
+        client.shutdown().await?;
+    }
+    tokio::time::timeout(std::time::Duration::from_secs(5), server).await???;
     Ok(())
 }

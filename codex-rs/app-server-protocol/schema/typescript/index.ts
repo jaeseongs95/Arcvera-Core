@@ -57,6 +57,7 @@ export type { ModeKind } from "./ModeKind";
 export type { MultiAgentMode } from "./MultiAgentMode";
 export type { NetworkPolicyAmendment } from "./NetworkPolicyAmendment";
 export type { NetworkPolicyRuleAction } from "./NetworkPolicyRuleAction";
+export type { OpenDiyCapabilities } from "./OpenDiyCapabilities";
 export type { ParsedCommand } from "./ParsedCommand";
 export type { PathUri } from "./PathUri";
 export type { Personality } from "./Personality";

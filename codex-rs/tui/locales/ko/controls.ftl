@@ -106,3 +106,48 @@ controls-copy-confirmed = { $value } 클립보드에 복사됨
 controls-copy-unconfirmed = 복사 확인 안 됨. /export로 대화를 저장하세요
 controls-copy-pending = { $value } 복사 중…
 controls-copy-busy = 이미 복사 중입니다
+
+
+cleanup-unsupported = 선택한 서버는 서브에이전트 정리 API를 지원하지 않습니다. 삭제한 대화는 0개입니다. 지원하는 서버를 --remote로 명시하거나, 지원하는 서버로 전환한 뒤 다시 사용하세요.
+cleanup-selection-preserved = 선택한 항목은 종료 상태를 확정할 수 없어 보존됩니다: { $id }
+cleanup-confirmation-required = 실제 정리에는 터미널 확인 또는 --apply --confirm이 필요합니다.
+cleanup-confirmation-token = 정리
+cleanup-confirmation-prompt = 위 미리보기에서 선택한 { $count }개 대화를 영구 삭제하려면 '{ $token }'를 입력하세요:
+cleanup-partial-failure = 일부 항목을 보존했거나 정리 결과를 확정하지 못했습니다. 출력된 항목별 결과를 확인하세요.
+
+controls-compact-pending = 현재 턴이 끝난 뒤 압축을 한 번 시도합니다. 아직 시작하지 않았으며, 대화가 사용 중이거나 대기 메시지가 있으면 실행하지 않습니다.
+
+controls-compact-started = 압축을 시작했습니다. 완료 여부는 압축 이벤트로 알립니다.
+
+controls-compact-busy = 대화가 사용 중이거나 대기 메시지가 있어 압축을 시작하지 않았습니다.
+
+controls-compact-not-started = 압축을 시작하지 않았습니다:
+
+controls-compact-failed = 압축 요청 실패:
+
+controls-compact-timeout = 시간초과로 압축 결과를 확인하지 못했습니다. 자동으로 다시 요청하지 마세요.
+
+controls-memory-disabled = 메모리가 꺼져 있거나 사용할 수 없습니다. 메모리 활성화를 명시적으로 요청하세요. 읽기 설정만 저장해서는 기능이 켜지지 않으며, 환경·관리 설정이 활성화를 제한할 수 있습니다.
+
+controls-memory-overridden = 메모리 설정을 저장했지만 다른 설정이 덮어썼습니다. 현재 실행 환경의 활성화는 확인되지 않았습니다. 자동으로 다시 요청하지 마세요.
+
+controls-memory-runtime-differs = 메모리 설정을 저장했지만 현재 실행 상태와 다릅니다. 세션의 명시 설정이나 관리·환경 제한이 활성화를 막을 수 있습니다. 자동으로 다시 요청하지 마세요.
+
+controls-memory-confirmed = 메모리 설정과 현재 실행 상태를 확인했습니다. 읽기는 이후 문맥에, 생성은 새 처리에 적용되며 실행 중인 처리는 끝날 수 있습니다. 요약 생성이나 모델 턴을 시작하지 않았습니다.
+
+diagnostics-status = 현재 실행의 시작 모드와 저장 설정을 구분해 표시합니다. 일반 로깅만 켜도 캐시 관측이 켜지는 것은 아닙니다.
+
+diagnostics-saved-next-launch = 다음 실행에 적용할 설정을 저장했습니다. 현재 실행은 시작 모드를 유지합니다. 일반 로깅만 켜도 캐시 관측이 켜지는 것은 아닙니다.
+
+diagnostics-home-failed = 로컬 진단 설정 경로를 확인하지 못했습니다: { $error }
+
+diagnostics-operation-failed = 진단 설정 처리에 실패했습니다: { $error }. 변경을 다시 시도하기 전에 상태를 조회하세요.
+
+diagnostics-settings-busy = 다른 작업이 진단 설정을 변경하고 있습니다. 상태를 조회한 뒤 변경을 다시 시도하세요.
+
+diagnostics-operation-unconfirmed = 진단 설정 처리 결과를 확인하지 못했습니다: { $error }. 변경을 다시 시도하기 전에 상태를 조회하세요.
+
+diagnostics-cache-wire-requires-response = 캐시 wire 관측에는 응답 관측이 필요합니다. 두 항목을 명시적으로 선택하세요.
+
+controls-memory-command-hint = /memory enable on|off · /memory edit <정정 내용> · /memory read on|off · /memory generate on|off
+controls-memory-usage = 사용법: /memory view | enable on|off | edit <정정 내용> | read on|off | generate on|off | scope project|global

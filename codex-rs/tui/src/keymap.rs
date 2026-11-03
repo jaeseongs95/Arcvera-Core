@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Runtime keymap resolution for the TUI.
 //!
 //! This module converts deserialized config (`TuiKeymap`) into a concrete
@@ -2171,11 +2171,19 @@ impl RuntimeKeymap {
             "main",
             main_bindings,
             MAIN_RESERVED_BINDINGS,
-            [(
-                "chat.interrupt_turn",
-                "fixed.backtrack",
-                key_hint::plain(KeyCode::Esc),
-            )],
+            [
+                (
+                    "chat.interrupt_turn",
+                    "fixed.backtrack",
+                    key_hint::plain(KeyCode::Esc),
+                ),
+                // Copy is dispatched before image paste, so this existing override is safe.
+                (
+                    "copy",
+                    "fixed.paste_image",
+                    key_hint::alt(KeyCode::Char('v')),
+                ),
+            ],
         )?;
 
         let approval_overlay_bindings = [
@@ -2579,14 +2587,20 @@ fn validate_no_reserved<'a, const A: usize>(
     for (action, bindings) in pairs {
         for binding in bindings {
             let key = binding.parts();
-            if let Some((reserved_action, _)) = reserved
+            let reserved_action = reserved
                 .iter()
                 .find(|(_, reserved_binding)| reserved_binding.parts() == key)
-            {
+                .map(|(action, _)| *action)
+                .or_else(|| {
+                    (matches!(context, "main" | "agents")
+                        && is_image_paste_key(KeyEvent::new(key.0, key.1)))
+                    .then_some("fixed.paste_image")
+                });
+            if let Some(reserved_action) = reserved_action {
                 if allowed_overlaps.iter().any(
                     |(allowed_action, allowed_reserved_action, allowed_binding)| {
                         *allowed_action == action
-                            && *allowed_reserved_action == *reserved_action
+                            && *allowed_reserved_action == reserved_action
                             && allowed_binding.parts() == key
                     },
                 ) {
@@ -2601,6 +2615,15 @@ See the Codex keymap documentation for supported actions and examples."
         }
     }
     Ok(())
+}
+
+/// Keep keymap admission aligned with the fixed image handler, including modifier variants.
+pub(crate) fn is_image_paste_key(key: KeyEvent) -> bool {
+    (matches!(key.code, KeyCode::Char(c) if c.eq_ignore_ascii_case(&'v'))
+        && key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT))
+        || (cfg!(windows) && key_hint::shift(KeyCode::Insert).is_press(key))
 }
 
 const MAIN_RESERVED_BINDINGS: &[(&str, KeyBinding)] = &[
@@ -2867,8 +2890,8 @@ mod tests {
 
     fn expect_conflict(keymap: &TuiKeymap, first: &str, second: &str) {
         let err = RuntimeKeymap::from_config(keymap).expect_err("expected conflict");
-        assert!(err.contains(first));
-        assert!(err.contains(second));
+        assert!(err.contains(first), "{err}");
+        assert!(err.contains(second), "{err}");
     }
 
     #[test]
@@ -3948,10 +3971,38 @@ mod tests {
 
     #[test]
     fn rejects_main_bindings_that_collide_with_remaining_fixed_shortcuts() {
+        for binding in [
+            "ctrl-v",
+            "alt-v",
+            "ctrl-alt-v",
+            "ctrl-shift-v",
+            "alt-shift-v",
+            "ctrl-alt-shift-v",
+        ] {
+            let mut keymap = TuiKeymap::default();
+            keymap.composer.submit = Some(one(binding));
+            expect_conflict(&keymap, "composer.submit", "fixed.paste_image");
+        }
+        // Insert is a legacy terminal event, not a supported keymap token.
         let mut keymap = TuiKeymap::default();
-        keymap.composer.submit = Some(one("ctrl-v"));
+        keymap.composer.submit = Some(one("shift-insert"));
+        let error = RuntimeKeymap::from_config(&keymap).unwrap_err();
+        assert!(
+            error.contains("Invalid `tui.keymap.composer.submit`"),
+            "{error}"
+        );
+        assert!(error.contains("shift-insert"), "{error}");
 
-        expect_conflict(&keymap, "composer.submit", "fixed.paste_image");
+        // Check reservation separately from parsing, including the platform boundary.
+        let mut runtime = RuntimeKeymap::defaults();
+        runtime.composer.submit = vec![key_hint::shift(KeyCode::Insert)];
+        if cfg!(windows) {
+            let error = runtime.validate_conflicts().unwrap_err();
+            assert!(error.contains("composer.submit"), "{error}");
+            assert!(error.contains("fixed.paste_image"), "{error}");
+        } else {
+            runtime.validate_conflicts().unwrap();
+        }
     }
 
     #[test]
