@@ -71720,10 +71720,10 @@ index 47968b869..2bdcf7802 100644
      "Win32_System_Diagnostics_ToolHelp",
 diff --git a/codex-rs/tui/locales/en/cli.ftl b/codex-rs/tui/locales/en/cli.ftl
 new file mode 100644
-index 000000000..b9ace489c
+index 000000000..c3a21ac57
 --- /dev/null
 +++ b/codex-rs/tui/locales/en/cli.ftl
-@@ -0,0 +1,881 @@
+@@ -0,0 +1,880 @@
 +# Application-owned CLI help and parse-error presentation. Command tokens and values remain unchanged.
 +
 +cli-help-app-cmd-workspace-path-to-open-in-the-desktop-app = Workspace path to open in the Desktop app
@@ -72604,7 +72604,6 @@ index 000000000..b9ace489c
 +cli-feature-under-development-warning = Under-development features enabled: { $feature }. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in { $path }.
 +
 +cli-aliases = Aliases: { $value }
-+
 diff --git a/codex-rs/tui/locales/en/cloud.ftl b/codex-rs/tui/locales/en/cloud.ftl
 new file mode 100644
 index 000000000..e75508e1a
@@ -74242,10 +74241,10 @@ index 000000000..7e93ef63a
 +status-title-action-required-hidden = [ . ] Action Required
 diff --git a/codex-rs/tui/locales/ko/cli.ftl b/codex-rs/tui/locales/ko/cli.ftl
 new file mode 100644
-index 000000000..4957ea13f
+index 000000000..e41280666
 --- /dev/null
 +++ b/codex-rs/tui/locales/ko/cli.ftl
-@@ -0,0 +1,881 @@
+@@ -0,0 +1,880 @@
 +# Application-owned CLI help and parse-error presentation. Command tokens and values remain unchanged.
 +
 +cli-help-app-cmd-workspace-path-to-open-in-the-desktop-app = Desktop 앱에서 열 작업 공간 경로
@@ -75126,7 +75125,6 @@ index 000000000..4957ea13f
 +cli-feature-under-development-warning = 개발 중인 기능을 활성화했습니다: { $feature }. 개발 중인 기능은 완성되지 않았으며 예측할 수 없는 동작을 할 수 있습니다. 이 경고를 표시하지 않으려면 { $path }에 `suppress_unstable_features_warning = true`를 설정하세요.
 +
 +cli-aliases = 별칭: { $value }
-+
 diff --git a/codex-rs/tui/locales/ko/cloud.ftl b/codex-rs/tui/locales/ko/cloud.ftl
 new file mode 100644
 index 000000000..e526eba68

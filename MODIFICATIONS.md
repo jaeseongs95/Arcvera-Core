@@ -1,6 +1,6 @@
 # R35 개발 중 소스 — i18n 카탈로그와 초기화 capability
 
-고정 소스는 `dcea643d0dbfe47589fd7a7374135c6a9db288da`, 이전 공개 기준은 `0f4a2d3062f2fd9bc234c539f3c7e8f0b2add274`다. 공식 0.166.0 기반 `6ff1e1ca3b30fc8b914720681fcf5fe62e95f856`를 유지한다. R34 실행본·기존 공개 PR은 보존하며 R35는 아직 동결 전인 개발 후보다.
+고정 소스는 `0133cf002d1e1215e71292e004ed8d56cadba9dc`, 이전 공개 내보내기는 `40e952e5211ab2059de7250bbbec44b211aac19c`, R34 비교 기준은 `0f4a2d3062f2fd9bc234c539f3c7e8f0b2add274`다. 공식 0.166.0 기반 `6ff1e1ca3b30fc8b914720681fcf5fe62e95f856`를 유지한다. R34 실행본·기존 공개 PR은 보존하며 R35는 아직 동결 전인 개발 후보다.
 
 R34 고정 소스 대비 145경로에 영어·한국어 Fluent 카탈로그, CLI·TUI·cloud 화면 문구와 언어 선택, app-server 초기화 capability·호환성 시험 소스를 반영했다. 기존 수정 고지는 유지하고 이번 변경 경로에만 R35 고지를 연결한다. 카탈로그 같은 데이터 파일의 변경은 `SOURCE_BASELINE.json`·`upstream/source-inventory.json`과 공식 대비 패치에 기록한다.
 

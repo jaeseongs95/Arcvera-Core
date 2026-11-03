@@ -878,4 +878,3 @@ cli-error-unknown-feature = 알 수 없는 기능 플래그: { $feature }
 cli-feature-under-development-warning = 개발 중인 기능을 활성화했습니다: { $feature }. 개발 중인 기능은 완성되지 않았으며 예측할 수 없는 동작을 할 수 있습니다. 이 경고를 표시하지 않으려면 { $path }에 `suppress_unstable_features_warning = true`를 설정하세요.
 
 cli-aliases = 별칭: { $value }
-

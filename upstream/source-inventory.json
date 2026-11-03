@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "sourceCommit": "dcea643d0dbfe47589fd7a7374135c6a9db288da",
+  "sourceCommit": "0133cf002d1e1215e71292e004ed8d56cadba9dc",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -61378,10 +61378,10 @@
     {
       "path": "codex-rs/tui/locales/en/cli.ftl",
       "gitMode": "100644",
-      "gitBlob": "b9ace489ca787f3fbfd4a26af4c33090b8072b60",
-      "sourceSha256": "ab9a818d328ee98d2f1ca4feee3ae4aabae3fd46f64a185af9407d68cd57303d",
-      "publishedSha256": "ab9a818d328ee98d2f1ca4feee3ae4aabae3fd46f64a185af9407d68cd57303d",
-      "bytes": 54051,
+      "gitBlob": "c3a21ac57da31f37282f7fa650c23a6e42fe6a61",
+      "sourceSha256": "033e967db57a2261251433e3f87affc0f18f7deb8c277768913cbaa05d31a2f7",
+      "publishedSha256": "033e967db57a2261251433e3f87affc0f18f7deb8c277768913cbaa05d31a2f7",
+      "bytes": 54050,
       "modified": true,
       "noticeOnly": false
     },
@@ -61458,10 +61458,10 @@
     {
       "path": "codex-rs/tui/locales/ko/cli.ftl",
       "gitMode": "100644",
-      "gitBlob": "4957ea13f17341bff8b4925d4594713a15274391",
-      "sourceSha256": "f530c8696f4f7f2f3cca5a708612467caf7ad9718d7ef010648ea09143dbc702",
-      "publishedSha256": "f530c8696f4f7f2f3cca5a708612467caf7ad9718d7ef010648ea09143dbc702",
-      "bytes": 56733,
+      "gitBlob": "e41280666f0d859c57fbbc706c2b78ff2d3800dc",
+      "sourceSha256": "1aeff75b95db7002eb2265a4db12dbc789476692f4f9539e7c86a31c8fb48254",
+      "publishedSha256": "1aeff75b95db7002eb2265a4db12dbc789476692f4f9539e7c86a31c8fb48254",
+      "bytes": 56732,
       "modified": true,
       "noticeOnly": false
     },
