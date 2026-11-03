@@ -173,9 +173,9 @@ impl WidgetRef for &FileSearchPopup {
         };
 
         let empty_message = if self.waiting {
-            "  loading..."
+            crate::i18n::message("dialogs-file-search-loading", &[])
         } else {
-            "  no matches"
+            crate::i18n::message("dialogs-file-search-empty", &[])
         };
 
         render_rows_single_line(
@@ -184,7 +184,7 @@ impl WidgetRef for &FileSearchPopup {
             &rows_all,
             &self.state,
             MAX_POPUP_ROWS,
-            empty_message,
+            &empty_message,
         );
     }
 }

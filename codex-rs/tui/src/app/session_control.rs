@@ -258,16 +258,28 @@ impl App {
         language: codex_config::ui_language::UiLanguage,
     ) -> Result<String, String> {
         // This client preference always uses the real local home, including remote sessions.
-        let home = codex_utils_home_dir::find_codex_home()
-            .map_err(|error| format!("화면 언어 저장 실패: {error}"))?;
+        let home = codex_utils_home_dir::find_codex_home().map_err(|error| {
+            crate::i18n::message(
+                "language-save-home-failed",
+                &[("error", &error.to_string())],
+            )
+        })?;
         super::ConfigEditsBuilder::new(home.as_path())
             .set_ui_language(language)
             .apply()
             .await
-            .map_err(|error| format!("화면 언어 저장 실패: {error}"))?;
+            .map_err(|error| {
+                crate::i18n::message(
+                    "language-save-write-failed",
+                    &[("error", &error.to_string())],
+                )
+            })?;
         Ok(format!(
-            "{}: 화면 언어를 전역에 저장했습니다. 다음 실행부터 적용되며 CODEX_UI_LANGUAGE가 우선합니다.",
-            language.as_str()
+            "{}: {}",
+            language.as_str(),
+            crate::i18n::text(
+                "UI language saved globally. It applies on the next launch. CODEX_UI_LANGUAGE takes precedence."
+            )
         ))
     }
 }

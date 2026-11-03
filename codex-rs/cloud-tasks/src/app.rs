@@ -79,7 +79,7 @@ impl App {
         Self {
             tasks: Vec::new(),
             selected: 0,
-            status: "Press r to refresh".to_string(),
+            status: codex_tui::i18n::message("cloud-refresh-hint", &[]),
             diff_overlay: None,
             spinner_start: None,
             refresh_inflight: false,
@@ -261,7 +261,8 @@ impl DiffOverlay {
             self.diff_lines.clear();
             self.text_lines.clear();
             self.prompt = None;
-            self.sd.set_content(vec!["<loading attempt>".to_string()]);
+            self.sd
+                .set_content(vec![codex_tui::i18n::message("cloud-loading-attempt", &[])]);
             return;
         };
 
@@ -272,14 +273,18 @@ impl DiffOverlay {
         match self.current_view {
             DetailView::Diff => {
                 if diff_lines.is_empty() {
-                    self.sd.set_content(vec!["<no diff available>".to_string()]);
+                    self.sd.set_content(vec![codex_tui::i18n::message(
+                        "cloud-no-diff-available",
+                        &[],
+                    )]);
                 } else {
                     self.sd.set_content(diff_lines);
                 }
             }
             DetailView::Prompt => {
                 if text_lines.is_empty() {
-                    self.sd.set_content(vec!["<no output>".to_string()]);
+                    self.sd
+                        .set_content(vec![codex_tui::i18n::message("cloud-no-output", &[])]);
                 } else {
                     self.sd.set_content(text_lines);
                 }

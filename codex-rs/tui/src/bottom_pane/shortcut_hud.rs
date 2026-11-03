@@ -154,7 +154,7 @@ fn render_clipped(mut lines: Vec<Line<'static>>, area: Rect, buf: &mut Buffer) {
     let height = usize::from(area.height);
     if lines.len() > height {
         lines.truncate(height);
-        lines[height - 1] = "… resize to see all".dim().into();
+        lines[height - 1] = crate::i18n::message("dialogs-resize-all", &[]).dim().into();
     }
     Paragraph::new(lines).render(area, buf);
 }

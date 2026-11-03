@@ -101,7 +101,15 @@ impl AsyncQuestions {
     pub(crate) fn countdown(&self, now: Instant) -> Option<String> {
         self.timer_remaining(now)
             .filter(|remaining| *remaining <= Duration::from_secs(20))
-            .map(|remaining| format!("{}s", remaining.as_secs_f64().ceil() as u64))
+            .map(|remaining| {
+                crate::i18n::message(
+                    "dialogs-duration-seconds",
+                    &[(
+                        "seconds",
+                        &(remaining.as_secs_f64().ceil() as u64).to_string(),
+                    )],
+                )
+            })
     }
 
     pub(super) fn go_next_or_submit(&mut self) {
@@ -123,7 +131,7 @@ impl AsyncQuestions {
         let index = self.selected_option_index().unwrap_or(0);
         if !self.focus_is_notes() && !(first..first + count).contains(&index) {
             self.composer.show_footer_flash(
-                "Expand terminal to read the entire option".into(),
+                crate::i18n::message("dialogs-expand-option", &[]).into(),
                 Duration::from_secs(5),
             );
             return;
@@ -143,7 +151,7 @@ impl AsyncQuestions {
             .unwrap_or_default();
         if reply.chars().count() > codex_protocol::user_input::MAX_USER_INPUT_TEXT_CHARS {
             self.composer.show_footer_flash(
-                "Answer too long; shorten it before sending".into(),
+                crate::i18n::message("dialogs-answer-too-long", &[]).into(),
                 Duration::from_secs(5),
             );
         } else {

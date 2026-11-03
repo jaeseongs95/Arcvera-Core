@@ -99,7 +99,7 @@ async fn autodetect_environment_id_with_origins(
             label: env.label.as_deref().map(str::to_owned),
         });
     }
-    anyhow::bail!("no environments available")
+    anyhow::bail!("{}", codex_tui::i18n::message("cloud-env-none", &[]))
 }
 
 fn pick_environment_row(
@@ -151,17 +151,28 @@ async fn get_json<T: serde::de::DeserializeOwned>(
     crate::append_error_log(format!("env: status={status} content-type={ct}"));
     if !status.is_success() {
         anyhow::bail!(
-            "{}: HTTP {status}; content-type={ct}",
-            codex_tui::i18n::text("Environment lookup failed")
+            "{}",
+            codex_tui::i18n::message(
+                "cloud-env-http-error",
+                &[
+                    ("status", &status.to_string()),
+                    ("content_type", ct.as_str())
+                ]
+            )
         );
     }
     let parsed = serde_json::from_str::<T>(&body).map_err(|e| {
         anyhow::anyhow!(
-            "{}: {:?} at line {}, column {}; content-type={ct}",
-            codex_tui::i18n::text("Invalid environment response"),
-            e.classify(),
-            e.line(),
-            e.column()
+            "{}",
+            codex_tui::i18n::message(
+                "cloud-env-decode-error",
+                &[
+                    ("category", &format!("{:?}", e.classify())),
+                    ("line", &e.line().to_string()),
+                    ("column", &e.column().to_string()),
+                    ("content_type", ct.as_str())
+                ]
+            )
         )
     })?;
     Ok(parsed)
@@ -333,14 +344,18 @@ async fn resolve_environment_id_with_http(
 ) -> anyhow::Result<String> {
     let trimmed = requested.trim();
     if trimmed.is_empty() {
-        return Err(anyhow::anyhow!("environment id must not be empty"));
+        return Err(anyhow::anyhow!(
+            "{}",
+            codex_tui::i18n::message("cloud-env-id-empty", &[])
+        ));
     }
     // Explicit CLI targets require a complete list: TUI discovery may return partial
     // by-repository results when the global request fails.
     let environments = list_environments_with_origins(http, base_url, headers, &[]).await?;
     if environments.is_empty() {
         return Err(anyhow::anyhow!(
-            "no cloud environments are available for this workspace"
+            "{}",
+            codex_tui::i18n::message("cloud-env-none-workspace", &[])
         ));
     }
 
@@ -359,7 +374,8 @@ async fn resolve_environment_id_with_http(
         .collect::<Vec<_>>();
     match label_matches.as_slice() {
         [] => Err(anyhow::anyhow!(
-            "environment '{trimmed}' not found; run `codex cloud environments` to list available environments"
+            "{}",
+            codex_tui::i18n::message("cloud-env-not-found", &[("trimmed", trimmed)])
         )),
         [single] => Ok(single.id.clone()),
         [first, rest @ ..] => {
@@ -368,7 +384,8 @@ async fn resolve_environment_id_with_http(
                 Ok(first_id.clone())
             } else {
                 Err(anyhow::anyhow!(
-                    "environment label '{trimmed}' is ambiguous; run `codex cloud environments` to pick the desired environment id"
+                    "{}",
+                    codex_tui::i18n::message("cloud-env-ambiguous", &[("trimmed", trimmed)])
                 ))
             }
         }

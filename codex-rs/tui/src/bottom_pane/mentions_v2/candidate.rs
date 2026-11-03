@@ -3,8 +3,7 @@ use std::path::PathBuf;
 use ratatui::style::Style;
 use ratatui::style::Styled;
 use ratatui::text::Span;
-
-const TAG_WIDTH: usize = "Plugin".len();
+use unicode_width::UnicodeWidthStr;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Selection {
@@ -37,16 +36,28 @@ impl MentionType {
             Self::File => base_style.cyan(),
             Self::Directory => base_style,
         };
-        format!("{:<width$}", self.label(), width = TAG_WIDTH).set_style(style)
+        let width = [
+            Self::Plugin,
+            Self::Skill,
+            Self::Task,
+            Self::File,
+            Self::Directory,
+        ]
+        .into_iter()
+        .map(|kind| kind.label().width())
+        .max()
+        .unwrap_or_default();
+        let label = self.label();
+        format!("{label}{}", " ".repeat(width.saturating_sub(label.width()))).set_style(style)
     }
 
-    fn label(self) -> &'static str {
+    fn label(self) -> String {
         match self {
-            Self::Plugin => "Plugin",
-            Self::Skill => "Skill",
-            Self::Task => "Task",
-            Self::File => "File",
-            Self::Directory => "Dir",
+            Self::Plugin => crate::i18n::message("dialogs-mention-plugin", &[]),
+            Self::Skill => crate::i18n::message("dialogs-mention-skill", &[]),
+            Self::Task => crate::i18n::message("dialogs-mention-task", &[]),
+            Self::File => crate::i18n::message("dialogs-mention-file", &[]),
+            Self::Directory => crate::i18n::message("dialogs-mention-directory", &[]),
         }
     }
 }

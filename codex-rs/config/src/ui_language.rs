@@ -7,7 +7,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
 
-#[derive(Serialize, Deserialize, Debug, Default, Copy, Clone, PartialEq, Eq, JsonSchema)]
+#[derive(Serialize, Debug, Default, Copy, Clone, PartialEq, Eq, JsonSchema)]
 pub enum UiLanguage {
     #[serde(rename = "ko")]
     Korean,
@@ -18,11 +18,23 @@ pub enum UiLanguage {
 
 impl UiLanguage {
     pub fn parse(value: &str) -> Result<Self, &'static str> {
-        match value {
+        // ICU validates and normalizes Unicode BCP 47 locale identifiers. Match
+        // the supported base language; region/script/extensions do not require
+        // duplicate resources. Do not treat malformed/unsupported input as English.
+        if value.contains('_') {
+            return Err("Invalid UI language tag; use a BCP 47 tag such as en-US or ko-KR");
+        }
+        let locale = icu_locale_core::Locale::try_from_str(value)
+            .map_err(|_| "Invalid UI language tag; use a BCP 47 tag such as en-US or ko-KR")?;
+        match locale.id.language.as_str() {
             "ko" => Ok(Self::Korean),
             "en" => Ok(Self::English),
-            _ => Err("UI language must be ko or en"),
+            _ => Err("Unsupported UI language; supported languages are en and ko"),
         }
+    }
+
+    pub fn from_setting(setting: Option<&str>) -> Result<Self, &'static str> {
+        setting.map(Self::parse).unwrap_or(Ok(Self::default()))
     }
 
     pub fn as_str(self) -> &'static str {
@@ -30,6 +42,13 @@ impl UiLanguage {
             Self::Korean => "ko",
             Self::English => "en",
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for UiLanguage {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let tag = String::deserialize(deserializer)?;
+        Self::parse(&tag).map_err(serde::de::Error::custom)
     }
 }
 
@@ -67,16 +86,39 @@ mod tests {
             read_user_ui_language(home.path()).unwrap(),
             UiLanguage::English
         );
-        for invalid in ["'kr'", "'KO'", "'ko-KR'", "''", "7", "true"] {
+        for invalid in ["'kr'", "'en_US'", "'ko--KR'", "''", "7", "true"] {
             std::fs::write(&path, format!("ui_language = {invalid}\n")).unwrap();
             assert_eq!(
                 read_user_ui_language(home.path()).unwrap_err().kind(),
                 io::ErrorKind::InvalidData
             );
         }
-        for invalid in ["kr", "KO", "ko-KR", "", "ko en"] {
+        for invalid in ["kr", "ja", "en_US", "ko--KR", "", "ko en"] {
             assert!(UiLanguage::parse(invalid).is_err());
         }
+    }
+
+    #[test]
+    fn locale_tags_share_one_normalization_for_arguments_and_saved_preferences() {
+        for (tag, expected) in [
+            ("KO", UiLanguage::Korean),
+            ("ko-KR", UiLanguage::Korean),
+            ("ko-Kore-KR", UiLanguage::Korean),
+            ("EN-us", UiLanguage::English),
+            ("en-US-u-nu-latn", UiLanguage::English),
+        ] {
+            assert_eq!(UiLanguage::parse(tag), Ok(expected));
+            assert_eq!(UiLanguage::from_setting(Some(tag)), Ok(expected));
+            let saved: toml::Value = toml::from_str(&format!("ui_language = '{tag}'")).unwrap();
+            let language: UiLanguage = saved["ui_language"].clone().try_into().unwrap();
+            assert_eq!(language, expected);
+            assert_eq!(serde_json::to_value(language).unwrap(), expected.as_str());
+        }
+        assert_eq!(UiLanguage::from_setting(None), Ok(UiLanguage::English));
+        assert_ne!(
+            UiLanguage::parse("ja").unwrap_err(),
+            UiLanguage::parse("ko--KR").unwrap_err()
+        );
     }
 
     #[test]

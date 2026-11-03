@@ -762,7 +762,11 @@ impl ListSelectionView {
                     let is_selected = self.state.selected_idx == Some(visible_idx);
                     let prefix = if is_selected { '›' } else { ' ' };
                     let name = item.name.as_str();
-                    let marker = if item.is_current { " (current)" } else { "" };
+                    let marker = if item.is_current {
+                        crate::i18n::message("dialogs-current", &[])
+                    } else {
+                        String::new()
+                    };
                     let name_with_marker = format!("{name}{marker}");
                     let is_disabled = item.is_disabled || item.disabled_reason.is_some();
                     let wrap_prefix = if self.is_searchable {
@@ -1730,11 +1734,17 @@ impl Renderable for ListSelectionView {
             let [header_area, elision_area] =
                 Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(header_area);
             header.render(header_area, buf);
-            let mut spans = vec![format!("[… {header_height} lines]").into()];
+            let mut spans = vec![
+                crate::i18n::message(
+                    "dialogs-header-elided",
+                    &[("count", &header_height.to_string())],
+                )
+                .into(),
+            ];
             if let Some(hint) = &self.header_view_all_hint {
                 spans.push(" ".into());
                 spans.extend(hint.spans());
-                spans.push(" view all".into());
+                spans.push(crate::i18n::message("dialogs-view-all", &[]).into());
             }
             Line::from(spans).dim().render(elision_area, buf);
         } else {
@@ -1762,9 +1772,9 @@ impl Renderable for ListSelectionView {
                 self.search_query.clone().into()
             };
             if self.on_demand_search_active() {
-                let label = "Search › ";
+                let label = crate::i18n::message("dialogs-search-label", &[]);
                 buf.set_style(search_area, crate::bottom_pane::active_tab_style());
-                Line::from(vec![label.cyan().bold(), query_span]).render(search_area, buf);
+                Line::from(vec![label.as_str().cyan().bold(), query_span]).render(search_area, buf);
                 let cursor_offset = (label.width() + self.search_query.width())
                     .min(usize::from(search_area.width.saturating_sub(/*rhs*/ 1)));
                 self.search_cursor.set(Some((
@@ -1791,7 +1801,7 @@ impl Renderable for ListSelectionView {
                     &rows,
                     &self.state,
                     render_area.height as usize,
-                    "no matches",
+                    &crate::i18n::message("dialogs-no-matches", &[]),
                     column_width,
                 ),
                 SelectionRowDisplay::SingleLine => render_rows_single_line_with_col_width_mode(
@@ -1800,7 +1810,7 @@ impl Renderable for ListSelectionView {
                     &rows,
                     &self.state,
                     render_area.height as usize,
-                    "no matches",
+                    &crate::i18n::message("dialogs-no-matches", &[]),
                     column_width,
                 ),
             };

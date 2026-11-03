@@ -1606,7 +1606,7 @@ See the Codex keymap documentation for supported actions and examples."
                                 app.chat_widget.reconnect_failed();
                                 app.chat_widget.add_error_message(error.to_string());
                                 if let Ok(mut state) = app.agents_overview.view_state.lock() {
-                                    state.connection_notice = Some("Reconnect failed — agent list is stale; relaunch to retry");
+                                    state.connection_notice = Some(crate::i18n::static_message("picker-center-notice-failed"));
                                 }
                             }
                         }

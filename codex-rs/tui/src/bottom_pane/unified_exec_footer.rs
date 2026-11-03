@@ -48,9 +48,10 @@ impl UnifiedExecFooter {
         }
 
         let count = self.processes.len();
-        let plural = if count == 1 { "" } else { "s" };
-        Some(format!(
-            "{count} background terminal{plural} running · /ps to view · /stop to close"
+        Some(crate::i18n::message_with_count(
+            "dialogs-background-terminals",
+            &[],
+            count as i64,
         ))
     }
 

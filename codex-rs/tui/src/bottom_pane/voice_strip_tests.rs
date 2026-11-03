@@ -167,3 +167,36 @@ fn voice_controls_follow_configured_mute_binding_and_unbinding() {
     }
     insta::assert_snapshot!(layouts.join("\n\n"));
 }
+
+#[test]
+fn localized_voice_controls_preserve_command_tokens_and_state_across_widths() {
+    for locale in [crate::i18n::Locale::English, crate::i18n::Locale::Korean] {
+        crate::i18n::with_locale(locale, || {
+            let mut strip = active_strip();
+            strip.state.animations = false;
+            for (activity, translated) in [
+                ("connecting", "연결중"),
+                ("muted", "음소거됨"),
+                ("heard", "들었어요"),
+                ("speaking", "말하는중"),
+                ("listening", "듣는중"),
+            ] {
+                strip.state.activity = activity;
+                for width in [22, 40, 80, 120] {
+                    let (text, _) = rows(&strip, width);
+                    assert!(text.contains("/voice stop"));
+                    if width == 120 {
+                        assert!(text.replace(' ', "").contains(
+                            if locale == crate::i18n::Locale::English {
+                                activity
+                            } else {
+                                translated
+                            }
+                        ));
+                    }
+                    assert_eq!(strip.state.activity, activity);
+                }
+            }
+        });
+    }
+}

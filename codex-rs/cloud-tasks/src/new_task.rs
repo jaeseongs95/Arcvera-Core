@@ -1,4 +1,5 @@
 use codex_tui::ComposerInput;
+use codex_tui::i18n::message;
 
 pub struct NewTaskPage {
     pub composer: ComposerInput,
@@ -11,11 +12,11 @@ impl NewTaskPage {
     pub fn new(env_id: Option<String>, best_of_n: usize) -> Self {
         let mut composer = ComposerInput::new();
         composer.set_hint_items(vec![
-            ("⏎", "send"),
-            ("Shift+⏎", "newline"),
-            ("Ctrl+O", "env"),
-            ("Ctrl+N", "attempts"),
-            ("Ctrl+C", "quit"),
+            ("⏎", message("cloud-composer-send", &[])),
+            ("Shift+⏎", message("cloud-composer-newline", &[])),
+            ("Ctrl+O", message("cloud-composer-env", &[])),
+            ("Ctrl+N", message("cloud-composer-attempts", &[])),
+            ("Ctrl+C", message("cloud-composer-quit", &[])),
         ]);
         Self {
             composer,

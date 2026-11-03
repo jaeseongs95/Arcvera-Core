@@ -49,15 +49,15 @@ impl AgentsOverviewView {
         if indices.is_empty() {
             line(
                 if state.connection_notice.is_some() {
-                    "Reconnecting…"
+                    crate::i18n::static_message("picker-center-reconnecting")
                 } else if state.loading && self.rows.is_empty() {
-                    "Loading tasks…"
+                    crate::i18n::static_message("picker-center-loading-tasks")
                 } else if state.refresh_failed {
-                    "Could not load tasks"
+                    crate::i18n::static_message("picker-center-load-tasks-failed")
                 } else if self.rows.is_empty() {
-                    "No tasks yet"
+                    crate::i18n::static_message("picker-center-no-tasks")
                 } else {
-                    "No matching tasks"
+                    crate::i18n::static_message("picker-center-no-matching-tasks")
                 }
                 .dim(),
                 area,
@@ -78,9 +78,17 @@ impl AgentsOverviewView {
         let viewport = row(area, padding, area.height - padding * 2);
         if padding > 0 {
             let (title, status, updated) = columns(row(area, /*offset*/ 0, /*height*/ 1));
-            line("Tasks".dim(), title, buf);
-            line("Status".dim(), status, buf);
-            Line::from("Updated".dim())
+            line(
+                crate::i18n::static_message("picker-center-tasks").dim(),
+                title,
+                buf,
+            );
+            line(
+                crate::i18n::static_message("picker-status").dim(),
+                status,
+                buf,
+            );
+            Line::from(crate::i18n::static_message("picker-updated").dim())
                 .right_aligned()
                 .render(updated, buf);
         }
@@ -122,11 +130,11 @@ impl AgentsOverviewView {
                         style,
                     );
                     let label = if state.loading {
-                        "Loading more…"
+                        crate::i18n::static_message("picker-center-loading-more")
                     } else if state.refresh_failed {
-                        "Show more (retry)"
+                        crate::i18n::static_message("picker-center-show-more-retry")
                     } else {
-                        "Show more"
+                        crate::i18n::static_message("picker-center-show-more")
                     };
                     let marker = if selected { "›" } else { " " };
                     line(
@@ -141,7 +149,7 @@ impl AgentsOverviewView {
             let rect = row(viewport, offset as u16, /*height*/ 1);
             if matches!(entry, CenterRow::Group(_)) {
                 let group = if self.is_pinned(index) {
-                    "Pinned".to_owned()
+                    crate::i18n::static_message("picker-center-pinned").to_owned()
                 } else {
                     match state.grouping {
                         AgentsOverviewGrouping::Project => {
@@ -155,7 +163,9 @@ impl AgentsOverviewView {
                             /*max_width*/ None,
                         ),
                         AgentsOverviewGrouping::Status => task.group.label().to_owned(),
-                        AgentsOverviewGrouping::Model => model_name(&task.thread).to_owned(),
+                        AgentsOverviewGrouping::Model => {
+                            display_model_name(&task.thread).to_owned()
+                        }
                     }
                 };
                 let count = indices
@@ -170,7 +180,13 @@ impl AgentsOverviewView {
                 let count = if count == total {
                     count.to_string()
                 } else {
-                    format!("{count} of {total}")
+                    crate::i18n::message(
+                        "picker-center-count",
+                        &[
+                            ("count", count.to_string().as_str()),
+                            ("total", total.to_string().as_str()),
+                        ],
+                    )
                 };
                 let group = if matches!(
                     state.grouping,
@@ -229,7 +245,12 @@ impl AgentsOverviewView {
                     /*height*/ 1,
                 );
                 title.width -= 8;
-                line(Line::from("  voice").style(style), badge, buf);
+                line(
+                    Line::from(crate::i18n::static_message("picker-center-voice-badge"))
+                        .style(style),
+                    badge,
+                    buf,
+                );
             }
             let title_style = if index == self.selected {
                 style

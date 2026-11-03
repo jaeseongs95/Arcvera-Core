@@ -52,17 +52,20 @@ pub(crate) fn feedback_success_cell(
     feedback_audience: FeedbackAudience,
 ) -> history_cell::WebHyperlinkHistoryCell {
     let prefix = if include_logs {
-        "• Feedback uploaded."
+        crate::i18n::message("dialogs-feedback-uploaded", &[])
     } else {
-        "• Feedback recorded (no logs)."
+        crate::i18n::message("dialogs-feedback-recorded", &[])
     };
     let issue_url = issue_url_for_category(category, thread_id, feedback_audience);
     let mut lines = vec![Line::from(match issue_url.as_ref() {
         Some(_) if feedback_audience == FeedbackAudience::OpenAiEmployee => {
-            format!("{prefix} You can share this in #codex-feedback:")
+            crate::i18n::message("dialogs-feedback-share", &[("prefix", prefix.as_str())])
         }
-        Some(_) => format!("{prefix} Please open an issue using the following URL:"),
-        None => format!("{prefix} Thanks for the feedback!"),
+        Some(_) => crate::i18n::message(
+            "dialogs-feedback-open-issue",
+            &[("prefix", prefix.as_str())],
+        ),
+        None => crate::i18n::message("dialogs-feedback-thanks", &[("prefix", prefix.as_str())]),
     })];
     match issue_url {
         Some(url) if feedback_audience == FeedbackAudience::OpenAiEmployee => {
@@ -74,11 +77,11 @@ pub(crate) fn feedback_success_cell(
                 ]),
                 "".into(),
                 Line::from(vec![
-                    "  Sentry Feedback ID: ".into(),
+                    crate::i18n::message("dialogs-feedback-sentry-id", &[]).into(),
                     thread_id.to_string().bold(),
                 ]),
                 Line::from(vec![
-                    "  Sentry URL: ".into(),
+                    crate::i18n::message("dialogs-feedback-sentry-url", &[]).into(),
                     format!("https://go/codex-feedback/{thread_id}")
                         .fg(crate::style::accent_color())
                         .underlined(),
@@ -94,16 +97,19 @@ pub(crate) fn feedback_success_cell(
                 ]),
                 "".into(),
                 Line::from(vec![
-                    "  Or mention your thread ID ".into(),
+                    crate::i18n::message("dialogs-feedback-mention-before", &[]).into(),
                     thread_id.to_string().bold(),
-                    " in an existing issue.".into(),
+                    crate::i18n::message("dialogs-feedback-mention-after", &[]).into(),
                 ]),
             ]);
         }
         None => {
             lines.extend([
                 "".into(),
-                Line::from(vec!["  Thread ID: ".into(), thread_id.to_string().bold()]),
+                Line::from(vec![
+                    crate::i18n::message("dialogs-feedback-thread-id", &[]).into(),
+                    thread_id.to_string().bold(),
+                ]),
             ]);
         }
     }
@@ -145,36 +151,36 @@ pub(crate) fn feedback_selection_params(
     app_event_tx: AppEventSender,
 ) -> super::SelectionViewParams {
     super::SelectionViewParams {
-        title: Some("How was this?".to_string()),
+        title: Some(crate::i18n::message("dialogs-feedback-how", &[]).to_string()),
         items: vec![
             make_feedback_item(
                 app_event_tx.clone(),
-                "bug",
-                "Crash, error message, hang, or broken UI/behavior",
+                &crate::i18n::message("dialogs-feedback-bug", &[]),
+                &crate::i18n::message("dialogs-feedback-bug-description", &[]),
                 FeedbackCategory::Bug,
             ),
             make_feedback_item(
                 app_event_tx.clone(),
-                "bad result",
-                "Output was off-target, incorrect, incomplete, or unhelpful",
+                &crate::i18n::message("dialogs-feedback-bad", &[]),
+                &crate::i18n::message("dialogs-feedback-bad-description", &[]),
                 FeedbackCategory::BadResult,
             ),
             make_feedback_item(
                 app_event_tx.clone(),
-                "good result",
-                "Helpful, correct, high‑quality, or delightful result worth celebrating",
+                &crate::i18n::message("dialogs-feedback-good", &[]),
+                &crate::i18n::message("dialogs-feedback-good-description", &[]),
                 FeedbackCategory::GoodResult,
             ),
             make_feedback_item(
                 app_event_tx.clone(),
-                "safety check",
-                "Benign usage blocked due to safety checks or refusals",
+                &crate::i18n::message("dialogs-feedback-safety", &[]),
+                &crate::i18n::message("dialogs-feedback-safety-description", &[]),
                 FeedbackCategory::SafetyCheck,
             ),
             make_feedback_item(
                 app_event_tx,
-                "other",
-                "Slowness, feature suggestion, UX feedback, or anything else",
+                &crate::i18n::message("dialogs-feedback-other", &[]),
+                &crate::i18n::message("dialogs-feedback-other-description", &[]),
                 FeedbackCategory::Other,
             ),
         ],
@@ -185,11 +191,13 @@ pub(crate) fn feedback_selection_params(
 /// Build the selection popup params shown when feedback is disabled.
 pub(crate) fn feedback_disabled_params() -> super::SelectionViewParams {
     super::SelectionViewParams {
-        title: Some("Sending feedback is disabled".to_string()),
-        subtitle: Some("This action is disabled by configuration.".to_string()),
+        title: Some(crate::i18n::message("dialogs-feedback-disabled", &[]).to_string()),
+        subtitle: Some(
+            crate::i18n::message("dialogs-feedback-disabled-description", &[]).to_string(),
+        ),
         footer_hint: Some(standard_popup_hint_line()),
         items: vec![super::SelectionItem {
-            name: "Close".to_string(),
+            name: crate::i18n::message("dialogs-close-button", &[]).to_string(),
             dismiss_on_select: true,
             ..Default::default()
         }],
@@ -249,11 +257,19 @@ pub(crate) fn feedback_upload_consent_params(
 
     // Build header listing files that would be sent if user consents.
     let mut header_lines: Vec<Box<dyn crate::render::renderable::Renderable>> = vec![
-        Line::from("Upload logs?".bold()).into(),
+        Line::from(crate::i18n::message("dialogs-feedback-upload-question", &[]).bold()).into(),
         Line::from("").into(),
-        Line::from("The following files will be sent:".dim()).into(),
+        Line::from(crate::i18n::message("dialogs-feedback-files", &[]).dim()).into(),
         Line::from(vec!["  • ".into(), "codex-logs.log".into()]).into(),
-        Line::from(vec!["  • ".into(), "client-logs.txt (if available)".into()]).into(),
+        Line::from(vec![
+            "  • ".into(),
+            crate::i18n::message(
+                "dialogs-feedback-file-optional",
+                &[("filename", "client-logs.txt")],
+            )
+            .into(),
+        ])
+        .into(),
         Line::from(vec![
             "  • ".into(),
             DOCTOR_REPORT_ATTACHMENT_FILENAME.into(),
@@ -261,12 +277,20 @@ pub(crate) fn feedback_upload_consent_params(
         .into(),
         Line::from(vec![
             "  • ".into(),
-            format!("{CODEX_APPS_TOOLS_CACHE_ATTACHMENT_FILENAME} (if available)").into(),
+            crate::i18n::message(
+                "dialogs-feedback-file-optional",
+                &[("filename", CODEX_APPS_TOOLS_CACHE_ATTACHMENT_FILENAME)],
+            )
+            .into(),
         ])
         .into(),
         Line::from(vec![
             "  • ".into(),
-            format!("{CODEX_APP_DIRECTORY_CACHE_ATTACHMENT_FILENAME} (if available)").into(),
+            crate::i18n::message(
+                "dialogs-feedback-file-optional",
+                &[("filename", CODEX_APP_DIRECTORY_CACHE_ATTACHMENT_FILENAME)],
+            )
+            .into(),
         ])
         .into(),
     ];
@@ -298,7 +322,9 @@ pub(crate) fn feedback_upload_consent_params(
     }
     if should_show_feedback_connectivity_details(category, feedback_diagnostics) {
         header_lines.push(Line::from("").into());
-        header_lines.push(Line::from("Connectivity diagnostics".bold()).into());
+        header_lines.push(
+            Line::from(crate::i18n::message("dialogs-feedback-connectivity", &[]).bold()).into(),
+        );
         for diagnostic in feedback_diagnostics.diagnostics() {
             header_lines
                 .push(Line::from(vec!["  - ".into(), diagnostic.headline.clone().into()]).into());
@@ -312,17 +338,16 @@ pub(crate) fn feedback_upload_consent_params(
         footer_hint: Some(standard_popup_hint_line()),
         items: vec![
             super::SelectionItem {
-                name: "Yes".to_string(),
+                name: crate::i18n::message("dialogs-yes", &[]).to_string(),
                 description: Some(
-                    "Share the current Codex session logs and diagnostics with the team for troubleshooting"
-                        .to_string(),
+                    crate::i18n::message("dialogs-feedback-upload-consent", &[]).to_string(),
                 ),
                 actions: vec![yes_action],
                 dismiss_on_select: true,
                 ..Default::default()
             },
             super::SelectionItem {
-                name: "No".to_string(),
+                name: crate::i18n::message("dialogs-no", &[]).to_string(),
                 actions: vec![no_action],
                 dismiss_on_select: true,
                 ..Default::default()
@@ -337,6 +362,43 @@ pub(crate) fn feedback_upload_consent_params(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn localized_feedback_consent_preserves_upload_choices_and_filenames() {
+        for (locale, yes, no, title) in [
+            (crate::i18n::Locale::English, "Yes", "No", "Upload logs?"),
+            (
+                crate::i18n::Locale::Korean,
+                "예",
+                "아니요",
+                "로그를 업로드하시겠습니까?",
+            ),
+        ] {
+            crate::i18n::with_locale(locale, || {
+                let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+                let sender = AppEventSender::new(tx);
+                let params = feedback_upload_consent_params(
+                    sender.clone(),
+                    FeedbackCategory::Bug,
+                    Some(std::path::PathBuf::from("사용자-é🦀.jsonl")),
+                    None,
+                    false,
+                    &FeedbackDiagnostics::default(),
+                );
+                let rendered = render_renderable(params.header.as_ref(), 120);
+                assert!(rendered.replace(' ', "").contains(&title.replace(' ', "")));
+                assert!(rendered.replace(' ', "").contains("사용자-é🦀.jsonl"));
+                assert!(rendered.contains("client-logs.txt"));
+                assert_eq!(params.items[0].name, yes);
+                assert_eq!(params.items[1].name, no);
+                for (index, include_logs) in [(0, true), (1, false)] {
+                    (params.items[index].actions[0])(&sender);
+                    assert!(
+                        matches!(rx.try_recv(), Ok(AppEvent::OpenFeedbackNote { category: FeedbackCategory::Bug, include_logs: actual }) if actual == include_logs)
+                    );
+                }
+            });
+        }
+    }
     use super::*;
     use crate::app_event::AppEvent;
     use crate::app_event_sender::AppEventSender;

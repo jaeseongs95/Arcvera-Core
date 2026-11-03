@@ -58,6 +58,9 @@ codex-otel = { workspace = true }
 codex-plugin = { workspace = true }
 codex-protocol = { workspace = true }
 codex-realtime-webrtc = { workspace = true }
+fluent-bundle = "0.16.0"
+fluent-syntax = "0.12.0"
+unic-langid = "0.9.6"
 futures = { workspace = true }
 codex-rollout = { workspace = true }
 codex-sandboxing = { workspace = true }

@@ -274,7 +274,10 @@ impl ApprovalOverlay {
                             .to_string()
                         },
                         |process_id| {
-                            format!("Would you like to send input to terminal {process_id}?")
+                            crate::i18n::message(
+                                "dialogs-approval-terminal",
+                                &[("process_id", process_id.as_str())],
+                            )
                         },
                     )
                 } else {
@@ -284,9 +287,9 @@ impl ApprovalOverlay {
                                 .to_string()
                         },
                         |network_approval_context| {
-                            format!(
-                                "Do you want to approve network access to \"{}\"?",
-                                network_approval_context.host
+                            crate::i18n::message(
+                                "dialogs-approval-network",
+                                &[("host", network_approval_context.host.as_str())],
                             )
                         },
                     )
@@ -311,7 +314,10 @@ impl ApprovalOverlay {
             ),
             ApprovalRequest::McpElicitation(request) => (
                 elicitation_options(approval_keymap),
-                format!("{} needs your approval.", request.server_name),
+                crate::i18n::message(
+                    "dialogs-approval-mcp",
+                    &[("server", request.server_name.as_str())],
+                ),
             ),
         };
 
@@ -902,8 +908,9 @@ fn exec_options(
                 }
 
                 Some(ApprovalOption {
-                    label: format!(
-                        "Yes, and don't ask again for commands that start with `{rendered_prefix}`"
+                    label: crate::i18n::message(
+                        "dialogs-approval-command-prefix",
+                        &[("prefix", rendered_prefix.as_str())],
                     ),
                     decision: ApprovalDecision::Command(
                         CommandExecutionApprovalDecision::AcceptWithExecpolicyAmendment {
@@ -975,7 +982,7 @@ pub(crate) fn format_additional_permissions_rule(
         .and_then(|network| network.enabled)
         .unwrap_or(false)
     {
-        parts.push("network".to_string());
+        parts.push(crate::i18n::message("dialogs-permission-network", &[]));
     }
     if let Some(file_system) = additional_permissions.file_system.as_ref() {
         let reads = format_file_system_entry_paths(
@@ -986,7 +993,10 @@ pub(crate) fn format_additional_permissions_rule(
                 .filter(|entry| entry.access == FileSystemAccessMode::Read),
         );
         if !reads.is_empty() {
-            parts.push(format!("read {reads}"));
+            parts.push(crate::i18n::message(
+                "dialogs-permission-read",
+                &[("paths", reads.as_str())],
+            ));
         }
         let writes = format_file_system_entry_paths(
             file_system
@@ -996,7 +1006,10 @@ pub(crate) fn format_additional_permissions_rule(
                 .filter(|entry| entry.access == FileSystemAccessMode::Write),
         );
         if !writes.is_empty() {
-            parts.push(format!("write {writes}"));
+            parts.push(crate::i18n::message(
+                "dialogs-permission-write",
+                &[("paths", writes.as_str())],
+            ));
         }
         let denied_reads = format_file_system_entry_paths(
             file_system
@@ -1006,7 +1019,10 @@ pub(crate) fn format_additional_permissions_rule(
                 .filter(|entry| entry.access == FileSystemAccessMode::Deny),
         );
         if !denied_reads.is_empty() {
-            parts.push(format!("deny read {denied_reads}"));
+            parts.push(crate::i18n::message(
+                "dialogs-permission-deny-read",
+                &[("paths", denied_reads.as_str())],
+            ));
         }
     }
     if parts.is_empty() {
@@ -1158,6 +1174,113 @@ fn elicitation_options(keymap: &ApprovalKeymap) -> Vec<ApprovalOption> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn localized_approval_titles_preserve_opaque_values_and_decisions() {
+        use crate::i18n::Locale;
+        let opaque = "서버-e\u{301}🦀{ $host }";
+        for (locale, expected) in [
+            (
+                Locale::English,
+                [
+                    "Would you like to run",
+                    "existing terminal",
+                    "send input to terminal",
+                    "approve network access",
+                    "needs your approval",
+                    "grant these permissions",
+                    "following edits",
+                ],
+            ),
+            (
+                Locale::Korean,
+                [
+                    "명령",
+                    "기존 터미널",
+                    "입력을 보내",
+                    "네트워크 접근",
+                    "승인",
+                    "권한",
+                    "수정",
+                ],
+            ),
+        ] {
+            crate::i18n::with_locale(locale, || {
+                let mut requests = vec![make_exec_request()];
+                let ApprovalRequest::Exec(mut terminal) = make_exec_request() else {
+                    unreachable!()
+                };
+                terminal.kind = CommandExecutionApprovalKind::WriteStdin;
+                terminal.command.clear();
+                requests.push(ApprovalRequest::Exec(terminal.clone()));
+                terminal.command = vec!["write_stdin".into(), "input".into(), opaque.into()];
+                requests.push(ApprovalRequest::Exec(terminal));
+                let ApprovalRequest::Exec(mut network) = make_exec_request() else {
+                    unreachable!()
+                };
+                network.network_approval_context = Some(NetworkApprovalContext {
+                    host: opaque.into(),
+                    protocol: NetworkApprovalProtocol::Https,
+                });
+                requests.push(ApprovalRequest::Exec(network));
+                let ApprovalRequest::McpElicitation(mut mcp) = make_elicitation_request() else {
+                    unreachable!()
+                };
+                mcp.server_name = opaque.into();
+                mcp.message = "SERVER MESSAGE { $host } 원문".into();
+                requests.push(ApprovalRequest::McpElicitation(mcp));
+                requests.push(make_permissions_request());
+                requests.push(ApprovalRequest::ApplyPatch(ApplyPatchApprovalRequest {
+                    thread_id: ThreadId::new(),
+                    thread_label: None,
+                    id: "patch".into(),
+                    reason: None,
+                    cwd: absolute_path("/tmp"),
+                    changes: HashMap::new(),
+                }));
+                for (index, request) in requests.into_iter().enumerate() {
+                    let original = request.clone();
+                    let (tx, _rx) = unbounded_channel();
+                    let overlay =
+                        make_overlay(request, AppEventSender::new(tx), Features::default());
+                    let rendered = render_overlay_lines(&overlay, 160);
+                    assert!(
+                        rendered
+                            .replace(' ', "")
+                            .contains(&expected[index].replace(' ', "")),
+                        "{rendered}"
+                    );
+                    if matches!(index, 2..=4) {
+                        assert!(
+                            rendered.replace(' ', "").contains(&opaque.replace(' ', "")),
+                            "{rendered}"
+                        );
+                    }
+                    if index == 4 {
+                        assert!(
+                            rendered
+                                .replace(' ', "")
+                                .contains("SERVERMESSAGE{$host}원문")
+                        );
+                    }
+                    if let ApprovalRequest::Exec(request) = original {
+                        for (option, expected) in
+                            overlay.options.iter().zip(request.available_decisions)
+                        {
+                            let ApprovalDecision::Command(actual) = &option.decision else {
+                                panic!("changed approval kind")
+                            };
+                            assert_eq!(actual, &expected);
+                        }
+                        assert_eq!(
+                            overlay.options[0].shortcuts,
+                            RuntimeKeymap::defaults().approval.approve
+                        );
+                    }
+                }
+            });
+        }
+    }
 
     #[test]
     fn korean_approval_labels_preserve_decisions_and_shortcuts() {

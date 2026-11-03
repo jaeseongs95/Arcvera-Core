@@ -17,6 +17,7 @@ use codex_http_client::ClientRouteClass;
 use codex_http_client::RouteAwareClientPool;
 use codex_login::AuthManager;
 use codex_login::default_client::get_codex_user_agent;
+use codex_tui::i18n::message;
 use owo_colors::OwoColorize;
 use owo_colors::Stream;
 use std::cmp::Ordering;
@@ -30,6 +31,7 @@ use supports_color::Stream as SupportStream;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
+use unicode_segmentation::UnicodeSegmentation;
 use util::append_error_log;
 use util::format_relative_time;
 use util::set_user_agent_suffix;
@@ -87,16 +89,15 @@ async fn init_backend(user_agent_suffix: &str, config: &Config) -> anyhow::Resul
     };
     append_error_log(format!("startup: base_url={base_url} path_style={style}"));
 
-    let auth = auth_manager.auth().await.ok_or_else(|| anyhow!(
-        "{}", codex_tui::i18n::text("Not signed in. Run 'codex login' with the ChatGPT account and workspace to use Codex Cloud.")
-    ))?;
+    let auth = auth_manager
+        .auth()
+        .await
+        .ok_or_else(|| anyhow!("{}", codex_tui::i18n::message("cloud-signin", &[])))?;
 
     if !auth.uses_codex_backend() {
         return Err(anyhow!(
             "{}",
-            codex_tui::i18n::text(
-                "Codex Cloud requires ChatGPT sign-in; API key authentication is not supported."
-            )
+            codex_tui::i18n::message("cloud-chatgpt-auth-required", &[])
         ));
     }
 
@@ -201,21 +202,20 @@ fn resolve_query_input(query_arg: Option<String>) -> anyhow::Result<String> {
         maybe_dash => {
             let force_stdin = matches!(maybe_dash.as_deref(), Some("-"));
             if std::io::stdin().is_terminal() && !force_stdin {
-                return Err(anyhow!(
-                    "no query provided. Pass one as an argument or pipe it via stdin."
-                ));
+                return Err(anyhow!("{}", message("cloud-query-missing", &[])));
             }
             if !force_stdin {
-                eprintln!("Reading query from stdin...");
+                eprintln!("{}", message("cloud-query-stdin", &[]));
             }
             let mut buffer = String::new();
-            std::io::stdin()
-                .read_to_string(&mut buffer)
-                .map_err(|e| anyhow!("failed to read query from stdin: {e}"))?;
+            std::io::stdin().read_to_string(&mut buffer).map_err(|e| {
+                anyhow!(
+                    "{}",
+                    message("cloud-query-read-failed", &[("error", &e.to_string())])
+                )
+            })?;
             if buffer.trim().is_empty() {
-                return Err(anyhow!(
-                    "no query provided via stdin (received empty input)."
-                ));
+                return Err(anyhow!("{}", message("cloud-query-stdin-empty", &[])));
             }
             Ok(buffer)
         }
@@ -225,7 +225,7 @@ fn resolve_query_input(query_arg: Option<String>) -> anyhow::Result<String> {
 fn parse_task_id(raw: &str) -> anyhow::Result<codex_cloud_tasks_client::TaskId> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
-        anyhow::bail!("task id must not be empty");
+        anyhow::bail!("{}", message("cloud-task-id-empty", &[]));
     }
     let without_fragment = trimmed.split('#').next().unwrap_or(trimmed);
     let without_query = without_fragment
@@ -238,7 +238,7 @@ fn parse_task_id(raw: &str) -> anyhow::Result<codex_cloud_tasks_client::TaskId> 
         .unwrap_or(without_query)
         .trim();
     if id.is_empty() {
-        anyhow::bail!("task id must not be empty");
+        anyhow::bail!("{}", message("cloud-task-id-empty", &[]));
     }
     Ok(codex_cloud_tasks_client::TaskId(id.to_string()))
 }
@@ -300,8 +300,8 @@ async fn collect_attempt_diffs(
     attempts.sort_by(cmp_attempt);
     if attempts.is_empty() {
         anyhow::bail!(
-            "No diff available for task {}; it may still be running.",
-            task_id.0
+            "{}",
+            message("cloud-task-no-diff-running", &[("id", task_id.0.as_str())])
         );
     }
     Ok(attempts)
@@ -312,33 +312,39 @@ fn select_attempt(
     attempt: Option<usize>,
 ) -> anyhow::Result<&AttemptDiffData> {
     if attempts.is_empty() {
-        anyhow::bail!("No attempts available");
+        anyhow::bail!("{}", message("cloud-no-attempts", &[]));
     }
     let desired = attempt.unwrap_or(1);
     let idx = desired
         .checked_sub(1)
-        .ok_or_else(|| anyhow!("attempt must be at least 1"))?;
+        .ok_or_else(|| anyhow!("{}", message("cloud-attempt-min", &[])))?;
     if idx >= attempts.len() {
         anyhow::bail!(
-            "Attempt {desired} not available; only {} attempt(s) found",
-            attempts.len()
+            "{}",
+            message(
+                "cloud-attempt-unavailable",
+                &[
+                    ("desired", &desired.to_string()),
+                    ("count", &attempts.len().to_string())
+                ]
+            )
         );
     }
     Ok(&attempts[idx])
 }
 
-fn task_status_label(status: &TaskStatus) -> &'static str {
+fn task_status_label(status: &TaskStatus) -> String {
     match status {
-        TaskStatus::Pending => "PENDING",
-        TaskStatus::Ready => "READY",
-        TaskStatus::Applied => "APPLIED",
-        TaskStatus::Error => "ERROR",
+        TaskStatus::Pending => message("cloud-pending-status", &[]),
+        TaskStatus::Ready => message("cloud-ready-status", &[]),
+        TaskStatus::Applied => message("cloud-applied-status", &[]),
+        TaskStatus::Error => message("cloud-error-status", &[]),
     }
 }
 
 fn summary_line(summary: &codex_cloud_tasks_client::DiffSummary, colorize: bool) -> String {
     if summary.files_changed == 0 && summary.lines_added == 0 && summary.lines_removed == 0 {
-        let base = "no diff";
+        let base = message("cloud-no-diff", &[]);
         return if colorize {
             base.if_supports_color(Stream::Stdout, |t| t.dimmed())
                 .to_string()
@@ -363,15 +369,27 @@ fn summary_line(summary: &codex_cloud_tasks_client::DiffSummary, colorize: bool)
         let bullet = "•"
             .if_supports_color(Stream::Stdout, |t| t.dimmed())
             .to_string();
-        let file_label = format!("file{}", if files == 1 { "" } else { "s" })
-            .if_supports_color(Stream::Stdout, |t| t.dimmed())
-            .to_string();
+        let file_label = message(
+            if files == 1 {
+                "cloud-file-one"
+            } else {
+                "cloud-file-many"
+            },
+            &[],
+        )
+        .if_supports_color(Stream::Stdout, |t| t.dimmed())
+        .to_string();
         format!("{adds_str}/{dels_str}  {bullet}  {files} {file_label}")
     } else {
-        format!(
-            "+{adds}/-{dels} • {files} file{}",
-            if files == 1 { "" } else { "s" }
-        )
+        let file_label = message(
+            if files == 1 {
+                "cloud-file-one"
+            } else {
+                "cloud-file-many"
+            },
+            &[],
+        );
+        format!("+{adds}/-{dels} • {files} {file_label}")
     }
 }
 
@@ -496,9 +514,7 @@ async fn run_environments_command(
     } else if rows.is_empty() {
         println!(
             "{}",
-            codex_tui::i18n::text(
-                "No cloud environments are available for this ChatGPT workspace."
-            )
+            codex_tui::i18n::message("cloud-workspace-no-env", &[])
         );
     } else {
         for row in rows {
@@ -523,6 +539,38 @@ fn environment_list_json(rows: &[app::EnvironmentRow]) -> serde_json::Value {
     serde_json::json!({ "environments": environments })
 }
 
+fn task_list_json(
+    page: &codex_cloud_tasks_client::TaskListPage,
+    base_url: &str,
+) -> serde_json::Value {
+    let tasks: Vec<_> = page
+        .tasks
+        .iter()
+        .map(|task| {
+            serde_json::json!({
+                "id": task.id.0,
+                "url": util::task_url(base_url, &task.id.0),
+                "title": task.title,
+                "status": task.status,
+                "updated_at": task.updated_at,
+                "environment_id": task.environment_id,
+                "environment_label": task.environment_label,
+                "summary": {
+                    "files_changed": task.summary.files_changed,
+                    "lines_added": task.summary.lines_added,
+                    "lines_removed": task.summary.lines_removed,
+                },
+                "is_review": task.is_review,
+                "attempt_total": task.attempt_total,
+            })
+        })
+        .collect();
+    serde_json::json!({
+        "tasks": tasks,
+        "cursor": page.cursor,
+    })
+}
+
 async fn run_list_command(args: crate::cli::ListCommand, config: &Config) -> anyhow::Result<()> {
     let ctx = init_backend("codex_cloud_tasks_list", config).await?;
     let env_filter = if let Some(env) = args.environment {
@@ -538,37 +586,12 @@ async fn run_list_command(args: crate::cli::ListCommand, config: &Config) -> any
     )
     .await?;
     if args.json {
-        let tasks: Vec<_> = page
-            .tasks
-            .iter()
-            .map(|task| {
-                serde_json::json!({
-                    "id": task.id.0,
-                    "url": util::task_url(&ctx.base_url, &task.id.0),
-                    "title": task.title,
-                    "status": task.status,
-                    "updated_at": task.updated_at,
-                    "environment_id": task.environment_id,
-                    "environment_label": task.environment_label,
-                    "summary": {
-                        "files_changed": task.summary.files_changed,
-                        "lines_added": task.summary.lines_added,
-                        "lines_removed": task.summary.lines_removed,
-                    },
-                    "is_review": task.is_review,
-                    "attempt_total": task.attempt_total,
-                })
-            })
-            .collect();
-        let payload = serde_json::json!({
-            "tasks": tasks,
-            "cursor": page.cursor,
-        });
+        let payload = task_list_json(&page, &ctx.base_url);
         println!("{}", serde_json::to_string_pretty(&payload)?);
         return Ok(());
     }
     if page.tasks.is_empty() {
-        println!("No tasks found.");
+        println!("{}", message("cloud-no-tasks", &[]));
         return Ok(());
     }
     let now = Utc::now();
@@ -579,12 +602,18 @@ async fn run_list_command(args: crate::cli::ListCommand, config: &Config) -> any
     if let Some(cursor) = page.cursor {
         let command = format!("codex cloud list --cursor='{cursor}'");
         if colorize {
+            let command = command
+                .if_supports_color(Stream::Stdout, |text| text.cyan())
+                .to_string();
             println!(
-                "\nTo fetch the next page, run {}",
-                command.if_supports_color(Stream::Stdout, |text| text.cyan())
+                "{}",
+                message("cloud-next-page", &[("command", command.as_str())])
             );
         } else {
-            println!("\nTo fetch the next page, run {command}");
+            println!(
+                "{}",
+                message("cloud-next-page", &[("command", command.as_str())])
+            );
         }
     }
     Ok(())
@@ -637,11 +666,11 @@ fn spawn_preflight(
     job: ApplyJob,
 ) -> bool {
     if app.apply_inflight {
-        app.status = "An apply is already running; wait for it to finish first.".to_string();
+        app.status = message("cloud-apply-running", &[]);
         return false;
     }
     if app.apply_preflight_inflight {
-        app.status = "A preflight is already running; wait for it to finish first.".to_string();
+        app.status = message("cloud-preflight-running", &[]);
         return false;
     }
 
@@ -677,7 +706,7 @@ fn spawn_preflight(
             Err(e) => app::AppEvent::ApplyPreflightFinished {
                 id: task_id,
                 title,
-                message: format!("Preflight failed: {e}"),
+                message: message("cloud-preflight-failed", &[("error", &e.to_string())]),
                 level: app::ApplyResultLevel::Error,
                 skipped: Vec::new(),
                 conflicts: Vec::new(),
@@ -698,11 +727,11 @@ fn spawn_apply(
     job: ApplyJob,
 ) -> bool {
     if app.apply_inflight {
-        app.status = "An apply is already running; wait for it to finish first.".to_string();
+        app.status = message("cloud-apply-running", &[]);
         return false;
     }
     if app.apply_preflight_inflight {
-        app.status = "Finish the current preflight before starting another apply.".to_string();
+        app.status = message("cloud-wait-preflight", &[]);
         return false;
     }
 
@@ -832,7 +861,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
         get_codex_user_agent()
     ));
     // Non-blocking initial load so the in-box spinner can animate
-    app.status = "Loading tasks…".to_string();
+    app.status = message("cloud-loading-tasks", &[]);
     app.refresh_inflight = true;
     // New list generation; reset background enrichment coordination
     app.list_generation = app.list_generation.saturating_add(1);
@@ -1012,11 +1041,11 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                     ));
                                     app.tasks = tasks;
                                     if app.selected >= app.tasks.len() { app.selected = app.tasks.len().saturating_sub(1); }
-                                    app.status = "Loaded tasks".to_string();
+                                    app.status = message("cloud-loaded-tasks", &[]);
                                 }
                                 Err(e) => {
                                     append_error_log(format!("refresh load_tasks failed: {e}"));
-                                    app.status = format!("Failed to load tasks: {e}");
+                                    app.status = message("cloud-load-tasks-failed", &[("error", &e.to_string())]);
                                 }
                             }
                             needs_redraw = true;
@@ -1026,10 +1055,10 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                             match result {
                                 Ok(created) => {
                                     append_error_log(format!("new-task: created id={}", created.id.0));
-                                    app.status = format!("Submitted as {}", created.id.0);
+                                    app.status = message("cloud-submitted", &[("id", created.id.0.as_str())]);
                                     app.new_task = None;
                                     // Refresh tasks in background for current filter
-                                    app.status = format!("Submitted as {} — refreshing…", created.id.0);
+                                    app.status = message("cloud-submitted-refresh", &[("id", created.id.0.as_str())]);
                                     app.refresh_inflight = true;
                                     app.list_generation = app.list_generation.saturating_add(1);
                                     needs_redraw = true;
@@ -1045,7 +1074,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                 Err(msg) => {
                                     append_error_log(format!("new-task: submit failed: {msg}"));
                                     if let Some(page) = app.new_task.as_mut() { page.submitting = false; }
-                                    app.status = format!("Submit failed: {msg}. See error.log for details.");
+                                    app.status = message("cloud-submit-failed", &[("error", msg.as_str())]);
                                     needs_redraw = true;
                                     let _ = frame_tx.send(Instant::now());
                                 }
@@ -1099,7 +1128,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                         }
                                     }
                                     app.env_filter = Some(sel.id);
-                                    app.status = "Loading tasks…".to_string();
+                                    app.status = message("cloud-loading-tasks", &[]);
                                     app.refresh_inflight = true;
                                     app.list_generation = app.list_generation.saturating_add(1);
                                     app.in_flight.clear();
@@ -1340,7 +1369,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                 }
                                 Err(e) => {
                                     append_error_log(format!("apply_task failed for {}: {e}", id.0));
-                                    app.status = format!("Apply failed: {e}");
+                                    app.status = message("cloud-apply-failed", &[("error", &e.to_string())]);
                                 }
                             }
                             needs_redraw = true;
@@ -1387,11 +1416,11 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                 needs_redraw = true;
                             } else if app.apply_modal.is_some() {
                                 app.apply_modal = None;
-                                app.status = "Apply canceled".to_string();
+                                app.status = message("cloud-apply-canceled", &[]);
                                 needs_redraw = true;
                             } else if app.new_task.is_some() {
                                 app.new_task = None;
-                                app.status = "Canceled new task".to_string();
+                                app.status = message("cloud-new-task-canceled", &[]);
                                 needs_redraw = true;
                             } else if app.diff_overlay.is_some() {
                                 app.diff_overlay = None;
@@ -1418,11 +1447,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                             } else {
                                 let selected = app.best_of_n.saturating_sub(1).min(3);
                                 app.best_of_modal = Some(app::BestOfModalState { selected });
-                                app.status = format!(
-                                    "Select best-of attempts (current: {} attempt{})",
-                                    app.best_of_n,
-                                    if app.best_of_n == 1 { "" } else { "s" }
-                                );
+                                app.status = message(if app.best_of_n == 1 { "cloud-select-attempt-one" } else { "cloud-select-attempt-many" }, &[("count", &app.best_of_n.to_string())]);
                                 needs_redraw = true;
                             }
                             render_if_needed(&mut terminal, &mut app, &mut needs_redraw)?;
@@ -1467,10 +1492,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                             page.best_of_n = new_value;
                                         }
                                         append_error_log(format!("best-of.select: attempts={new_value}"));
-                                        app.status = format!(
-                                            "Best-of updated to {new_value} attempt{}",
-                                            if new_value == 1 { "" } else { "s" }
-                                        );
+                                        app.status = message(if new_value == 1 { "cloud-updated-attempt-one" } else { "cloud-updated-attempt-many" }, &[("count", &new_value.to_string())]);
                                         needs_redraw = true;
                                     }
                                 }
@@ -1517,7 +1539,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                             match key.code {
                                 KeyCode::Esc => {
                                     app.new_task = None;
-                                    app.status = "Canceled new task".to_string();
+                                    app.status = message("cloud-new-task-canceled", &[]);
                                     needs_redraw = true;
                                 }
                                 _ => {
@@ -1534,7 +1556,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                                     text.chars().count()
                                                 ));
                                                 page.submitting = true;
-                                                app.status = "Submitting new task…".to_string();
+                                                app.status = message("cloud-submitting", &[]);
                                                 let tx = tx.clone();
                                                 let backend = Arc::clone(&backend);
                                                 let best_of_n = page.best_of_n;
@@ -1549,7 +1571,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                                     let _ = tx.send(evt);
                                                 });
                                             } else {
-                                                app.status = "No environment selected".to_string();
+                                                app.status = message("cloud-no-env-selected", &[]);
                                             }
                                     }
                                     needs_redraw = true;
@@ -1581,7 +1603,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                             diff_override: m.diff_override.clone(),
                                         };
                                         if spawn_apply(&mut app, &backend, &tx, &frame_tx, job) {
-                                            app.status = format!("Applying '{title}'...");
+                                            app.status = message("cloud-applying-title", &[("title", title.as_str())]);
                                         }
                                         needs_redraw = true;
                                     }
@@ -1603,7 +1625,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                                 conflict_paths: Vec::new(),
                                                 diff_override: m.diff_override,
                                             });
-                                            app.status = format!("Preflighting '{title}'...");
+                                            app.status = message("cloud-preflighting-title", &[("title", title.as_str())]);
                                         } else {
                                             app.apply_modal = Some(m);
                                         }
@@ -1613,7 +1635,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                 KeyCode::Esc
                                 | KeyCode::Char('n')
                                 | KeyCode::Char('q')
-                                | KeyCode::Char('Q') => { app.apply_modal = None; app.status = "Apply canceled".to_string(); needs_redraw = true; }
+                                | KeyCode::Char('Q') => { app.apply_modal = None; app.status = message("cloud-apply-canceled", &[]); needs_redraw = true; }
                                 _ => {}
                             }
                         } else if app.diff_overlay.is_some() {
@@ -1623,7 +1645,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                         ov.step_attempt(delta);
                                         let total = ov.attempt_display_total();
                                         let current = ov.selected_attempt + 1;
-                                        app.status = format!("Viewing attempt {current} of {total}");
+                                        app.status = message("cloud-view-attempt", &[("current", &current.to_string()), ("total", &total.to_string())]);
                                         ov.sd.scroll_to_top();
                                         needs_redraw = true;
                                     }
@@ -1632,7 +1654,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                             match key.code {
                                 KeyCode::Char('a') => {
                                     if app.apply_inflight || app.apply_preflight_inflight {
-                                        app.status = "Finish the current apply/preflight before starting another.".to_string();
+                                        app.status = message("cloud-wait-apply-preflight", &[]);
                                         needs_redraw = true;
                                         continue;
                                     }
@@ -1660,10 +1682,10 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                                     conflict_paths: Vec::new(),
                                                     diff_override,
                                                 });
-                                                app.status = format!("Preflighting '{title}'...");
+                                                app.status = message("cloud-preflighting-title", &[("title", title.as_str())]);
                                             }
                                         } else {
-                                            app.status = "No diff available to apply.".to_string();
+                                            app.status = message("cloud-no-diff-apply-period", &[]);
                                         }
                                         needs_redraw = true;
                                     }
@@ -1763,7 +1785,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                     } else {
                                         app.new_task = Some(crate::new_task::NewTaskPage::new(app.env_filter.clone(), app.best_of_n));
                                     }
-                                    app.status = "New Task: Enter to submit; Esc to cancel".to_string();
+                                    app.status = message("cloud-new-task-hint", &[]);
                                     needs_redraw = true;
                                 }
                                 KeyCode::Enter => {
@@ -1797,7 +1819,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                             page.env_id = app.env_filter.clone();
                                         }
                                         // Trigger tasks refresh with the selected filter
-                                        app.status = "Loading tasks…".to_string();
+                                        app.status = message("cloud-loading-tasks", &[]);
                                         app.refresh_inflight = true;
                                         app.list_generation = app.list_generation.saturating_add(1);
                                         app.in_flight.clear();
@@ -1835,7 +1857,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                         "refresh.request: env={}",
                                         app.env_filter.clone().unwrap_or_else(|| "<all>".to_string())
                                     ));
-                                    app.status = "Refreshing…".to_string();
+                                    app.status = message("cloud-refreshing", &[]);
                                     app.refresh_inflight = true;
                                     app.list_generation = app.list_generation.saturating_add(1);
                                     app.in_flight.clear();
@@ -1868,12 +1890,12 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                 KeyCode::Char('n') => {
                                     let env_opt = app.env_filter.clone();
                                     app.new_task = Some(crate::new_task::NewTaskPage::new(env_opt, app.best_of_n));
-                                    app.status = "New Task: Enter to submit; Esc to cancel".to_string();
+                                    app.status = message("cloud-new-task-hint", &[]);
                                     needs_redraw = true;
                                 }
                                 KeyCode::Enter => {
                                     if let Some(task) = app.tasks.get(app.selected).cloned() {
-                                        app.status = format!("Loading details for {title}…", title = task.title);
+                                        app.status = message("cloud-loading-title", &[("title", task.title.as_str())]);
                                         app.details_inflight = true;
                                         // Open empty overlay immediately; content arrives via events
                                         let overlay = app::DiffOverlay::new(
@@ -1968,7 +1990,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                 }
                                 KeyCode::Char('a') => {
                                     if app.apply_inflight || app.apply_preflight_inflight {
-                                        app.status = "Finish the current apply/preflight before starting another.".to_string();
+                                        app.status = message("cloud-wait-apply-preflight", &[]);
                                         needs_redraw = true;
                                         continue;
                                     }
@@ -2000,11 +2022,11 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                                         conflict_paths: Vec::new(),
                                                         diff_override,
                                                     });
-                                                    app.status = format!("Preflighting '{title}'...");
+                                                    app.status = message("cloud-preflighting-title", &[("title", title.as_str())]);
                                                 }
                                             }
                                             Ok(None) | Err(_) => {
-                                                app.status = "No diff available to apply".to_string();
+                                                app.status = message("cloud-no-diff-apply", &[]);
                                             }
                                         }
                                         needs_redraw = true;
@@ -2062,6 +2084,19 @@ fn spawn_environment_load(
 
 // extract_chatgpt_account_id moved to util.rs
 
+/// Bound display noise without splitting a UTF-8 scalar or grapheme cluster.
+fn truncate_display_text(text: &str, max_bytes: usize) -> String {
+    if text.len() <= max_bytes {
+        return text.to_string();
+    }
+    let end = text
+        .grapheme_indices(true)
+        .take_while(|(offset, grapheme)| offset + grapheme.len() <= max_bytes)
+        .last()
+        .map_or(0, |(offset, grapheme)| offset + grapheme.len());
+    format!("{}…", &text[..end])
+}
+
 /// Build plain-text conversation lines: a labeled user prompt followed by assistant messages.
 fn conversation_lines(prompt: Option<String>, messages: &[String]) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
@@ -2084,7 +2119,7 @@ fn conversation_lines(prompt: Option<String>, messages: &[String]) -> Vec<String
         }
     }
     if out.is_empty() {
-        out.push("<no output>".to_string());
+        out.push(message("cloud-no-output", &[]));
     }
     out
 }
@@ -2096,11 +2131,11 @@ fn pretty_lines_from_error(raw: &str) -> Vec<String> {
     let is_no_diff = raw.contains("No output_diff in response.");
     let is_no_msgs = raw.contains("No assistant text messages in response.");
     if is_no_diff {
-        lines.push("No diff available for this task.".to_string());
+        lines.push(message("cloud-task-no-diff", &[]));
     } else if is_no_msgs {
-        lines.push("No assistant messages found for this task.".to_string());
+        lines.push(message("cloud-task-no-messages", &[]));
     } else {
-        lines.push("Failed to load task details.".to_string());
+        lines.push(message("cloud-task-details-failed", &[]));
     }
 
     // Try to parse the embedded JSON body: find the first '{' after " body=" and decode.
@@ -2132,11 +2167,14 @@ fn pretty_lines_from_error(raw: &str) -> Vec<String> {
                         } else {
                             format!("{code}: {msg}")
                         };
-                        lines.push(format!("Assistant error: {summary}"));
+                        lines.push(message(
+                            "cloud-assistant-error",
+                            &[("error", summary.as_str())],
+                        ));
                     }
                 }
                 if let Some(status) = t.get("turn_status").and_then(|s| s.as_str()) {
-                    lines.push(format!("Status: {status}"));
+                    lines.push(message("cloud-remote-status", &[("status", status)]));
                 }
                 if let Some(text) = t
                     .get("latest_event")
@@ -2144,7 +2182,7 @@ fn pretty_lines_from_error(raw: &str) -> Vec<String> {
                     .and_then(|s| s.as_str())
                     && !text.trim().is_empty()
                 {
-                    lines.push(format!("Latest event: {}", text.trim()));
+                    lines.push(message("cloud-latest-event", &[("event", text.trim())]));
                 }
             }
         }
@@ -2152,16 +2190,12 @@ fn pretty_lines_from_error(raw: &str) -> Vec<String> {
 
     if lines.len() == 1 {
         // Parsing yielded nothing; include a trimmed, short raw message tail for context.
-        let tail = if raw.len() > 320 {
-            format!("{}…", &raw[..320])
-        } else {
-            raw.to_string()
-        };
+        let tail = truncate_display_text(raw, 320);
         lines.push(tail);
     } else if lines.len() >= 2 {
         // Add a hint to refresh when still in progress.
         if lines.iter().any(|l| l.contains("in_progress")) {
-            lines.push("This task may still be running. Press 'r' to refresh.".to_string());
+            lines.push(message("cloud-task-running-hint", &[]));
         }
         // Avoid an empty overlay
         lines.push(String::new());
@@ -2179,6 +2213,118 @@ mod tests {
     use codex_cloud_tasks_client::TaskSummary;
     use codex_cloud_tasks_mock_client::MockClient;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn display_caps_preserve_utf8_and_grapheme_boundaries() {
+        assert_eq!(
+            truncate_display_text(&"가".repeat(667), 2000),
+            format!("{}…", "가".repeat(666))
+        );
+        assert_eq!(
+            truncate_display_text(&format!("{}👩‍💻tail", "a".repeat(1999)), 2000),
+            format!("{}…", "a".repeat(1999))
+        );
+        assert_eq!(
+            truncate_display_text(&format!("{}e\u{301}tail", "a".repeat(1999)), 2000),
+            format!("{}…", "a".repeat(1999))
+        );
+        assert_eq!(
+            truncate_display_text(&"가".repeat(666), 2000),
+            "가".repeat(666)
+        );
+        assert_eq!(
+            truncate_display_text(&"a".repeat(2000), 2000),
+            "a".repeat(2000)
+        );
+        // The error-overlay fallback has the same unsafe byte-slice boundary.
+        assert_eq!(
+            pretty_lines_from_error(&"가".repeat(107))[1],
+            format!("{}…", "가".repeat(106))
+        );
+    }
+
+    #[test]
+    fn cloud_catalog_keeps_dynamic_values_and_commands_opaque() {
+        use codex_tui::i18n::{Locale, message_for};
+        let value = "서버 {error} \"quote\" 👩‍💻\n--json";
+        for locale in [Locale::English, Locale::Korean] {
+            let rendered = message_for(locale, "cloud-apply-failed", &[("error", value)]);
+            assert!(rendered.ends_with(value), "{rendered:?}");
+            let rendered = message_for(
+                locale,
+                "cloud-next-page",
+                &[("command", "codex cloud list --cursor='원문'")],
+            );
+            assert!(
+                rendered.contains("codex cloud list --cursor='원문'"),
+                "{rendered}"
+            );
+        }
+        assert_eq!(
+            message_for(Locale::English, "cloud-no-tasks", &[]),
+            "No tasks found."
+        );
+        assert_eq!(
+            message_for(Locale::Korean, "cloud-no-tasks", &[]),
+            "작업이 없습니다."
+        );
+        let messages = conversation_lines(Some(value.to_string()), &[value.to_string()]);
+        assert_eq!(
+            messages,
+            vec![
+                "user:",
+                "서버 {error} \"quote\" 👩‍💻",
+                "--json",
+                "",
+                "assistant:",
+                "서버 {error} \"quote\" 👩‍💻",
+                "--json"
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn mock_backend_list_json_preserves_wire_fields_and_remote_values() {
+        let mut page = codex_cloud_tasks_client::CloudBackend::list_tasks(
+            &MockClient,
+            Some("env-A"),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        page.tasks[0].title = "원격 title {count} 👩‍💻".to_string();
+        page.tasks[0].environment_label = Some("원격 환경".to_string());
+        page.cursor = Some("opaque --json {error}".to_string());
+        let task = &page.tasks[0];
+        let payload = task_list_json(&page, "https://chatgpt.com/backend-api");
+        assert_eq!(
+            payload,
+            serde_json::json!({
+                "tasks": [{
+                    "id": task.id.0,
+                    "url": "https://chatgpt.com/codex/tasks/T-2000",
+                    "title": "원격 title {count} 👩‍💻",
+                    "status": serde_json::to_value(&task.status).unwrap(),
+                    "updated_at": task.updated_at,
+                    "environment_id": "env-A",
+                    "environment_label": "원격 환경",
+                    "summary": {"files_changed": task.summary.files_changed, "lines_added": task.summary.lines_added, "lines_removed": task.summary.lines_removed},
+                    "is_review": false,
+                    "attempt_total": 1,
+                }],
+                "cursor": "opaque --json {error}",
+            })
+        );
+        let empty = codex_cloud_tasks_client::TaskListPage {
+            tasks: Vec::new(),
+            cursor: None,
+        };
+        assert_eq!(
+            task_list_json(&empty, "https://chatgpt.com"),
+            serde_json::json!({"tasks": [], "cursor": null})
+        );
+    }
 
     #[tokio::test]
     async fn cloud_rejects_invalid_config_overrides_before_loading_auth() {

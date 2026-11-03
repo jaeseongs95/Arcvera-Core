@@ -33,7 +33,7 @@ mod layout;
 mod render;
 mod state;
 
-const OTHER_OPTION_LABEL: &str = "Other";
+const OTHER_OPTION_LABEL: &str = "dialogs-other-option";
 pub(super) const TIP_SEPARATOR: &str = "   ";
 pub(super) const DESIRED_SPACERS_BETWEEN_SECTIONS: u16 = 2;
 
@@ -88,7 +88,7 @@ impl AsyncQuestions {
             has_input_focus,
             app_event_tx.clone(),
             enhanced_keys_supported,
-            "Type your answer".into(),
+            crate::i18n::message("dialogs-answer-placeholder", &[]),
             disable_paste_burst,
             ChatComposerConfig {
                 reset_vim_on_submission: false,
@@ -126,7 +126,13 @@ impl AsyncQuestions {
     pub(super) fn progress_prefix_text(&self) -> String {
         let current = self.state.current_idx + 1;
         let total = self.unanswered_count();
-        format!("{current} of {total}")
+        crate::i18n::message(
+            "dialogs-async-progress",
+            &[
+                ("current", &current.to_string()),
+                ("total", &total.to_string()),
+            ],
+        )
     }
 
     fn options(&self) -> &[String] {
@@ -238,15 +244,15 @@ impl AsyncQuestions {
         self.composer.restore_inline_draft(draft);
     }
 
-    fn other_placeholder(&self) -> &'static str {
+    fn other_placeholder(&self) -> String {
         if self
             .options()
             .iter()
             .any(|label| label.eq_ignore_ascii_case("Other"))
         {
-            "Other (write an answer)"
+            crate::i18n::message("dialogs-other-write-answer", &[])
         } else {
-            OTHER_OPTION_LABEL
+            crate::i18n::message(OTHER_OPTION_LABEL, &[])
         }
     }
 
@@ -254,7 +260,7 @@ impl AsyncQuestions {
         let text = if self.other_selected() {
             self.other_placeholder()
         } else {
-            "Type your answer"
+            crate::i18n::message("dialogs-answer-placeholder", &[])
         };
         self.composer.set_placeholder_text(text.to_string());
     }

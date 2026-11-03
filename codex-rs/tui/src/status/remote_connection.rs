@@ -33,7 +33,7 @@ pub(crate) fn remote_connection_status_value(
         RemoteAppServerEndpoint::WebSocket { websocket_url, .. } => {
             sanitized_websocket_url(websocket_url)
                 .map(|url| url.to_string())
-                .unwrap_or_else(|| "<invalid websocket URL>".to_string())
+                .unwrap_or_else(|| crate::i18n::message("status-invalid-websocket", &[]))
         }
         RemoteAppServerEndpoint::UnixSocket { socket_path } => {
             format!("unix://{}", socket_path.display())
@@ -41,7 +41,7 @@ pub(crate) fn remote_connection_status_value(
     };
     let version = server_version
         .map(|version| format!("v{version}"))
-        .unwrap_or_else(|| "unknown".to_string());
+        .unwrap_or_else(|| crate::i18n::message("status-unknown-version", &[]));
     Some(RemoteConnectionStatus {
         address,
         version,
@@ -52,12 +52,13 @@ pub(crate) fn remote_connection_status_value(
 
 pub(crate) fn server_version_notice(client: &str, server: Option<&str>) -> Option<String> {
     let server = server?;
-    let comparison = match crate::update_versions::server_version_notice_kind(client, server)? {
-        ServerVersionNoticeKind::Older => "older than",
-        ServerVersionNoticeKind::Different => "different from",
+    let id = match crate::update_versions::server_version_notice_kind(client, server)? {
+        ServerVersionNoticeKind::Older => "status-server-version-older",
+        ServerVersionNoticeKind::Different => "status-server-version-different",
     };
-    Some(format!(
-        "A background Codex service is running v{server}, {comparison} your Codex CLI v{client}."
+    Some(crate::i18n::message(
+        id,
+        &[("server", server), ("client", client)],
     ))
 }
 
@@ -230,6 +231,23 @@ mod tests {
             })
         );
         Ok(())
+    }
+
+    #[test]
+    fn localized_version_notices_preserve_versions_and_notice_identity() {
+        use crate::i18n::{Locale, with_locale};
+        for (locale, expected) in [
+            (Locale::English, "older than"),
+            (Locale::Korean, "이전 버전"),
+        ] {
+            with_locale(locale, || {
+                let notice = server_version_notice("0.153.0", Some("0.152.1")).unwrap();
+                assert!(notice.contains(expected), "{notice}");
+                assert!(notice.contains("v0.153.0"), "{notice}");
+                assert!(notice.contains("v0.152.1"), "{notice}");
+                assert_eq!(server_version_notice("0.153.0", Some("0.153.0")), None);
+            });
+        }
     }
 
     #[test]

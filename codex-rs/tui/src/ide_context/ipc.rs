@@ -21,14 +21,6 @@ const IDE_CONTEXT_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_IPC_FRAME_BYTES: usize = 256 * 1024 * 1024;
 #[cfg(any(unix, windows))]
 const TUI_SOURCE_CLIENT_ID: &str = "codex-tui";
-#[cfg(any(unix, windows))]
-const OPEN_IDE_HINT: &str =
-    "Open this project in VS Code or Cursor with the Codex extension active.";
-#[cfg(any(unix, windows))]
-const IDE_DID_NOT_PROVIDE_CONTEXT_HINT: &str = "The IDE extension did not provide context.";
-#[cfg(any(unix, windows))]
-const KEEP_TRYING_HINT: &str = "Codex will keep trying on future messages.";
-
 #[derive(Debug, Error)]
 pub(crate) enum IdeContextError {
     #[cfg(any(unix, windows))]
@@ -57,79 +49,53 @@ pub(crate) enum IdeContextError {
 impl IdeContextError {
     #[cfg(any(unix, windows))]
     pub(crate) fn user_facing_hint(&self) -> String {
-        match self {
-            IdeContextError::Connect(_) => OPEN_IDE_HINT.to_string(),
-            IdeContextError::RequestFailed(error) if error == "no-client-found" => {
-                OPEN_IDE_HINT.to_string()
-            }
-            IdeContextError::RequestFailed(_) => {
-                format!("{IDE_DID_NOT_PROVIDE_CONTEXT_HINT} Try /ide again.")
-            }
-            IdeContextError::ResponseTooLarge => {
-                "The selected IDE context is too large. Clear any large selection in your IDE and try /ide again.".to_string()
-            }
-            IdeContextError::Send(_) => {
-                "Codex could not request IDE context. Try /ide again.".to_string()
-            }
-            IdeContextError::Read(_) | IdeContextError::InvalidResponse(_) => {
-                "Codex could not read IDE context. Try /ide again.".to_string()
-            }
-        }
+        let id = match self {
+            Self::Connect(_) => "controls-ide-open-project",
+            Self::RequestFailed(error) if error == "no-client-found" => "controls-ide-open-project",
+            Self::RequestFailed(_) => "controls-ide-no-context-retry",
+            Self::ResponseTooLarge => "controls-ide-too-large-retry",
+            Self::Send(_) => "controls-ide-request-retry",
+            Self::Read(_) | Self::InvalidResponse(_) => "controls-ide-read-retry",
+        };
+        crate::i18n::static_message(id).to_string()
     }
 
     #[cfg(any(unix, windows))]
     pub(crate) fn prompt_skip_hint(&self) -> String {
-        match self {
-            IdeContextError::ResponseTooLarge => {
-                "The selected IDE context is too large. Clear any large selection in your IDE."
-                    .to_string()
+        let id = match self {
+            Self::ResponseTooLarge => "controls-ide-too-large",
+            Self::Connect(_) => "controls-ide-open-project",
+            Self::RequestFailed(error) if error == "no-client-found" => "controls-ide-open-project",
+            Self::Read(error) if error.kind() == std::io::ErrorKind::TimedOut => {
+                "controls-ide-timeout"
             }
-            IdeContextError::Connect(_) => OPEN_IDE_HINT.to_string(),
-            IdeContextError::RequestFailed(error) if error == "no-client-found" => {
-                OPEN_IDE_HINT.to_string()
+            Self::RequestFailed(error) if error == "client-disconnected" => "controls-ide-changed",
+            Self::RequestFailed(error) if error == "request-timeout" => {
+                "controls-ide-extension-timeout"
             }
-            IdeContextError::Read(error) if error.kind() == std::io::ErrorKind::TimedOut => {
-                "Codex timed out waiting for IDE context. It will keep trying on future messages."
-                    .to_string()
+            Self::RequestFailed(error) if error == "request-version-mismatch" => {
+                "controls-ide-incompatible"
             }
-            IdeContextError::RequestFailed(error) if error == "client-disconnected" => {
-                hint_with_retry("The IDE connection changed while Codex was requesting context.")
+            Self::RequestFailed(error) if error == "no-handler-for-request" => {
+                "controls-ide-unsupported-client"
             }
-            IdeContextError::RequestFailed(error) if error == "request-timeout" => {
-                hint_with_retry("The IDE extension did not answer in time.")
-            }
-            IdeContextError::RequestFailed(error) if error == "request-version-mismatch" => {
-                "The connected IDE extension is not compatible with this IDE context request."
-                    .to_string()
-            }
-            IdeContextError::RequestFailed(error) if error == "no-handler-for-request" => {
-                "The connected IDE client does not support IDE context requests.".to_string()
-            }
-            IdeContextError::Send(_) => {
-                hint_with_retry("Codex lost the IDE connection while requesting context.")
-            }
-            IdeContextError::InvalidResponse(_) => {
-                hint_with_retry("Codex received an unexpected IDE context response.")
-            }
-            IdeContextError::RequestFailed(_) => hint_with_retry(IDE_DID_NOT_PROVIDE_CONTEXT_HINT),
-            IdeContextError::Read(_) => hint_with_retry("Codex could not read IDE context."),
-        }
+            Self::Send(_) => "controls-ide-lost-connection",
+            Self::InvalidResponse(_) => "controls-ide-unexpected-response",
+            Self::RequestFailed(_) => "controls-ide-no-context-future",
+            Self::Read(_) => "controls-ide-read-future",
+        };
+        crate::i18n::static_message(id).to_string()
     }
 
     #[cfg(not(any(unix, windows)))]
     pub(crate) fn user_facing_hint(&self) -> String {
-        self.to_string()
+        crate::i18n::static_message("controls-ide-platform-unsupported").to_string()
     }
 
     #[cfg(not(any(unix, windows)))]
     pub(crate) fn prompt_skip_hint(&self) -> String {
-        self.to_string()
+        self.user_facing_hint()
     }
-}
-
-#[cfg(any(unix, windows))]
-fn hint_with_retry(message: &str) -> String {
-    format!("{message} {KEEP_TRYING_HINT}")
 }
 
 #[cfg(unix)]
@@ -1271,5 +1237,66 @@ mod tests {
                 .active_selection_content,
             "use"
         );
+    }
+}
+
+#[cfg(all(test, any(unix, windows)))]
+mod localization_tests {
+    use super::IdeContextError;
+    use std::io::{Error, ErrorKind};
+
+    #[test]
+    fn ide_hint_producers_localize_ui_preserving_error_display_and_error_payload() {
+        let raw = "remote English { $value } /ide 한글";
+        let errors = [
+            IdeContextError::Connect(Error::new(ErrorKind::Other, raw)),
+            IdeContextError::Send(Error::new(ErrorKind::Other, raw)),
+            IdeContextError::Read(Error::new(ErrorKind::Other, raw)),
+            IdeContextError::Read(Error::new(ErrorKind::TimedOut, raw)),
+            IdeContextError::InvalidResponse(raw.to_string()),
+            IdeContextError::ResponseTooLarge,
+            IdeContextError::RequestFailed("no-client-found".to_string()),
+            IdeContextError::RequestFailed("client-disconnected".to_string()),
+            IdeContextError::RequestFailed("request-timeout".to_string()),
+            IdeContextError::RequestFailed("request-version-mismatch".to_string()),
+            IdeContextError::RequestFailed("no-handler-for-request".to_string()),
+            IdeContextError::RequestFailed(raw.to_string()),
+        ];
+        for error in &errors {
+            let display = error.to_string();
+            let english = crate::i18n::with_locale(crate::i18n::Locale::English, || {
+                (error.user_facing_hint(), error.prompt_skip_hint())
+            });
+            crate::i18n::with_locale(crate::i18n::Locale::Korean, || {
+                assert_ne!(error.user_facing_hint(), english.0);
+                assert_ne!(error.prompt_skip_hint(), english.1);
+                assert!(!error.user_facing_hint().is_ascii());
+                assert!(!error.prompt_skip_hint().is_ascii());
+                assert_eq!(error.to_string(), display);
+            });
+        }
+        let no_client = IdeContextError::RequestFailed("no-client-found".into());
+        crate::i18n::with_locale(crate::i18n::Locale::English, || {
+            assert_eq!(
+                no_client.user_facing_hint(),
+                "Open this project in VS Code or Cursor with the Codex extension active."
+            );
+            assert_eq!(
+                errors[3].prompt_skip_hint(),
+                "Codex timed out waiting for IDE context. It will keep trying on future messages."
+            );
+        });
+        crate::i18n::with_locale(crate::i18n::Locale::Korean, || {
+            assert_eq!(
+                no_client.user_facing_hint(),
+                "Codex 확장이 활성화된 VS Code 또는 Cursor에서 이 프로젝트를 여세요."
+            );
+            assert_eq!(
+                errors[3].prompt_skip_hint(),
+                "IDE 컨텍스트 대기 시간이 초과되었습니다. 이후 메시지에서도 계속 시도합니다."
+            );
+        });
+        assert!(matches!(&errors[11], IdeContextError::RequestFailed(value) if value == raw));
+        assert!(matches!(&errors[4], IdeContextError::InvalidResponse(value) if value == raw));
     }
 }

@@ -23,7 +23,9 @@ use crate::app::AttemptView;
 use crate::util::format_relative_time_now;
 use codex_cloud_tasks_client::AttemptStatus;
 use codex_cloud_tasks_client::TaskStatus;
+use codex_tui::i18n::message;
 use codex_tui::render_markdown_text;
+use unicode_width::UnicodeWidthStr;
 
 pub fn draw(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
@@ -103,7 +105,8 @@ fn overlay_content(area: Rect) -> Rect {
 
 pub fn draw_new_task_page(frame: &mut Frame, area: Rect, app: &mut App) {
     let title_spans = {
-        let mut spans: Vec<ratatui::text::Span> = vec!["New Task".magenta().bold()];
+        let mut spans: Vec<ratatui::text::Span> =
+            vec![message("cloud-new-task", &[]).magenta().bold()];
         if let Some(id) = app
             .new_task
             .as_ref()
@@ -121,16 +124,12 @@ pub fn draw_new_task_page(frame: &mut Frame, area: Rect, app: &mut App) {
             spans.push(label.dim());
         } else {
             spans.push("  • ".into());
-            spans.push("Env: none (press ctrl-o to choose)".red());
+            spans.push(message("cloud-no-env", &[]).red());
         }
         if let Some(page) = app.new_task.as_ref() {
             spans.push("  • ".into());
             let attempts = page.best_of_n;
-            let label = format!(
-                "{} attempt{}",
-                attempts,
-                if attempts == 1 { "" } else { "s" }
-            );
+            let label = attempt_count_label(attempts);
             spans.push(label.cyan());
         }
         spans
@@ -173,8 +172,21 @@ pub fn draw_new_task_page(frame: &mut Frame, area: Rect, app: &mut App) {
     }
 }
 
+fn attempt_count_label(count: usize) -> String {
+    let id = if count == 1 {
+        "cloud-attempt-one"
+    } else {
+        "cloud-attempt-many"
+    };
+    message(id, &[("count", &count.to_string())])
+}
+
 fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let items: Vec<ListItem> = app.tasks.iter().map(|t| render_task_item(app, t)).collect();
+    let items: Vec<ListItem> = app
+        .tasks
+        .iter()
+        .map(|t| render_task_item(codex_tui::i18n::locale(), t))
+        .collect();
 
     // Selection reflects the actual task index (no artificial spacer item).
     let mut state = ListState::default().with_selected(Some(app.selected));
@@ -190,10 +202,10 @@ fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             .iter()
             .find(|r| &r.id == id)
             .and_then(|r| r.label.clone())
-            .unwrap_or_else(|| "Selected".to_string());
+            .unwrap_or_else(|| message("cloud-selected", &[]).to_string());
         format!(" • {label}").dim()
     } else {
-        " • All".dim()
+        message("cloud-all", &[]).dim()
     };
     // Percent scrolled based on selection position in the list (0% at top, 100% at bottom).
     let percent_span = if app.tasks.len() <= 1 {
@@ -203,7 +215,11 @@ fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         format!("  • {}%", p.clamp(0, 100)).dim()
     };
     let title_line = {
-        let base = Line::from(vec!["Cloud Tasks".into(), suffix_span, percent_span]);
+        let base = Line::from(vec![
+            message("cloud-tasks", &[]).into(),
+            suffix_span,
+            percent_span,
+        ]);
         if dim_bg {
             base.style(Style::default().add_modifier(Modifier::DIM))
         } else {
@@ -228,48 +244,65 @@ fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
     frame.render_stateful_widget(list, rows[1], &mut state);
 
     // In-box spinner during initial/refresh loads
+    if app.tasks.is_empty() && !app.refresh_inflight {
+        frame.render_widget(
+            Paragraph::new(message("cloud-no-tasks", &[])).centered(),
+            rows[1],
+        );
+    }
     if app.refresh_inflight {
-        draw_centered_spinner(frame, inner, &mut app.spinner_start, "Loading tasks…");
+        draw_centered_spinner(
+            frame,
+            inner,
+            &mut app.spinner_start,
+            &message("cloud-loading-tasks", &[]),
+        );
     }
 }
 
 fn draw_footer(frame: &mut Frame, area: Rect, app: &mut App) {
     let mut help = vec![
         "↑/↓".dim(),
-        ": Move  ".dim(),
+        message("cloud-help-move", &[]).dim(),
         "r".dim(),
-        ": Refresh  ".dim(),
+        message("cloud-help-refresh", &[]).dim(),
         "Enter".dim(),
-        ": Open  ".dim(),
+        message("cloud-help-open", &[]).dim(),
     ];
     // Apply hint; show disabled note when overlay is open without a diff.
     if let Some(ov) = app.diff_overlay.as_ref() {
         if !ov.current_can_apply() {
             help.push("a".dim());
-            help.push(": Apply (disabled)  ".dim());
+            help.push(message("cloud-help-apply-disabled", &[]).dim());
         } else {
             help.push("a".dim());
-            help.push(": Apply  ".dim());
+            help.push(message("cloud-help-apply", &[]).dim());
         }
         if ov.attempt_count() > 1 {
             help.push("Tab".dim());
-            help.push(": Next attempt  ".dim());
+            help.push(message("cloud-help-next-attempt", &[]).dim());
             help.push("[ ]".dim());
-            help.push(": Cycle attempts  ".dim());
+            help.push(message("cloud-help-cycle-attempts", &[]).dim());
         }
     } else {
         help.push("a".dim());
-        help.push(": Apply  ".dim());
+        help.push(message("cloud-help-apply", &[]).dim());
     }
-    help.push("o : Set Env  ".dim());
+    help.push(message("cloud-help-env", &[]).dim());
     if app.new_task.is_some() {
         help.push("Ctrl+N".dim());
-        help.push(format!(": Attempts {}x  ", app.best_of_n).dim());
-        help.push("(editing new task)  ".dim());
+        help.push(
+            message(
+                "cloud-help-attempts",
+                &[("count", &app.best_of_n.to_string())],
+            )
+            .dim(),
+        );
+        help.push(message("cloud-editing-new-task", &[]).dim());
     } else {
-        help.push("n : New Task  ".dim());
+        help.push(message("cloud-help-new-task", &[]).dim());
     }
-    help.extend(vec!["q".dim(), ": Quit  ".dim()]);
+    help.extend(vec!["q".dim(), message("cloud-help-quit", &[]).dim()]);
     // Split footer area into two rows: help+spinner (top) and status (bottom)
     let rows = Layout::default()
         .direction(Direction::Vertical)
@@ -291,18 +324,18 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &mut App) {
         || app.apply_preflight_inflight
         || app.apply_inflight
     {
-        draw_inline_spinner(frame, top[1], &mut app.spinner_start, "Loading…");
+        draw_inline_spinner(
+            frame,
+            top[1],
+            &mut app.spinner_start,
+            &message("cloud-loading", &[]),
+        );
     } else {
         frame.render_widget(Clear, top[1]);
     }
 
     // Bottom row: status/log text across full width (single-line; sanitize newlines)
-    let mut status_line = app.status.replace('\n', " ");
-    if status_line.len() > 2000 {
-        // hard cap to avoid TUI noise
-        status_line.truncate(2000);
-        status_line.push('…');
-    }
+    let status_line = crate::truncate_display_text(&app.status.replace('\n', " "), 2000);
     // Clear the status row to avoid trailing characters when the message shrinks.
     frame.render_widget(Clear, rows[1]);
     let status = Paragraph::new(status_line);
@@ -336,15 +369,21 @@ fn draw_diff_overlay(frame: &mut Frame, area: Rect, app: &mut App) {
     let title_ref = title.as_str();
     let mut title_spans: Vec<ratatui::text::Span> = if is_error {
         vec![
-            "Details ".magenta(),
-            "[FAILED]".red().bold(),
+            message("cloud-details-title", &[]).magenta(),
+            message("cloud-failed-badge", &[]).red().bold(),
             " ".into(),
             title_ref.magenta(),
         ]
     } else if ov_can_apply {
-        vec!["Diff: ".magenta(), title_ref.magenta()]
+        vec![
+            message("cloud-diff-prefix", &[]).magenta(),
+            title_ref.magenta(),
+        ]
     } else {
-        vec!["Details: ".magenta(), title_ref.magenta()]
+        vec![
+            message("cloud-details-prefix", &[]).magenta(),
+            title_ref.magenta(),
+        ]
     };
     if let Some(p) = app
         .diff_overlay
@@ -375,26 +414,26 @@ fn draw_diff_overlay(frame: &mut Frame, area: Rect, app: &mut App) {
             let mut spans: Vec<ratatui::text::Span> = Vec::new();
             if has_diff && has_text {
                 let prompt_lbl = if matches!(ov.current_view, crate::app::DetailView::Prompt) {
-                    "[Prompt]".magenta().bold()
+                    message("cloud-prompt-active", &[]).magenta().bold()
                 } else {
-                    "Prompt".dim()
+                    message("cloud-prompt", &[]).dim()
                 };
                 let diff_lbl = if matches!(ov.current_view, crate::app::DetailView::Diff) {
-                    "[Diff]".magenta().bold()
+                    message("cloud-diff-active", &[]).magenta().bold()
                 } else {
-                    "Diff".dim()
+                    message("cloud-diff", &[]).dim()
                 };
                 spans.extend(vec![
                     prompt_lbl,
                     "  ".into(),
                     diff_lbl,
                     "  ".into(),
-                    "(← → to switch view)".dim(),
+                    message("cloud-switch-view", &[]).dim(),
                 ]);
             } else if has_text {
-                spans.push("Conversation".magenta().bold());
+                spans.push(message("cloud-conversation", &[]).magenta().bold());
             } else {
-                spans.push("Diff".magenta().bold());
+                spans.push(message("cloud-diff", &[]).magenta().bold());
             }
             if let Some(total) = ov.expected_attempts().or({
                 if ov.attempts.is_empty() {
@@ -406,11 +445,17 @@ fn draw_diff_overlay(frame: &mut Frame, area: Rect, app: &mut App) {
             {
                 spans.extend(vec![
                     "  ".into(),
-                    format!("Attempt {}/{}", ov.selected_attempt + 1, total)
-                        .bold()
-                        .dim(),
+                    message(
+                        "cloud-attempt-index",
+                        &[
+                            ("current", &(ov.selected_attempt + 1).to_string()),
+                            ("total", &total.to_string()),
+                        ],
+                    )
+                    .bold()
+                    .dim(),
                     "  ".into(),
-                    "(Tab/Shift-Tab or [ ] to cycle attempts)".dim(),
+                    message("cloud-cycle-attempts", &[]).dim(),
                 ]);
             }
             frame.render_widget(Paragraph::new(Line::from(spans)), rows[0]);
@@ -453,7 +498,7 @@ fn draw_diff_overlay(frame: &mut Frame, area: Rect, app: &mut App) {
             frame,
             content_area,
             &mut app.spinner_start,
-            "Loading details…",
+            &message("cloud-loading-details", &[]),
         );
     } else {
         let scroll = app
@@ -469,7 +514,7 @@ fn draw_diff_overlay(frame: &mut Frame, area: Rect, app: &mut App) {
 pub fn draw_apply_modal(frame: &mut Frame, area: Rect, app: &mut App) {
     use ratatui::widgets::Wrap;
     let inner = overlay_outer(area);
-    let title = Line::from("Apply Changes?".magenta().bold());
+    let title = Line::from(message("cloud-apply-changes", &[]).magenta().bold());
     let block = overlay_block().title(title);
     frame.render_widget(Clear, inner);
     frame.render_widget(block.clone(), inner);
@@ -478,13 +523,14 @@ pub fn draw_apply_modal(frame: &mut Frame, area: Rect, app: &mut App) {
     if let Some(m) = &app.apply_modal {
         // Header
         let header = Paragraph::new(Line::from(
-            format!("Apply '{}' ?", m.title).magenta().bold(),
+            message("cloud-apply-title", &[("title", m.title.as_str())])
+                .magenta()
+                .bold(),
         ))
         .wrap(Wrap { trim: true });
         // Footer instructions
-        let footer =
-            Paragraph::new(Line::from("Press Y to apply, P to preflight, N to cancel.").dim())
-                .wrap(Wrap { trim: true });
+        let footer = Paragraph::new(Line::from(message("cloud-apply-keys", &[])).dim())
+            .wrap(Wrap { trim: true });
 
         // Split into header/body/footer
         let rows = Layout::default()
@@ -499,11 +545,26 @@ pub fn draw_apply_modal(frame: &mut Frame, area: Rect, app: &mut App) {
         frame.render_widget(header, rows[0]);
         // Body: spinner while preflight/apply runs; otherwise show result message and path lists
         if app.apply_preflight_inflight {
-            draw_centered_spinner(frame, rows[1], &mut app.spinner_start, "Checking…");
+            draw_centered_spinner(
+                frame,
+                rows[1],
+                &mut app.spinner_start,
+                &message("cloud-checking", &[]),
+            );
         } else if app.apply_inflight {
-            draw_centered_spinner(frame, rows[1], &mut app.spinner_start, "Applying…");
+            draw_centered_spinner(
+                frame,
+                rows[1],
+                &mut app.spinner_start,
+                &message("cloud-applying", &[]),
+            );
         } else if m.result_message.is_none() {
-            draw_centered_spinner(frame, rows[1], &mut app.spinner_start, "Loading…");
+            draw_centered_spinner(
+                frame,
+                rows[1],
+                &mut app.spinner_start,
+                &message("cloud-loading", &[]),
+            );
         } else if let Some(msg) = &m.result_message {
             let mut body_lines: Vec<Line> = Vec::new();
             let first = match m.result_level {
@@ -520,9 +581,12 @@ pub fn draw_apply_modal(frame: &mut Frame, area: Rect, app: &mut App) {
                 if !m.conflict_paths.is_empty() {
                     body_lines.push(Line::from(""));
                     body_lines.push(
-                        Line::from(format!("Conflicts ({}):", m.conflict_paths.len()))
-                            .red()
-                            .bold(),
+                        Line::from(message(
+                            "cloud-conflicts",
+                            &[("count", &m.conflict_paths.len().to_string())],
+                        ))
+                        .red()
+                        .bold(),
                     );
                     for p in &m.conflict_paths {
                         body_lines
@@ -532,9 +596,12 @@ pub fn draw_apply_modal(frame: &mut Frame, area: Rect, app: &mut App) {
                 if !m.skipped_paths.is_empty() {
                     body_lines.push(Line::from(""));
                     body_lines.push(
-                        Line::from(format!("Skipped ({}):", m.skipped_paths.len()))
-                            .magenta()
-                            .bold(),
+                        Line::from(message(
+                            "cloud-skipped",
+                            &[("count", &m.skipped_paths.len().to_string())],
+                        ))
+                        .magenta()
+                        .bold(),
                     );
                     for p in &m.skipped_paths {
                         body_lines
@@ -660,12 +727,12 @@ fn conversation_header_line(
     let mut spans: Vec<Span> = vec!["╭ ".dim()];
     match speaker {
         ConversationSpeaker::User => {
-            spans.push("User".cyan().bold());
-            spans.push(" prompt".dim());
+            spans.push(message("cloud-user", &[]).cyan().bold());
+            spans.push(message("cloud-user-prompt", &[]).dim());
         }
         ConversationSpeaker::Assistant => {
-            spans.push("Assistant".magenta().bold());
-            spans.push(" response".dim());
+            spans.push(message("cloud-assistant", &[]).magenta().bold());
+            spans.push(message("cloud-assistant-response", &[]).dim());
             if let Some(attempt) = attempt
                 && let Some(status_span) = attempt_status_span(attempt.status)
             {
@@ -741,11 +808,11 @@ fn conversation_text_spans(
 
 fn attempt_status_span(status: AttemptStatus) -> Option<ratatui::text::Span<'static>> {
     match status {
-        AttemptStatus::Completed => Some("Completed".green()),
-        AttemptStatus::Failed => Some("Failed".red().bold()),
-        AttemptStatus::InProgress => Some("In progress".magenta()),
-        AttemptStatus::Pending => Some("Pending".cyan()),
-        AttemptStatus::Cancelled => Some("Cancelled".dim()),
+        AttemptStatus::Completed => Some(message("cloud-completed", &[]).green()),
+        AttemptStatus::Failed => Some(message("cloud-failed", &[]).red().bold()),
+        AttemptStatus::InProgress => Some(message("cloud-in-progress", &[]).magenta()),
+        AttemptStatus::Pending => Some(message("cloud-pending", &[]).cyan()),
+        AttemptStatus::Cancelled => Some(message("cloud-cancelled", &[]).dim()),
         AttemptStatus::Unknown => None,
     }
 }
@@ -785,12 +852,21 @@ fn style_diff_line(raw: &str) -> Line<'static> {
     Line::from(vec![Span::raw(raw.to_string())])
 }
 
-fn render_task_item(_app: &App, t: &codex_cloud_tasks_client::TaskSummary) -> ListItem<'static> {
+fn render_task_item(
+    locale: codex_tui::i18n::Locale,
+    t: &codex_cloud_tasks_client::TaskSummary,
+) -> ListItem<'static> {
     let status = match t.status {
-        TaskStatus::Ready => "READY".green(),
-        TaskStatus::Pending => "PENDING".magenta(),
-        TaskStatus::Applied => "APPLIED".blue(),
-        TaskStatus::Error => "ERROR".red(),
+        TaskStatus::Ready => {
+            codex_tui::i18n::message_for(locale, "cloud-ready-status", &[]).green()
+        }
+        TaskStatus::Pending => {
+            codex_tui::i18n::message_for(locale, "cloud-pending-status", &[]).magenta()
+        }
+        TaskStatus::Applied => {
+            codex_tui::i18n::message_for(locale, "cloud-applied-status", &[]).blue()
+        }
+        TaskStatus::Error => codex_tui::i18n::message_for(locale, "cloud-error-status", &[]).red(),
     };
 
     // Title line: [STATUS] Title
@@ -815,7 +891,7 @@ fn render_task_item(_app: &App, t: &codex_cloud_tasks_client::TaskSummary) -> Li
     meta.push(when);
     let meta_line = Line::from(meta);
 
-    // Subline: summary when present; otherwise show "no diff"
+    // Subline: summary when present; otherwise show the localized empty state.
     let sub = if t.summary.files_changed > 0
         || t.summary.lines_added > 0
         || t.summary.lines_removed > 0
@@ -832,10 +908,14 @@ fn render_task_item(_app: &App, t: &codex_cloud_tasks_client::TaskSummary) -> Li
             " ".into(),
             format!("{files}").into(),
             " ".into(),
-            "files".dim(),
+            codex_tui::i18n::message_for(locale, "cloud-files", &[]).dim(),
         ])
     } else {
-        Line::from("no diff".to_string().dim())
+        Line::from(
+            codex_tui::i18n::message_for(locale, "cloud-no-diff", &[])
+                .to_string()
+                .dim(),
+        )
     };
 
     // Insert a blank spacer line after the summary to separate tasks
@@ -897,7 +977,7 @@ pub fn draw_env_modal(frame: &mut Frame, area: Rect, app: &mut App) {
     let inner = overlay_outer(area);
 
     // Title: primary only; move long hints to a subheader inside content.
-    let title = Line::from(vec!["Select Environment".magenta().bold()]);
+    let title = Line::from(vec![message("cloud-select-env", &[]).magenta().bold()]);
     let block = overlay_block().title(title);
 
     frame.render_widget(Clear, inner);
@@ -909,7 +989,7 @@ pub fn draw_env_modal(frame: &mut Frame, area: Rect, app: &mut App) {
             frame,
             content,
             &mut app.spinner_start,
-            "Loading environments…",
+            &message("cloud-loading-envs", &[]),
         );
         return;
     }
@@ -926,7 +1006,7 @@ pub fn draw_env_modal(frame: &mut Frame, area: Rect, app: &mut App) {
 
     // Subheader with usage hints (dim cyan)
     let subheader = Paragraph::new(Line::from(
-        "Type to search, Enter select, Esc cancel".cyan().dim(),
+        message("cloud-env-search-hint", &[]).cyan().dim(),
     ))
     .wrap(Wrap { trim: true });
     frame.render_widget(subheader, rows[0]);
@@ -937,7 +1017,8 @@ pub fn draw_env_modal(frame: &mut Frame, area: Rect, app: &mut App) {
         .map(|m| m.query.clone())
         .unwrap_or_default();
     let ql = query.to_lowercase();
-    let search = Paragraph::new(format!("Search: {query}")).wrap(Wrap { trim: true });
+    let search = Paragraph::new(message("cloud-search", &[("query", query.as_str())]))
+        .wrap(Wrap { trim: true });
     frame.render_widget(search, rows[1]);
 
     // Filter environments by query (case-insensitive substring over label/id/hints)
@@ -963,13 +1044,16 @@ pub fn draw_env_modal(frame: &mut Frame, area: Rect, app: &mut App) {
         .collect();
 
     let mut items: Vec<ListItem> = Vec::new();
-    items.push(ListItem::new(Line::from("All Environments (Global)")));
+    items.push(ListItem::new(Line::from(message("cloud-all-envs", &[]))));
     for env in envs.iter() {
-        let primary = env.label.clone().unwrap_or_else(|| "<unnamed>".to_string());
+        let primary = env
+            .label
+            .clone()
+            .unwrap_or_else(|| message("cloud-unnamed", &[]).to_string());
         let mut spans: Vec<ratatui::text::Span> = vec![primary.into()];
         if env.is_pinned {
             spans.push("  ".into());
-            spans.push("PINNED".magenta().bold());
+            spans.push(message("cloud-pinned", &[]).magenta().bold());
         }
         spans.push("  ".into());
         spans.push(env.id.clone().dim());
@@ -1006,7 +1090,9 @@ pub fn draw_best_of_modal(frame: &mut Frame, area: Rect, app: &mut App) {
     let modal_x = inner.x + (inner.width.saturating_sub(modal_width)) / 2;
     let modal_y = inner.y + (inner.height.saturating_sub(modal_height)) / 2;
     let modal_area = Rect::new(modal_x, modal_y, modal_width, modal_height);
-    let title = Line::from(vec!["Parallel Attempts".magenta().bold()]);
+    let title = Line::from(vec![
+        message("cloud-parallel-attempts", &[]).magenta().bold(),
+    ]);
     let block = overlay_block().title(title);
 
     frame.render_widget(Clear, modal_area);
@@ -1018,7 +1104,7 @@ pub fn draw_best_of_modal(frame: &mut Frame, area: Rect, app: &mut App) {
         .constraints([Constraint::Length(2), Constraint::Min(1)])
         .split(content);
 
-    let hint = Paragraph::new(Line::from("Use ↑/↓ to choose, 1-4 jump".cyan().dim()))
+    let hint = Paragraph::new(Line::from(message("cloud-attempt-keys", &[]).cyan().dim()))
         .wrap(Wrap { trim: true });
     frame.render_widget(hint, rows[0]);
 
@@ -1026,13 +1112,14 @@ pub fn draw_best_of_modal(frame: &mut Frame, area: Rect, app: &mut App) {
     let options = [1usize, 2, 3, 4];
     let mut items: Vec<ListItem> = Vec::new();
     for &attempts in &options {
-        let noun = if attempts == 1 { "attempt" } else { "attempts" };
-        let mut spans: Vec<ratatui::text::Span> = vec![format!("{attempts} {noun:<8}").into()];
+        let label = attempt_count_label(attempts);
+        let padding = " ".repeat(10usize.saturating_sub(UnicodeWidthStr::width(label.as_str())));
+        let mut spans: Vec<ratatui::text::Span> = vec![format!("{label}{padding}").into()];
         spans.push("  ".into());
-        spans.push(format!("{attempts}x parallel").dim());
+        spans.push(message("cloud-parallel-count", &[("count", &attempts.to_string())]).dim());
         if attempts == app.best_of_n {
             spans.push("  ".into());
-            spans.push("Current".magenta().bold());
+            spans.push(message("cloud-current", &[]).magenta().bold());
         }
         items.push(ListItem::new(Line::from(spans)));
     }
@@ -1043,4 +1130,75 @@ pub fn draw_best_of_modal(frame: &mut Frame, area: Rect, app: &mut App) {
         .highlight_style(Style::default().bold())
         .block(Block::default().borders(Borders::NONE));
     frame.render_stateful_widget(list, rows[1], &mut list_state);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use codex_tui::i18n::Locale;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+
+    fn screen(terminal: &Terminal<TestBackend>) -> String {
+        let buffer = terminal.backend().buffer();
+        let mut out = String::new();
+        for y in 0..buffer.area.height {
+            let mut x = 0;
+            while x < buffer.area.width {
+                let symbol = buffer[(x, y)].symbol();
+                out.push_str(symbol);
+                x += UnicodeWidthStr::width(symbol).max(1) as u16;
+            }
+            out.push('\n');
+        }
+        out
+    }
+
+    #[test]
+    fn footer_renders_status_across_utf8_and_emoji_boundary() {
+        for status in ["가".repeat(667), format!("{}👩‍💻tail", "a".repeat(1999))] {
+            let mut app = App {
+                status,
+                ..App::default()
+            };
+            let mut terminal = Terminal::new(TestBackend::new(80, 2)).unwrap();
+            terminal
+                .draw(|frame| draw_footer(frame, frame.area(), &mut app))
+                .unwrap();
+            assert!(!screen(&terminal).is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn task_list_render_localizes_labels_and_preserves_backend_title() {
+        let mut page = codex_cloud_tasks_client::CloudBackend::list_tasks(
+            &codex_cloud_tasks_mock_client::MockClient,
+            Some("env-A"),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        page.tasks[0].title = "서버 title {count} 👩‍💻".to_string();
+        page.tasks[0].environment_label = Some("원격 environment".to_string());
+        for (locale, status, files) in [
+            (Locale::English, "READY", "files"),
+            (Locale::Korean, "준비됨", "파일"),
+        ] {
+            let mut terminal = Terminal::new(TestBackend::new(100, 4)).unwrap();
+            terminal
+                .draw(|frame| {
+                    frame.render_widget(
+                        List::new(vec![render_task_item(locale, &page.tasks[0])]),
+                        frame.area(),
+                    )
+                })
+                .unwrap();
+            let rendered = screen(&terminal);
+            assert!(rendered.contains(status), "{rendered}");
+            assert!(rendered.contains(files), "{rendered}");
+            assert!(rendered.contains("서버 title {count} 👩‍💻"), "{rendered}");
+            assert!(rendered.contains("원격 environment"), "{rendered}");
+        }
+    }
 }

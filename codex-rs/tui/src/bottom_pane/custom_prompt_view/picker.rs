@@ -94,13 +94,22 @@ impl CustomPromptView {
         }
 
         let cancel_label = if self.prefer_esc_to_handle_key_event() {
-            " normal mode"
+            crate::i18n::message("dialogs-normal-mode", &[])
         } else {
-            " back"
+            crate::i18n::message("dialogs-back", &[])
         };
         let hint = Line::from(vec![
             key_hint::plain(KeyCode::Enter).into(),
-            format!(" {} · ", self.submit_label).dim(),
+            format!(
+                " {} · ",
+                match self.submit_label {
+                    "submit" => crate::i18n::message("dialogs-submit-short", &[]),
+                    "review changes" => crate::i18n::message("dialogs-review-changes", &[]),
+                    "choose slot" => crate::i18n::message("dialogs-choose-slot", &[]),
+                    other => other.to_string(),
+                }
+            )
+            .dim(),
             key_hint::plain(KeyCode::Esc).into(),
             cancel_label.dim(),
         ]);

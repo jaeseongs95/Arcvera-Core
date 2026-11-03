@@ -59,7 +59,10 @@ impl App {
                     &markdown,
                     crate::clipboard_copy::CopyFormat::PlainText,
                 );
-                self.chat_widget.show_copy_result("conversation", result);
+                self.chat_widget.show_copy_result(
+                    crate::i18n::static_message("clipboard-label-conversation"),
+                    result,
+                );
             }
             TranscriptExportDestination::File(path) => {
                 let cwd = if self.app_server_target.uses_remote_workspace() {

@@ -76,7 +76,7 @@ impl BottomPane {
         let mut lines = vec![Line::from(vec![
             "  ? ".dim(),
             Span::styled(
-                format!("{count} question{}", if count == 1 { "" } else { "s" }),
+                crate::i18n::message_with_count("dialogs-question-count", &[], count as i64),
                 crate::style::accent_style(),
             )
             .bold(),
@@ -85,7 +85,8 @@ impl BottomPane {
         if let Some(binding) = self.pending_input_preview.edit_binding {
             let mut hint = Line::from("    ");
             hint.spans.extend(binding.spans());
-            hint.spans.push(" to answer".dim());
+            hint.spans
+                .push(crate::i18n::message("dialogs-to-answer", &[]).dim());
             lines.push(hint);
         }
         Some(lines)

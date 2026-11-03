@@ -656,3 +656,25 @@ fn oversized_question_ids_keep_questions_answerable_without_echoing_the_id() {
     };
     assert_eq!(reply, "> Question\n\nAnswer");
 }
+
+#[test]
+fn localized_async_question_chrome_preserves_question_and_answer_payloads() {
+    for (locale, other) in [
+        (crate::i18n::Locale::English, "Other"),
+        (crate::i18n::Locale::Korean, "기타"),
+    ] {
+        crate::i18n::with_locale(locale, || {
+            let mut editor = editor();
+            editor.set_expanded(true);
+            editor.navigate(true);
+            assert!(editor.option_rows(80).last().unwrap().name.ends_with(other));
+            editor.handle_key_event(KeyEvent::from(KeyCode::Char('2')));
+            let original = "답변 e\u{301}🦀 { $count }";
+            editor.handle_paste(original.into());
+            assert_eq!(
+                editor.take_pending_drafts(),
+                vec![format!("> Second\n\n{original}")]
+            );
+        });
+    }
+}

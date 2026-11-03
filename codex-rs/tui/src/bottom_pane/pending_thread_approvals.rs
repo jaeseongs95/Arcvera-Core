@@ -45,7 +45,10 @@ impl PendingThreadApprovals {
         let mut lines = Vec::new();
         for thread in self.threads.iter().take(3) {
             let wrapped = adaptive_wrap_lines(
-                std::iter::once(Line::from(format!("Approval needed in {thread}"))),
+                std::iter::once(Line::from(crate::i18n::message(
+                    "dialogs-pending-thread-approval",
+                    &[("thread", thread.as_str())],
+                ))),
                 RtOptions::new(width as usize)
                     .initial_indent(Line::from(vec!["  ".into(), "!".red().bold(), " ".into()]))
                     .subsequent_indent(Line::from("    ")),
@@ -61,7 +64,7 @@ impl PendingThreadApprovals {
             Line::from(vec![
                 "    ".into(),
                 "/subagents".cyan().bold(),
-                " to switch threads".dim(),
+                crate::i18n::message("dialogs-switch-threads", &[]).dim(),
             ])
             .dim(),
         );

@@ -284,7 +284,7 @@ impl BottomPaneView for ExperimentalFeaturesView {
             Ok(result) => result,
             Err(oneshot::error::TryRecvError::Empty) => return false,
             Err(oneshot::error::TryRecvError::Closed) => {
-                Err("Discovery was interrupted".to_string())
+                Err(crate::i18n::message("dialogs-discovery-interrupted", &[]).to_string())
             }
         };
         self.catalog_rx = None;

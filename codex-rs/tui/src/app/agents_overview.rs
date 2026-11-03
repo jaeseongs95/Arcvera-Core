@@ -158,9 +158,9 @@ impl App {
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             state.loading = false;
             state.connection_notice = Some(if self.reconnect.failed {
-                "Reconnect failed — agent list is stale; relaunch to retry"
+                crate::i18n::static_message("picker-center-notice-failed")
             } else {
-                "Reconnecting — agent list is stale"
+                crate::i18n::static_message("picker-center-notice-reconnecting")
             });
         } else {
             self.refresh_agents_overview_threads(app_server);

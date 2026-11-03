@@ -34,11 +34,11 @@ impl SearchMode {
         }
     }
 
-    pub(super) fn label(self) -> &'static str {
+    pub(super) fn label(self) -> String {
         match self {
-            Self::Results => "All Results",
-            Self::FilesystemOnly => "Filesystem Only",
-            Self::Tools => "Plugins",
+            Self::Results => crate::i18n::message("dialogs-all-results", &[]),
+            Self::FilesystemOnly => crate::i18n::message("dialogs-filesystem-only", &[]),
+            Self::Tools => crate::i18n::message("dialogs-plugins", &[]),
         }
     }
 }

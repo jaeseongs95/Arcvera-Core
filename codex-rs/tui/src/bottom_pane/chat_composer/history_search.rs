@@ -396,21 +396,25 @@ impl ChatComposer {
     pub(super) fn history_search_footer_line(&self) -> Option<Line<'static>> {
         let search = self.history_search.as_ref()?;
         let mut line = Line::from(vec![
-            "reverse-i-search: ".dim(),
+            crate::i18n::message("dialogs-history-prefix", &[]).dim(),
             search.display_query().cyan(),
         ]);
         match search.status {
             HistorySearchStatus::Idle => {}
-            HistorySearchStatus::Searching => line.push_span("  searching".dim()),
+            HistorySearchStatus::Searching => {
+                line.push_span(crate::i18n::message("dialogs-history-searching", &[]).dim())
+            }
             HistorySearchStatus::Match => {
                 line.push_span("  ".dim());
                 line.push_span(Self::history_search_action_key_span(KeyCode::Enter));
-                line.push_span(" accept".dim());
+                line.push_span(crate::i18n::message("dialogs-history-accept", &[]).dim());
                 line.push_span(" · ".dim());
                 line.push_span(Self::history_search_action_key_span(KeyCode::Esc));
-                line.push_span(" cancel".dim());
+                line.push_span(crate::i18n::message("dialogs-memory-cancel", &[]).dim());
             }
-            HistorySearchStatus::NoMatch => line.push_span("  no match".red()),
+            HistorySearchStatus::NoMatch => {
+                line.push_span(crate::i18n::message("dialogs-history-no-match", &[]).red())
+            }
         }
         Some(line)
     }
@@ -512,7 +516,8 @@ impl ChatComposer {
         if area.is_empty() {
             return None;
         }
-        let prompt_width = Line::from("reverse-i-search: ").width() as u16;
+        let prompt_width =
+            Line::from(crate::i18n::message("dialogs-history-prefix", &[])).width() as u16;
         let query_width =
             u16::try_from(Line::from(search.display_query()).width()).unwrap_or(u16::MAX);
         let desired_x = area

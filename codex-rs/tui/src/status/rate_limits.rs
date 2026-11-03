@@ -264,38 +264,51 @@ pub(crate) fn compose_rate_limit_data_many(
             .map(|window| {
                 limit_label_for_window(window.window_minutes, /*is_secondary*/ false)
             })
-            .map(|label| capitalize_first(&label));
+            .map(|label| status_window_label(&label));
         let secondary_label = snapshot
             .secondary
             .as_ref()
             .map(|window| limit_label_for_window(window.window_minutes, /*is_secondary*/ true))
-            .map(|label| capitalize_first(&label));
+            .map(|label| status_window_label(&label));
         let window_count =
             usize::from(snapshot.primary.is_some()) + usize::from(snapshot.secondary.is_some());
         let combine_non_codex_single_limit = show_limit_prefix && window_count == 1;
 
         if show_limit_prefix && !combine_non_codex_single_limit {
             rows.push(StatusRateLimitRow {
-                label: format!("{limit_bucket_label} limit"),
+                label: crate::i18n::message(
+                    "status-bucket-limit",
+                    &[("bucket", &limit_bucket_label)],
+                ),
                 value: StatusRateLimitValue::Text(String::new()),
             });
         }
 
         if let Some(primary) = snapshot.primary.as_ref() {
             let label = if combine_non_codex_single_limit {
-                format!(
-                    "{} {} limit",
-                    limit_bucket_label,
-                    primary_label.clone().unwrap_or_else(|| capitalize_first(
-                        fallback_limit_label(/*is_secondary*/ false)
-                    ))
+                crate::i18n::message(
+                    "status-bucket-window-limit",
+                    &[
+                        ("bucket", &limit_bucket_label),
+                        (
+                            "window",
+                            &primary_label.clone().unwrap_or_else(|| {
+                                status_window_label(fallback_limit_label(
+                                    /*is_secondary*/ false,
+                                ))
+                            }),
+                        ),
+                    ],
                 )
             } else {
-                format!(
-                    "{} limit",
-                    primary_label.clone().unwrap_or_else(|| capitalize_first(
-                        fallback_limit_label(/*is_secondary*/ false)
-                    ))
+                crate::i18n::message(
+                    "status-window-limit",
+                    &[(
+                        "window",
+                        &primary_label.clone().unwrap_or_else(|| {
+                            status_window_label(fallback_limit_label(/*is_secondary*/ false))
+                        }),
+                    )],
                 )
             };
             rows.push(StatusRateLimitRow {
@@ -310,19 +323,29 @@ pub(crate) fn compose_rate_limit_data_many(
 
         if let Some(secondary) = snapshot.secondary.as_ref() {
             let label = if combine_non_codex_single_limit {
-                format!(
-                    "{} {} limit",
-                    limit_bucket_label,
-                    secondary_label.clone().unwrap_or_else(|| capitalize_first(
-                        fallback_limit_label(/*is_secondary*/ true)
-                    ))
+                crate::i18n::message(
+                    "status-bucket-window-limit",
+                    &[
+                        ("bucket", &limit_bucket_label),
+                        (
+                            "window",
+                            &secondary_label.clone().unwrap_or_else(|| {
+                                status_window_label(fallback_limit_label(
+                                    /*is_secondary*/ true,
+                                ))
+                            }),
+                        ),
+                    ],
                 )
             } else {
-                format!(
-                    "{} limit",
-                    secondary_label.clone().unwrap_or_else(|| capitalize_first(
-                        fallback_limit_label(/*is_secondary*/ true)
-                    ))
+                crate::i18n::message(
+                    "status-window-limit",
+                    &[(
+                        "window",
+                        &secondary_label.clone().unwrap_or_else(|| {
+                            status_window_label(fallback_limit_label(/*is_secondary*/ true))
+                        }),
+                    )],
                 )
             };
             rows.push(StatusRateLimitRow {
@@ -344,9 +367,12 @@ pub(crate) fn compose_rate_limit_data_many(
                 value: StatusRateLimitValue::Window {
                     percent_used: 100.0 - individual_limit.percent_remaining,
                     resets_at: individual_limit.resets_at.clone(),
-                    details: Some(format!(
-                        "{} of {} credits used",
-                        individual_limit.used, individual_limit.limit
+                    details: Some(crate::i18n::message(
+                        "status-credits-used",
+                        &[
+                            ("used", &individual_limit.used),
+                            ("limit", &individual_limit.limit),
+                        ],
                     )),
                 },
             });
@@ -359,6 +385,19 @@ pub(crate) fn compose_rate_limit_data_many(
         StatusRateLimitData::Stale(rows)
     } else {
         StatusRateLimitData::Available(rows)
+    }
+}
+
+fn status_window_label(label: &str) -> String {
+    match label {
+        "5h" => crate::i18n::message("status-window-5h", &[]),
+        "daily" => crate::i18n::message("status-window-daily", &[]),
+        "weekly" => crate::i18n::message("status-window-weekly", &[]),
+        "monthly" => crate::i18n::message("status-window-monthly", &[]),
+        "annual" => crate::i18n::message("status-window-annual", &[]),
+        "usage" => crate::i18n::message("status-window-usage", &[]),
+        "secondary usage" => crate::i18n::message("status-window-secondary", &[]),
+        _ => capitalize_first(label),
     }
 }
 
@@ -385,7 +424,10 @@ pub(crate) fn render_limit_progress_bar(percent_remaining: f64, segments: usize)
 
 /// Formats a compact textual summary from remaining percentage.
 pub(crate) fn format_status_limit_summary(percent_remaining: f64) -> String {
-    format!("{percent_remaining:.0}% left")
+    crate::i18n::message(
+        "status-percent-left",
+        &[("percent", &format!("{percent_remaining:.0}"))],
+    )
 }
 
 /// Builds a single `StatusRateLimitRow` when workspace credits are available.
@@ -395,7 +437,10 @@ fn credit_status_row(credits: &CreditsSnapshotDisplay) -> Option<StatusRateLimit
     if credits.unlimited {
         return Some(StatusRateLimitRow {
             label: "Credits".to_string(),
-            value: StatusRateLimitValue::Text("Unlimited".to_string()),
+            value: StatusRateLimitValue::Text(crate::i18n::message(
+                "status-credits-unlimited",
+                &[],
+            )),
         });
     }
     if !credits.has_credits {
@@ -406,8 +451,10 @@ fn credit_status_row(credits: &CreditsSnapshotDisplay) -> Option<StatusRateLimit
         .as_deref()
         .and_then(format_credit_balance)
         .map_or_else(
-            || "Available".to_string(),
-            |display_balance| format!("{display_balance} credits"),
+            || crate::i18n::message("status-credits-available", &[]),
+            |display_balance| {
+                crate::i18n::message("status-credits-amount", &[("amount", &display_balance)])
+            },
         );
     Some(StatusRateLimitRow {
         label: "Credits".to_string(),

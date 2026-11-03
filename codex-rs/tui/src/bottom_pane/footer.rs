@@ -150,9 +150,9 @@ impl FooterKeyHints {
 impl CollaborationModeIndicator {
     fn label(self, show_cycle_hint: bool) -> String {
         let suffix = if show_cycle_hint {
-            format!(
-                " ({} to cycle)",
-                key_hint::shift(KeyCode::Tab).display_label()
+            crate::i18n::message(
+                "dialogs-cycle-hint",
+                &[("key", &key_hint::shift(KeyCode::Tab).display_label())],
             )
         } else {
             String::new()
@@ -654,7 +654,10 @@ pub(crate) fn status_line_right_indicator_line(
 pub(crate) fn side_conversation_context_line(label: &str) -> Line<'static> {
     let mut line = Line::default();
     let rest = if let Some(rest) = label.strip_prefix("Side ") {
-        line.extend(["Side".magenta().bold(), " ".into()]);
+        line.extend([
+            crate::i18n::message("dialogs-side", &[]).magenta().bold(),
+            " ".into(),
+        ]);
         rest
     } else {
         label
@@ -668,6 +671,12 @@ pub(crate) fn side_conversation_context_line(label: &str) -> Line<'static> {
             .find_map(|action| part.strip_suffix(action).map(|keys| (keys, action)))
         {
             line.extend(key_hint::key_label_spans(keys));
+            let action = match action {
+                " to switch" => crate::i18n::message("dialogs-side-switch", &[]),
+                " to close" => crate::i18n::message("dialogs-close", &[]),
+                " for side" => crate::i18n::message("dialogs-side-for", &[]),
+                other => other.to_string(),
+            };
             line.push_span(action.set_style(secondary_text_style()));
         } else {
             line.push_span(part.to_owned().magenta());
@@ -793,7 +802,10 @@ fn footer_from_props_lines(
             vec![quit_shortcut_reminder_line(props.quit_shortcut_key)]
         }
         FooterMode::HistorySearch => {
-            vec![Line::from("reverse-i-search: ").set_style(secondary_text_style())]
+            vec![
+                Line::from(crate::i18n::message("dialogs-history-prefix", &[]))
+                    .set_style(secondary_text_style()),
+            ]
         }
         FooterMode::ComposerEmpty => {
             let state = LeftSideState {

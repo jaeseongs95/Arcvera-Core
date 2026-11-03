@@ -12,7 +12,7 @@ pub(super) fn build_header(request: &ApplyPatchApprovalRequest) -> Box<dyn Rende
     let mut header = Vec::new();
     if let Some(thread_label) = &request.thread_label {
         header.push(Line::from(vec![
-            "Thread: ".into(),
+            crate::i18n::message("dialogs-thread-label", &[]).into(),
             thread_label.clone().bold(),
         ]));
     }
@@ -21,13 +21,14 @@ pub(super) fn build_header(request: &ApplyPatchApprovalRequest) -> Box<dyn Rende
         header.push(Line::from(""));
     }
 
+    let fallback_description = crate::i18n::message("dialogs-patch-default-description", &[]);
     let description = request
         .reason
         .as_deref()
         .filter(|reason| !reason.is_empty())
-        .unwrap_or("Apply proposed file edits");
+        .unwrap_or(fallback_description.as_str());
     header.push(Line::from_iter([
-        "Description: ".into(),
+        crate::i18n::message("dialogs-description-label", &[]).into(),
         description.to_string().italic(),
     ]));
 
@@ -59,13 +60,13 @@ pub(super) fn build_header(request: &ApplyPatchApprovalRequest) -> Box<dyn Rende
     destinations.dedup();
     if destinations.is_empty() {
         header.push(Line::from(vec![
-            "Destination: ".into(),
-            "unavailable".bold(),
+            crate::i18n::message("dialogs-destination-label", &[]).into(),
+            crate::i18n::message("dialogs-unavailable", &[]).bold(),
         ]));
     }
     for destination in destinations {
         header.push(Line::from_iter([
-            "Destination: ".into(),
+            crate::i18n::message("dialogs-destination-label", &[]).into(),
             destination.bold(),
         ]));
     }

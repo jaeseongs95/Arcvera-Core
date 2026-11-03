@@ -120,7 +120,7 @@ impl WidgetRef for Popup {
             buf,
             &self.rows,
             &self.state,
-            self.file_search.empty_message(),
+            &self.file_search.empty_message(),
             self.search_mode,
             &self.query,
         );
@@ -162,11 +162,11 @@ impl FileSearch {
         !self.matches.is_empty()
     }
 
-    fn empty_message(&self) -> &'static str {
+    fn empty_message(&self) -> String {
         if self.waiting {
-            "loading..."
+            crate::i18n::message("dialogs-mentions-loading", &[])
         } else {
-            "no matches"
+            crate::i18n::message("dialogs-no-matches", &[])
         }
     }
 }

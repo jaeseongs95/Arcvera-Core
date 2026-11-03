@@ -1075,7 +1075,10 @@ impl FeatureToggles {
         if is_known_feature_key(feature) {
             Ok(())
         } else {
-            anyhow::bail!("Unknown feature flag: {feature}")
+            anyhow::bail!(
+                "{}",
+                codex_tui::i18n::message("cli-error-unknown-feature", &[("feature", feature)])
+            )
         }
     }
 }
@@ -1142,7 +1145,7 @@ async fn cli_main(
         mut interactive,
         subcommand,
     } = config_override_args::try_parse_from(std::env::args_os())
-        .unwrap_or_else(|error| error.exit());
+        .unwrap_or_else(|error| localization::exit_error(error, codex_tui::i18n::locale()));
     // Retain the launch target through TUI exit, even if a launcher changes selection.
     let daemon_cli_executable = arg0_paths
         .codex_self_exe
@@ -2143,7 +2146,10 @@ async fn enable_feature_in_config(feature: &str) -> anyhow::Result<()> {
         .set_feature_enabled(feature, /*enabled*/ true)
         .apply()
         .await?;
-    println!("Enabled feature `{feature}` in config.toml.");
+    println!(
+        "{}",
+        codex_tui::i18n::message("cli-feature-enabled", &[("feature", feature)])
+    );
     maybe_print_under_development_feature_warning(&codex_home, feature);
     Ok(())
 }
@@ -2155,7 +2161,10 @@ async fn disable_feature_in_config(feature: &str) -> anyhow::Result<()> {
         .set_feature_enabled(feature, /*enabled*/ false)
         .apply()
         .await?;
-    println!("Disabled feature `{feature}` in config.toml.");
+    println!(
+        "{}",
+        codex_tui::i18n::message("cli-feature-disabled", &[("feature", feature)])
+    );
     Ok(())
 }
 
@@ -2197,9 +2206,13 @@ fn maybe_print_under_development_feature_warning(codex_home: &std::path::Path, f
     }
 
     let config_path = codex_home.join(codex_config::CONFIG_TOML_FILE);
+    let config_path = config_path.display().to_string();
     eprintln!(
-        "Under-development features enabled: {feature}. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in {}.",
-        config_path.display()
+        "{}",
+        codex_tui::i18n::message(
+            "cli-feature-under-development-warning",
+            &[("feature", feature), ("path", config_path.as_str())],
+        )
     );
 }
 

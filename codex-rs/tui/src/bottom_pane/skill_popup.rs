@@ -247,7 +247,7 @@ impl WidgetRef for SkillPopup {
             &rows,
             &self.state,
             MAX_POPUP_ROWS,
-            "no matches",
+            &crate::i18n::message("dialogs-no-matches", &[]),
         );
         if let Some(hint_area) = hint_area {
             let hint_area = Rect {
@@ -264,9 +264,9 @@ impl WidgetRef for SkillPopup {
 fn skill_popup_hint_line() -> Line<'static> {
     Line::from(vec![
         key_hint::plain(KeyCode::Enter).into(),
-        " insert · ".dim(),
+        crate::i18n::message("dialogs-insert", &[]).dim(),
         key_hint::plain(KeyCode::Esc).into(),
-        " close".dim(),
+        crate::i18n::message("dialogs-close", &[]).dim(),
     ])
 }
 

@@ -4,6 +4,7 @@ use super::auth::AuthModeWidget;
 use super::auth::SignInState;
 use super::auth::onboarding_request_id;
 use super::keys;
+use crate::i18n::message;
 use crate::key_hint::KeyBindingListExt;
 use crate::wrapping::word_wrap_lines;
 use codex_app_server_client::AppServerRequestHandle;
@@ -366,76 +367,95 @@ impl BedrockState {
             return;
         }
         let mut lines: Vec<Line> = vec![
-            Line::from(vec!["> ".into(), "Set up Amazon Bedrock".bold()]),
+            Line::from(vec![
+                "> ".into(),
+                message("dialogs-bedrock-title", &[]).bold(),
+            ]),
             "".into(),
         ];
         let mut footer = Vec::new();
         match &self.view {
             BedrockView::GovCloudWarning(_) => {
-                lines = vec!["Using Codex with AWS GovCloud".bold().into(), "".into()];
+                lines = vec![
+                    message("dialogs-bedrock-govcloud-title", &[]).bold().into(),
+                    "".into(),
+                ];
                 lines.push(Line::from(vec![
-                    "You are using Codex with AWS GovCloud. Please ensure you or your administrator have read the ".into(),
-                    "application configuration and security guidance"
+                    message("dialogs-bedrock-govcloud-before", &[]).into(),
+                    message("dialogs-bedrock-govcloud-guidance", &[])
                         .cyan()
                         .underlined(),
-                    " before proceeding.".into(),
+                    message("dialogs-bedrock-govcloud-after", &[]).into(),
                 ]));
                 footer.push("".into());
-                footer.push("> Acknowledge".cyan().into());
+                footer.push(message("dialogs-bedrock-acknowledge", &[]).cyan().into());
             }
             BedrockView::Discovering(_) => {
-                lines.push("  Checking for existing AWS credentials...".dim().into());
+                lines.push(message("dialogs-bedrock-discovering", &[]).dim().into());
             }
             BedrockView::Configuring(_) => {
-                lines.push("  Setting up Amazon Bedrock...".dim().into());
+                lines.push(message("dialogs-bedrock-configuring", &[]).dim().into());
             }
             BedrockView::Methods(list) => {
                 if *list == BedrockMethodList::Detected && self.profiles.len() == 1 {
                     let profile = &self.profiles[0];
-                    lines.push(format!("  AWS profile detected: {}", profile.name).into());
+                    lines.push(
+                        message(
+                            "dialogs-bedrock-profile-detected",
+                            &[("profile", profile.name.as_str())],
+                        )
+                        .into(),
+                    );
                     if let Some(region) = &profile.region {
-                        lines.push(format!("  Region: {region}").dim().into());
+                        lines.push(
+                            message(
+                                "dialogs-bedrock-region-detected",
+                                &[("region", region.as_str())],
+                            )
+                            .dim()
+                            .into(),
+                        );
                     }
                 } else if *list == BedrockMethodList::Detected && self.profiles.len() > 1 {
-                    lines.push("  Choose an AWS profile.".into());
+                    lines.push(message("dialogs-bedrock-choose-profile", &[]).into());
                 } else if *list == BedrockMethodList::Detected
                     && !self.environment_credentials.is_empty()
                 {
-                    lines.push("  AWS credentials detected in your environment.".into());
+                    lines.push(message("dialogs-bedrock-environment-detected", &[]).into());
                 } else {
                     if *list == BedrockMethodList::Detected {
-                        lines.push("  No AWS credentials found.".into());
+                        lines.push(message("dialogs-bedrock-not-detected", &[]).into());
                     }
-                    lines.push("  Choose how you authenticate with AWS.".into());
+                    lines.push(message("dialogs-bedrock-choose-method", &[]).into());
                 }
                 lines.push("".into());
                 self.render_methods(&mut lines);
             }
             BedrockView::ProfileEntry(value) => {
-                lines.push("  Enter the name of your AWS profile.".into());
+                lines.push(message("dialogs-bedrock-enter-profile", &[]).into());
                 lines.push("".into());
                 lines.push(Line::from(vec![
-                    "  AWS profile: ".into(),
+                    message("dialogs-bedrock-profile-label", &[]).into(),
                     value.clone().cyan(),
                 ]));
             }
             BedrockView::ApiKeyEntry(value) => {
-                lines.push("  Enter your Amazon Bedrock API key.".into());
+                lines.push(message("dialogs-bedrock-enter-api-key", &[]).into());
                 lines.push("".into());
                 let mut masked_value = "•".repeat(value.chars().count().saturating_sub(1));
                 if let Some(character) = value.chars().last() {
                     masked_value.push(character);
                 }
                 lines.push(Line::from(vec![
-                    "  Bedrock API key: ".into(),
+                    message("dialogs-bedrock-api-key-label", &[]).into(),
                     masked_value.cyan(),
                 ]));
             }
             BedrockView::RegionEntry { value, .. } => {
-                lines.push("  Enter the AWS Region to use with Amazon Bedrock.".into());
+                lines.push(message("dialogs-bedrock-enter-region", &[]).into());
                 lines.push("".into());
                 lines.push(Line::from(vec![
-                    "  AWS Region: ".into(),
+                    message("dialogs-bedrock-region-label", &[]).into(),
                     value.clone().cyan(),
                 ]));
             }
@@ -443,12 +463,12 @@ impl BedrockState {
                 values,
                 selected_field,
             } => {
-                lines.push("  Enter your AWS access keys.".into());
+                lines.push(message("dialogs-bedrock-enter-access-keys", &[]).into());
                 lines.push("".into());
                 for (index, label) in [
-                    "AWS access key ID",
-                    "AWS secret access key",
-                    "AWS session token (optional)",
+                    message("dialogs-bedrock-access-key-id", &[]),
+                    message("dialogs-bedrock-secret-access-key", &[]),
+                    message("dialogs-bedrock-session-token", &[]),
                 ]
                 .into_iter()
                 .enumerate()
@@ -475,12 +495,10 @@ impl BedrockState {
                 }
             }
             BedrockView::EnvironmentInstructions => {
-                lines.push(
-                    "  Configure AWS credentials in your environment, then restart Codex.".into(),
-                );
+                lines.push(message("dialogs-bedrock-environment-restart", &[]).into());
                 lines.push("".into());
                 lines.push(Line::from(vec![
-                    "  Setup guide: ".into(),
+                    message("dialogs-bedrock-setup-guide", &[]).into(),
                     "https://learn.chatgpt.com/docs/amazon-bedrock"
                         .cyan()
                         .underlined(),
@@ -493,16 +511,16 @@ impl BedrockState {
             footer.push("".into());
             if !matches!(self.view, BedrockView::Configuring(_)) {
                 footer.push(Line::from(vec![
-                    "  Press ".dim(),
+                    message("dialogs-bedrock-press", &[]).dim(),
                     keys::CONFIRM[0].into(),
-                    " to continue".dim(),
+                    message("dialogs-bedrock-continue", &[]).dim(),
                 ]));
             }
             if !matches!(self.view, BedrockView::GovCloudWarning(_)) {
                 footer.push(Line::from(vec![
-                    "  Press ".dim(),
+                    message("dialogs-bedrock-press", &[]).dim(),
                     keys::CANCEL[0].into(),
-                    " to go back".dim(),
+                    message("dialogs-bedrock-back", &[]).dim(),
                 ]));
             }
         }
@@ -515,13 +533,13 @@ impl BedrockState {
         if matches!(self.view, BedrockView::GovCloudWarning(_))
             && lines.len() + footer.len() > usize::from(area.height)
         {
-            footer = vec!["> Acknowledge".cyan().into()];
+            footer = vec![message("dialogs-bedrock-acknowledge", &[]).cyan().into()];
             if area.height > 2 {
                 footer.push(Line::from(vec![
                     keys::MOVE_UP[0].into(),
                     "/".dim(),
                     keys::MOVE_DOWN[0].into(),
-                    " scroll · ".dim(),
+                    message("dialogs-bedrock-scroll", &[]).dim(),
                     keys::CONFIRM[0].into(),
                 ]));
             }
@@ -594,12 +612,15 @@ impl BedrockState {
                 BedrockMethod::Profile(profile_index) => {
                     let profile = &self.profiles[profile_index];
                     let title = if self.profiles.len() == 1 {
-                        format!("Continue with {}", profile.name)
+                        message(
+                            "dialogs-bedrock-continue-profile",
+                            &[("profile", profile.name.as_str())],
+                        )
                     } else {
                         profile.name.clone()
                     };
                     let description = if self.profiles.len() == 1 {
-                        "Use your existing AWS credentials".to_string()
+                        message("dialogs-bedrock-use-credentials", &[])
                     } else {
                         profile.region.clone().unwrap_or_default()
                     };
@@ -609,44 +630,42 @@ impl BedrockState {
                     let description = if self.environment_credentials.iter().any(|credential| {
                         credential.credential_type == AwsCredentialType::BedrockApiKey
                     }) {
-                        "Use your existing Amazon Bedrock API key"
+                        message("dialogs-bedrock-use-api-key", &[])
                     } else {
-                        "Use your existing AWS credentials"
+                        message("dialogs-bedrock-use-credentials", &[])
                     };
                     (
-                        "Continue with detected credentials".to_string(),
-                        description.to_string(),
+                        message("dialogs-bedrock-continue-detected", &[]),
+                        description,
                     )
                 }
                 BedrockMethod::OtherMethods => (
                     if matches!(self.view, BedrockView::EnvironmentInstructions) {
-                        "Choose another sign-in method"
+                        message("dialogs-bedrock-another-method", &[])
                     } else {
-                        "Other AWS sign-in methods"
-                    }
-                    .to_string(),
+                        message("dialogs-bedrock-other-methods", &[])
+                    },
                     if matches!(self.view, BedrockView::EnvironmentInstructions) {
-                        ""
+                        String::new()
                     } else {
-                        "Use another profile, access keys, environment variables, or a Bedrock API key"
-                    }
-                    .to_string(),
+                        message("dialogs-bedrock-other-methods-description", &[])
+                    },
                 ),
                 BedrockMethod::ManualProfile => (
-                    "AWS profile".to_string(),
-                    "Use AWS SSO or a named profile".to_string(),
+                    message("dialogs-bedrock-profile-method", &[]),
+                    message("dialogs-bedrock-profile-method-description", &[]),
                 ),
                 BedrockMethod::AccessKeys => (
-                    "AWS access keys".to_string(),
-                    "Enter an access key ID and secret access key".to_string(),
+                    message("dialogs-bedrock-access-keys-method", &[]),
+                    message("dialogs-bedrock-access-keys-description", &[]),
                 ),
                 BedrockMethod::EnvironmentInstructions => (
-                    "Environment variables".to_string(),
-                    "Configure AWS credentials in your environment, then return here".to_string(),
+                    message("dialogs-bedrock-environment-method", &[]),
+                    message("dialogs-bedrock-environment-description", &[]),
                 ),
                 BedrockMethod::ApiKey => (
-                    "Bedrock API key".to_string(),
-                    "Enter a Bedrock API key".to_string(),
+                    message("dialogs-bedrock-api-key-method", &[]),
+                    message("dialogs-bedrock-api-key-description", &[]),
                 ),
             };
             let selected = index == self.highlighted;
@@ -729,8 +748,10 @@ impl AuthModeWidget {
                             profiles: Vec::new(),
                             environment_credentials: Vec::new(),
                         }));
-                    *error.write().unwrap_or_else(PoisonError::into_inner) =
-                        Some(format!("Unable to check AWS credentials: {err}"));
+                    *error.write().unwrap_or_else(PoisonError::into_inner) = Some(message(
+                        "dialogs-bedrock-discovery-error",
+                        &[("error", err.to_string().as_str())],
+                    ));
                 }
             }
             drop(guard);
@@ -877,8 +898,10 @@ impl AuthModeWidget {
                     *guard = SignInState::BedrockConfigured;
                 }
                 Err(err) => {
-                    *error.write().unwrap_or_else(PoisonError::into_inner) =
-                        Some(format!("Unable to set up Amazon Bedrock: {err}"));
+                    *error.write().unwrap_or_else(PoisonError::into_inner) = Some(message(
+                        "dialogs-bedrock-setup-error",
+                        &[("error", err.as_str())],
+                    ));
                     *guard = SignInState::Bedrock(fallback);
                 }
             }

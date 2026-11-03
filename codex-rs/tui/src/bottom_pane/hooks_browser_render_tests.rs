@@ -101,3 +101,36 @@ fn wrapped_hook_command_preserves_the_complete_url_destination() {
         render_lines(&view, /*width*/ 44)
     );
 }
+
+#[test]
+fn translated_hook_headings_use_terminal_cells_and_links_use_bytes() {
+    for (locale, heading) in [
+        (crate::i18n::Locale::English, "Installed"),
+        (crate::i18n::Locale::Korean, "설치됨"),
+    ] {
+        crate::i18n::with_locale(locale, || {
+            let (tx, _rx) = unbounded_channel();
+            let view =
+                HooksBrowserView::new(Vec::new(), Vec::new(), Vec::new(), AppEventSender::new(tx));
+            let rows = view.event_table_lines();
+            assert_eq!(rows[0].spans[0].content.width(), EVENT_COLUMN_WIDTH);
+            assert_eq!(rows[0].spans[1].content.width(), COUNT_COLUMN_WIDTH);
+            assert_eq!(rows[0].spans[1].content.trim(), heading);
+            let url = "https://example.com/opaque?x=%EA%B0%80&y=original";
+            let lines = detail_wrapped_lines("Command", url, 24, None);
+            assert_eq!(lines[0].line.spans[0].content.width(), 10);
+            assert!(lines.iter().all(|line| line.line.width() <= 24));
+            assert!(
+                !lines
+                    .iter()
+                    .flat_map(|line| &line.hyperlinks)
+                    .collect::<Vec<_>>()
+                    .is_empty()
+            );
+            for link in lines.iter().flat_map(|line| &line.hyperlinks) {
+                assert_eq!(link.destination, url);
+            }
+        });
+    }
+    assert_eq!(padded_label("한글e\u{301}🦀", 10).width(), 10);
+}

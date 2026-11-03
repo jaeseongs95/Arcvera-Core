@@ -56,7 +56,6 @@ impl ChatComposer {
     }
 
     pub(super) fn warning_notice(&self, count: usize, width: u16) -> Line<'static> {
-        let plural = if count == 1 { "" } else { "s" };
         let accent = crate::style::warning_notice_style();
         let secondary = crate::style::secondary_text_style();
         let shortcut = self
@@ -66,12 +65,15 @@ impl ChatComposer {
             .unwrap_or_else(|| "/warnings".into());
         let mut full = Line::from(vec![
             "⚠ ".into(),
-            Span::styled(format!("{count} warning{plural}"), accent),
+            Span::styled(
+                crate::i18n::message_with_count("dialogs-warning-count", &[], count as i64),
+                accent,
+            ),
             " · ".into(),
         ])
         .style(secondary);
         full.extend(key_hint::key_label_spans(&shortcut));
-        full.push_span(" to view");
+        full.push_span(crate::i18n::message("dialogs-to-view", &[]));
         if full.width() <= usize::from(width) {
             return full;
         }

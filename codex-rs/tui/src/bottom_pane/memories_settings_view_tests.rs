@@ -62,3 +62,46 @@ fn project_reset_never_dispatches_global_reset() {
     assert!(app_rx.try_recv().is_err());
     assert!(view.reset_confirmation.is_none());
 }
+
+#[test]
+fn localized_memory_reset_keeps_cancel_and_reset_meaning_at_narrow_widths() {
+    for (locale, cancel) in [
+        (crate::i18n::Locale::English, "Go back"),
+        (crate::i18n::Locale::Korean, "돌아가기"),
+    ] {
+        crate::i18n::with_locale(locale, || {
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+            let mut view = MemoriesSettingsView::new(
+                true,
+                true,
+                AppEventSender::new(tx),
+                crate::keymap::RuntimeKeymap::defaults().list,
+            );
+            view.open_reset_confirmation();
+            for width in [30, 40, 60, 80] {
+                let rows = view.build_rows();
+                assert!(rows[1].name.contains(cancel));
+                let area = Rect::new(0, 0, width, view.desired_height(width));
+                let mut buffer = Buffer::empty(area);
+                view.render(area, &mut buffer);
+                let text = buffer
+                    .content
+                    .chunks(usize::from(width))
+                    .map(|row| {
+                        row.iter()
+                            .map(ratatui::buffer::Cell::symbol)
+                            .collect::<String>()
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                assert!(
+                    text.replace(' ', "").contains(&cancel.replace(' ', "")),
+                    "{width}: {text}"
+                );
+            }
+            view.handle_key_event(KeyEvent::from(KeyCode::Esc));
+            assert!(view.reset_confirmation.is_none());
+            assert!(rx.try_recv().is_err());
+        });
+    }
+}
