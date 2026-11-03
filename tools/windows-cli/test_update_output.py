@@ -70,7 +70,7 @@ def main():
     version = receipt['version'].removeprefix('codex-cli ')
     pointer = {'schema': 1, 'installationRoot': str(install),
                'bootstrapManifestSha256': digest, 'bootstrapPackageRoot': str(package),
-               'packageRoot': str(package), 'manifestSha256': digest, 'revision': 33,
+               'packageRoot': str(package), 'manifestSha256': digest, 'revision': int(version.split('+native-r', 1)[1].split('.', 1)[0]),
                'version': version, 'sourceCommit': receipt['sourceCommit']}
     (install / 'current-package.json').write_text(json.dumps(pointer), encoding='utf-8')
     launcher = install / 'opendiy-codex-launcher.exe'
