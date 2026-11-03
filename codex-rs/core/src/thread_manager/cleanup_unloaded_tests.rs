@@ -450,3 +450,84 @@ async fn loaded_cleanup_preserves_runtime_when_foreign_store_has_unrelated_prepa
     assert!(stored(&manager, root.thread_id).await);
     assert!(stored(&manager, unrelated.thread_id).await);
 }
+
+#[tokio::test]
+async fn loaded_cleanup_keeps_reference_exclusion_through_shutdown_and_request_cancellation() {
+    use codex_thread_store::ThreadStore as _;
+    let ((_home, manager, config, root), faults) = fixture_with_graph_options(None, true).await;
+    let target = stored_child(&manager, &config, &root).await;
+    let unrelated = stored_child(&manager, &config, &root).await;
+    complete(&target.thread).await;
+    complete(&unrelated.thread).await;
+    unload(&manager, &unrelated).await;
+    let local = manager
+        .state
+        .thread_store
+        .as_any()
+        .downcast_ref::<LocalThreadStore>()
+        .unwrap();
+    let foreign = LocalThreadStore::new(
+        codex_thread_store::LocalThreadStoreConfig::from_config(&config),
+        local.state_db().await,
+    );
+    let selected = selection(&manager, root.thread_id).await;
+    let barrier = Arc::new(StoreBarrier::default());
+    *faults.shutdown.lock().unwrap() = Some((target.thread_id, Some(Arc::clone(&barrier))));
+    let owner_manager = copy_manager(&manager);
+    let request = tokio::spawn(async move {
+        owner_manager
+            .cleanup_completed_children(root.thread_id, root.thread_id, selected)
+            .await
+    });
+    wait_for(&barrier.entered).await;
+    assert!(
+        matches!(
+            foreign
+                .prepare_fork(store::PrepareForkParams {
+                    thread_id: unrelated.thread_id,
+                    boundary: store::ForkBoundary::Latest,
+                })
+                .await,
+            Err(store::ThreadStoreError::Retryable { .. })
+        ),
+        "preflight exclusion must remain held during real shutdown"
+    );
+    request.abort();
+    assert!(request.await.unwrap_err().is_cancelled());
+    assert!(
+        matches!(
+            foreign
+                .prepare_fork(store::PrepareForkParams {
+                    thread_id: unrelated.thread_id,
+                    boundary: store::ForkBoundary::Latest,
+                })
+                .await,
+            Err(store::ThreadStoreError::Retryable { .. })
+        ),
+        "request cancellation must not release the owner's File"
+    );
+    assert!(stored(&manager, target.thread_id).await);
+    barrier.release.notify_one();
+    wait_for(&barrier.finished).await;
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        loop {
+            if manager.get_thread(target.thread_id).await.is_err() {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the retained File is passed into deletion without reacquisition");
+    assert!(!stored(&manager, target.thread_id).await);
+    assert!(manager.admit_thread_activity(target.thread_id).is_err());
+    assert!(stored(&manager, root.thread_id).await);
+    assert!(stored(&manager, unrelated.thread_id).await);
+    foreign
+        .prepare_fork(store::PrepareForkParams {
+            thread_id: unrelated.thread_id,
+            boundary: store::ForkBoundary::Latest,
+        })
+        .await
+        .expect("the completed owner releases reference exclusion");
+}

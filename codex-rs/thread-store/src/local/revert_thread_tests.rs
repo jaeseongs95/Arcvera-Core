@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 use codex_protocol::ThreadId;
 use codex_protocol::models::BaseInstructions;
 use codex_protocol::protocol::EventMsg;
@@ -106,6 +107,7 @@ async fn revert_keeps_thread_id_and_hides_suffix_across_repeated_reverts() {
         replacement_meta.runtime_workspace_roots,
         Some(vec![home.path().join("workspace")])
     );
+    assert_replacement_projected(&store, first_replacement_path.as_path()).await;
     assert_eq!(turn_ids(&store, thread_id).await, vec!["turn-1"]);
 
     // Simulate an older binary replacing the rollout without the creator fields it does not know.
@@ -113,15 +115,24 @@ async fn revert_keeps_thread_id_and_hides_suffix_across_repeated_reverts() {
         .await
         .expect("read replacement rollout");
     let (meta_line, remaining_lines) = rollout.split_once('\n').expect("session metadata line");
+    let original_meta_line_bytes = meta_line.len();
     let mut meta_line: serde_json::Value = serde_json::from_str(meta_line).expect("parse metadata");
     let payload = meta_line["payload"]
         .as_object_mut()
         .expect("metadata payload");
     payload.remove("creator_user_id");
     payload.remove("creator_account_id");
+    // Keep history byte offsets intact: shortening an already projected rollout
+    // would independently violate the immutable-history contract under test.
+    let legacy_meta_line = meta_line.to_string();
+    let padding = " ".repeat(
+        original_meta_line_bytes
+            .checked_sub(legacy_meta_line.len())
+            .expect("omitting creator fields must shorten the metadata line"),
+    );
     tokio::fs::write(
         &first_replacement_path,
-        format!("{meta_line}\n{remaining_lines}"),
+        format!("{legacy_meta_line}{padding}\n{remaining_lines}"),
     )
     .await
     .expect("write legacy replacement rollout");
@@ -134,12 +145,13 @@ async fn revert_keeps_thread_id_and_hides_suffix_across_repeated_reverts() {
         })
         .await
         .expect("revert before first turn");
-    assert_eq!(turn_ids(&store, thread_id).await, Vec::<String>::new());
     let stored = state_db
         .get_thread(thread_id)
         .await
         .expect("read metadata")
         .expect("thread metadata");
+    assert_replacement_projected(&store, stored.rollout_path.as_path()).await;
+    assert_eq!(turn_ids(&store, thread_id).await, Vec::<String>::new());
     let recovered = codex_rollout::read_session_meta_line(&stored.rollout_path)
         .await
         .expect("read recovered creator metadata")
@@ -181,6 +193,186 @@ async fn revert_keeps_thread_id_and_hides_suffix_across_repeated_reverts() {
     for rollout_path in owned_rollout_paths {
         assert!(!rollout_path.exists());
     }
+}
+
+#[tokio::test]
+async fn revert_projection_failure_preserves_current_history_and_allows_retry_and_delete() {
+    let home = TempDir::new().expect("temp dir");
+    let config = test_config(home.path());
+    let state_db = codex_state::StateRuntime::init(
+        config.sqlite.clone(),
+        config.default_model_provider_id.clone(),
+    )
+    .await
+    .expect("initialize state database");
+    let store = LocalThreadStore::new(config, Some(state_db.clone()));
+    let thread_id = ThreadId::new();
+    create_paginated_thread(&store, thread_id).await;
+    store
+        .append_items(AppendThreadItemsParams {
+            thread_id,
+            items: vec![
+                turn_started("turn-1"),
+                turn_completed("turn-1"),
+                turn_started("turn-2"),
+                turn_completed("turn-2"),
+            ],
+        })
+        .await
+        .expect("append original turns");
+    let source_path = store
+        .live_rollout_path(thread_id)
+        .await
+        .expect("source path");
+    store
+        .shutdown_thread(thread_id)
+        .await
+        .expect("close source writer");
+    codex_rollout::state_db::reconcile_rollout(
+        Some(state_db.as_ref()),
+        &source_path,
+        "test-provider",
+        /*builder*/ None,
+        &[],
+        /*archived_only*/ Some(false),
+        /*new_thread_memory_mode*/ None,
+    )
+    .await;
+    super::super::thread_history_materialization::materialize_to_sqlite(
+        &store,
+        thread_id,
+        &source_path,
+    )
+    .await
+    .expect("project original history before fault injection");
+    let source_bytes = tokio::fs::read(&source_path).await.expect("source bytes");
+    let checkpoint = super::super::thread_history::projection_state(&store, thread_id)
+        .await
+        .expect("source projection")
+        .expect("source checkpoint");
+    let source_checkpoint = (checkpoint.next_byte_offset, checkpoint.next_ordinal);
+    let pool = store.thread_history_db().await.expect("history database");
+    // Use the existing SQLite surface, without a production hook. The original
+    // rollout ID remains writable; only the new replacement checkpoint is rejected.
+    sqlx::query(&format!(
+        "CREATE TRIGGER reject_replacement_projection
+         BEFORE INSERT ON thread_history_projection_state
+         WHEN NEW.thread_id != '{thread_id}'
+         BEGIN SELECT RAISE(ABORT, 'r36 replacement projection rejected'); END"
+    ))
+    .execute(pool)
+    .await
+    .expect("install replacement-only projection failure");
+    let params = RevertThreadParams {
+        thread_id,
+        before_turn_id: "turn-2".to_string(),
+        multi_agent_version: None,
+    };
+    let result = store.revert_thread(params.clone()).await;
+    assert!(
+        matches!(&result, Err(crate::ThreadStoreError::Internal { message })
+            if message.contains("r36 replacement projection rejected")),
+        "the replacement projection failure must reach the caller: {result:?}"
+    );
+    assert_eq!(
+        state_db
+            .get_thread(thread_id)
+            .await
+            .expect("read current metadata")
+            .expect("original thread metadata")
+            .rollout_path,
+        source_path,
+        "a failed replacement projection must not publish the new current path"
+    );
+    assert_eq!(
+        tokio::fs::read(&source_path)
+            .await
+            .expect("source bytes after failure"),
+        source_bytes
+    );
+    let checkpoint = super::super::thread_history::projection_state(&store, thread_id)
+        .await
+        .expect("source projection after failure")
+        .expect("source checkpoint retained");
+    assert_eq!(
+        (checkpoint.next_byte_offset, checkpoint.next_ordinal),
+        source_checkpoint
+    );
+    assert_eq!(turn_ids(&store, thread_id).await, vec!["turn-1", "turn-2"]);
+
+    // The persisted but unselected replacement has the same owner, so ordinary
+    // deletion must include it rather than treating it as an external reference.
+    let failed_paths = rollout_paths_for_thread(home.path(), thread_id).await;
+    assert_eq!(
+        failed_paths.len(),
+        2,
+        "reach the post-persist projection failure boundary"
+    );
+    let failed_path = failed_paths
+        .iter()
+        .find(|path| **path != source_path)
+        .expect("failed replacement path");
+    let failed_meta = codex_rollout::read_session_meta_line(failed_path)
+        .await
+        .expect("failed replacement metadata")
+        .meta;
+    assert_eq!(failed_meta.id, thread_id);
+    assert_eq!(
+        failed_meta
+            .history_base
+            .expect("retained source prefix")
+            .thread_id,
+        thread_id
+    );
+    let failed_rollout_id =
+        codex_rollout::rollout_id_from_path(failed_path).expect("failed replacement rollout ID");
+    assert!(
+        super::super::thread_history::projection_state(&store, failed_rollout_id)
+            .await
+            .expect("failed replacement projection")
+            .is_none()
+    );
+
+    sqlx::query("DROP TRIGGER reject_replacement_projection")
+        .execute(pool)
+        .await
+        .expect("remove isolated failure injection");
+    store
+        .revert_thread(params)
+        .await
+        .expect("retry revert after projection recovery");
+    assert_eq!(turn_ids(&store, thread_id).await, vec!["turn-1"]);
+    assert_eq!(
+        tokio::fs::read(&source_path)
+            .await
+            .expect("source after retry"),
+        source_bytes
+    );
+    let owned_paths = rollout_paths_for_thread(home.path(), thread_id).await;
+    assert_eq!(
+        owned_paths.len(),
+        3,
+        "original, failed, and successful replacements"
+    );
+    store
+        .delete_thread(DeleteThreadParams { thread_id })
+        .await
+        .expect("failed replacement must not permanently block source deletion");
+    for path in owned_paths {
+        assert!(!path.exists(), "owned rollout remains: {}", path.display());
+    }
+    assert!(
+        state_db
+            .get_thread(thread_id)
+            .await
+            .expect("deleted metadata")
+            .is_none()
+    );
+    assert!(
+        rollout_paths_for_thread(home.path(), thread_id)
+            .await
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -300,6 +492,24 @@ async fn create_paginated_thread(store: &LocalThreadStore, thread_id: ThreadId) 
         })
         .await
         .expect("create paginated thread");
+}
+
+// Revert must publish a readable replacement, including an empty retained history.
+// Check the actual rollout ID: the thread ID still names the original history projection.
+async fn assert_replacement_projected(store: &LocalThreadStore, path: &std::path::Path) {
+    let rollout_id = codex_rollout::rollout_id_from_path(path).expect("replacement rollout ID");
+    let checkpoint = super::super::thread_history::projection_state(store, rollout_id)
+        .await
+        .expect("read replacement projection")
+        .expect("revert must project replacement before publishing the current path");
+    assert_eq!(
+        checkpoint.next_byte_offset,
+        tokio::fs::metadata(path)
+            .await
+            .expect("replacement metadata")
+            .len(),
+        "replacement projection must cover the complete durable header"
+    );
 }
 
 async fn turn_ids(store: &LocalThreadStore, thread_id: ThreadId) -> Vec<String> {

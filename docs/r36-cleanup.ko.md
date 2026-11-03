@@ -80,3 +80,22 @@ CS 불변조건은 (C1) UUID·소유 범위·실행 세대의 혼동 금지, (C2
 Cargo/시험 실행은 통합 담당에게 일원화한다. 통합 담당의 `d5ca137a5` 격리 실행 영수증에는 14개 filter 모두 exit 0, `sourceFilesUnchanged=true`가 기록되었고 기존 cold 4개 시험의 PASS 로그를 확인했다. 이번 사전 거부 수정의 Core 3개와 추가한 기본 보존·참조 lease·취소·다중삭제 시험은 아직 **NOT_RUN**이다. 기존 cross-store 저장소 fixture의 수정 전 실행은 RED이며 수정 후 재실행은 아직 하지 않았다. 특히 cross-store 시험은 안전성을 판별하는 회귀 시험이며, 해당 경계 수정 소스를 추가했으나 수정 후 통과는 아직 확인하지 않았다. 기존 lifecycle 예약의 store 인스턴스 경계를 넘는 실제 실패는 RED로 확인했고, 수정 후 결과는 후속 실행에서 확인해야 한다.
 
 `reason` 생성물은 실제 Rust generator의 stable/experimental 각 1개 시험 exit 0으로 생성했다. `manual-generated-schema`와 통합 runner의 `generated-schema`는 1,118개 파일의 상대 경로와 SHA-256이 모두 일치했다. 의미가 바뀐 JSON 3개, TypeScript 1개, precomputed 압축 export 2개만 반영했으며 텍스트는 저장소 CRLF를 유지했다. 생성 실행의 source는 `d5ca137a5`이고 이번 사전 거부 패치는 protocol 선언을 바꾸지 않는다. 새 시험, 생성물 fixture 대조, 독립 감사, 실제 앱 부하 조건과 효과는 후속 통합 검증에서 확인해야 한다. 포맷 명령은 지정된 Rust 1.99.1의 `rustfmt.exe --edition 2024 --config skip_children=true`로 소유 파일에만 실행했다. 이 문서만으로 실제 사용자 항목의 삭제 가능 여부나 문제 해결을 선언하지 않는다.
+
+## loaded 참조 잠금 사전 검사 보강
+
+`a666c9bb1`의 loaded 경로는 참조 검사 뒤 런타임을 닫고, 최종 삭제에서 처음 global exclusive File을 얻었다. 다른 store가 관련 없는 `PreparedFork` shared File을 보유해도 close 뒤에야 경합을 발견하므로 종료·tombstone을 남길 수 있었다. 이를 방지하는 후보는 close 전에 exact-ID `LoadedThreadCleanupGuard`를 만들고 같은 exclusive File 아래 참조 검사를 한다. 경합이면 `reference_publication_busy`, 기존 참조 거절이면 `storage_rejected_before_deletion`을 반환하고 원본·런타임·admission을 보존한다. guard는 기존 Core cleanup owner가 shutdown 동안 유지하고 최종 삭제 owner로 이동한다. 삭제 시 File을 내려놓거나 재획득하지 않으며, UUID를 바꾸는 public 인수도 없다. 공용 `ThreadStore` 인터페이스에는 concrete guard 메서드를 추가하지 않는다.
+
+일반 fault-adapter fixture는 wrapper 자신의 identity를 반환하여 기존 shutdown/응답 유실/저장 실패 시험을 유지한다. 이 fixture가 실제 Local guard를 시험한다고 주장하지 않는다. persistent-graph fixture는 실제 Local identity를 노출하여 별도 loaded 정상삭제·호출 취소·reference 거절·다른 source의 PreparedFork 경합을 시험한다. `loaded_cleanup_preserves_runtime_when_foreign_store_has_unrelated_prepared_fork`는 수정 전 RED 판별용 별도 패치이며, `loaded_cleanup_keeps_reference_exclusion_through_shutdown_and_request_cancellation`는 shutdown 중 foreign prepare 거부와 호출 취소 뒤 owner의 삭제 완료를 확인한다. 외부 패치 준비 단계에서는 원본을 변경하지 않았으며, 이후 통합 담당이 회귀를 먼저 추가하고 실제 수정 전 실패를 확인한 뒤 제품 수정을 적용했다. 수정 후 시험은 아래 상태를 따른다.
+
+CLI long help의 번역 매핑과 기존 en/ko `cli-cleanup-long-about`도 기본 보존 문구로 함께 갱신하는 후보를 준비했다. `r36_cleanup_localized_long_help_explains_default_unloaded_preservation`는 실제 `cleanup-agents --help`의 Clap 결과를 현지화 경계에서 검사하며, 영어 도움말에 한국어 원문이 남거나 운영 cold 지원 미완 설명이 빠지면 실패한다. cold 기본 거부와 구버전 혼합 환경의 기존 loaded 위험은 이 보강으로 해소됐다고 판정하지 않는다.
+
+
+## 후속 실제 실패 확인과 수정 검증 범위
+
+`a666c9bb1` 전체 thread-store 시험은 290개 통과·2개 실패였다. 같은 후보의 protocol은 333개 통과·1개 무시, rollout은 162개 통과, Core 정리는 32개 통과였다. cross-store prepared fork 회귀는 통과했다. 이 결과는 다음 후속 소스의 전체 통과를 뜻하지 않는다.
+
+`5aba5801e`에서 제품 수정 없이 회귀를 먼저 실행했다. 컴파일은 종료 0이었고, repeated revert는 replacement projection 부재 assertion으로 실패했다. loaded 경합 회귀의 첫 exact 경로는 0개를 선택하여 성공으로 계산하지 않았으며, 동일 실행 파일의 `unloaded_tests` 포함 경로로 바로잡은 실제 1개 실행은 `storage_unconfirmed_partial_deletion_possible` 대 `reference_publication_busy` assertion에서 실패했다. 기존 원시 영수증은 덮어쓰지 않았다.
+
+후속 제품 수정은 loaded guard를 close 전에 확보하여 삭제 끝까지 같은 File을 보존하고, revert는 durable replacement의 projection을 먼저 준비한 뒤 SQLite current path를 CAS한다. 첨부 시험은 별도 삭제 owner task가 실제 lifecycle writer 대기열에 들어온 것을 확인한 후 후속 reader를 예약한다. 그 외 첨부 제품 동작은 바꾸지 않는다. SQLite trigger로 새 replacement projection만 거부하는 격리 시험은 오류 전달·current path·원본 bytes/checkpoint/turns 보존, 재시도와 같은 owner의 전체 rollout 삭제를 요구한다. 성공 경로뿐 아니라 새 실패 경계도 실제 후속 실행에서 확인해야 하며 현재 수정 후 결과는 NOT_RUN이다.
+
+cold 기본 보존과 구버전 혼합 위험은 여전히 미해결이다. 운영 cold 정리 완료, 실제 앱 입력/부하, R36 최종 제품 빌드·릴리스·설치의 성공을 주장하지 않는다.

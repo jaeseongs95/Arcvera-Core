@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Coverage for unloaded attachment operations and thread deletion exclusion.
 
 use super::LocalThreadStore;
@@ -325,6 +326,23 @@ async fn attachment_mutations_queued_behind_deletion_reject_deleted_threads() {
             }),
         };
         assert!(futures::poll!(&mut deletion).is_pending());
+
+        // Deletion now runs in an owned task. Polling its JoinHandle does not prove
+        // that the owner has queued its writer reservation. The held read guard
+        // prevents acquisition; try_read fails only once that writer is queued.
+        let lifecycle = store
+            .live_writer_locks
+            .coordination(thread_id)
+            .await
+            .lifecycle
+            .clone();
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            while lifecycle.try_read().is_ok() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("delete owner must queue its exclusive lifecycle reservation");
 
         // The queued exclusive delete must precede subsequent shared attachment reservations.
         let mut attachment = store.add_thread_attachment(AddThreadAttachmentParams {
