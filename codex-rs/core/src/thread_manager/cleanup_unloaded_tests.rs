@@ -389,3 +389,63 @@ async fn unloaded_cleanup_retains_tombstone_after_host_cleanup_mutation_boundary
     assert!(manager.admit_thread_activity(done.thread_id).is_err());
     assert!(manager.admit_thread_activity(root.thread_id).is_ok());
 }
+
+#[tokio::test]
+async fn loaded_cleanup_preserves_runtime_when_foreign_store_has_unrelated_prepared_fork() {
+    use codex_thread_store::ThreadStore as _;
+    let ((_home, manager, config, root), faults) = fixture_with_graph_options(None, true).await;
+    let target = stored_child(&manager, &config, &root).await;
+    let unrelated = stored_child(&manager, &config, &root).await;
+    complete(&target.thread).await;
+    complete(&unrelated.thread).await;
+    unload(&manager, &unrelated).await;
+    let local = manager
+        .state
+        .thread_store
+        .as_any()
+        .downcast_ref::<LocalThreadStore>()
+        .unwrap();
+    let foreign = LocalThreadStore::new(
+        codex_thread_store::LocalThreadStoreConfig::from_config(&config),
+        local.state_db().await,
+    );
+    let prepared = foreign
+        .prepare_fork(store::PrepareForkParams {
+            thread_id: unrelated.thread_id,
+            boundary: store::ForkBoundary::Latest,
+        })
+        .await
+        .expect("unrelated source is reserved by another real store");
+    assert!(prepared.history_base.is_some());
+    let selected = selection(&manager, root.thread_id).await;
+    assert_eq!(selected.len(), 1);
+    assert_eq!(selected[0].thread_id, target.thread_id);
+    let path = target.thread.rollout_path().unwrap();
+    let before = std::fs::read(&path).unwrap();
+    let results = manager
+        .cleanup_completed_children(root.thread_id, root.thread_id, selected)
+        .await
+        .unwrap();
+    assert_eq!(results[0].reason, "reference_publication_busy");
+    assert_eq!(std::fs::read(&path).unwrap(), before);
+    assert!(stored(&manager, target.thread_id).await);
+    assert!(target.thread.is_running());
+    assert!(!target.thread.io.admission.is_closing());
+    assert!(Arc::ptr_eq(
+        &manager.get_thread(target.thread_id).await.unwrap(),
+        &target.thread
+    ));
+    assert!(manager.admit_thread_activity(target.thread_id).is_ok());
+    assert!(faults.deletes.lock().unwrap().is_empty());
+    drop(prepared);
+    // A refusal before close must remain retryable using a fresh normal preview.
+    let selected = selection(&manager, root.thread_id).await;
+    let results = manager
+        .cleanup_completed_children(root.thread_id, root.thread_id, selected)
+        .await
+        .unwrap();
+    assert_eq!(results[0].outcome, "deleted");
+    assert!(!stored(&manager, target.thread_id).await);
+    assert!(stored(&manager, root.thread_id).await);
+    assert!(stored(&manager, unrelated.thread_id).await);
+}
