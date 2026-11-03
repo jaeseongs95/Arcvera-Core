@@ -126,6 +126,8 @@ impl UnloadedThreadCleanupGuard {
             &mut locks,
             before_mutation,
             &self._reference_deletion,
+            #[cfg(feature = "test-support")]
+            None,
         )
         .await
     }

@@ -25,19 +25,17 @@ struct StoreFaults {
     create: StdMutex<Option<Arc<StoreBarrier>>>,
     discard: StdMutex<Option<Arc<StoreBarrier>>>,
     delete: StdMutex<Option<(ThreadId, Arc<StoreBarrier>)>>,
+    after_delete: StdMutex<Option<(ThreadId, Arc<StoreBarrier>)>>,
     fail_delete: StdMutex<HashSet<ThreadId>>,
     lose_delete_response: StdMutex<HashSet<ThreadId>>,
     deletes: StdMutex<Vec<Vec<ThreadId>>>,
 }
 
 /// Forward every real operation to the isolated LocalThreadStore. Faults live at the
-/// persistence API used by LiveThread and cleanup, never in cleanup's verdict flags.
+/// LiveThread persistence API or the real Local loaded-delete owner, never in verdict flags.
 struct FaultStore {
     inner: Arc<dyn store::ThreadStore>,
     faults: Arc<StoreFaults>,
-    // Fault wrappers test the generic adapter contract. Only explicit local-boundary
-    // fixtures expose the underlying LocalThreadStore for its concrete cleanup guard.
-    expose_local_cleanup_identity: bool,
 }
 
 struct BarrierGraph {
@@ -100,11 +98,7 @@ macro_rules! forward {
 
 impl store::ThreadStore for FaultStore {
     fn as_any(&self) -> &dyn std::any::Any {
-        if self.expose_local_cleanup_identity {
-            self.inner.as_any()
-        } else {
-            self
-        }
+        self.inner.as_any()
     }
     fn default_history_mode(&self) -> codex_protocol::protocol::ThreadHistoryMode {
         self.inner.default_history_mode()
@@ -195,59 +189,7 @@ impl store::ThreadStore for FaultStore {
         })
     }
 
-    fn delete_threads(
-        &self,
-        params: store::DeleteThreadsParams,
-    ) -> store::ThreadStoreFuture<'_, ()> {
-        Box::pin(async move {
-            self.faults
-                .deletes
-                .lock()
-                .unwrap()
-                .push(params.thread_ids.clone());
-            let barrier = {
-                let mut slot = self.faults.delete.lock().unwrap();
-                if slot
-                    .as_ref()
-                    .is_some_and(|(id, _)| params.thread_ids == [*id])
-                {
-                    slot.take().map(|(_, barrier)| barrier)
-                } else {
-                    None
-                }
-            };
-            if let Some(barrier) = &barrier {
-                barrier.block().await;
-            }
-            if params
-                .thread_ids
-                .iter()
-                .any(|id| self.faults.fail_delete.lock().unwrap().contains(id))
-            {
-                return Err(store::ThreadStoreError::Retryable {
-                    message: "injected deletion failure before commit".into(),
-                });
-            }
-            let lose_response = params.thread_ids.iter().any(|id| {
-                self.faults
-                    .lose_delete_response
-                    .lock()
-                    .unwrap()
-                    .contains(id)
-            });
-            let result = self.inner.delete_threads(params).await;
-            if let Some(barrier) = barrier {
-                barrier.finished.notify_one();
-            }
-            result?;
-            if lose_response {
-                return Err(store::ThreadStoreError::OutcomeUnknown {
-                    message: "injected response loss after actual local deletion".into(),
-                });
-            }
-            Ok(())
-        })
-    }
+    forward!(delete_threads(params: store::DeleteThreadsParams) -> ());
 }
 
 async fn fixture() -> (
@@ -328,12 +270,72 @@ async fn fixture_with_graph_options(
     let faults = Arc::new(StoreFaults::default());
     let state = Arc::get_mut(&mut manager.state).unwrap();
     let cleanup_faults = Arc::clone(&faults);
+    let before_delete_faults = Arc::clone(&faults);
+    let after_delete_faults = Arc::clone(&faults);
     let local = state
         .thread_store
         .as_any()
         .downcast_ref::<LocalThreadStore>()
         .unwrap()
         .clone()
+        .with_loaded_cleanup_delete_hooks_for_test(
+            move |id| {
+                let faults = Arc::clone(&before_delete_faults);
+                Box::pin(async move {
+                    faults.deletes.lock().unwrap().push(vec![id]);
+                    let barrier = faults
+                        .delete
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .filter(|(target, _)| *target == id)
+                        .map(|(_, barrier)| Arc::clone(barrier));
+                    if let Some(barrier) = barrier {
+                        barrier.block().await;
+                    }
+                    if faults.fail_delete.lock().unwrap().contains(&id) {
+                        return Err(store::ThreadStoreError::Retryable {
+                            message: "injected deletion failure before commit".into(),
+                        });
+                    }
+                    Ok(())
+                })
+            },
+            move |id| {
+                let faults = Arc::clone(&after_delete_faults);
+                Box::pin(async move {
+                    let barrier = {
+                        let mut slot = faults.delete.lock().unwrap();
+                        if slot.as_ref().is_some_and(|(target, _)| *target == id) {
+                            slot.take().map(|(_, barrier)| barrier)
+                        } else {
+                            None
+                        }
+                    };
+                    if let Some(barrier) = barrier {
+                        barrier.finished.notify_one();
+                    }
+                    let after = {
+                        let mut slot = faults.after_delete.lock().unwrap();
+                        if slot.as_ref().is_some_and(|(target, _)| *target == id) {
+                            slot.take().map(|(_, barrier)| barrier)
+                        } else {
+                            None
+                        }
+                    };
+                    if let Some(after) = after {
+                        after.block().await;
+                        after.finished.notify_one();
+                    }
+                    if faults.lose_delete_response.lock().unwrap().contains(&id) {
+                        return Err(store::ThreadStoreError::OutcomeUnknown {
+                            message: "injected response loss after actual local deletion".into(),
+                        });
+                    }
+                    Ok(())
+                })
+            },
+        )
         .with_thread_data_cleanup(move |ids| {
             let faults = Arc::clone(&cleanup_faults);
             Box::pin(async move {
@@ -363,7 +365,6 @@ async fn fixture_with_graph_options(
     state.thread_store = Arc::new(FaultStore {
         inner: Arc::new(local),
         faults: Arc::clone(&faults),
-        expose_local_cleanup_identity: persistent_graph,
     });
     state.agent_graph_store = if persistent_graph {
         Some(Arc::new(
@@ -876,6 +877,179 @@ async fn cleanup_owner_survives_request_cancellation_at_storage_boundary() {
     assert!(stale_submission.await.unwrap().is_err());
     assert!(!stored(&manager, done.thread_id).await);
     assert!(manager.get_thread(done.thread_id).await.is_err());
+    assert_eq!(*faults.deletes.lock().unwrap(), vec![vec![done.thread_id]]);
+    assert!(stored(&manager, root.thread_id).await);
+}
+
+#[tokio::test]
+async fn loaded_cleanup_local_hooks_hold_all_leases_across_delete_and_cancellation() {
+    use codex_thread_store::ThreadStore as _;
+    let ((_home, manager, config, root), faults) = fixture_with_faults().await;
+    let done = child(&manager, &config, &root).await;
+    complete(&done.thread).await;
+    let selected = selection(&manager, root.thread_id).await;
+    let local = manager
+        .state
+        .thread_store
+        .as_any()
+        .downcast_ref::<LocalThreadStore>()
+        .expect("actual Local cleanup boundary");
+    let foreign = LocalThreadStore::new(
+        store::LocalThreadStoreConfig::from_config(&config),
+        local.state_db().await,
+    );
+    let before = Arc::new(StoreBarrier::default());
+    let after = Arc::new(StoreBarrier::default());
+    *faults.delete.lock().unwrap() = Some((done.thread_id, Arc::clone(&before)));
+    *faults.after_delete.lock().unwrap() = Some((done.thread_id, Arc::clone(&after)));
+    let path = done.thread.rollout_path().unwrap();
+    let root_id = root.thread_id;
+    let id = done.thread_id;
+    let owner = copy_manager(&manager);
+    let request = tokio::spawn(async move {
+        owner
+            .cleanup_completed_children(root_id, root_id, selected)
+            .await
+    });
+    wait_for(&before.entered).await;
+    assert!(path.exists());
+    assert!(done.thread.io.admission.shutdown_confirmed());
+    assert!(
+        matches!(
+            foreign.reserve_loaded_cleanup(root_id).await,
+            Err(store::ThreadStoreError::Retryable { .. })
+        ),
+        "same global File is held before deletion"
+    );
+    assert!(
+        matches!(
+            foreign.reserve_unloaded_cleanup(id).await,
+            Err(store::ThreadStoreError::Conflict { .. })
+        ),
+        "writer lease is held before deletion"
+    );
+    let mut attachment = local.add_thread_attachment(store::AddThreadAttachmentParams {
+        thread_id: id,
+        attachment_type: "test".into(),
+        identity_key: "loaded-cleanup-lease".into(),
+        payload: serde_json::json!({}),
+    });
+    assert!(
+        futures::poll!(&mut attachment).is_pending(),
+        "lifecycle lease excludes attachments"
+    );
+    request.abort();
+    assert!(request.await.unwrap_err().is_cancelled());
+    assert!(manager.admit_thread_activity(id).is_err());
+    assert!(
+        matches!(
+            foreign.reserve_loaded_cleanup(root_id).await,
+            Err(store::ThreadStoreError::Retryable { .. })
+        ),
+        "request cancellation retains exclusion"
+    );
+    before.release.notify_one();
+    wait_for(&after.entered).await;
+    assert!(
+        !path.exists(),
+        "post hook runs after actual rollout deletion"
+    );
+    assert!(
+        !stored(&manager, id).await,
+        "post hook runs after actual state-row deletion"
+    );
+    assert!(
+        manager.get_thread(id).await.is_ok(),
+        "Core has not received its storage reply"
+    );
+    assert!(
+        matches!(
+            foreign.reserve_loaded_cleanup(root_id).await,
+            Err(store::ThreadStoreError::Retryable { .. })
+        ),
+        "same File survives the post-delete hook"
+    );
+    assert!(
+        matches!(
+            foreign.reserve_unloaded_cleanup(id).await,
+            Err(store::ThreadStoreError::Conflict { .. })
+        ),
+        "writer lease survives the post-delete hook"
+    );
+    assert!(
+        futures::poll!(&mut attachment).is_pending(),
+        "lifecycle survives the post-delete hook"
+    );
+    after.release.notify_one();
+    wait_for(&after.finished).await;
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        while manager.get_thread(id).await.is_ok() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("owner completes after both real storage boundaries");
+    assert!(
+        matches!(attachment.await, Err(store::ThreadStoreError::ThreadNotFound { thread_id }) if thread_id == id)
+    );
+    drop(
+        foreign
+            .reserve_loaded_cleanup(root_id)
+            .await
+            .expect("finished owner releases its File"),
+    );
+    assert_eq!(*faults.deletes.lock().unwrap(), vec![vec![id]]);
+    assert!(stored(&manager, root_id).await);
+}
+
+#[tokio::test]
+async fn loaded_cleanup_local_failure_releases_leases_and_keeps_closed_runtime() {
+    let ((_home, manager, config, root), faults) = fixture_with_faults().await;
+    let done = child(&manager, &config, &root).await;
+    complete(&done.thread).await;
+    let selected = selection(&manager, root.thread_id).await;
+    let local = manager
+        .state
+        .thread_store
+        .as_any()
+        .downcast_ref::<LocalThreadStore>()
+        .expect("actual Local cleanup boundary");
+    let foreign = LocalThreadStore::new(
+        store::LocalThreadStoreConfig::from_config(&config),
+        local.state_db().await,
+    );
+    let path = done.thread.rollout_path().unwrap();
+    let bytes = std::fs::read(&path).unwrap();
+    faults.fail_delete.lock().unwrap().insert(done.thread_id);
+    let result = manager
+        .cleanup_completed_children(root.thread_id, root.thread_id, selected)
+        .await
+        .unwrap();
+    assert_eq!(
+        result[0].reason,
+        "storage_unconfirmed_partial_deletion_possible"
+    );
+    assert_eq!(std::fs::read(&path).unwrap(), bytes);
+    assert!(stored(&manager, done.thread_id).await);
+    assert!(done.thread.io.admission.shutdown_confirmed());
+    assert!(manager.admit_thread_activity(done.thread_id).is_err());
+    assert!(done.thread.submit(Op::Interrupt).await.is_err());
+    assert!(Arc::ptr_eq(
+        &manager.get_thread(done.thread_id).await.unwrap(),
+        &done.thread
+    ));
+    drop(
+        foreign
+            .reserve_loaded_cleanup(root.thread_id)
+            .await
+            .expect("failed owner releases its global File without reopening admission"),
+    );
+    drop(
+        foreign
+            .reserve_unloaded_cleanup(done.thread_id)
+            .await
+            .expect("failed owner releases writer and lifecycle storage ownership"),
+    );
     assert_eq!(*faults.deletes.lock().unwrap(), vec![vec![done.thread_id]]);
     assert!(stored(&manager, root.thread_id).await);
 }
