@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "sourceCommit": "867de5dd2fa5162703a7eafd78a741b05149d51d",
+  "sourceCommit": "1992480a1b13b90b91c767b5a36e2c05ff12c5db",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -19408,10 +19408,10 @@
     {
       "path": "codex-rs/cli/src/cleanup_agents.rs",
       "gitMode": "100644",
-      "gitBlob": "bc55ca28730f3403b1affe0e92366b3e78ddb07e",
-      "sourceSha256": "66a1e4751befc31ba470c3eb319283719fb20ee72a396ae379583f46e67fb1b7",
-      "publishedSha256": "78aceaeddb2a4a5b4ab3586f382fa523bee50a209921192eca542ee27dd63e36",
-      "bytes": 6211,
+      "gitBlob": "698dca0794e49fa383cf2455082a24ff9c17ee3a",
+      "sourceSha256": "d5d97efa6f65305bab6633034eb5721548835a1187612bca19725b936da5071b",
+      "publishedSha256": "289d65d571193ca80b81bb77f4a3e868e7f3806445f26a79969037ecf32fce99",
+      "bytes": 6260,
       "modified": true,
       "noticeOnly": true
     },
@@ -19978,10 +19978,10 @@
     {
       "path": "codex-rs/cli/src/localization.rs",
       "gitMode": "100644",
-      "gitBlob": "9a2ec9e64bb7d0dfb1e293db2894538d03c7dfcd",
-      "sourceSha256": "fc1f1d8b0125ece5aec3873a3c490f2dadecdf457af646d2ac0447efe70a0fde",
-      "publishedSha256": "ba1a7b70c0d75b4f5a5c7c269864e8dfbf402409627d9178660a0716dcfaca16",
-      "bytes": 121174,
+      "gitBlob": "c4540a1cd4b77f5fb3288292bf9d82b44dfa35f7",
+      "sourceSha256": "c342ee58b056edb36c52c6df8a40e0f46c3c9136bd547ad147d4f5789190bdfa",
+      "publishedSha256": "12d452a98fc9ce84e7a10e077dba92f904640b63393bf37a5d73376d6f2a253c",
+      "bytes": 122189,
       "modified": true,
       "noticeOnly": true
     },
@@ -20008,10 +20008,10 @@
     {
       "path": "codex-rs/cli/src/main.rs",
       "gitMode": "100644",
-      "gitBlob": "00eb17e0f2672680a22e69d5fbd5f6a9e5883acc",
-      "sourceSha256": "ed1bd2e88c4df0635d9facbfbc781a2e4a003bf2bb0b6945652829a5aa88f362",
-      "publishedSha256": "abe12276c7afa6fbdc0bc8d9bc97b2b05149e13d3e115ae4fef13a6fa5cf5fcf",
-      "bytes": 205880,
+      "gitBlob": "a10cb0c715d1149a4882e1b9553a9ace882fd604",
+      "sourceSha256": "f4a63c346ef6fd4ed16db9a1dfaf8a12559c19df65279aa1d8db75e029628259",
+      "publishedSha256": "da233e1adf375dc74805d410c2313348c1846771f8826bbd72a55af51beeca0b",
+      "bytes": 205936,
       "modified": true,
       "noticeOnly": true
     },
@@ -93248,10 +93248,10 @@
     {
       "path": "docs/r36-cleanup.ko.md",
       "gitMode": "100644",
-      "gitBlob": "9654954cc186d3a5f078eea14cc3ebdd3ebf7ead",
-      "sourceSha256": "dd4f4faffe492a24b78dece6673e30296962db77de8f5c328a4c76e55cb83b9e",
-      "publishedSha256": "0570b1d9d06b3aeac5982eeb3a27172aa39cef56a0becbd486b58b4b58c2c2eb",
-      "bytes": 20110,
+      "gitBlob": "982298cff66fb637dfd6f23d7f7d59efe3153787",
+      "sourceSha256": "7a9d84074e35105e327a877a24e97214475f5c5151e0a28e8ca814e91ac96d11",
+      "publishedSha256": "10daf4be654b4da2f20a4bce6231c26a0fb6867ba60bf3c44243a0e2597fca2d",
+      "bytes": 21039,
       "modified": true,
       "noticeOnly": true
     },

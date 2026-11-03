@@ -1,14 +1,16 @@
 # R36 개발 후보
 
-고정 소스는 `867de5dd2fa5162703a7eafd78a741b05149d51d`입니다. 공식 최신 안정판을 2026-11-03 다시 조회했으며 0.166.0입니다. R34 발행본과 R35 원본, 공유 daemon과 사용자 데이터를 보존합니다.
+고정 소스는 `1992480a1b13b90b91c767b5a36e2c05ff12c5db`입니다. 공식 최신 안정판을 2026-11-03 다시 조회했으며 0.166.0입니다. R34 발행본·R35 원본·공유 daemon·사용자 데이터를 보존합니다.
 
-서브에이전트 요약 1행과 상세 최대 3행, 내부 스크롤, 읽기 전용 `codex ci status/list/watch`, fast/ultrafast 전파 시험과 내용 없는 compact phase 계측을 포함합니다. 제품 unloaded cold 정리는 `reference_participants_unverified`로 보존하며 운영 기능은 미완입니다. 구버전 참여자 부재를 DB 조회나 새 lease만으로 증명했다고 주장하지 않습니다.
+서브에이전트 요약1행과 상세최대3행·내부스크롤, 읽기 전용 `codex ci status/list/watch`, fast/ultrafast 전파 시험, 내용 없는 compact 계측을 포함합니다. 제품 unloaded cold 정리는 `reference_participants_unverified`로 보존하며 운영 기능은 미완입니다. 구버전의 미게시·지연 참조 부재를 현재 DB·새 lease·일회성 프로세스 목록으로 증명했다고 주장하지 않습니다.
 
-선행 후보4be3702의 실제 시험은 전체 thread-store293개 통과, Core cleanup19개 통과/15개 실패입니다. loaded 참조 경합과 repeated revert의 실제 RED는 이 후보에서 GREEN이 됐습니다. Core fault wrapper가 Local 진입 검사에 거절되는 실패는 실제 Local guard 내부의 test-support 한정 전후 callback으로 보강했습니다. 기존34개 회귀 assertion은 유지하고, 실제 삭제 전후 File/writer/lifecycle 수명과 취소/실패를 확인하는2개를 추가했습니다. 새 후보의 동적 시험은 아직 NOT_RUN입니다.
+선행4be3702 실행은 thread-store293개 통과, Core cleanup19개 통과/15개 실패였습니다. loaded 참조 경합과 repeated revert의 실제 RED는 이 후보에서 GREEN이 됐습니다. Core fault wrapper의 Local 진입 검사 충돌은 실제 Local owner 내부 test-support 한정 전후 callback으로 보강했습니다. 기존34개 assertion을 유지하고 실제 삭제 전후 File/writer/lifecycle 수명·요청 취소·실패 뒤 lease 반납2개를 추가했습니다.
 
-4be3702의 별도 CLI 시험은 CI/parser10개와 first-install parser1개 통과, localization15개 중11개 통과/4개 실패입니다. 긴 cleanup 도움말 전달과 문구 매핑 및 현재 Clap 경계 fixture의 보강은 별도 후속 수정입니다. tier 실행과 최종 새 독립감사는 미완료이며 앞 후보 감사는 FAIL입니다. 이전 후보 또는 부분 시험을 현재 전체 후보의 통과로 계산하지 않습니다.
+4be3702의 별도 CLI 실행은 CI/parser10개와 first-install parser1개 통과, localization15개 중11개 통과/4개 실패였습니다. 첫 설치 매핑 마침표와 실제 Subcommand variant의 cleanup long_about를 수정했고, command build 준비 비대칭과 잘못된 TooManyValues fixture를 바로잡으면서 기존 delimiter typed 허용 동작을 검증합니다.
 
-공개 내보내기는 소스9454개/공식 대비 변경717개입니다. 원시 로그, 실행 파일, 인증과 사용자 데이터는 게시하지 않습니다. main 병합은 사용자가 수행하며 이 작업에서 제품 빌드/동결/릴리스/설치를 실행하지 않습니다.
+현재1992480a1은 위 수정 소스를 고정해 store/Core→CLI/CI→tier→TUI/Cloud/compact 순차 시험을 시작했습니다. 아직 현재 후보의 전체 통과나 새 독립감사를 완료하지 않았습니다. 앞 후보 감사는 FAIL이며 이전/부분 시험을 현재 전체 통과로 계산하지 않습니다. 공개 내보내기는 소스9454개/공식 대비 변경717개입니다.
+
+사용자가 PR30을 병합했으며 후속 수정은 새 PR로 구분합니다. 이 작업에서는 main 병합·제품 빌드/동결·릴리스·설치를 실행하지 않습니다. 원시 로그·실행 파일·인증·사용자 데이터를 게시하지 않습니다.
 
 ## 이전 후보 기록
 

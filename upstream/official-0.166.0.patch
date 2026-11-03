@@ -38102,16 +38102,18 @@ index 000000000..d50757bcc
 +}
 diff --git a/codex-rs/cli/src/cleanup_agents.rs b/codex-rs/cli/src/cleanup_agents.rs
 new file mode 100644
-index 000000000..bc55ca287
+index 000000000..698dca079
 --- /dev/null
 +++ b/codex-rs/cli/src/cleanup_agents.rs
-@@ -0,0 +1,170 @@
+@@ -0,0 +1,172 @@
 +use clap::Parser;
++
++pub(crate) const LONG_ABOUT: &str = "미리보기가 기본이며 각 항목의 reason에 정리·보존 사유를 표시합니다. --apply는 미리보기 뒤 명시 확인을 받습니다. 메모리에 없는 과거 종료 항목은 참조 안전성을 입증할 수 없어 reference_participants_unverified로 보존합니다. 해당 항목의 운영 정리 지원은 미완입니다. 실행 중이거나 상태가 불명확한 항목, 다른 세대·원격 소유·이전 방식 항목은 보존합니다. --thread를 반복하면 정확한 선택 집합만 정리하며 선택하지 않은 후손은 보존합니다.";
 +
 +#[derive(Debug, Parser)]
 +#[command(
 +    about = "현재 부모 아래 로컬 2세대 서브에이전트의 종료 대화를 미리 보고 정리합니다.",
-+    long_about = "미리보기가 기본이며 각 항목의 reason에 정리·보존 사유를 표시합니다. --apply는 미리보기 뒤 명시 확인을 받습니다. 메모리에 없는 과거 종료 항목은 참조 안전성을 입증할 수 없어 reference_participants_unverified로 보존합니다. 해당 항목의 운영 정리 지원은 미완입니다. 실행 중이거나 상태가 불명확한 항목, 다른 세대·원격 소유·이전 방식 항목은 보존합니다. --thread를 반복하면 정확한 선택 집합만 정리하며 선택하지 않은 후손은 보존합니다."
++    long_about = LONG_ABOUT
 +)]
 +pub(crate) struct CleanupAgentsCommand {
 +    /// 현재 대화 UUID. 생략하면 CODEX_THREAD_ID를 사용합니다.
@@ -38355,10 +38357,10 @@ index cc91f5b82..3cf865bb0 100644
  use clap::Parser;
 diff --git a/codex-rs/cli/src/localization.rs b/codex-rs/cli/src/localization.rs
 new file mode 100644
-index 000000000..9a2ec9e64
+index 000000000..c4540a1cd
 --- /dev/null
 +++ b/codex-rs/cli/src/localization.rs
-@@ -0,0 +1,2388 @@
+@@ -0,0 +1,2410 @@
 +//! Localize Clap presentation while preserving argument IDs, names, values and parsers.
 +
 +use clap::Command;
@@ -38972,7 +38974,8 @@ index 000000000..9a2ec9e64
 +        "Start the local app server daemon if it is not already running" => {
 +            Some("cli-help-main-start-the-local-app-server-daemon-if-it")
 +        }
-+        "Install only if no installation, settings, or recovery state exists under the lifecycle lock." => {
++        "Install only if no installation, settings, or recovery state exists under the lifecycle lock"
++        | "Install only if no installation, settings, or recovery state exists under the lifecycle lock." => {
 +            Some("cli-help-first-installation-only")
 +        }
 +        "Use only the selected installation; preserve settings and updater state" => {
@@ -40402,10 +40405,9 @@ index 000000000..9a2ec9e64
 +                Command::new("fixture").arg(
 +                    Arg::new("item")
 +                        .long("item")
-+                        .num_args(1..=2)
-+                        .value_delimiter(','),
++                        .action(clap::ArgAction::SetTrue),
 +                ),
-+                vec!["fixture", "--item", "one,two,three"],
++                vec!["fixture", "--item=one"],
 +                ErrorKind::TooManyValues,
 +                "예상하지 않은 추가 값",
 +            ),
@@ -40429,6 +40431,27 @@ index 000000000..9a2ec9e64
 +            assert_eq!(after.kind(), before.kind());
 +            assert_eq!(after.exit_code(), before.exit_code());
 +            assert!(after.to_string().contains(expected), "{after}");
++        }
++        // Clap checks raw argument counts before splitting delimiters. Preserve
++        // that accepted input instead of treating three split values as an error.
++        let delimited = Command::new("fixture").arg(
++            Arg::new("item")
++                .long("item")
++                .num_args(1..=2)
++                .value_delimiter(','),
++        );
++        for command in [delimited.clone(), localize_help(delimited, Locale::Korean)] {
++            let parsed = command
++                .try_get_matches_from(["fixture", "--item", "one,two,three"])
++                .expect("delimiter splitting preserves Clap's accepted values");
++            assert_eq!(
++                parsed
++                    .get_many::<String>("item")
++                    .expect("string values")
++                    .map(String::as_str)
++                    .collect::<Vec<_>>(),
++                ["one", "two", "three"]
++            );
 +        }
 +        let invalid_utf8: clap::Error = clap::Error::new(ErrorKind::InvalidUtf8);
 +        let invalid_utf8 = invalid_utf8.apply::<KoreanErrorFormatter>();
@@ -40626,6 +40649,7 @@ index 000000000..9a2ec9e64
 +    #[test]
 +    fn r28_english_help_preserves_new_command_and_flag_descriptions() {
 +        let mut original = crate::MultitoolCli::command();
++        original.build();
 +        let mut english = localize_help(crate::MultitoolCli::command(), Locale::English);
 +        for path in [
 +            vec!["app-server"],
@@ -40748,7 +40772,7 @@ index 000000000..9a2ec9e64
 +    }
 +}
 diff --git a/codex-rs/cli/src/main.rs b/codex-rs/cli/src/main.rs
-index 8a578c38a..00eb17e0f 100644
+index 8a578c38a..a10cb0c71 100644
 --- a/codex-rs/cli/src/main.rs
 +++ b/codex-rs/cli/src/main.rs
 @@ -53,6 +53,8 @@ static ALLOCATOR: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
@@ -40784,17 +40808,18 @@ index 8a578c38a..00eb17e0f 100644
      /// Run commands within a Codex-provided sandbox.
      Sandbox(SandboxCommand),
  
-@@ -208,6 +214,9 @@ enum Subcommand {
+@@ -208,6 +214,10 @@ enum Subcommand {
      /// Queue a message for an existing session.
      Queue(QueueCommand),
  
 +    /// 현재 부모 아래 종료된 서브에이전트를 미리 보거나 확인 후 정리합니다.
++    #[command(long_about = cleanup_agents::LONG_ABOUT)]
 +    CleanupAgents(cleanup_agents::CleanupAgentsCommand),
 +
      /// Archive a saved session by id or session name.
      Archive(SessionArchiveCommand),
  
-@@ -602,9 +611,20 @@ struct AppServerCommand {
+@@ -602,9 +612,20 @@ struct AppServerCommand {
      stdio: bool,
  
      /// Enable remote control for this app-server process without changing persistence.
@@ -40816,7 +40841,7 @@ index 8a578c38a..00eb17e0f 100644
      /// Save loaded threads during managed daemon shutdown.
      #[arg(long, hide = true)]
      managed_daemon: bool,
-@@ -663,7 +683,14 @@ enum AppServerDaemonSubcommand {
+@@ -663,7 +684,14 @@ enum AppServerDaemonSubcommand {
      Bootstrap(AppServerBootstrapCommand),
  
      /// Start the local app server daemon if it is not already running.
@@ -40832,7 +40857,7 @@ index 8a578c38a..00eb17e0f 100644
  
      /// Restart the local app server daemon.
      Restart,
-@@ -676,6 +703,9 @@ enum AppServerDaemonSubcommand {
+@@ -676,6 +704,9 @@ enum AppServerDaemonSubcommand {
          /// Confirm replacing the daemon package without an interactive prompt.
          #[arg(short = 'y', long, requires = "from_cli")]
          yes: bool,
@@ -40842,7 +40867,7 @@ index 8a578c38a..00eb17e0f 100644
      },
  
      /// Enable remote control for future starts and a currently running managed daemon.
-@@ -690,6 +720,12 @@ enum AppServerDaemonSubcommand {
+@@ -690,6 +721,12 @@ enum AppServerDaemonSubcommand {
      /// Print local CLI and running app-server versions as JSON.
      Version,
  
@@ -40855,7 +40880,7 @@ index 8a578c38a..00eb17e0f 100644
      /// [internal] Run the detached pid-backed standalone updater loop.
      #[clap(hide = true)]
      PidUpdateLoop {
-@@ -814,6 +850,9 @@ fn run_update_action(
+@@ -814,6 +851,9 @@ fn run_update_action(
          println!("Relaunch Codex to reconnect.");
          return Ok(());
      }
@@ -40865,7 +40890,7 @@ index 8a578c38a..00eb17e0f 100644
      println!();
      let cmd_str = action.command_str();
      println!("Updating Codex via `{cmd_str}`...");
-@@ -879,7 +918,51 @@ fn resolve_windows_update_command_from_path(
+@@ -879,7 +919,51 @@ fn resolve_windows_update_command_from_path(
          .ok_or_else(|| anyhow::anyhow!("could not find update command `{command}` on PATH"))
  }
  
@@ -40918,7 +40943,7 @@ index 8a578c38a..00eb17e0f 100644
      #[cfg(debug_assertions)]
      {
          anyhow::bail!(
-@@ -999,7 +1082,10 @@ impl FeatureToggles {
+@@ -999,7 +1083,10 @@ impl FeatureToggles {
          if is_known_feature_key(feature) {
              Ok(())
          } else {
@@ -40930,7 +40955,7 @@ index 8a578c38a..00eb17e0f 100644
          }
      }
  }
-@@ -1037,11 +1123,18 @@ fn stage_str(stage: Stage) -> &'static str {
+@@ -1037,11 +1124,18 @@ fn stage_str(stage: Stage) -> &'static str {
  }
  
  fn main() -> anyhow::Result<()> {
@@ -40950,7 +40975,7 @@ index 8a578c38a..00eb17e0f 100644
          Ok(())
      })
  }
-@@ -1049,7 +1142,9 @@ fn main() -> anyhow::Result<()> {
+@@ -1049,7 +1143,9 @@ fn main() -> anyhow::Result<()> {
  async fn cli_main(
      arg0_paths: Arg0DispatchPaths,
      remote_control_disabled: bool,
@@ -40960,7 +40985,7 @@ index 8a578c38a..00eb17e0f 100644
      let MultitoolCli {
          config_overrides: mut root_config_overrides,
          feature_toggles,
-@@ -1057,7 +1152,7 @@ async fn cli_main(
+@@ -1057,7 +1153,7 @@ async fn cli_main(
          mut interactive,
          subcommand,
      } = config_override_args::try_parse_from(std::env::args_os())
@@ -40969,7 +40994,7 @@ index 8a578c38a..00eb17e0f 100644
      // Retain the launch target through TUI exit, even if a launcher changes selection.
      let daemon_cli_executable = arg0_paths
          .codex_self_exe
-@@ -1151,6 +1246,7 @@ async fn cli_main(
+@@ -1151,6 +1247,7 @@ async fn cli_main(
                  root_remote.clone(),
                  root_remote_auth_token_env.clone(),
                  arg0_paths.clone(),
@@ -40977,7 +41002,7 @@ index 8a578c38a..00eb17e0f 100644
              )
              .await?;
              handle_app_exit(exit_info, daemon_cli_executable.as_deref())?;
-@@ -1253,11 +1349,16 @@ async fn cli_main(
+@@ -1253,11 +1350,16 @@ async fn cli_main(
                  listen,
                  stdio,
                  remote_control,
@@ -40994,7 +41019,7 @@ index 8a578c38a..00eb17e0f 100644
              reject_strict_config_for_app_server_subcommand(strict_config, subcommand.as_ref())?;
              reject_remote_mode_for_app_server_subcommand(
                  root_remote.as_deref(),
-@@ -1299,8 +1400,10 @@ async fn cli_main(
+@@ -1299,8 +1401,10 @@ async fn cli_main(
                          cloud_skills_snapshot,
                          code_mode_host_transport: code_mode_host.into(),
                          managed_daemon,
@@ -41007,7 +41032,7 @@ index 8a578c38a..00eb17e0f 100644
                              (true, _) => {
                                  codex_app_server::RemoteControlStartupMode::EnabledEphemeral
                              }
-@@ -1331,8 +1434,18 @@ async fn cli_main(
+@@ -1331,8 +1435,18 @@ async fn cli_main(
                      }
                  }
                  Some(AppServerSubcommand::Daemon(daemon_cli)) => match daemon_cli.subcommand {
@@ -41028,7 +41053,7 @@ index 8a578c38a..00eb17e0f 100644
                      }
                      AppServerDaemonSubcommand::Bootstrap(bootstrap_cli) => {
                          let output =
-@@ -1387,10 +1500,12 @@ async fn cli_main(
+@@ -1387,10 +1501,12 @@ async fn cli_main(
                      AppServerDaemonSubcommand::Update {
                          from_cli: true,
                          yes,
@@ -41044,7 +41069,7 @@ index 8a578c38a..00eb17e0f 100644
                          .await;
                          daemon_telemetry::record_command(
                              &root_config_overrides,
-@@ -1401,6 +1516,14 @@ async fn cli_main(
+@@ -1401,6 +1517,14 @@ async fn cli_main(
                          .await;
                          if let Some(output) = result? {
                              println!("{}", serde_json::to_string(&output)?);
@@ -41059,7 +41084,7 @@ index 8a578c38a..00eb17e0f 100644
                          }
                      }
                      AppServerDaemonSubcommand::EnableRemoteControl => {
-@@ -1419,6 +1542,18 @@ async fn cli_main(
+@@ -1419,6 +1543,18 @@ async fn cli_main(
                      AppServerDaemonSubcommand::Version => {
                          print_app_server_daemon_output(AppServerLifecycleCommand::Version).await?;
                      }
@@ -41078,7 +41103,7 @@ index 8a578c38a..00eb17e0f 100644
                      AppServerDaemonSubcommand::PidUpdateLoop {
                          check_package_ownership: true,
                          ..
-@@ -1471,16 +1606,17 @@ async fn cli_main(
+@@ -1471,16 +1607,17 @@ async fn cli_main(
                          }
                      }
                  },
@@ -41106,7 +41131,7 @@ index 8a578c38a..00eb17e0f 100644
                  Some(AppServerSubcommand::GenerateTs(gen_cli)) => {
                      let options = codex_app_server_protocol::GenerateTsOptions {
                          experimental_api: gen_cli.experimental,
-@@ -1552,6 +1688,7 @@ async fn cli_main(
+@@ -1552,6 +1689,7 @@ async fn cli_main(
                      .remote_auth_token_env
                      .or(root_remote_auth_token_env.clone()),
                  arg0_paths.clone(),
@@ -41114,7 +41139,7 @@ index 8a578c38a..00eb17e0f 100644
              )
              .await?;
              handle_app_exit(exit_info, daemon_cli_executable.as_deref())?;
-@@ -1616,6 +1753,17 @@ async fn cli_main(
+@@ -1616,6 +1754,17 @@ async fn cli_main(
              )
              .await?;
          }
@@ -41132,7 +41157,7 @@ index 8a578c38a..00eb17e0f 100644
          Some(Subcommand::Unarchive(cmd)) => {
              let output = run_session_archive_cli_command(
                  codex_tui::SessionArchiveAction::Unarchive,
-@@ -1652,6 +1800,7 @@ async fn cli_main(
+@@ -1652,6 +1801,7 @@ async fn cli_main(
                      .remote_auth_token_env
                      .or(root_remote_auth_token_env.clone()),
                  arg0_paths.clone(),
@@ -41140,7 +41165,7 @@ index 8a578c38a..00eb17e0f 100644
              )
              .await?;
              handle_app_exit(exit_info, daemon_cli_executable.as_deref())?;
-@@ -1720,13 +1869,13 @@ async fn cli_main(
+@@ -1720,13 +1870,13 @@ async fn cli_main(
              )?;
              print_completion(completion_cli);
          }
@@ -41156,7 +41181,7 @@ index 8a578c38a..00eb17e0f 100644
          }
          Some(Subcommand::Doctor(doctor_cli)) => {
              reject_remote_mode_for_subcommand(
-@@ -1742,6 +1891,14 @@ async fn cli_main(
+@@ -1742,6 +1892,14 @@ async fn cli_main(
              )
              .await?;
          }
@@ -41171,7 +41196,7 @@ index 8a578c38a..00eb17e0f 100644
          Some(Subcommand::Cloud(mut cloud_cli)) => {
              reject_remote_mode_for_subcommand(
                  root_remote.as_deref(),
-@@ -2007,7 +2164,10 @@ async fn enable_feature_in_config(feature: &str) -> anyhow::Result<()> {
+@@ -2007,7 +2165,10 @@ async fn enable_feature_in_config(feature: &str) -> anyhow::Result<()> {
          .set_feature_enabled(feature, /*enabled*/ true)
          .apply()
          .await?;
@@ -41183,7 +41208,7 @@ index 8a578c38a..00eb17e0f 100644
      maybe_print_under_development_feature_warning(&codex_home, feature);
      Ok(())
  }
-@@ -2019,7 +2179,10 @@ async fn disable_feature_in_config(feature: &str) -> anyhow::Result<()> {
+@@ -2019,7 +2180,10 @@ async fn disable_feature_in_config(feature: &str) -> anyhow::Result<()> {
          .set_feature_enabled(feature, /*enabled*/ false)
          .apply()
          .await?;
@@ -41195,7 +41220,7 @@ index 8a578c38a..00eb17e0f 100644
      Ok(())
  }
  
-@@ -2061,9 +2224,13 @@ fn maybe_print_under_development_feature_warning(codex_home: &std::path::Path, f
+@@ -2061,9 +2225,13 @@ fn maybe_print_under_development_feature_warning(codex_home: &std::path::Path, f
      }
  
      let config_path = codex_home.join(codex_config::CONFIG_TOML_FILE);
@@ -41211,7 +41236,7 @@ index 8a578c38a..00eb17e0f 100644
      );
  }
  
-@@ -2373,6 +2540,7 @@ fn unsupported_subcommand_name_for_strict_config(
+@@ -2373,6 +2541,7 @@ fn unsupported_subcommand_name_for_strict_config(
          Some(Subcommand::RemoteControl(remote_control)) => Some(remote_control.subcommand_name()),
          Some(Subcommand::Mcp(_)) => Some("mcp"),
          Some(Subcommand::Plugin(_)) => Some("plugin"),
@@ -41219,7 +41244,7 @@ index 8a578c38a..00eb17e0f 100644
          Some(Subcommand::MigrateRollouts(_)) => Some("migrate-rollouts"),
          Some(Subcommand::MigrateNfsDb(_)) => Some("migrate-nfs-db"),
          #[cfg(any(target_os = "macos", target_os = "windows"))]
-@@ -2380,8 +2548,9 @@ fn unsupported_subcommand_name_for_strict_config(
+@@ -2380,8 +2549,9 @@ fn unsupported_subcommand_name_for_strict_config(
          Some(Subcommand::Login(_)) => Some("login"),
          Some(Subcommand::Logout(_)) => Some("logout"),
          Some(Subcommand::Completion(_)) => Some("completion"),
@@ -41230,7 +41255,7 @@ index 8a578c38a..00eb17e0f 100644
          Some(Subcommand::Sandbox(_)) => Some("sandbox"),
          Some(Subcommand::Debug(_)) => Some("debug"),
          Some(Subcommand::Execpolicy(_)) => Some("execpolicy"),
-@@ -2393,6 +2562,19 @@ fn unsupported_subcommand_name_for_strict_config(
+@@ -2393,6 +2563,19 @@ fn unsupported_subcommand_name_for_strict_config(
      }
  }
  
@@ -41250,7 +41275,7 @@ index 8a578c38a..00eb17e0f 100644
  fn reject_strict_config_for_app_server_subcommand(
      strict_config: bool,
      subcommand: Option<&AppServerSubcommand>,
-@@ -2430,7 +2612,7 @@ fn app_server_subcommand_name(subcommand: Option<&AppServerSubcommand>) -> &'sta
+@@ -2430,7 +2613,7 @@ fn app_server_subcommand_name(subcommand: Option<&AppServerSubcommand>) -> &'sta
          None => "app-server",
          Some(AppServerSubcommand::Daemon(daemon)) => match daemon.subcommand {
              AppServerDaemonSubcommand::Bootstrap(_) => "app-server daemon bootstrap",
@@ -41259,7 +41284,7 @@ index 8a578c38a..00eb17e0f 100644
              AppServerDaemonSubcommand::Restart => "app-server daemon restart",
              AppServerDaemonSubcommand::Update { .. } => "app-server daemon update",
              AppServerDaemonSubcommand::EnableRemoteControl => {
-@@ -2441,6 +2623,7 @@ fn app_server_subcommand_name(subcommand: Option<&AppServerSubcommand>) -> &'sta
+@@ -2441,6 +2624,7 @@ fn app_server_subcommand_name(subcommand: Option<&AppServerSubcommand>) -> &'sta
              }
              AppServerDaemonSubcommand::Stop => "app-server daemon stop",
              AppServerDaemonSubcommand::Version => "app-server daemon version",
@@ -41267,7 +41292,7 @@ index 8a578c38a..00eb17e0f 100644
              AppServerDaemonSubcommand::PidUpdateLoop { .. } => "app-server daemon pid-update-loop",
          },
          Some(AppServerSubcommand::Proxy(_)) => "app-server proxy",
-@@ -2499,6 +2682,7 @@ async fn run_interactive_tui(
+@@ -2499,6 +2683,7 @@ async fn run_interactive_tui(
      remote: Option<String>,
      remote_auth_token_env: Option<String>,
      arg0_paths: Arg0DispatchPaths,
@@ -41275,7 +41300,7 @@ index 8a578c38a..00eb17e0f 100644
  ) -> std::io::Result<AppExitInfo> {
      if interactive.no_daemon {
          if interactive.agents_overview {
-@@ -2567,6 +2751,7 @@ async fn run_interactive_tui(
+@@ -2567,6 +2752,7 @@ async fn run_interactive_tui(
              arg0_paths.clone(),
              codex_config::LoaderOverrides::default(),
              remote_endpoint.clone(),
@@ -41283,7 +41308,7 @@ index 8a578c38a..00eb17e0f 100644
          )
      };
      run_tui_with_recovery(start_tui, remote_auth_token_env.as_deref()).await
-@@ -2775,6 +2960,7 @@ fn merge_interactive_cli_flags(interactive: &mut TuiCli, subcommand_cli: TuiCli)
+@@ -2775,6 +2961,7 @@ fn merge_interactive_cli_flags(interactive: &mut TuiCli, subcommand_cli: TuiCli)
          web_search,
          no_alt_screen,
          no_daemon,
@@ -41291,7 +41316,7 @@ index 8a578c38a..00eb17e0f 100644
          prompt,
          mut config_overrides,
          ..
-@@ -2796,6 +2982,9 @@ fn merge_interactive_cli_flags(interactive: &mut TuiCli, subcommand_cli: TuiCli)
+@@ -2796,6 +2983,9 @@ fn merge_interactive_cli_flags(interactive: &mut TuiCli, subcommand_cli: TuiCli)
      }
      interactive.no_alt_screen |= no_alt_screen;
      interactive.no_daemon |= no_daemon;
@@ -41301,7 +41326,7 @@ index 8a578c38a..00eb17e0f 100644
      if strict_config {
          interactive.strict_config = true;
      }
-@@ -2824,6 +3013,45 @@ mod tests {
+@@ -2824,6 +3014,45 @@ mod tests {
      use codex_tui::TokenUsage;
      use pretty_assertions::assert_eq;
  
@@ -41347,7 +41372,7 @@ index 8a578c38a..00eb17e0f 100644
      #[test]
      fn interactive_tui_future_stays_bounded() {
          let future = run_interactive_tui(
-@@ -2831,6 +3059,7 @@ mod tests {
+@@ -2831,6 +3060,7 @@ mod tests {
              /*remote*/ None,
              /*remote_auth_token_env*/ None,
              Arg0DispatchPaths::default(),
@@ -41355,7 +41380,7 @@ index 8a578c38a..00eb17e0f 100644
          );
          let size = std::mem::size_of_val(&future);
  
-@@ -3625,7 +3854,106 @@ enabled = true
+@@ -3625,7 +3855,106 @@ enabled = true
      #[test]
      fn update_parses_as_update_subcommand() {
          let cli = MultitoolCli::try_parse_from(["codex", "update"]).expect("parse");
@@ -41463,7 +41488,7 @@ index 8a578c38a..00eb17e0f 100644
      }
  
      #[test]
-@@ -4291,6 +4619,7 @@ enabled = true
+@@ -4291,6 +4620,7 @@ enabled = true
          let app_server = app_server_from_args(["codex", "app-server"].as_ref());
          assert!(!app_server.analytics_default_enabled);
          assert!(!app_server.remote_control);
@@ -41471,7 +41496,7 @@ index 8a578c38a..00eb17e0f 100644
          assert_eq!(
              app_server.listen,
              codex_app_server::AppServerTransport::Stdio
-@@ -4301,6 +4630,114 @@ enabled = true
+@@ -4301,6 +4631,114 @@ enabled = true
      fn app_server_remote_control_startup_flag_enables_remote_control() {
          let enabled = app_server_from_args(["codex", "app-server", "--remote-control"].as_ref());
          assert!(enabled.remote_control);
@@ -41586,7 +41611,7 @@ index 8a578c38a..00eb17e0f 100644
      }
  
      #[test]
-@@ -4465,6 +4902,66 @@ enabled = true
+@@ -4465,6 +4903,66 @@ enabled = true
          assert!(err.to_string().contains("remote-control"));
      }
  
@@ -41653,7 +41678,7 @@ index 8a578c38a..00eb17e0f 100644
      #[test]
      fn remote_control_pair_parses() {
          let cli = MultitoolCli::try_parse_from(["codex", "remote-control", "pair"]).expect("parse");
-@@ -4777,7 +5274,10 @@ enabled = true
+@@ -4777,7 +5275,10 @@ enabled = true
          assert!(matches!(
              app_server_from_args(["codex", "app-server", "daemon", "start"].as_ref()).subcommand,
              Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
@@ -41665,7 +41690,7 @@ index 8a578c38a..00eb17e0f 100644
              }))
          ));
          assert!(matches!(
-@@ -4818,6 +5318,103 @@ enabled = true
+@@ -4818,6 +5319,103 @@ enabled = true
          ));
      }
  
@@ -118975,10 +119000,10 @@ index 000000000..8c51e4acc
 +소스와 시험은 별도 R36 브랜치에서 개발한다. 기존 warm cache와 자원 보호를 재사용하며 빌드 프로세스를 여러 개 동시에 시작하지 않는다. 실제 시험 결과·종료 코드·후보 SHA를 연결하고, 미실행과 통과를 구분한다. 최종 변경의 수용 근거 확인과 새로운 독립감사를 거친다. 이번 요청만으로 main 병합·릴리스·설치를 실행하지 않는다.
 diff --git a/docs/r36-cleanup.ko.md b/docs/r36-cleanup.ko.md
 new file mode 100644
-index 000000000..9654954cc
+index 000000000..982298cff
 --- /dev/null
 +++ b/docs/r36-cleanup.ko.md
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,104 @@
 +# R36: 종료 서브에이전트 정리 사유와 보존 경계
 +
 +기존 `preview_completed_children`는 저장된 그래프와 메모리의 자손을 함께 나열했지만 `get_thread(id)`가 실패하면 후보를 무조건 보존했다. 따라서 저장된 종료 대화 수와 `eligible` 수는 일치하지 않을 수 있었다. 각 항목의 보존 사유도 응답에 없었다. 이번 작업에서는 실제 사용자 세션·DB·로그를 열지 않았으므로 사용자에게 제시된 9개/302개의 개별 원인을 재판정한 결과는 아니다.
@@ -119057,7 +119082,7 @@ index 000000000..9654954cc
 +| `reference_deletion_owner_retains_exclusion_after_caller_cancels` | 실제 삭제 검사 후 barrier에서 호출자를 취소해도 File과 원본을 유지하다 owner가 삭제 완료(test-support) |
 +| 기존 Core/app-server cleanup suite | 실제 shutdown 실패, stale Arc, host queue/goal, 선택하지 않은 자손, 저장 오류 보호 회귀(C1–C5) |
 +
-+Cargo/시험 실행은 통합 담당에게 일원화한다. 통합 담당의 `d5ca137a5` 격리 실행 영수증에는 14개 filter 모두 exit 0, `sourceFilesUnchanged=true`가 기록되었고 기존 cold 4개 시험의 PASS 로그를 확인했다. 이번 사전 거부 수정의 Core 3개와 추가한 기본 보존·참조 lease·취소·다중삭제 시험은 아직 **NOT_RUN**이다. 기존 cross-store 저장소 fixture의 수정 전 실행은 RED이며 수정 후 재실행은 아직 하지 않았다. 특히 cross-store 시험은 안전성을 판별하는 회귀 시험이며, 해당 경계 수정 소스를 추가했으나 수정 후 통과는 아직 확인하지 않았다. 기존 lifecycle 예약의 store 인스턴스 경계를 넘는 실제 실패는 RED로 확인했고, 수정 후 결과는 후속 실행에서 확인해야 한다.
++Cargo/시험 실행은 통합 담당에게 일원화한다. 초기 `d5ca137a5` 격리 실행에서는 14개 filter 모두 exit 0과 `sourceFilesUnchanged=true`가 기록됐다. 당시 새 참조 lease 회귀는 아직 미실행이었다. 그 뒤 `a666c9bb1`에서 cross-store prepared-fork 회귀가 실제 통과했고, `4be3702c`에서는 전체 thread-store 293개가 통과했다. 각 후보의 Core·CLI 실패와 현재 후속 수정 상태는 아래에 별도로 기록한다. 이전 후보의 부분 통과를 전체 최신 후보의 통과로 옮겨 계산하지 않는다.
 +
 +`reason` 생성물은 실제 Rust generator의 stable/experimental 각 1개 시험 exit 0으로 생성했다. `manual-generated-schema`와 통합 runner의 `generated-schema`는 1,118개 파일의 상대 경로와 SHA-256이 모두 일치했다. 의미가 바뀐 JSON 3개, TypeScript 1개, precomputed 압축 export 2개만 반영했으며 텍스트는 저장소 CRLF를 유지했다. 생성 실행의 source는 `d5ca137a5`이고 이번 사전 거부 패치는 protocol 선언을 바꾸지 않는다. 새 시험, 생성물 fixture 대조, 독립 감사, 실제 앱 부하 조건과 효과는 후속 통합 검증에서 확인해야 한다. 포맷 명령은 지정된 Rust 1.99.1의 `rustfmt.exe --edition 2024 --config skip_children=true`로 소유 파일에만 실행했다. 이 문서만으로 실제 사용자 항목의 삭제 가능 여부나 문제 해결을 선언하지 않는다.
 +
@@ -119065,7 +119090,7 @@ index 000000000..9654954cc
 +
 +`a666c9bb1`의 loaded 경로는 참조 검사 뒤 런타임을 닫고, 최종 삭제에서 처음 global exclusive File을 얻었다. 다른 store가 관련 없는 `PreparedFork` shared File을 보유해도 close 뒤에야 경합을 발견하므로 종료·tombstone을 남길 수 있었다. 이를 방지하는 후보는 close 전에 exact-ID `LoadedThreadCleanupGuard`를 만들고 같은 exclusive File 아래 참조 검사를 한다. 경합이면 `reference_publication_busy`, 기존 참조 거절이면 `storage_rejected_before_deletion`을 반환하고 원본·런타임·admission을 보존한다. guard는 기존 Core cleanup owner가 shutdown 동안 유지하고 최종 삭제 owner로 이동한다. 삭제 시 File을 내려놓거나 재획득하지 않으며, UUID를 바꾸는 public 인수도 없다. 공용 `ThreadStore` 인터페이스에는 concrete guard 메서드를 추가하지 않는다.
 +
-+일반 fault-adapter fixture는 wrapper 자신의 identity를 반환하여 기존 shutdown/응답 유실/저장 실패 시험을 유지한다. 이 fixture가 실제 Local guard를 시험한다고 주장하지 않는다. persistent-graph fixture는 실제 Local identity를 노출하여 별도 loaded 정상삭제·호출 취소·reference 거절·다른 source의 PreparedFork 경합을 시험한다. `loaded_cleanup_preserves_runtime_when_foreign_store_has_unrelated_prepared_fork`는 수정 전 RED 판별용 별도 패치이며, `loaded_cleanup_keeps_reference_exclusion_through_shutdown_and_request_cancellation`는 shutdown 중 foreign prepare 거부와 호출 취소 뒤 owner의 삭제 완료를 확인한다. 외부 패치 준비 단계에서는 원본을 변경하지 않았으며, 이후 통합 담당이 회귀를 먼저 추가하고 실제 수정 전 실패를 확인한 뒤 제품 수정을 적용했다. 수정 후 시험은 아래 상태를 따른다.
++`4be3702c`의 일반 fault-adapter는 wrapper identity를 반환했으나 기존 LocalThreadStore 진입 검사와 충돌했다. 따라서 해당 후보의 Core 정리 회귀는 19개 통과·15개 실패였으며 기존 shutdown/응답 유실/저장 실패 검증이 유지됐다고 볼 수 없다. 후속 `867de5dd2`에서는 fixture가 실제 Local identity를 노출하고, 삭제 File·writer·lifecycle을 보유한 실제 Local owner 내부의 전후 callback으로 실패 주입을 옮겼다. callback/type/field/인수는 `test-support` feature에만 있고 일반 제품 경로의 삭제 순서는 바꾸지 않는다. 기존 34개 시험 assertion은 유지하고, 실제 삭제 전후와 요청 취소 중 lease 수명 및 저장 실패 뒤 lease 반납을 확인하는 2개를 추가했다. 이 후보의 실제 재실행 결과는 아직 NOT_RUN이다. 별도의 loaded 참조 경합과 shutdown/cancel 회귀는 `4be3702c`에서 이미 통과했다.
 +
 +CLI long help의 번역 매핑과 기존 en/ko `cli-cleanup-long-about`도 기본 보존 문구로 함께 갱신하는 후보를 준비했다. `r36_cleanup_localized_long_help_explains_default_unloaded_preservation`는 실제 `cleanup-agents --help`의 Clap 결과를 현지화 경계에서 검사하며, 영어 도움말에 한국어 원문이 남거나 운영 cold 지원 미완 설명이 빠지면 실패한다. cold 기본 거부와 구버전 혼합 환경의 기존 loaded 위험은 이 보강으로 해소됐다고 판정하지 않는다.
 +
@@ -119076,9 +119101,13 @@ index 000000000..9654954cc
 +
 +`5aba5801e`에서 제품 수정 없이 회귀를 먼저 실행했다. 컴파일은 종료 0이었고, repeated revert는 replacement projection 부재 assertion으로 실패했다. loaded 경합 회귀의 첫 exact 경로는 0개를 선택하여 성공으로 계산하지 않았으며, 동일 실행 파일의 `unloaded_tests` 포함 경로로 바로잡은 실제 1개 실행은 `storage_unconfirmed_partial_deletion_possible` 대 `reference_publication_busy` assertion에서 실패했다. 기존 원시 영수증은 덮어쓰지 않았다.
 +
-+후속 제품 수정은 loaded guard를 close 전에 확보하여 삭제 끝까지 같은 File을 보존하고, revert는 durable replacement의 projection을 먼저 준비한 뒤 SQLite current path를 CAS한다. 첨부 시험은 별도 삭제 owner task가 실제 lifecycle writer 대기열에 들어온 것을 확인한 후 후속 reader를 예약한다. 그 외 첨부 제품 동작은 바꾸지 않는다. SQLite trigger로 새 replacement projection만 거부하는 격리 시험은 오류 전달·current path·원본 bytes/checkpoint/turns 보존, 재시도와 같은 owner의 전체 rollout 삭제를 요구한다. 성공 경로뿐 아니라 새 실패 경계도 실제 후속 실행에서 확인해야 하며 현재 수정 후 결과는 NOT_RUN이다.
++후속 제품 수정은 loaded guard를 close 전에 확보하여 삭제 끝까지 같은 File을 보존하고, revert는 durable replacement의 projection을 먼저 준비한 뒤 SQLite current path를 CAS한다. 첨부 시험은 별도 삭제 owner task가 실제 lifecycle writer 대기열에 들어온 것을 확인한 후 후속 reader를 예약한다. 그 외 첨부 제품 동작은 바꾸지 않는다. SQLite trigger로 새 replacement projection만 거부하는 격리 시험은 오류 전달·current path·원본 bytes/checkpoint/turns 보존, 재시도와 같은 owner의 전체 rollout 삭제를 요구한다. `4be3702c`의 실제 전체 저장소 시험에서 위 projection 실패·원본 보존·재시도·같은 owner 삭제와 repeated revert가 모두 통과했다(293개 통과·0개 실패). 같은 후보의 Core 정리 19개 통과·15개 실패는 별개이며 후속 Local fixture 수정의 재실행이 필요하다.
++
++`4be3702c`의 별도 CLI 실행은 CI/parser 10개와 first-install parser 1개 통과, localization 15개 중 11개 통과·4개 실패였다. `b675c710`은 첫 설치 short-help 마침표 매핑, 실제 Subcommand variant의 cleanup long_about 연결을 수정했다. original command의 build 준비를 동일하게 하고, 잘못된 delimiter 오류 fixture는 실제 TooManyValues 경계 및 기존 delimiter 입력의 typed 성공 보존 검증으로 바꿨다. 수정 후 실제 CLI 재시험은 아직 NOT_RUN이다.
 +
 +cold 기본 보존과 구버전 혼합 위험은 여전히 미해결이다. 운영 cold 정리 완료, 실제 앱 입력/부하, R36 최종 제품 빌드·릴리스·설치의 성공을 주장하지 않는다.
++
++구버전이 메모리에 준비한 미게시·지연 참조는 현재 DB·새 lease·일회성 프로세스 목록만으로 부정할 수 없다. 운영 cold 정리를 활성화하려면 구 참여자의 정상 배출과 재진입 방지 또는 검증된 저장소 격리 경계가 추가로 필요하다. 기존 R28 daemon과 진행 작업을 보존하는 현재 범위에서 이를 충족했다고 가정하지 않으며, 설정 플래그로 안전 검사를 우회하지 않는다.
 diff --git a/docs/r36-cloud-ci.ko.md b/docs/r36-cloud-ci.ko.md
 new file mode 100644
 index 000000000..b1d0f7c8b
