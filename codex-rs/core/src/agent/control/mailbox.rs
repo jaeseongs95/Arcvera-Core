@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Retains queue-only mail while local sessions are unloaded.
 //! Eviction transfers mail before releasing the recipient's residency guard.
 
@@ -33,6 +34,15 @@ struct StoredMail {
 }
 
 impl Mailboxes {
+    pub(super) fn has_pending(&self, agent: ThreadId) -> bool {
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_ref()
+            .and_then(|mailboxes| mailboxes.get(&agent))
+            .is_some_and(|mailbox| !mailbox.pending.is_empty())
+    }
+
     pub(super) fn enqueue(
         &self,
         agent: ThreadId,

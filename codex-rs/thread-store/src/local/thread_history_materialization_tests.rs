@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 use std::cell::Cell;
 use std::fs;
 use std::io::Write;
@@ -1511,6 +1511,171 @@ async fn cancelled_fork_keeps_source_reserved_until_lineage_resolution_finishes(
     delete
         .await
         .expect("delete source after lineage resolution finishes");
+}
+
+#[tokio::test]
+async fn metadata_cleanup_cannot_publish_dangling_cross_store_prepared_fork() {
+    let home = TempDir::new().expect("isolated home");
+    let store_a = projection_store(home.path()).await;
+    let store_b = LocalThreadStore::new(test_config(home.path()), store_a.state_db().await);
+    let source_id = ThreadId::new();
+    let parent_id = ThreadId::new();
+    let params = CreateThreadParams {
+        creator_user_id: None,
+        creator_account_id: None,
+        session_id: parent_id.into(),
+        thread_id: source_id,
+        extra_config: None,
+        forked_from_id: None,
+        attached_thread: false,
+        parent_thread_id: Some(parent_id),
+        source: SessionSource::SubAgent(codex_protocol::protocol::SubAgentSource::ThreadSpawn {
+            parent_thread_id: parent_id,
+            depth: 1,
+            agent_path: None,
+            agent_nickname: None,
+            agent_role: None,
+        }),
+        thread_source: None,
+        originator: "isolated-cross-store-cleanup-fixture".into(),
+        base_instructions: BaseInstructions::default(),
+        dynamic_tools: Vec::new(),
+        selected_capability_roots: Vec::new(),
+        multi_agent_version: Some(codex_protocol::protocol::MultiAgentVersion::V2),
+        history_mode: ThreadHistoryMode::Paginated,
+        history_base: None,
+        subagent_history_start_ordinal: None,
+        initial_window_id: "fixture-window".into(),
+        runtime_workspace_roots: None,
+        metadata: ThreadPersistenceMetadata {
+            cwd: Some(home.path().to_path_buf()),
+            model_provider: "test-provider".into(),
+            memory_mode: ThreadMemoryMode::Disabled,
+        },
+    };
+    store_a
+        .create_thread(params.clone())
+        .await
+        .expect("create source");
+    store_a
+        .append_items(AppendThreadItemsParams {
+            thread_id: source_id,
+            items: vec![turn_started("source-turn"), turn_completed("source-turn")],
+        })
+        .await
+        .expect("append terminal source turn");
+    store_a
+        .persist_thread(source_id, PersistContext::Standard)
+        .await
+        .expect("persist source");
+    let source_path = store_a
+        .live_rollout_path(source_id)
+        .await
+        .expect("source path");
+    store_a
+        .shutdown_thread(source_id)
+        .await
+        .expect("unload source");
+    // B owns a separate synchronization registry, sharing only this fixture's home/DB.
+    let prepared = store_b
+        .prepare_fork(PrepareForkParams {
+            thread_id: source_id,
+            boundary: ForkBoundary::Latest,
+        })
+        .await
+        .expect("B prepares source before publishing a fork");
+    let history_base = prepared.history_base.expect("real inherited source prefix");
+    assert_eq!(history_base.thread_id, source_id);
+    let deletion = tokio::time::timeout(Duration::from_secs(10), async {
+        let guard = store_a.reserve_unloaded_cleanup(source_id).await?;
+        let preview = guard.preview().await?;
+        assert_eq!(preview.reason, "unloaded_terminal");
+        assert!(
+            preview.snapshot.is_some(),
+            "fixture must reach real cold eligibility"
+        );
+        guard.delete(|| {}).await
+    })
+    .await
+    .expect("cleanup must return bounded deletion/preservation result");
+    let source_exists = source_path.exists();
+    let fork_id = ThreadId::new();
+    let mut fork_params = params;
+    fork_params.thread_id = fork_id;
+    fork_params.session_id = fork_id.into();
+    fork_params.parent_thread_id = None;
+    fork_params.source = SessionSource::Exec;
+    fork_params.multi_agent_version = None;
+    fork_params.forked_from_id = Some(source_id);
+    fork_params.history_base = Some(history_base);
+    let publication = async {
+        store_b.create_thread(fork_params).await?;
+        store_b
+            .persist_thread(fork_id, PersistContext::Standard)
+            .await
+    }
+    .await;
+    // PreparedFork stays alive through A's deletion and B's durable publication.
+    // RAM context alone cannot make a canonical reference to a deleted source safe.
+    assert!(
+        source_exists || publication.is_err(),
+        "dangling fork published after cold source deletion: deletion={deletion:?}, publication={publication:?}"
+    );
+    if source_exists {
+        publication.expect("publication remains usable when source is preserved");
+        store_b
+            .load_latest_model_context(crate::LoadThreadHistoryParams {
+                thread_id: fork_id,
+                include_archived: true,
+            })
+            .await
+            .expect("published reference remains resolvable");
+    }
+    drop(prepared);
+}
+
+#[tokio::test]
+async fn metadata_cleanup_rejects_stale_fork_after_complete_set_multi_delete() {
+    let home = TempDir::new().expect("isolated home");
+    let store_a = projection_store(home.path()).await;
+    let store_b = LocalThreadStore::new(test_config(home.path()), store_a.state_db().await);
+    let source = ThreadId::new();
+    create_paginated_thread(&store_a, source).await;
+    store_a
+        .append_items(AppendThreadItemsParams {
+            thread_id: source,
+            items: vec![turn_started("source"), turn_completed("source")],
+        })
+        .await
+        .unwrap();
+    store_a
+        .persist_thread(source, PersistContext::Standard)
+        .await
+        .unwrap();
+    store_a.shutdown_thread(source).await.unwrap();
+    let prepared = prepare_paginated_fork(&store_b, source, ForkBoundary::Latest).await;
+    let base = prepared.history_base.expect("source prefix");
+    let child = ThreadId::new();
+    create_paginated_subagent_thread(&store_b, child, Some(base), None).await;
+    store_b
+        .persist_thread(child, PersistContext::Standard)
+        .await
+        .unwrap();
+    store_b.shutdown_thread(child).await.unwrap();
+    drop(prepared);
+    store_a
+        .delete_threads(crate::DeleteThreadsParams {
+            thread_ids: vec![source, child],
+        })
+        .await
+        .expect("one exclusive lease permits complete-set deletion");
+    let error = store_b
+        .create_thread(paginated_thread_params(ThreadId::new(), Some(base), None))
+        .await
+        .expect_err("stale prefix cannot create a dangling reference");
+    assert!(
+        matches!(error, crate::ThreadStoreError::ThreadNotFound { thread_id } if thread_id == source)
+    );
 }
 
 #[tokio::test]
@@ -3203,35 +3368,47 @@ async fn create_paginated_subagent_thread(
     subagent_history_start_ordinal: Option<u64>,
 ) {
     store
-        .create_thread(CreateThreadParams {
-            attached_thread: false,
-            creator_user_id: None,
-            creator_account_id: None,
-            session_id: thread_id.into(),
+        .create_thread(paginated_thread_params(
             thread_id,
-            extra_config: None,
-            forked_from_id: None,
-            parent_thread_id: None,
-            source: SessionSource::Exec,
-            thread_source: None,
-            originator: "test_originator".to_string(),
-            base_instructions: BaseInstructions::default(),
-            dynamic_tools: Vec::new(),
-            selected_capability_roots: Vec::new(),
-            multi_agent_version: None,
-            history_mode: ThreadHistoryMode::Paginated,
             history_base,
             subagent_history_start_ordinal,
-            initial_window_id: "window-1".to_string(),
-            runtime_workspace_roots: None,
-            metadata: ThreadPersistenceMetadata {
-                cwd: Some(std::env::current_dir().expect("cwd")),
-                model_provider: "test-provider".to_string(),
-                memory_mode: ThreadMemoryMode::Enabled,
-            },
-        })
+        ))
         .await
         .expect("create paginated thread");
+}
+
+fn paginated_thread_params(
+    thread_id: ThreadId,
+    history_base: Option<HistoryPosition>,
+    subagent_history_start_ordinal: Option<u64>,
+) -> CreateThreadParams {
+    CreateThreadParams {
+        attached_thread: false,
+        creator_user_id: None,
+        creator_account_id: None,
+        session_id: thread_id.into(),
+        thread_id,
+        extra_config: None,
+        forked_from_id: None,
+        parent_thread_id: None,
+        source: SessionSource::Exec,
+        thread_source: None,
+        originator: "test_originator".to_string(),
+        base_instructions: BaseInstructions::default(),
+        dynamic_tools: Vec::new(),
+        selected_capability_roots: Vec::new(),
+        multi_agent_version: None,
+        history_mode: ThreadHistoryMode::Paginated,
+        history_base,
+        subagent_history_start_ordinal,
+        initial_window_id: "window-1".to_string(),
+        runtime_workspace_roots: None,
+        metadata: ThreadPersistenceMetadata {
+            cwd: Some(std::env::current_dir().expect("cwd")),
+            model_provider: "test-provider".to_string(),
+            memory_mode: ThreadMemoryMode::Enabled,
+        },
+    }
 }
 
 fn turn_started(turn_id: &str) -> RolloutItem {

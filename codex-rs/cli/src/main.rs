@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 use clap::Args;
 use clap::CommandFactory;
 use clap::Parser;
@@ -54,6 +54,7 @@ static ALLOCATOR: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod app_cmd;
+mod ci;
 mod cleanup_agents;
 mod config_override_args;
 mod daemon_install;
@@ -190,6 +191,9 @@ enum Subcommand {
 
     /// Diagnose local Codex installation, config, auth, and runtime health.
     Doctor(DoctorCommand),
+
+    /// Observe GitHub Actions runs without changing remote state
+    Ci(ci::CiCommand),
 
     /// Run commands within a Codex-provided sandbox.
     Sandbox(SandboxCommand),
@@ -1888,6 +1892,14 @@ async fn cli_main(
             )
             .await?;
         }
+        Some(Subcommand::Ci(command)) => {
+            reject_remote_mode_for_subcommand(
+                root_remote.as_deref(),
+                root_remote_auth_token_env.as_deref(),
+                "ci",
+            )?;
+            ci::run(command).await?;
+        }
         Some(Subcommand::Cloud(mut cloud_cli)) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
@@ -2539,6 +2551,7 @@ fn unsupported_subcommand_name_for_strict_config(
         Some(Subcommand::Completion(_)) => Some("completion"),
         Some(Subcommand::Update(_)) => Some("update"),
         Some(Subcommand::Cloud(_)) => Some("cloud"),
+        Some(Subcommand::Ci(_)) => Some("ci"),
         Some(Subcommand::Sandbox(_)) => Some("sandbox"),
         Some(Subcommand::Debug(_)) => Some("debug"),
         Some(Subcommand::Execpolicy(_)) => Some("execpolicy"),
@@ -4888,6 +4901,66 @@ enabled = true
         .expect_err("remote-control should reject root --remote");
 
         assert!(err.to_string().contains("remote-control"));
+    }
+
+    #[test]
+    fn ci_entry_point_parses_and_rejects_unsupported_root_options() {
+        for args in [
+            vec!["codex", "ci", "status", "--json"],
+            vec!["codex", "ci", "-R", "owner/repo", "list", "--limit", "1"],
+            vec![
+                "codex",
+                "ci",
+                "watch",
+                "42",
+                "--timeout",
+                "1",
+                "--interval",
+                "1",
+            ],
+        ] {
+            let cli = MultitoolCli::try_parse_from(args).expect("CI command should parse");
+            assert!(matches!(&cli.subcommand, Some(Subcommand::Ci(_))));
+            reject_remote_mode_for_subcommand(
+                cli.remote.remote.as_deref(),
+                cli.remote.remote_auth_token_env.as_deref(),
+                "ci",
+            )
+            .expect("local CI should be supported");
+            reject_root_strict_config_for_subcommand(
+                cli.interactive.strict_config,
+                &cli.subcommand,
+            )
+            .expect("ordinary CI should be supported");
+        }
+
+        let cli = MultitoolCli::try_parse_from([
+            "codex",
+            "--remote",
+            "ws://127.0.0.1:4500",
+            "ci",
+            "status",
+        ])
+        .expect("root remote option parses before subcommand dispatch");
+        let error = reject_remote_mode_for_subcommand(
+            cli.remote.remote.as_deref(),
+            cli.remote.remote_auth_token_env.as_deref(),
+            "ci",
+        )
+        .expect_err("CI must not silently accept a remote TUI connection");
+        assert!(error.to_string().contains("codex ci"));
+
+        let cli = MultitoolCli::try_parse_from(["codex", "--strict-config", "ci", "status"])
+            .expect("root strict option parses before subcommand dispatch");
+        let error = reject_root_strict_config_for_subcommand(
+            cli.interactive.strict_config,
+            &cli.subcommand,
+        )
+        .expect_err("CI must not silently ignore strict config");
+        assert_eq!(
+            error.to_string(),
+            "`--strict-config` is not supported for `codex ci`"
+        );
     }
 
     #[test]

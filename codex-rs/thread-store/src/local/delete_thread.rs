@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R30 (2026-10-31); see docs/r30-final-boundary-validation-20261031.ko.md.
 //! Local hard-delete support for persisted threads.
 //!
@@ -45,6 +45,15 @@ impl LocalThreadStore {
     ) -> ThreadStoreResult<()> {
         let reference_index = scan_reference_index(self).await?;
         check_attached_children(&reference_index, thread_ids)
+    }
+
+    /// Check every reference rejection before cleanup closes a loaded runtime.
+    /// The final deletion repeats these checks under writer ownership.
+    pub async fn ensure_cleanup_references_allow(
+        &self,
+        thread_ids: &[ThreadId],
+    ) -> ThreadStoreResult<()> {
+        prepare_thread_deletions(self, thread_ids).await.map(|_| ())
     }
 }
 
@@ -96,10 +105,23 @@ pub(super) async fn delete_thread(
     store: &LocalThreadStore,
     params: DeleteThreadParams,
 ) -> ThreadStoreResult<()> {
+    let owner = store.clone();
+    tokio::spawn(async move { delete_thread_owned(&owner, params).await })
+        .await
+        .map_err(|error| ThreadStoreError::OutcomeUnknown {
+            message: format!("delete_thread owner task failed: {error}"),
+        })?
+}
+
+async fn delete_thread_owned(
+    store: &LocalThreadStore,
+    params: DeleteThreadParams,
+) -> ThreadStoreResult<()> {
     let thread_id = params.thread_id;
     let _lifecycle_guard = store.live_writer_locks.lock_lifecycle(thread_id).await;
     let _live_writer_guard = store.live_writer_locks.lock(thread_id).await;
     let mut writer_guards = store.acquire_writer_locks(&[thread_id]).await?;
+    let _reference_deletion = store.reserve_reference_deletion()?;
     let reference_index = scan_reference_index(store).await?;
     let thread_rollouts = ThreadRollouts::from_index(&reference_index, thread_id);
     check_attached_children(&reference_index, &[thread_id])?;
@@ -126,6 +148,18 @@ pub(super) async fn delete_threads(
     store: &LocalThreadStore,
     params: DeleteThreadsParams,
 ) -> ThreadStoreResult<()> {
+    let owner = store.clone();
+    tokio::spawn(async move { delete_threads_owned(&owner, params).await })
+        .await
+        .map_err(|error| ThreadStoreError::OutcomeUnknown {
+            message: format!("delete_threads owner task failed: {error}"),
+        })?
+}
+
+async fn delete_threads_owned(
+    store: &LocalThreadStore,
+    params: DeleteThreadsParams,
+) -> ThreadStoreResult<()> {
     let thread_ids = params.thread_ids;
     if thread_ids.is_empty() {
         return Ok(());
@@ -144,28 +178,56 @@ pub(super) async fn delete_threads(
     }
 
     let mut writer_guards = store.acquire_writer_locks(&lock_thread_ids).await?;
+    let reference_deletion = store.reserve_reference_deletion()?;
+    delete_threads_under_writer_locks(
+        store,
+        thread_ids,
+        &mut writer_guards,
+        || {},
+        &reference_deletion,
+    )
+    .await
+}
+
+pub(super) async fn delete_threads_under_writer_locks(
+    store: &LocalThreadStore,
+    thread_ids: Vec<ThreadId>,
+    writer_guards: &mut Vec<super::WriterLockGuard>,
+    before_mutation: impl FnOnce(),
+    _reference_deletion: &std::fs::File,
+) -> ThreadStoreResult<()> {
+    let thread_rollouts = prepare_thread_deletions(store, &thread_ids).await?;
+    #[cfg(feature = "test-support")]
+    store.wait_for_delete_barriers_for_test(&thread_ids).await;
+    // No host cleanup, history, rollout or DB deletion has started before this boundary.
+    // A caller may release an uncommitted admission on an earlier error, regardless of
+    // its error variant. Every error after this callback remains potentially partial.
+    before_mutation();
+    if let Some(cleanup) = &store.thread_data_cleanup {
+        cleanup(thread_ids.clone()).await?;
+    }
+    for thread_rollouts in thread_rollouts {
+        match delete_thread_after_reference_check(store, thread_rollouts, writer_guards).await {
+            Ok(()) | Err(ThreadStoreError::ThreadNotFound { .. }) => {}
+            Err(err) => return Err(err),
+        }
+    }
+    delete_state_rows(store, &thread_ids).await?;
+    Ok(())
+}
+
+async fn prepare_thread_deletions(
+    store: &LocalThreadStore,
+    thread_ids: &[ThreadId],
+) -> ThreadStoreResult<Vec<ThreadRollouts>> {
     let reference_index = scan_reference_index(store).await?;
     let thread_rollouts = thread_ids
         .iter()
         .map(|thread_id| ThreadRollouts::from_index(&reference_index, *thread_id))
         .collect::<Vec<_>>();
-    check_attached_children(&reference_index, &lock_thread_ids)?;
+    check_attached_children(&reference_index, thread_ids)?;
     ensure_no_external_references(&reference_index, thread_rollouts.as_slice())?;
-    #[cfg(feature = "test-support")]
-    store.wait_for_delete_barriers_for_test(&thread_ids).await;
-    if let Some(cleanup) = &store.thread_data_cleanup {
-        cleanup(thread_ids.clone()).await?;
-    }
-    for thread_rollouts in thread_rollouts {
-        match delete_thread_after_reference_check(store, thread_rollouts, &mut writer_guards).await
-        {
-            Ok(()) | Err(ThreadStoreError::ThreadNotFound { .. }) => {}
-            Err(err) => return Err(err),
-        }
-    }
-    // Retain the complete retry graph until every rollout has been removed.
-    delete_state_rows(store, &thread_ids).await?;
-    Ok(())
+    Ok(thread_rollouts)
 }
 
 pub(super) async fn delete_state_rows(
@@ -366,6 +428,54 @@ mod tests {
     use crate::local::test_support::write_session_file;
     use crate::local::test_support::write_session_file_with;
     use crate::local::test_support::write_session_file_with_history_mode;
+
+    #[cfg(feature = "test-support")]
+    #[tokio::test]
+    async fn reference_deletion_owner_retains_exclusion_after_caller_cancels() {
+        let home = TempDir::new().expect("isolated home");
+        let store = LocalThreadStore::new(test_config(home.path()), None);
+        let other = LocalThreadStore::new(test_config(home.path()), None);
+        let id = ThreadId::new();
+        let path = write_session_file(
+            home.path(),
+            "2025-01-03T12-00-00",
+            Uuid::parse_str(&id.to_string()).unwrap(),
+        )
+        .expect("source");
+        let (entered, release) = store.install_delete_barrier_for_test(id).await;
+        let requester_store = store.clone();
+        let requester = tokio::spawn(async move {
+            requester_store
+                .delete_threads(DeleteThreadsParams {
+                    thread_ids: vec![id],
+                })
+                .await
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(10), entered)
+            .await
+            .unwrap()
+            .unwrap();
+        requester.abort();
+        assert!(requester.await.unwrap_err().is_cancelled());
+        assert!(matches!(
+            other.reserve_reference_publication(),
+            Err(ThreadStoreError::Retryable { .. })
+        ));
+        assert!(path.exists());
+        release.send(()).unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                if let Ok(guard) = other.reserve_reference_publication() {
+                    assert!(!path.exists());
+                    drop(guard);
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("owner finishes and releases both lock namespaces");
+    }
 
     #[tokio::test]
     async fn delete_thread_removes_active_and_archived_rollouts() {

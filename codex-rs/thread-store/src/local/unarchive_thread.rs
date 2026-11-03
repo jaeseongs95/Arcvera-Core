@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 use super::LocalThreadStore;
 use super::helpers::owned_rollout_paths_from_index;
 use super::helpers::restore_rollout_moves;
@@ -23,6 +24,22 @@ pub(super) async fn unarchive_threads(
     params: ArchiveThreadParams,
     descendant_thread_ids: Vec<ThreadId>,
 ) -> ThreadStoreResult<(StoredThread, Vec<ThreadId>)> {
+    let owner = store.clone();
+    tokio::spawn(
+        async move { unarchive_threads_owned(&owner, params, descendant_thread_ids).await },
+    )
+    .await
+    .map_err(|error| ThreadStoreError::OutcomeUnknown {
+        message: format!("unarchive_threads owner task failed: {error}"),
+    })?
+}
+
+async fn unarchive_threads_owned(
+    store: &LocalThreadStore,
+    params: ArchiveThreadParams,
+    descendant_thread_ids: Vec<ThreadId>,
+) -> ThreadStoreResult<(StoredThread, Vec<ThreadId>)> {
+    let _reference_publication = store.reserve_reference_publication()?;
     let parent_thread_id = params.thread_id;
     let requested_ids: Vec<_> = std::iter::once(parent_thread_id)
         .chain(descendant_thread_ids)

@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Event-cache-to-terminal regression tests for the root-scoped subagent status row.
 
 use super::*;
@@ -9,8 +9,74 @@ use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ServerRequestResolvedNotification;
 use codex_app_server_protocol::ToolRequestUserInputParams;
 use codex_app_server_protocol::TurnCompletedNotification;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
+
+#[tokio::test]
+async fn expanded_agent_footer_keeps_draft_and_cursor_during_scroll_and_small_layouts() {
+    for count in [15, 100] {
+        let mut app = make_test_app().await;
+        let root = ThreadId::new();
+        app.primary_thread_id = Some(root);
+        app.active_thread_id = Some(root);
+        app.agent_navigation.bind_status_root(root);
+        app.chat_widget.insert_str("draft must survive");
+        for index in 0..count {
+            app.upsert_agent_picker_thread(
+                ThreadId::new(),
+                Some(format!("worker-{index:03}")),
+                None,
+                false,
+            );
+        }
+        app.chat_widget
+            .handle_key_event(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT));
+        app.chat_widget
+            .handle_key_event(KeyEvent::new(KeyCode::PageDown, KeyModifiers::ALT));
+        for (width, budget) in [(100, 16), (40, 8), (100, 8)] {
+            let view =
+                app.chat_widget
+                    .bottom_pane_renderable(crate::bottom_pane::ComposerRenderOptions {
+                        max_height: Some(budget),
+                        ..Default::default()
+                    });
+            let area = Rect::new(0, 0, width, view.desired_height(width));
+            let mut buffer = Buffer::empty(area);
+            view.render(area, &mut buffer);
+            let text: String = buffer.content().iter().map(|cell| cell.symbol()).collect();
+            assert!(
+                text.contains("draft must survive"),
+                "{count} agents, {width} columns, budget {budget}"
+            );
+            assert!(
+                view.cursor_pos(area)
+                    .is_some_and(|(x, y)| x < area.width && y < area.height)
+            );
+            if width >= 48 && budget >= 12 {
+                assert!(text.contains("worker-001"));
+                assert!(!text.contains("worker-000"));
+                assert!(!text.contains("worker-004"));
+            } else {
+                assert!(
+                    !text.contains("worker-"),
+                    "details collapse to preserve a small composer budget"
+                );
+            }
+        }
+        app.active_thread_id = app.agent_navigation.ordered_thread_ids().first().copied();
+        app.sync_active_agent_label();
+        assert!(
+            render_bottom(&app).1.contains("worker-001"),
+            "same-root agent navigation retains footer scroll"
+        );
+        app.primary_thread_id = Some(ThreadId::new());
+        app.agent_navigation
+            .bind_status_root(app.primary_thread_id.unwrap());
+        app.sync_active_agent_label();
+        assert!(!render_bottom(&app).1.contains("worker-"));
+    }
+}
 
 fn render_bottom(app: &App) -> (u16, String) {
     let view = app.chat_widget.bottom_pane_renderable(Default::default());

@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 use std::sync::Arc;
 
 use super::SessionTask;
@@ -41,6 +42,8 @@ impl SessionTask for CompactTask {
             turn.id = %ctx.sub_id,
         );
         // Preparation errors must reach the task runner, which reports them to the client.
+        let preparation_timer =
+            crate::compact::CompactionPhaseTimer::new(&session, &ctx, "prepare_turn");
         session.emit_turn_started(&ctx, TaskKind::Compact).await;
         let step_context = session
             .capture_step_context(Arc::clone(&ctx), &cancellation_token)
@@ -50,6 +53,7 @@ impl SessionTask for CompactTask {
                 .build_world_state_for_step(&step_context, /*new_window*/ true)
                 .await?,
         );
+        preparation_timer.finish();
         if ctx.config.features.enabled(Feature::TokenBudget) {
             crate::compact_token_budget::run_manual_compact_task(
                 session,

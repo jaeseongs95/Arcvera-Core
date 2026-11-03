@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -28,6 +29,24 @@ pub(super) async fn create_thread(
     params: CreateThreadParams,
 ) -> ThreadStoreResult<()> {
     let thread_id = params.thread_id;
+    // Cover direct create callers too, including stale PreparedFork metadata after its lease drops.
+    // The recorder takes its own shared guard before this one can be released.
+    let _reference_publication = if params.history_base.is_some() || params.attached_thread {
+        Some(store.reserve_reference_publication()?)
+    } else {
+        None
+    };
+    if let Some(base) = params.history_base {
+        if codex_rollout::find_rollout_path_by_rollout_id(&store.config.codex_home, base.thread_id)
+            .await
+            .map_err(thread_store_io_error)?
+            .is_none()
+        {
+            return Err(ThreadStoreError::ThreadNotFound {
+                thread_id: base.thread_id,
+            });
+        }
+    }
     let attachment = if params.attached_thread {
         let parent = params
             .forked_from_id

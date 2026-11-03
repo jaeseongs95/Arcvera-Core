@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Storage-neutral thread persistence interfaces.
 //!
 //! Application code should treat [`codex_protocol::ThreadId`] as the only durable thread handle.
@@ -47,6 +47,9 @@ pub use local::RolloutMigrationOutcome;
 pub use local::RolloutMigrationProgress;
 pub use local::RolloutMigrationReport;
 pub use local::RolloutMigrationStatus;
+pub use local::UnloadedThreadCleanupGuard;
+pub use local::UnloadedThreadCleanupPreview;
+pub use local::UnloadedThreadCleanupSnapshot;
 pub use projects::CreateProjectParams;
 pub use projects::CreatedProject;
 pub use projects::DeletedProject;

@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Fluent catalogs for application-owned UI messages. Argument values are opaque.
 
 use std::collections::BTreeMap;
@@ -25,6 +25,12 @@ const EN: Sources<'static> = &[
     ("cli", include_str!("../../locales/en/cli.ftl")),
     ("picker", include_str!("../../locales/en/picker.ftl")),
     ("controls", include_str!("../../locales/en/controls.ftl")),
+    (
+        "r36-agents",
+        include_str!("../../locales/en/r36-agents.ftl"),
+    ),
+    ("r36-ci", include_str!("../../locales/en/r36-ci.ftl")),
+    ("r36-cleanup", include_str!("../../locales/en/r36-cleanup.ftl")),
 ];
 const KO: Sources<'static> = &[
     ("core", include_str!("../../locales/ko/core.ftl")),
@@ -35,6 +41,12 @@ const KO: Sources<'static> = &[
     ("cli", include_str!("../../locales/ko/cli.ftl")),
     ("picker", include_str!("../../locales/ko/picker.ftl")),
     ("controls", include_str!("../../locales/ko/controls.ftl")),
+    (
+        "r36-agents",
+        include_str!("../../locales/ko/r36-agents.ftl"),
+    ),
+    ("r36-ci", include_str!("../../locales/ko/r36-ci.ftl")),
+    ("r36-cleanup", include_str!("../../locales/ko/r36-cleanup.ftl")),
 ];
 
 struct Catalog {

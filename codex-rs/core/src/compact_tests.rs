@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 use super::*;
 use crate::session::tests::make_session_and_context_with_auth_and_config_and_rx;
 use crate::tools::context::ToolCallSource;
@@ -23,6 +24,38 @@ use core_test_support::skip_if_no_network;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use test_case::test_case;
+
+#[test_case(true, "returned"; "finished boundary")]
+#[test_case(false, "dropped"; "unfinished boundary")]
+#[tokio::test]
+async fn compaction_phase_timer_records_finished_and_unfinished_boundaries(
+    finish: bool,
+    expected_outcome: &str,
+) {
+    let (session, turn_context) = crate::session::tests::make_session_and_context().await;
+    let buffer: &'static std::sync::Mutex<Vec<u8>> =
+        Box::leak(Box::new(std::sync::Mutex::new(Vec::new())));
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_max_level(tracing::Level::INFO)
+        .with_writer(tracing_test::internal::MockWriter::new(buffer))
+        .finish();
+    let _subscriber_guard = tracing::subscriber::set_default(subscriber);
+    let timer = CompactionPhaseTimer::new(&session, &turn_context, "prepare_request");
+    if finish {
+        timer.finish();
+    } else {
+        drop(timer);
+    }
+    let logs = String::from_utf8(buffer.lock().expect("capture phase log").clone())
+        .expect("phase log is UTF-8");
+    assert_eq!(logs.matches("compaction phase ended").count(), 1);
+    assert!(logs.contains("phase=\"prepare_request\""));
+    assert!(logs.contains("elapsed_ms="));
+    assert!(logs.contains(&format!("outcome=\"{expected_outcome}\"")));
+    assert!(logs.contains(&format!("conversation.id={}", session.thread_id)));
+    assert!(logs.contains(&format!("turn.id={}", turn_context.sub_id)));
+}
 
 #[test_case(true; "metadata enabled")]
 #[test_case(false; "metadata disabled after capture")]

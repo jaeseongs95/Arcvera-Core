@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Exact, preview-bound cleanup of terminal local child runtimes.
 //!
 //! The manager fence covers a UUID's reload, child creation and unloaded mail;
@@ -13,13 +13,18 @@ use codex_thread_store::StoredTurnItemsView;
 use codex_thread_store::StoredTurnStatus;
 use serde::Deserialize;
 use serde::Serialize;
+use sha1::Digest;
 use std::sync::Mutex as StdMutex;
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::AtomicU64;
 use uuid::Uuid;
 
 #[derive(Default)]
-pub(crate) struct CleanupAdmission(StdMutex<HashMap<ThreadId, AdmissionState>>);
+pub(crate) struct CleanupAdmission {
+    states: StdMutex<HashMap<ThreadId, AdmissionState>>,
+    #[cfg(test)]
+    isolated_unloaded_fixture: AtomicBool,
+}
 #[derive(Default)]
 struct AdmissionState {
     operations: usize,
@@ -36,6 +41,17 @@ struct CleanupReservation {
 }
 
 impl CleanupAdmission {
+    fn unloaded_reference_block_reason(&self) -> Option<&'static str> {
+        // Existing binaries do not publish a participant capability. A new lease cannot
+        // establish that an older process has no prepared or deferred reference.
+        #[cfg(test)]
+        if self.isolated_unloaded_fixture.load(Ordering::Relaxed) {
+            // Private, explicitly isolated fixture only; absent from production builds.
+            return None;
+        }
+        Some("reference_participants_unverified")
+    }
+
     pub(crate) fn admit(
         self: &Arc<Self>,
         ids: impl IntoIterator<Item = ThreadId>,
@@ -44,7 +60,7 @@ impl CleanupAdmission {
         ids.sort_unstable_by_key(ToString::to_string);
         ids.dedup();
         let mut states = self
-            .0
+            .states
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if ids
@@ -65,7 +81,7 @@ impl CleanupAdmission {
     }
     fn reserve(self: &Arc<Self>, id: ThreadId) -> Option<CleanupReservation> {
         let mut states = self
-            .0
+            .states
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let state = states.entry(id).or_default();
@@ -84,7 +100,7 @@ impl Drop for CleanupOperation {
     fn drop(&mut self) {
         let mut states = self
             .admission
-            .0
+            .states
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         for id in &self.ids {
@@ -101,7 +117,7 @@ impl Drop for CleanupReservation {
     fn drop(&mut self) {
         if !self.committed {
             self.admission
-                .0
+                .states
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .remove(&self.id);
@@ -207,6 +223,7 @@ pub struct CompletedChildSnapshot {
 pub struct CompletedChildCleanupResult {
     pub thread_id: ThreadId,
     pub outcome: String,
+    pub reason: String,
     pub snapshot: Option<CompletedChildSnapshot>,
 }
 
@@ -222,7 +239,7 @@ impl ThreadManager {
         })
     }
 
-    /// Read-only preview. Unloaded, host-owned, active and unknown children are preserved.
+    /// Preview without restoring runtimes. Unverified, host-owned and active children are preserved.
     pub async fn preview_completed_children(
         &self,
         parent: ThreadId,
@@ -232,8 +249,8 @@ impl ThreadManager {
         let ids = self.list_agent_subtree_thread_ids(parent).await?;
         let mut entries = Vec::new();
         for id in ids.into_iter().filter(|id| *id != parent) {
-            let snapshot = if id == current {
-                None
+            let (snapshot, reason) = if id == current {
+                (None, "current_thread")
             } else {
                 self.completed_child_snapshot(parent, id).await?
             };
@@ -247,6 +264,7 @@ impl ThreadManager {
                     "preserved"
                 }
                 .into(),
+                reason: reason.into(),
                 snapshot,
             });
         }
@@ -354,31 +372,75 @@ impl ThreadManager {
         &self,
         parent: ThreadId,
         id: ThreadId,
-    ) -> CodexResult<Option<CompletedChildSnapshot>> {
+    ) -> CodexResult<(Option<CompletedChildSnapshot>, &'static str)> {
         if !self.cleanup_owned_descendant(parent, id).await? {
-            return Ok(None);
+            return Ok((None, "ownership_unverified"));
         }
         let Ok(thread) = self.get_thread(id).await else {
-            return Ok(None);
+            if let Some(reason) = self
+                .state
+                .cleanup_admission
+                .unloaded_reference_block_reason()
+            {
+                return Ok((None, reason));
+            }
+            let Some(_reservation) = self.state.cleanup_admission.reserve(id) else {
+                return Ok((None, "busy"));
+            };
+            let Some(store) = self
+                .state
+                .thread_store
+                .as_any()
+                .downcast_ref::<LocalThreadStore>()
+            else {
+                return Ok((None, "unsupported_store"));
+            };
+            let guard = match store.reserve_unloaded_cleanup(id).await {
+                Ok(guard) => guard,
+                Err(
+                    codex_thread_store::ThreadStoreError::Conflict { .. }
+                    | codex_thread_store::ThreadStoreError::InvalidRequest { .. },
+                ) => return Ok((None, "writer_owned")),
+                Err(codex_thread_store::ThreadStoreError::Retryable { .. }) => {
+                    return Ok((None, "reference_publication_busy"));
+                }
+                Err(error) => {
+                    return Err(CodexErr::Fatal(format!(
+                        "failed to reserve unloaded child: {error}"
+                    )));
+                }
+            };
+            if self.get_thread(id).await.is_ok() {
+                return Ok((None, "changed"));
+            }
+            return self.unloaded_child_snapshot(parent, id, &guard).await;
         };
         let parent_thread = self.get_thread(parent).await?;
-        if self.state.agent_control_factory.is_some()
-            || thread.multi_agent_version() != Some(codex_protocol::protocol::MultiAgentVersion::V2)
-            || !matches!(
-                thread.session_source,
-                SessionSource::SubAgent(SubAgentSource::ThreadSpawn { .. })
-            )
-            || !parent_thread
-                .session
-                .services
-                .local_agent_runtime
-                .shares_registry(&thread.session.services.local_agent_runtime)
-            || thread.io.admission.is_closing()
+        if self.state.agent_control_factory.is_some() {
+            return Ok((None, "host_owned"));
+        }
+        if thread.multi_agent_version() != Some(codex_protocol::protocol::MultiAgentVersion::V2) {
+            return Ok((None, "unsupported_generation"));
+        }
+        if !matches!(
+            thread.session_source,
+            SessionSource::SubAgent(SubAgentSource::ThreadSpawn { .. })
+        ) {
+            return Ok((None, "unsupported_source"));
+        }
+        if !parent_thread
+            .session
+            .services
+            .local_agent_runtime
+            .shares_registry(&thread.session.services.local_agent_runtime)
         {
-            return Ok(None);
+            return Ok((None, "runtime_owner_mismatch"));
+        }
+        if thread.io.admission.is_closing() {
+            return Ok((None, "runtime_closing"));
         }
         let Ok(_gate) = Arc::clone(&thread.residency_gate).try_write_owned() else {
-            return Ok(None);
+            return Ok((None, "busy"));
         };
         self.completed_child_snapshot_under_gate(&thread).await
     }
@@ -386,18 +448,19 @@ impl ThreadManager {
     async fn completed_child_snapshot_under_gate(
         &self,
         thread: &Arc<CodexThread>,
-    ) -> CodexResult<Option<CompletedChildSnapshot>> {
+    ) -> CodexResult<(Option<CompletedChildSnapshot>, &'static str)> {
         let id = thread.session.thread_id;
-        if !thread.cleanup_is_idle().await
-            || !matches!(
-                thread.agent_status().await,
-                AgentStatus::Completed(_) | AgentStatus::Errored(_) | AgentStatus::Interrupted
-            )
-        {
-            return Ok(None);
+        if !thread.cleanup_is_idle().await {
+            return Ok((None, "runtime_busy"));
+        }
+        if !matches!(
+            thread.agent_status().await,
+            AgentStatus::Completed(_) | AgentStatus::Errored(_) | AgentStatus::Interrupted
+        ) {
+            return Ok((None, "runtime_not_terminal"));
         }
         let Some(last_turn_id) = thread.session.cleanup_last_started_turn().await else {
-            return Ok(None);
+            return Ok((None, "terminal_turn_unverified"));
         };
         thread.flush_rollout().await?;
         let stored = self
@@ -412,7 +475,7 @@ impl ThreadManager {
             || stored.source.parent_thread_id() != stored.parent_thread_id
             || stored.parent_thread_id.is_none()
         {
-            return Ok(None);
+            return Ok((None, "ownership_unverified"));
         }
         let turns = self
             .state
@@ -430,24 +493,69 @@ impl ThreadManager {
                 CodexErr::Fatal(format!("failed to verify terminal child turn: {error}"))
             })?;
         let Some(turn) = turns.turns.first() else {
-            return Ok(None);
+            return Ok((None, "terminal_turn_unverified"));
         };
         if turn.turn_id != last_turn_id {
-            return Ok(None);
+            return Ok((None, "terminal_turn_mismatch"));
         }
         let status = match turn.status {
             StoredTurnStatus::Completed => "completed",
             StoredTurnStatus::Failed => "failed",
             StoredTurnStatus::Interrupted => "cancelled",
-            StoredTurnStatus::InProgress => return Ok(None),
+            StoredTurnStatus::InProgress => return Ok((None, "terminal_turn_in_progress")),
         };
-        Ok(Some(CompletedChildSnapshot {
-            thread_id: id,
-            runtime_id: thread.io.admission.runtime_id.clone(),
-            activity_revision: thread.io.admission.revision.load(Ordering::Acquire),
-            last_turn_id,
-            terminal_status: status.into(),
-        }))
+        Ok((
+            Some(CompletedChildSnapshot {
+                thread_id: id,
+                runtime_id: thread.io.admission.runtime_id.clone(),
+                activity_revision: thread.io.admission.revision.load(Ordering::Acquire),
+                last_turn_id,
+                terminal_status: status.into(),
+            }),
+            "loaded_terminal",
+        ))
+    }
+
+    async fn unloaded_child_snapshot(
+        &self,
+        parent: ThreadId,
+        id: ThreadId,
+        guard: &codex_thread_store::UnloadedThreadCleanupGuard,
+    ) -> CodexResult<(Option<CompletedChildSnapshot>, &'static str)> {
+        let parent_thread = self.get_thread(parent).await?;
+        if self.state.agent_graph_store().is_none() {
+            return Ok((None, "persistent_graph_unavailable"));
+        }
+        if parent_thread
+            .session
+            .services
+            .local_agent_runtime
+            .has_pending_cleanup_mail(id)
+        {
+            return Ok((None, "pending_agent_mail"));
+        }
+        let preview = guard.preview().await.map_err(|error| {
+            CodexErr::Fatal(format!("failed to verify unloaded child metadata: {error}"))
+        })?;
+        let Some(stored) = preview.snapshot else {
+            return Ok((None, preview.reason));
+        };
+        // Bind cold previews to this parent runtime generation and the exact durable file.
+        // The digest keeps local paths and file timestamps out of the public snapshot.
+        let revision = sha1::Sha1::digest(stored.revision.as_bytes());
+        Ok((
+            Some(CompletedChildSnapshot {
+                thread_id: id,
+                runtime_id: format!(
+                    "stored-v1:{}:{revision:x}",
+                    parent_thread.io.admission.runtime_id
+                ),
+                activity_revision: 0,
+                last_turn_id: stored.last_turn_id,
+                terminal_status: stored.terminal_status,
+            }),
+            "unloaded_terminal",
+        ))
     }
 
     async fn cleanup_selected_children(
@@ -489,12 +597,17 @@ impl ThreadManager {
                     Ok(outcome) if outcome == "has_descendants" => deferred.push(expected),
                     Ok(outcome) => results.push(CompletedChildCleanupResult {
                         thread_id: id,
+                        reason: outcome
+                            .split_once(": ")
+                            .map_or(outcome.as_str(), |(code, _)| code)
+                            .into(),
                         outcome,
                         snapshot: None,
                     }),
                     Err(error) => results.push(CompletedChildCleanupResult {
                         thread_id: id,
                         outcome: format!("unconfirmed: {error}"),
+                        reason: "unconfirmed".into(),
                         snapshot: None,
                     }),
                 }
@@ -506,6 +619,7 @@ impl ThreadManager {
                         .map(|snapshot| CompletedChildCleanupResult {
                             thread_id: snapshot.thread_id,
                             outcome: "has_descendants".into(),
+                            reason: "has_descendants".into(),
                             snapshot: None,
                         }),
                 );
@@ -547,7 +661,72 @@ impl ThreadManager {
             return Ok("has_descendants".into());
         }
         let Ok(thread) = self.get_thread(id).await else {
-            return Ok("unknown".into());
+            if let Some(reason) = self
+                .state
+                .cleanup_admission
+                .unloaded_reference_block_reason()
+            {
+                return Ok(reason.into());
+            }
+            let Some(store) = self
+                .state
+                .thread_store
+                .as_any()
+                .downcast_ref::<LocalThreadStore>()
+            else {
+                return Ok("unsupported_store".into());
+            };
+            let guard = match store.reserve_unloaded_cleanup(id).await {
+                Ok(guard) => guard,
+                Err(
+                    codex_thread_store::ThreadStoreError::Conflict { .. }
+                    | codex_thread_store::ThreadStoreError::InvalidRequest { .. },
+                ) => return Ok("writer_owned".into()),
+                Err(codex_thread_store::ThreadStoreError::Retryable { .. }) => {
+                    return Ok("reference_publication_busy".into());
+                }
+                Err(error) => {
+                    return Err(CodexErr::Fatal(format!(
+                        "failed to reserve unloaded child: {error}"
+                    )));
+                }
+            };
+            if self.get_thread(id).await.is_ok() {
+                return Ok("changed".into());
+            }
+            let (actual, reason) = self.unloaded_child_snapshot(parent, id, &guard).await?;
+            if actual.as_ref() != Some(expected) {
+                return Ok(if actual.is_some() { "changed" } else { reason }.into());
+            }
+            // Recheck ancestry and the fixed leaf selection under writer ownership.
+            if !self.cleanup_owned_descendant(parent, id).await? {
+                return Ok("protected".into());
+            }
+            if self
+                .list_agent_subtree_thread_ids(id)
+                .await?
+                .iter()
+                .any(|child| *child != id)
+            {
+                return Ok("has_descendants".into());
+            }
+            let cleanup_runtime = self
+                .get_thread(parent)
+                .await?
+                .session
+                .services
+                .local_agent_runtime
+                .clone();
+            if let Err(error) = guard.delete(|| reservation.committed = true).await {
+                let outcome = if reservation.committed {
+                    "storage_unconfirmed_partial_deletion_possible"
+                } else {
+                    "storage_rejected_before_deletion"
+                };
+                return Ok(format!("{outcome}: {error}"));
+            }
+            cleanup_runtime.forget_cleaned_child(id);
+            return Ok("deleted".into());
         };
         let parent_thread = self.get_thread(parent).await?;
         if thread.multi_agent_version() != Some(codex_protocol::protocol::MultiAgentVersion::V2)
@@ -569,6 +748,7 @@ impl ThreadManager {
         if self
             .completed_child_snapshot_under_gate(&thread)
             .await?
+            .0
             .as_ref()
             != Some(expected)
         {
@@ -587,10 +767,9 @@ impl ThreadManager {
             .as_any()
             .downcast_ref::<LocalThreadStore>()
         {
-            store
-                .ensure_no_attached_threads(&[id])
-                .await
-                .map_err(|error| CodexErr::InvalidRequest(error.to_string()))?;
+            if let Err(error) = store.ensure_cleanup_references_allow(&[id]).await {
+                return Ok(format!("storage_rejected_before_deletion: {error}"));
+            }
         }
         if !thread.session.close_for_cleanup().await {
             return Ok("busy".into());
