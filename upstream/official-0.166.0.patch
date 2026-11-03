@@ -38102,7 +38102,7 @@ index 000000000..d50757bcc
 +}
 diff --git a/codex-rs/cli/src/cleanup_agents.rs b/codex-rs/cli/src/cleanup_agents.rs
 new file mode 100644
-index 000000000..81fd17051
+index 000000000..bc55ca287
 --- /dev/null
 +++ b/codex-rs/cli/src/cleanup_agents.rs
 @@ -0,0 +1,170 @@
@@ -38111,7 +38111,7 @@ index 000000000..81fd17051
 +#[derive(Debug, Parser)]
 +#[command(
 +    about = "현재 부모 아래 로컬 2세대 서브에이전트의 종료 대화를 미리 보고 정리합니다.",
-+    long_about = "미리보기가 기본이며 각 항목의 reason에 정리·보존 사유를 표시합니다. --apply는 미리보기 뒤 명시 확인을 받습니다. 메모리에 없는 과거 종료 항목도 소유 범위·마지막 종료 턴·배타적 writer 소유를 확인하면 정리할 수 있습니다. 실행 중이거나 상태가 불명확한 항목, 다른 세대·원격 소유·이전 방식 항목은 보존합니다. --thread를 반복하면 정확한 선택 집합만 정리하며 선택하지 않은 후손은 보존합니다."
++    long_about = "미리보기가 기본이며 각 항목의 reason에 정리·보존 사유를 표시합니다. --apply는 미리보기 뒤 명시 확인을 받습니다. 메모리에 없는 과거 종료 항목은 참조 안전성을 입증할 수 없어 reference_participants_unverified로 보존합니다. 해당 항목의 운영 정리 지원은 미완입니다. 실행 중이거나 상태가 불명확한 항목, 다른 세대·원격 소유·이전 방식 항목은 보존합니다. --thread를 반복하면 정확한 선택 집합만 정리하며 선택하지 않은 후손은 보존합니다."
 +)]
 +pub(crate) struct CleanupAgentsCommand {
 +    /// 현재 대화 UUID. 생략하면 CODEX_THREAD_ID를 사용합니다.
@@ -38355,10 +38355,10 @@ index cc91f5b82..3cf865bb0 100644
  use clap::Parser;
 diff --git a/codex-rs/cli/src/localization.rs b/codex-rs/cli/src/localization.rs
 new file mode 100644
-index 000000000..9b0eaab50
+index 000000000..9a2ec9e64
 --- /dev/null
 +++ b/codex-rs/cli/src/localization.rs
-@@ -0,0 +1,2363 @@
+@@ -0,0 +1,2388 @@
 +//! Localize Clap presentation while preserving argument IDs, names, values and parsers.
 +
 +use clap::Command;
@@ -38648,7 +38648,7 @@ index 000000000..9b0eaab50
 +        "현재 부모 아래 로컬 2세대 서브에이전트의 종료 대화를 미리 보고 정리합니다." => {
 +            Some("cli-cleanup-about")
 +        }
-+        "읽기 전용 미리보기가 기본입니다. --apply는 미리보기 뒤 명시 확인을 받습니다. 실행 중이거나 상태가 불명확한 항목, 다른 세대·원격 소유·이전 방식 항목은 보존합니다. --thread를 반복하면 정확한 선택 집합만 정리하며 선택하지 않은 후손은 보존합니다." => {
++        "미리보기가 기본이며 각 항목의 reason에 정리·보존 사유를 표시합니다. --apply는 미리보기 뒤 명시 확인을 받습니다. 메모리에 없는 과거 종료 항목은 참조 안전성을 입증할 수 없어 reference_participants_unverified로 보존합니다. 해당 항목의 운영 정리 지원은 미완입니다. 실행 중이거나 상태가 불명확한 항목, 다른 세대·원격 소유·이전 방식 항목은 보존합니다. --thread를 반복하면 정확한 선택 집합만 정리하며 선택하지 않은 후손은 보존합니다." => {
 +            Some("cli-cleanup-long-about")
 +        }
 +        "Options for building a local Codex diagnostic report" => {
@@ -40698,6 +40698,31 @@ index 000000000..9b0eaab50
 +                    );
 +                }
 +                _ => {}
++            }
++        }
++    }
++
++    #[test]
++    fn r36_cleanup_localized_long_help_explains_default_unloaded_preservation() {
++        for (locale, expected) in [
++            (
++                Locale::English,
++                "Operational cleanup support for these items is incomplete.",
++            ),
++            (Locale::Korean, "해당 항목의 운영 정리 지원은 미완입니다."),
++        ] {
++            let error = localize_help(crate::MultitoolCli::command(), locale)
++                .try_get_matches_from(["codex", "cleanup-agents", "--help"])
++                .expect_err("the actual help argument prints localized long help");
++            assert_eq!(error.kind(), clap::error::ErrorKind::DisplayHelp);
++            let help = error.to_string();
++            let normalized = help.split_whitespace().collect::<Vec<_>>().join(" ");
++            assert!(normalized.contains(expected), "{help}");
++            assert!(help.contains("reference_participants_unverified"), "{help}");
++            assert!(help.contains("--apply"));
++            assert!(help.contains("--thread"));
++            if locale == Locale::English {
++                assert!(!help.chars().any(|c| ('가'..='힣').contains(&c)), "{help}");
 +            }
 +        }
 +    }
@@ -58931,10 +58956,10 @@ index b56485d74..cf803eb1d 100644
                      session
 diff --git a/codex-rs/core/src/thread_manager/cleanup.rs b/codex-rs/core/src/thread_manager/cleanup.rs
 new file mode 100644
-index 000000000..d1d21c71b
+index 000000000..437dba240
 --- /dev/null
 +++ b/codex-rs/core/src/thread_manager/cleanup.rs
-@@ -0,0 +1,823 @@
+@@ -0,0 +1,832 @@
 +//! Exact, preview-bound cleanup of terminal local child runtimes.
 +//!
 +//! The manager fence covers a UUID's reload, child creation and unloaded mail;
@@ -59697,16 +59722,22 @@ index 000000000..d1d21c71b
 +        {
 +            return Ok("changed".into());
 +        }
-+        if let Some(store) = self
++        let local_cleanup = if let Some(store) = self
 +            .state
 +            .thread_store
 +            .as_any()
 +            .downcast_ref::<LocalThreadStore>()
 +        {
-+            if let Err(error) = store.ensure_cleanup_references_allow(&[id]).await {
-+                return Ok(format!("storage_rejected_before_deletion: {error}"));
++            match store.reserve_loaded_cleanup(id).await {
++                Ok(guard) => Some(guard),
++                Err(codex_thread_store::ThreadStoreError::Retryable { .. }) => {
++                    return Ok("reference_publication_busy".into());
++                }
++                Err(error) => return Ok(format!("storage_rejected_before_deletion: {error}")),
 +            }
-+        }
++        } else {
++            None
++        };
 +        if !thread.session.close_for_cleanup().await {
 +            return Ok("busy".into());
 +        }
@@ -59733,14 +59764,17 @@ index 000000000..d1d21c71b
 +            return Ok("changed".into());
 +        }
 +        // Never expand this exact one-ID operation into a subtree deletion.
-+        if let Err(error) = self
-+            .state
-+            .thread_store
-+            .delete_threads(DeleteThreadsParams {
-+                thread_ids: vec![id],
-+            })
-+            .await
-+        {
++        let deletion = if let Some(guard) = local_cleanup {
++            guard.delete().await
++        } else {
++            self.state
++                .thread_store
++                .delete_threads(DeleteThreadsParams {
++                    thread_ids: vec![id],
++                })
++                .await
++        };
++        if let Err(error) = deletion {
 +            return Ok(format!(
 +                "storage_unconfirmed_partial_deletion_possible: {error}"
 +            ));
@@ -59760,10 +59794,10 @@ index 000000000..d1d21c71b
 +mod tests;
 diff --git a/codex-rs/core/src/thread_manager/cleanup_tests.rs b/codex-rs/core/src/thread_manager/cleanup_tests.rs
 new file mode 100644
-index 000000000..b457b2e0d
+index 000000000..48dde64d5
 --- /dev/null
 +++ b/codex-rs/core/src/thread_manager/cleanup_tests.rs
-@@ -0,0 +1,1403 @@
+@@ -0,0 +1,1409 @@
 +use super::*;
 +use codex_agent_graph_store::AgentGraphStore as _;
 +use codex_thread_store as store;
@@ -59801,6 +59835,9 @@ index 000000000..b457b2e0d
 +struct FaultStore {
 +    inner: Arc<dyn store::ThreadStore>,
 +    faults: Arc<StoreFaults>,
++    // Fault wrappers test the generic adapter contract. Only explicit local-boundary
++    // fixtures expose the underlying LocalThreadStore for its concrete cleanup guard.
++    expose_local_cleanup_identity: bool,
 +}
 +
 +struct BarrierGraph {
@@ -59862,10 +59899,12 @@ index 000000000..b457b2e0d
 +}
 +
 +impl store::ThreadStore for FaultStore {
-+    // Preserve the wrapped local store's implementation identity, just as all of its
-+    // data and writer ownership remain real. Cleanup's local-only guard stays enabled.
 +    fn as_any(&self) -> &dyn std::any::Any {
-+        self.inner.as_any()
++        if self.expose_local_cleanup_identity {
++            self.inner.as_any()
++        } else {
++            self
++        }
 +    }
 +    fn default_history_mode(&self) -> codex_protocol::protocol::ThreadHistoryMode {
 +        self.inner.default_history_mode()
@@ -60124,6 +60163,7 @@ index 000000000..b457b2e0d
 +    state.thread_store = Arc::new(FaultStore {
 +        inner: Arc::new(local),
 +        faults: Arc::clone(&faults),
++        expose_local_cleanup_identity: persistent_graph,
 +    });
 +    state.agent_graph_store = if persistent_graph {
 +        Some(Arc::new(
@@ -61169,10 +61209,10 @@ index 000000000..b457b2e0d
 +}
 diff --git a/codex-rs/core/src/thread_manager/cleanup_unloaded_tests.rs b/codex-rs/core/src/thread_manager/cleanup_unloaded_tests.rs
 new file mode 100644
-index 000000000..6cc2e3d6c
+index 000000000..7466da1a7
 --- /dev/null
 +++ b/codex-rs/core/src/thread_manager/cleanup_unloaded_tests.rs
-@@ -0,0 +1,391 @@
+@@ -0,0 +1,532 @@
 +use super::*;
 +
 +// Only these temporary-home libtests exercise the deeper dormant cold-deletion path.
@@ -61563,6 +61603,147 @@ index 000000000..6cc2e3d6c
 +    assert!(stored(&manager, done.thread_id).await);
 +    assert!(manager.admit_thread_activity(done.thread_id).is_err());
 +    assert!(manager.admit_thread_activity(root.thread_id).is_ok());
++}
++
++#[tokio::test]
++async fn loaded_cleanup_preserves_runtime_when_foreign_store_has_unrelated_prepared_fork() {
++    use codex_thread_store::ThreadStore as _;
++    let ((_home, manager, config, root), faults) = fixture_with_graph_options(None, true).await;
++    let target = stored_child(&manager, &config, &root).await;
++    let unrelated = stored_child(&manager, &config, &root).await;
++    complete(&target.thread).await;
++    complete(&unrelated.thread).await;
++    unload(&manager, &unrelated).await;
++    let local = manager
++        .state
++        .thread_store
++        .as_any()
++        .downcast_ref::<LocalThreadStore>()
++        .unwrap();
++    let foreign = LocalThreadStore::new(
++        codex_thread_store::LocalThreadStoreConfig::from_config(&config),
++        local.state_db().await,
++    );
++    let prepared = foreign
++        .prepare_fork(store::PrepareForkParams {
++            thread_id: unrelated.thread_id,
++            boundary: store::ForkBoundary::Latest,
++        })
++        .await
++        .expect("unrelated source is reserved by another real store");
++    assert!(prepared.history_base.is_some());
++    let selected = selection(&manager, root.thread_id).await;
++    assert_eq!(selected.len(), 1);
++    assert_eq!(selected[0].thread_id, target.thread_id);
++    let path = target.thread.rollout_path().unwrap();
++    let before = std::fs::read(&path).unwrap();
++    let results = manager
++        .cleanup_completed_children(root.thread_id, root.thread_id, selected)
++        .await
++        .unwrap();
++    assert_eq!(results[0].reason, "reference_publication_busy");
++    assert_eq!(std::fs::read(&path).unwrap(), before);
++    assert!(stored(&manager, target.thread_id).await);
++    assert!(target.thread.is_running());
++    assert!(!target.thread.io.admission.is_closing());
++    assert!(Arc::ptr_eq(
++        &manager.get_thread(target.thread_id).await.unwrap(),
++        &target.thread
++    ));
++    assert!(manager.admit_thread_activity(target.thread_id).is_ok());
++    assert!(faults.deletes.lock().unwrap().is_empty());
++    drop(prepared);
++    // A refusal before close must remain retryable using a fresh normal preview.
++    let selected = selection(&manager, root.thread_id).await;
++    let results = manager
++        .cleanup_completed_children(root.thread_id, root.thread_id, selected)
++        .await
++        .unwrap();
++    assert_eq!(results[0].outcome, "deleted");
++    assert!(!stored(&manager, target.thread_id).await);
++    assert!(stored(&manager, root.thread_id).await);
++    assert!(stored(&manager, unrelated.thread_id).await);
++}
++
++#[tokio::test]
++async fn loaded_cleanup_keeps_reference_exclusion_through_shutdown_and_request_cancellation() {
++    use codex_thread_store::ThreadStore as _;
++    let ((_home, manager, config, root), faults) = fixture_with_graph_options(None, true).await;
++    let target = stored_child(&manager, &config, &root).await;
++    let unrelated = stored_child(&manager, &config, &root).await;
++    complete(&target.thread).await;
++    complete(&unrelated.thread).await;
++    unload(&manager, &unrelated).await;
++    let local = manager
++        .state
++        .thread_store
++        .as_any()
++        .downcast_ref::<LocalThreadStore>()
++        .unwrap();
++    let foreign = LocalThreadStore::new(
++        codex_thread_store::LocalThreadStoreConfig::from_config(&config),
++        local.state_db().await,
++    );
++    let selected = selection(&manager, root.thread_id).await;
++    let barrier = Arc::new(StoreBarrier::default());
++    *faults.shutdown.lock().unwrap() = Some((target.thread_id, Some(Arc::clone(&barrier))));
++    let owner_manager = copy_manager(&manager);
++    let request = tokio::spawn(async move {
++        owner_manager
++            .cleanup_completed_children(root.thread_id, root.thread_id, selected)
++            .await
++    });
++    wait_for(&barrier.entered).await;
++    assert!(
++        matches!(
++            foreign
++                .prepare_fork(store::PrepareForkParams {
++                    thread_id: unrelated.thread_id,
++                    boundary: store::ForkBoundary::Latest,
++                })
++                .await,
++            Err(store::ThreadStoreError::Retryable { .. })
++        ),
++        "preflight exclusion must remain held during real shutdown"
++    );
++    request.abort();
++    assert!(request.await.unwrap_err().is_cancelled());
++    assert!(
++        matches!(
++            foreign
++                .prepare_fork(store::PrepareForkParams {
++                    thread_id: unrelated.thread_id,
++                    boundary: store::ForkBoundary::Latest,
++                })
++                .await,
++            Err(store::ThreadStoreError::Retryable { .. })
++        ),
++        "request cancellation must not release the owner's File"
++    );
++    assert!(stored(&manager, target.thread_id).await);
++    barrier.release.notify_one();
++    wait_for(&barrier.finished).await;
++    tokio::time::timeout(std::time::Duration::from_secs(10), async {
++        loop {
++            if manager.get_thread(target.thread_id).await.is_err() {
++                break;
++            }
++            tokio::task::yield_now().await;
++        }
++    })
++    .await
++    .expect("the retained File is passed into deletion without reacquisition");
++    assert!(!stored(&manager, target.thread_id).await);
++    assert!(manager.admit_thread_activity(target.thread_id).is_err());
++    assert!(stored(&manager, root.thread_id).await);
++    assert!(stored(&manager, unrelated.thread_id).await);
++    foreign
++        .prepare_fork(store::PrepareForkParams {
++            thread_id: unrelated.thread_id,
++            boundary: store::ForkBoundary::Latest,
++        })
++        .await
++        .expect("the completed owner releases reference exclusion");
 +}
 diff --git a/codex-rs/core/src/thread_manager/idle_control_followup_tests.rs b/codex-rs/core/src/thread_manager/idle_control_followup_tests.rs
 new file mode 100644
@@ -73265,7 +73446,7 @@ index d0ab6d882..f075f96ea 100644
      #[error("thread {thread_id} not found")]
      ThreadNotFound {
 diff --git a/codex-rs/thread-store/src/lib.rs b/codex-rs/thread-store/src/lib.rs
-index 8e0eccabe..bb7b1b236 100644
+index 8e0eccabe..565f81645 100644
 --- a/codex-rs/thread-store/src/lib.rs
 +++ b/codex-rs/thread-store/src/lib.rs
 @@ -16,6 +16,10 @@ mod thread_metadata_sync;
@@ -73279,7 +73460,15 @@ index 8e0eccabe..bb7b1b236 100644
  pub use codex_state::AddThreadAttachmentOutcome;
  pub use codex_state::MAX_QUEUE_ITEMS;
  pub use codex_state::MAX_THREAD_ATTACHMENT_PAYLOAD_BYTES;
-@@ -42,6 +46,9 @@ pub use local::RolloutMigrationOutcome;
+@@ -33,6 +37,7 @@ pub use in_memory::InMemoryThreadStore;
+ pub use in_memory::InMemoryThreadStoreCalls;
+ pub use live_thread::LiveThread;
+ pub use live_thread::LiveThreadInitGuard;
++pub use local::LoadedThreadCleanupGuard;
+ pub use local::LocalThreadStore;
+ pub use local::LocalThreadStoreConfig;
+ pub use local::RolloutMigrationFailureReason;
+@@ -42,6 +47,9 @@ pub use local::RolloutMigrationOutcome;
  pub use local::RolloutMigrationProgress;
  pub use local::RolloutMigrationReport;
  pub use local::RolloutMigrationStatus;
@@ -73314,7 +73503,7 @@ index 397ab0f9e..c3321264c 100644
      if thread_ids.is_empty() {
          return Ok(Vec::new());
 diff --git a/codex-rs/thread-store/src/local/delete_thread.rs b/codex-rs/thread-store/src/local/delete_thread.rs
-index ab13996c7..07f17337d 100644
+index ab13996c7..109c6bea1 100644
 --- a/codex-rs/thread-store/src/local/delete_thread.rs
 +++ b/codex-rs/thread-store/src/local/delete_thread.rs
 @@ -1,3 +1,4 @@
@@ -73322,23 +73511,65 @@ index ab13996c7..07f17337d 100644
  //! Local hard-delete support for persisted threads.
  //!
  //! Existing rollout files are deleted before this operation reports success. A rollout file that
-@@ -44,6 +45,15 @@ impl LocalThreadStore {
+@@ -34,6 +35,35 @@ struct ThreadRollouts {
+     paths: Vec<PathBuf>,
+ }
+ 
++/// Reserves reference exclusion for one exact live cleanup target before it is closed.
++/// The UUID and File are opaque and cannot be replaced by the caller.
++pub struct LoadedThreadCleanupGuard {
++    store: LocalThreadStore,
++    thread_id: ThreadId,
++    reference_deletion: std::fs::File,
++}
++
++impl LoadedThreadCleanupGuard {
++    /// Use the same File throughout shutdown and final deletion; never reacquire it.
++    /// This operation owns the reservation through storage IO if its caller cancels.
++    pub async fn delete(self) -> ThreadStoreResult<()> {
++        tokio::spawn(async move {
++            delete_threads_owned(
++                &self.store,
++                DeleteThreadsParams {
++                    thread_ids: vec![self.thread_id],
++                },
++                Some(self.reference_deletion),
++            )
++            .await
++        })
++        .await
++        .map_err(|error| ThreadStoreError::OutcomeUnknown {
++            message: format!("loaded cleanup deletion owner failed: {error}"),
++        })?
++    }
++}
++
+ impl LocalThreadStore {
+     /// Reject deletion while any candidate has attached threads. Call before stopping live work;
+     /// deletion repeats this check under existing writer ownership to cover concurrent creation.
+@@ -44,6 +74,21 @@ impl LocalThreadStore {
          let reference_index = scan_reference_index(self).await?;
          check_attached_children(&reference_index, thread_ids)
      }
 +
-+    /// Check every reference rejection before cleanup closes a loaded runtime.
-+    /// The final deletion repeats these checks under writer ownership.
-+    pub async fn ensure_cleanup_references_allow(
++    /// Acquire global deletion exclusion and validate references before closing live work.
++    /// The returned exact-ID reservation must be retained through shutdown and deletion.
++    pub async fn reserve_loaded_cleanup(
 +        &self,
-+        thread_ids: &[ThreadId],
-+    ) -> ThreadStoreResult<()> {
-+        prepare_thread_deletions(self, thread_ids).await.map(|_| ())
++        thread_id: ThreadId,
++    ) -> ThreadStoreResult<LoadedThreadCleanupGuard> {
++        let reference_deletion = self.reserve_reference_deletion()?;
++        prepare_thread_deletions(self, &[thread_id]).await?;
++        Ok(LoadedThreadCleanupGuard {
++            store: self.clone(),
++            thread_id,
++            reference_deletion,
++        })
 +    }
  }
  
  fn check_attached_children(
-@@ -93,11 +103,24 @@ impl ThreadRollouts {
+@@ -93,11 +138,24 @@ impl ThreadRollouts {
  pub(super) async fn delete_thread(
      store: &LocalThreadStore,
      params: DeleteThreadParams,
@@ -73363,13 +73594,13 @@ index ab13996c7..07f17337d 100644
      let reference_index = scan_reference_index(store).await?;
      let thread_rollouts = ThreadRollouts::from_index(&reference_index, thread_id);
      check_attached_children(&reference_index, &[thread_id])?;
-@@ -123,6 +146,18 @@ pub(super) async fn delete_thread(
+@@ -123,6 +181,19 @@ pub(super) async fn delete_thread(
  pub(super) async fn delete_threads(
      store: &LocalThreadStore,
      params: DeleteThreadsParams,
 +) -> ThreadStoreResult<()> {
 +    let owner = store.clone();
-+    tokio::spawn(async move { delete_threads_owned(&owner, params).await })
++    tokio::spawn(async move { delete_threads_owned(&owner, params, None).await })
 +        .await
 +        .map_err(|error| ThreadStoreError::OutcomeUnknown {
 +            message: format!("delete_threads owner task failed: {error}"),
@@ -73379,10 +73610,11 @@ index ab13996c7..07f17337d 100644
 +async fn delete_threads_owned(
 +    store: &LocalThreadStore,
 +    params: DeleteThreadsParams,
++    reference_deletion: Option<std::fs::File>,
  ) -> ThreadStoreResult<()> {
      let thread_ids = params.thread_ids;
      if thread_ids.is_empty() {
-@@ -142,28 +177,58 @@ pub(super) async fn delete_threads(
+@@ -142,28 +213,61 @@ pub(super) async fn delete_threads(
      }
  
      let mut writer_guards = store.acquire_writer_locks(&lock_thread_ids).await?;
@@ -73393,7 +73625,10 @@ index ab13996c7..07f17337d 100644
 -        .collect::<Vec<_>>();
 -    check_attached_children(&reference_index, &lock_thread_ids)?;
 -    ensure_no_external_references(&reference_index, thread_rollouts.as_slice())?;
-+    let reference_deletion = store.reserve_reference_deletion()?;
++    let reference_deletion = match reference_deletion {
++        Some(reservation) => reservation,
++        None => store.reserve_reference_deletion()?,
++    };
 +    delete_threads_under_writer_locks(
 +        store,
 +        thread_ids,
@@ -73451,7 +73686,7 @@ index ab13996c7..07f17337d 100644
  pub(super) async fn delete_state_rows(
      store: &LocalThreadStore,
      thread_ids: &[codex_protocol::ThreadId],
-@@ -363,6 +428,54 @@ mod tests {
+@@ -363,6 +467,54 @@ mod tests {
      use crate::local::test_support::write_session_file_with;
      use crate::local::test_support::write_session_file_with_history_mode;
  
@@ -73536,7 +73771,7 @@ index 0fba3f55f..25f042239 100644
          let parent = params
              .forked_from_id
 diff --git a/codex-rs/thread-store/src/local/mod.rs b/codex-rs/thread-store/src/local/mod.rs
-index 8a2506b90..0eadcbb5b 100644
+index 8a2506b90..4262b5abb 100644
 --- a/codex-rs/thread-store/src/local/mod.rs
 +++ b/codex-rs/thread-store/src/local/mod.rs
 @@ -1,3 +1,4 @@
@@ -73544,13 +73779,14 @@ index 8a2506b90..0eadcbb5b 100644
  mod archive_thread;
  mod create_thread;
  mod delete_thread;
-@@ -23,8 +24,13 @@ mod thread_history_materialization;
+@@ -23,8 +24,14 @@ mod thread_history_materialization;
  mod thread_rollout_resolver;
  mod thread_sections;
  mod unarchive_thread;
 +mod unloaded_cleanup;
  mod update_thread_metadata;
  
++pub use delete_thread::LoadedThreadCleanupGuard;
 +pub use unloaded_cleanup::UnloadedThreadCleanupGuard;
 +pub use unloaded_cleanup::UnloadedThreadCleanupPreview;
 +pub use unloaded_cleanup::UnloadedThreadCleanupSnapshot;
@@ -73558,7 +73794,7 @@ index 8a2506b90..0eadcbb5b 100644
  #[cfg(test)]
  #[path = "compression_writer_tests.rs"]
  mod compression_writer_tests;
-@@ -153,10 +159,18 @@ pub struct LocalThreadStore {
+@@ -153,10 +160,18 @@ pub struct LocalThreadStore {
      state_db: Option<StateDbHandle>,
      thread_history_db: Arc<OnceCell<sqlx::SqlitePool>>,
      thread_data_cleanup: Option<Arc<ThreadDataCleanup>>,
@@ -73577,7 +73813,7 @@ index 8a2506b90..0eadcbb5b 100644
  type ThreadDataCleanup = dyn Fn(Vec<ThreadId>) -> ThreadStoreFuture<'static, ()> + Send + Sync;
  
  type WriterLockGuard = Arc<codex_rollout::WriterLockGuard>;
-@@ -281,11 +295,46 @@ impl LocalThreadStore {
+@@ -281,11 +296,46 @@ impl LocalThreadStore {
              state_db,
              thread_history_db: Arc::new(OnceCell::new()),
              thread_data_cleanup: None,
@@ -73624,7 +73860,7 @@ index 8a2506b90..0eadcbb5b 100644
      /// Adds cleanup for host-owned durable data when threads are permanently deleted.
      /// Runs after reference and writer checks, under the lifecycle locks, before deleting rollouts.
      /// Cleanup must be idempotent: later deletion steps can fail and the caller may retry.
-@@ -371,6 +420,30 @@ impl LocalThreadStore {
+@@ -371,6 +421,30 @@ impl LocalThreadStore {
          Ok(())
      }
  
@@ -73677,7 +73913,7 @@ index 09a3eede8..bdb0f1138 100644
      .await
      .map_err(|err| ThreadStoreError::Internal {
 diff --git a/codex-rs/thread-store/src/local/revert_thread.rs b/codex-rs/thread-store/src/local/revert_thread.rs
-index 8a9166365..ec01ff87f 100644
+index 8a9166365..911a5a28e 100644
 --- a/codex-rs/thread-store/src/local/revert_thread.rs
 +++ b/codex-rs/thread-store/src/local/revert_thread.rs
 @@ -19,6 +19,18 @@ use crate::ThreadStoreResult;
@@ -73707,6 +73943,316 @@ index 8a9166365..ec01ff87f 100644
      let _lifecycle_guard = store.live_writer_locks.lock_lifecycle(thread_id).await;
      let _live_writer_guard = store.live_writer_locks.lock(thread_id).await;
      store.ensure_live_recorder_absent(thread_id).await?;
+@@ -132,6 +145,15 @@ pub(super) async fn revert(
+     recorder.persist().await.map_err(thread_store_io_error)?;
+     recorder.shutdown().await.map_err(thread_store_io_error)?;
+ 
++    // History reads require a checkpoint for every lineage segment. Publish the new
++    // SQLite path only after its durable replacement can be read, even with no turns.
++    super::thread_history_materialization::materialize_to_sqlite(
++        store,
++        rollout_id,
++        replacement_path.as_path(),
++    )
++    .await?;
++
+     let replaced = state_db
+         .replace_rollout_path_if_current(
+             thread_id,
+diff --git a/codex-rs/thread-store/src/local/revert_thread_tests.rs b/codex-rs/thread-store/src/local/revert_thread_tests.rs
+index 564c990ae..895814b11 100644
+--- a/codex-rs/thread-store/src/local/revert_thread_tests.rs
++++ b/codex-rs/thread-store/src/local/revert_thread_tests.rs
+@@ -106,6 +106,7 @@ async fn revert_keeps_thread_id_and_hides_suffix_across_repeated_reverts() {
+         replacement_meta.runtime_workspace_roots,
+         Some(vec![home.path().join("workspace")])
+     );
++    assert_replacement_projected(&store, first_replacement_path.as_path()).await;
+     assert_eq!(turn_ids(&store, thread_id).await, vec!["turn-1"]);
+ 
+     // Simulate an older binary replacing the rollout without the creator fields it does not know.
+@@ -113,15 +114,24 @@ async fn revert_keeps_thread_id_and_hides_suffix_across_repeated_reverts() {
+         .await
+         .expect("read replacement rollout");
+     let (meta_line, remaining_lines) = rollout.split_once('\n').expect("session metadata line");
++    let original_meta_line_bytes = meta_line.len();
+     let mut meta_line: serde_json::Value = serde_json::from_str(meta_line).expect("parse metadata");
+     let payload = meta_line["payload"]
+         .as_object_mut()
+         .expect("metadata payload");
+     payload.remove("creator_user_id");
+     payload.remove("creator_account_id");
++    // Keep history byte offsets intact: shortening an already projected rollout
++    // would independently violate the immutable-history contract under test.
++    let legacy_meta_line = meta_line.to_string();
++    let padding = " ".repeat(
++        original_meta_line_bytes
++            .checked_sub(legacy_meta_line.len())
++            .expect("omitting creator fields must shorten the metadata line"),
++    );
+     tokio::fs::write(
+         &first_replacement_path,
+-        format!("{meta_line}\n{remaining_lines}"),
++        format!("{legacy_meta_line}{padding}\n{remaining_lines}"),
+     )
+     .await
+     .expect("write legacy replacement rollout");
+@@ -134,12 +144,13 @@ async fn revert_keeps_thread_id_and_hides_suffix_across_repeated_reverts() {
+         })
+         .await
+         .expect("revert before first turn");
+-    assert_eq!(turn_ids(&store, thread_id).await, Vec::<String>::new());
+     let stored = state_db
+         .get_thread(thread_id)
+         .await
+         .expect("read metadata")
+         .expect("thread metadata");
++    assert_replacement_projected(&store, stored.rollout_path.as_path()).await;
++    assert_eq!(turn_ids(&store, thread_id).await, Vec::<String>::new());
+     let recovered = codex_rollout::read_session_meta_line(&stored.rollout_path)
+         .await
+         .expect("read recovered creator metadata")
+@@ -183,6 +194,187 @@ async fn revert_keeps_thread_id_and_hides_suffix_across_repeated_reverts() {
+     }
+ }
+ 
++#[tokio::test]
++async fn revert_projection_failure_preserves_current_history_and_allows_retry_and_delete() {
++    let home = TempDir::new().expect("temp dir");
++    let config = test_config(home.path());
++    let state_db = codex_state::StateRuntime::init(
++        config.sqlite.clone(),
++        config.default_model_provider_id.clone(),
++    )
++    .await
++    .expect("initialize state database");
++    let store = LocalThreadStore::new(config, Some(state_db.clone()));
++    let thread_id = ThreadId::new();
++    create_paginated_thread(&store, thread_id).await;
++    store
++        .append_items(AppendThreadItemsParams {
++            thread_id,
++            items: vec![
++                turn_started("turn-1"),
++                turn_completed("turn-1"),
++                turn_started("turn-2"),
++                turn_completed("turn-2"),
++            ],
++        })
++        .await
++        .expect("append original turns");
++    let source_path = store
++        .live_rollout_path(thread_id)
++        .await
++        .expect("source path");
++    store
++        .shutdown_thread(thread_id)
++        .await
++        .expect("close source writer");
++    codex_rollout::state_db::reconcile_rollout(
++        Some(state_db.as_ref()),
++        &source_path,
++        "test-provider",
++        /*builder*/ None,
++        &[],
++        /*archived_only*/ Some(false),
++        /*new_thread_memory_mode*/ None,
++    )
++    .await;
++    super::super::thread_history_materialization::materialize_to_sqlite(
++        &store,
++        thread_id,
++        &source_path,
++    )
++    .await
++    .expect("project original history before fault injection");
++    let source_bytes = tokio::fs::read(&source_path).await.expect("source bytes");
++    let checkpoint = super::super::thread_history::projection_state(&store, thread_id)
++        .await
++        .expect("source projection")
++        .expect("source checkpoint");
++    let source_checkpoint = (checkpoint.next_byte_offset, checkpoint.next_ordinal);
++    let pool = store.thread_history_db().await.expect("history database");
++    // Use the existing SQLite surface, without a production hook. The original
++    // rollout ID remains writable; only the new replacement checkpoint is rejected.
++    sqlx::query(
++        "CREATE TRIGGER reject_replacement_projection
++         BEFORE INSERT ON thread_history_projection_state
++         WHEN NOT EXISTS (SELECT 1 FROM thread_history_projection_state
++                          WHERE thread_id = NEW.thread_id)
++         BEGIN SELECT RAISE(ABORT, 'r36 replacement projection rejected'); END",
++    )
++    .execute(pool)
++    .await
++    .expect("install replacement-only projection failure");
++    let params = RevertThreadParams {
++        thread_id,
++        before_turn_id: "turn-2".to_string(),
++        multi_agent_version: None,
++    };
++    let result = store.revert_thread(params.clone()).await;
++    assert!(
++        matches!(&result, Err(crate::ThreadStoreError::Internal { message })
++            if message.contains("r36 replacement projection rejected")),
++        "the replacement projection failure must reach the caller: {result:?}"
++    );
++    assert_eq!(
++        state_db
++            .get_thread(thread_id)
++            .await
++            .expect("read current metadata")
++            .expect("original thread metadata")
++            .rollout_path,
++        source_path,
++        "a failed replacement projection must not publish the new current path"
++    );
++    assert_eq!(
++        tokio::fs::read(&source_path)
++            .await
++            .expect("source bytes after failure"),
++        source_bytes
++    );
++    let checkpoint = super::super::thread_history::projection_state(&store, thread_id)
++        .await
++        .expect("source projection after failure")
++        .expect("source checkpoint retained");
++    assert_eq!(
++        (checkpoint.next_byte_offset, checkpoint.next_ordinal),
++        source_checkpoint
++    );
++    assert_eq!(turn_ids(&store, thread_id).await, vec!["turn-1", "turn-2"]);
++
++    // The persisted but unselected replacement has the same owner, so ordinary
++    // deletion must include it rather than treating it as an external reference.
++    let failed_paths = rollout_paths_for_thread(home.path(), thread_id).await;
++    assert_eq!(
++        failed_paths.len(),
++        2,
++        "reach the post-persist projection failure boundary"
++    );
++    let failed_path = failed_paths
++        .iter()
++        .find(|path| **path != source_path)
++        .expect("failed replacement path");
++    let failed_meta = codex_rollout::read_session_meta_line(failed_path)
++        .await
++        .expect("failed replacement metadata")
++        .meta;
++    assert_eq!(failed_meta.id, thread_id);
++    assert_eq!(
++        failed_meta
++            .history_base
++            .expect("retained source prefix")
++            .thread_id,
++        thread_id
++    );
++    let failed_rollout_id =
++        codex_rollout::rollout_id_from_path(failed_path).expect("failed replacement rollout ID");
++    assert!(
++        super::super::thread_history::projection_state(&store, failed_rollout_id)
++            .await
++            .expect("failed replacement projection")
++            .is_none()
++    );
++
++    sqlx::query("DROP TRIGGER reject_replacement_projection")
++        .execute(pool)
++        .await
++        .expect("remove isolated failure injection");
++    store
++        .revert_thread(params)
++        .await
++        .expect("retry revert after projection recovery");
++    assert_eq!(turn_ids(&store, thread_id).await, vec!["turn-1"]);
++    assert_eq!(
++        tokio::fs::read(&source_path)
++            .await
++            .expect("source after retry"),
++        source_bytes
++    );
++    let owned_paths = rollout_paths_for_thread(home.path(), thread_id).await;
++    assert_eq!(
++        owned_paths.len(),
++        3,
++        "original, failed, and successful replacements"
++    );
++    store
++        .delete_thread(DeleteThreadParams { thread_id })
++        .await
++        .expect("failed replacement must not permanently block source deletion");
++    for path in owned_paths {
++        assert!(!path.exists(), "owned rollout remains: {}", path.display());
++    }
++    assert!(
++        state_db
++            .get_thread(thread_id)
++            .await
++            .expect("deleted metadata")
++            .is_none()
++    );
++    assert!(
++        rollout_paths_for_thread(home.path(), thread_id)
++            .await
++            .is_empty()
++    );
++}
++
+ #[tokio::test]
+ async fn revert_preserves_resolved_multi_agent_version_in_session_metadata() {
+     let home = TempDir::new().expect("temp dir");
+@@ -302,6 +494,24 @@ async fn create_paginated_thread(store: &LocalThreadStore, thread_id: ThreadId)
+         .expect("create paginated thread");
+ }
+ 
++// Revert must publish a readable replacement, including an empty retained history.
++// Check the actual rollout ID: the thread ID still names the original history projection.
++async fn assert_replacement_projected(store: &LocalThreadStore, path: &std::path::Path) {
++    let rollout_id = codex_rollout::rollout_id_from_path(path).expect("replacement rollout ID");
++    let checkpoint = super::super::thread_history::projection_state(store, rollout_id)
++        .await
++        .expect("read replacement projection")
++        .expect("revert must project replacement before publishing the current path");
++    assert_eq!(
++        checkpoint.next_byte_offset,
++        tokio::fs::metadata(path)
++            .await
++            .expect("replacement metadata")
++            .len(),
++        "replacement projection must cover the complete durable header"
++    );
++}
++
+ async fn turn_ids(store: &LocalThreadStore, thread_id: ThreadId) -> Vec<String> {
+     store
+         .list_turns(ListTurnsParams {
+diff --git a/codex-rs/thread-store/src/local/thread_attachments_tests.rs b/codex-rs/thread-store/src/local/thread_attachments_tests.rs
+index 936447a73..16a2aada5 100644
+--- a/codex-rs/thread-store/src/local/thread_attachments_tests.rs
++++ b/codex-rs/thread-store/src/local/thread_attachments_tests.rs
+@@ -326,6 +326,23 @@ async fn attachment_mutations_queued_behind_deletion_reject_deleted_threads() {
+         };
+         assert!(futures::poll!(&mut deletion).is_pending());
+ 
++        // Deletion now runs in an owned task. Polling its JoinHandle does not prove
++        // that the owner has queued its writer reservation. The held read guard
++        // prevents acquisition; try_read fails only once that writer is queued.
++        let lifecycle = store
++            .live_writer_locks
++            .coordination(thread_id)
++            .await
++            .lifecycle
++            .clone();
++        tokio::time::timeout(std::time::Duration::from_secs(10), async {
++            while lifecycle.try_read().is_ok() {
++                tokio::task::yield_now().await;
++            }
++        })
++        .await
++        .expect("delete owner must queue its exclusive lifecycle reservation");
++
+         // The queued exclusive delete must precede subsequent shared attachment reservations.
+         let mut attachment = store.add_thread_attachment(AddThreadAttachmentParams {
+             thread_id,
 diff --git a/codex-rs/thread-store/src/local/thread_history/read.rs b/codex-rs/thread-store/src/local/thread_history/read.rs
 index e2afaa642..c7260c95e 100644
 --- a/codex-rs/thread-store/src/local/thread_history/read.rs
@@ -76052,7 +76598,7 @@ index 47968b869..2bdcf7802 100644
      "Win32_System_Diagnostics_ToolHelp",
 diff --git a/codex-rs/tui/locales/en/cli.ftl b/codex-rs/tui/locales/en/cli.ftl
 new file mode 100644
-index 000000000..112b12ba2
+index 000000000..705918d59
 --- /dev/null
 +++ b/codex-rs/tui/locales/en/cli.ftl
 @@ -0,0 +1,882 @@
@@ -76074,7 +76620,7 @@ index 000000000..112b12ba2
 +
 +cli-cleanup-about = Preview and clean up completed local second-generation subagent conversations under the current parent.
 +
-+cli-cleanup-long-about = Read-only preview is the default. --apply requests explicit confirmation after the preview. Running or unknown-state items, other generations, remote-owned items, and legacy items are preserved. Repeated --thread flags clean up only the exact selection and preserve unselected descendants.
++cli-cleanup-long-about = Preview is the default and each item's reason explains eligibility or preservation. --apply requests explicit confirmation after the preview. Unloaded historical terminal items are preserved with reference_participants_unverified because reference safety cannot be established. Operational cleanup support for these items is incomplete. Running or unknown-state items, other generations, remote-owned items, and legacy items are preserved. Repeated --thread flags clean up only the exact selection and preserve unselected descendants.
 +
 +cli-help-doctor-options-for-building-a-local-codex-diagnostic-report = Options for building a local Codex diagnostic report
 +
@@ -78676,7 +79222,7 @@ index 000000000..7e93ef63a
 +status-title-action-required-hidden = [ . ] Action Required
 diff --git a/codex-rs/tui/locales/ko/cli.ftl b/codex-rs/tui/locales/ko/cli.ftl
 new file mode 100644
-index 000000000..5945116ce
+index 000000000..8978fd586
 --- /dev/null
 +++ b/codex-rs/tui/locales/ko/cli.ftl
 @@ -0,0 +1,882 @@
@@ -78698,7 +79244,7 @@ index 000000000..5945116ce
 +
 +cli-cleanup-about = 현재 부모 아래 로컬 2세대 서브에이전트의 종료 대화를 미리 보고 정리합니다.
 +
-+cli-cleanup-long-about = 읽기 전용 미리보기가 기본입니다. --apply는 미리보기 뒤 명시 확인을 받습니다. 실행 중이거나 상태가 불명확한 항목, 다른 세대·원격 소유·이전 방식 항목은 보존합니다. --thread를 반복하면 정확한 선택 집합만 정리하며 선택하지 않은 후손은 보존합니다.
++cli-cleanup-long-about = 미리보기가 기본이며 각 항목의 reason에 정리·보존 사유를 표시합니다. --apply는 미리보기 뒤 명시 확인을 받습니다. 메모리에 없는 과거 종료 항목은 참조 안전성을 입증할 수 없어 reference_participants_unverified로 보존합니다. 해당 항목의 운영 정리 지원은 미완입니다. 실행 중이거나 상태가 불명확한 항목, 다른 세대·원격 소유·이전 방식 항목은 보존합니다. --thread를 반복하면 정확한 선택 집합만 정리하며 선택하지 않은 후손은 보존합니다.
 +
 +cli-help-doctor-options-for-building-a-local-codex-diagnostic-report = 로컬 Codex 진단 보고서 생성 옵션
 +
@@ -118195,10 +118741,10 @@ index 000000000..8c51e4acc
 +소스와 시험은 별도 R36 브랜치에서 개발한다. 기존 warm cache와 자원 보호를 재사용하며 빌드 프로세스를 여러 개 동시에 시작하지 않는다. 실제 시험 결과·종료 코드·후보 SHA를 연결하고, 미실행과 통과를 구분한다. 최종 변경의 수용 근거 확인과 새로운 독립감사를 거친다. 이번 요청만으로 main 병합·릴리스·설치를 실행하지 않는다.
 diff --git a/docs/r36-cleanup.ko.md b/docs/r36-cleanup.ko.md
 new file mode 100644
-index 000000000..d85a416bc
+index 000000000..9654954cc
 --- /dev/null
 +++ b/docs/r36-cleanup.ko.md
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,100 @@
 +# R36: 종료 서브에이전트 정리 사유와 보존 경계
 +
 +기존 `preview_completed_children`는 저장된 그래프와 메모리의 자손을 함께 나열했지만 `get_thread(id)`가 실패하면 후보를 무조건 보존했다. 따라서 저장된 종료 대화 수와 `eligible` 수는 일치하지 않을 수 있었다. 각 항목의 보존 사유도 응답에 없었다. 이번 작업에서는 실제 사용자 세션·DB·로그를 열지 않았으므로 사용자에게 제시된 9개/302개의 개별 원인을 재판정한 결과는 아니다.
@@ -118280,6 +118826,25 @@ index 000000000..d85a416bc
 +Cargo/시험 실행은 통합 담당에게 일원화한다. 통합 담당의 `d5ca137a5` 격리 실행 영수증에는 14개 filter 모두 exit 0, `sourceFilesUnchanged=true`가 기록되었고 기존 cold 4개 시험의 PASS 로그를 확인했다. 이번 사전 거부 수정의 Core 3개와 추가한 기본 보존·참조 lease·취소·다중삭제 시험은 아직 **NOT_RUN**이다. 기존 cross-store 저장소 fixture의 수정 전 실행은 RED이며 수정 후 재실행은 아직 하지 않았다. 특히 cross-store 시험은 안전성을 판별하는 회귀 시험이며, 해당 경계 수정 소스를 추가했으나 수정 후 통과는 아직 확인하지 않았다. 기존 lifecycle 예약의 store 인스턴스 경계를 넘는 실제 실패는 RED로 확인했고, 수정 후 결과는 후속 실행에서 확인해야 한다.
 +
 +`reason` 생성물은 실제 Rust generator의 stable/experimental 각 1개 시험 exit 0으로 생성했다. `manual-generated-schema`와 통합 runner의 `generated-schema`는 1,118개 파일의 상대 경로와 SHA-256이 모두 일치했다. 의미가 바뀐 JSON 3개, TypeScript 1개, precomputed 압축 export 2개만 반영했으며 텍스트는 저장소 CRLF를 유지했다. 생성 실행의 source는 `d5ca137a5`이고 이번 사전 거부 패치는 protocol 선언을 바꾸지 않는다. 새 시험, 생성물 fixture 대조, 독립 감사, 실제 앱 부하 조건과 효과는 후속 통합 검증에서 확인해야 한다. 포맷 명령은 지정된 Rust 1.99.1의 `rustfmt.exe --edition 2024 --config skip_children=true`로 소유 파일에만 실행했다. 이 문서만으로 실제 사용자 항목의 삭제 가능 여부나 문제 해결을 선언하지 않는다.
++
++## loaded 참조 잠금 사전 검사 보강
++
++`a666c9bb1`의 loaded 경로는 참조 검사 뒤 런타임을 닫고, 최종 삭제에서 처음 global exclusive File을 얻었다. 다른 store가 관련 없는 `PreparedFork` shared File을 보유해도 close 뒤에야 경합을 발견하므로 종료·tombstone을 남길 수 있었다. 이를 방지하는 후보는 close 전에 exact-ID `LoadedThreadCleanupGuard`를 만들고 같은 exclusive File 아래 참조 검사를 한다. 경합이면 `reference_publication_busy`, 기존 참조 거절이면 `storage_rejected_before_deletion`을 반환하고 원본·런타임·admission을 보존한다. guard는 기존 Core cleanup owner가 shutdown 동안 유지하고 최종 삭제 owner로 이동한다. 삭제 시 File을 내려놓거나 재획득하지 않으며, UUID를 바꾸는 public 인수도 없다. 공용 `ThreadStore` 인터페이스에는 concrete guard 메서드를 추가하지 않는다.
++
++일반 fault-adapter fixture는 wrapper 자신의 identity를 반환하여 기존 shutdown/응답 유실/저장 실패 시험을 유지한다. 이 fixture가 실제 Local guard를 시험한다고 주장하지 않는다. persistent-graph fixture는 실제 Local identity를 노출하여 별도 loaded 정상삭제·호출 취소·reference 거절·다른 source의 PreparedFork 경합을 시험한다. `loaded_cleanup_preserves_runtime_when_foreign_store_has_unrelated_prepared_fork`는 수정 전 RED 판별용 별도 패치이며, `loaded_cleanup_keeps_reference_exclusion_through_shutdown_and_request_cancellation`는 shutdown 중 foreign prepare 거부와 호출 취소 뒤 owner의 삭제 완료를 확인한다. 외부 패치 준비 단계에서는 원본을 변경하지 않았으며, 이후 통합 담당이 회귀를 먼저 추가하고 실제 수정 전 실패를 확인한 뒤 제품 수정을 적용했다. 수정 후 시험은 아래 상태를 따른다.
++
++CLI long help의 번역 매핑과 기존 en/ko `cli-cleanup-long-about`도 기본 보존 문구로 함께 갱신하는 후보를 준비했다. `r36_cleanup_localized_long_help_explains_default_unloaded_preservation`는 실제 `cleanup-agents --help`의 Clap 결과를 현지화 경계에서 검사하며, 영어 도움말에 한국어 원문이 남거나 운영 cold 지원 미완 설명이 빠지면 실패한다. cold 기본 거부와 구버전 혼합 환경의 기존 loaded 위험은 이 보강으로 해소됐다고 판정하지 않는다.
++
++
++## 후속 실제 실패 확인과 수정 검증 범위
++
++`a666c9bb1` 전체 thread-store 시험은 290개 통과·2개 실패였다. 같은 후보의 protocol은 333개 통과·1개 무시, rollout은 162개 통과, Core 정리는 32개 통과였다. cross-store prepared fork 회귀는 통과했다. 이 결과는 다음 후속 소스의 전체 통과를 뜻하지 않는다.
++
++`5aba5801e`에서 제품 수정 없이 회귀를 먼저 실행했다. 컴파일은 종료 0이었고, repeated revert는 replacement projection 부재 assertion으로 실패했다. loaded 경합 회귀의 첫 exact 경로는 0개를 선택하여 성공으로 계산하지 않았으며, 동일 실행 파일의 `unloaded_tests` 포함 경로로 바로잡은 실제 1개 실행은 `storage_unconfirmed_partial_deletion_possible` 대 `reference_publication_busy` assertion에서 실패했다. 기존 원시 영수증은 덮어쓰지 않았다.
++
++후속 제품 수정은 loaded guard를 close 전에 확보하여 삭제 끝까지 같은 File을 보존하고, revert는 durable replacement의 projection을 먼저 준비한 뒤 SQLite current path를 CAS한다. 첨부 시험은 별도 삭제 owner task가 실제 lifecycle writer 대기열에 들어온 것을 확인한 후 후속 reader를 예약한다. 그 외 첨부 제품 동작은 바꾸지 않는다. SQLite trigger로 새 replacement projection만 거부하는 격리 시험은 오류 전달·current path·원본 bytes/checkpoint/turns 보존, 재시도와 같은 owner의 전체 rollout 삭제를 요구한다. 성공 경로뿐 아니라 새 실패 경계도 실제 후속 실행에서 확인해야 하며 현재 수정 후 결과는 NOT_RUN이다.
++
++cold 기본 보존과 구버전 혼합 위험은 여전히 미해결이다. 운영 cold 정리 완료, 실제 앱 입력/부하, R36 최종 제품 빌드·릴리스·설치의 성공을 주장하지 않는다.
 diff --git a/docs/r36-cloud-ci.ko.md b/docs/r36-cloud-ci.ko.md
 new file mode 100644
 index 000000000..b1d0f7c8b

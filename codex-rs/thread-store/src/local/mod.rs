@@ -28,6 +28,7 @@ mod unarchive_thread;
 mod unloaded_cleanup;
 mod update_thread_metadata;
 
+pub use delete_thread::LoadedThreadCleanupGuard;
 pub use unloaded_cleanup::UnloadedThreadCleanupGuard;
 pub use unloaded_cleanup::UnloadedThreadCleanupPreview;
 pub use unloaded_cleanup::UnloadedThreadCleanupSnapshot;

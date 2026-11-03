@@ -36,6 +36,9 @@ struct StoreFaults {
 struct FaultStore {
     inner: Arc<dyn store::ThreadStore>,
     faults: Arc<StoreFaults>,
+    // Fault wrappers test the generic adapter contract. Only explicit local-boundary
+    // fixtures expose the underlying LocalThreadStore for its concrete cleanup guard.
+    expose_local_cleanup_identity: bool,
 }
 
 struct BarrierGraph {
@@ -97,10 +100,12 @@ macro_rules! forward {
 }
 
 impl store::ThreadStore for FaultStore {
-    // Preserve the wrapped local store's implementation identity, just as all of its
-    // data and writer ownership remain real. Cleanup's local-only guard stays enabled.
     fn as_any(&self) -> &dyn std::any::Any {
-        self.inner.as_any()
+        if self.expose_local_cleanup_identity {
+            self.inner.as_any()
+        } else {
+            self
+        }
     }
     fn default_history_mode(&self) -> codex_protocol::protocol::ThreadHistoryMode {
         self.inner.default_history_mode()
@@ -359,6 +364,7 @@ async fn fixture_with_graph_options(
     state.thread_store = Arc::new(FaultStore {
         inner: Arc::new(local),
         faults: Arc::clone(&faults),
+        expose_local_cleanup_identity: persistent_graph,
     });
     state.agent_graph_store = if persistent_graph {
         Some(Arc::new(

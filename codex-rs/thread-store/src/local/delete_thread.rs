@@ -36,6 +36,35 @@ struct ThreadRollouts {
     paths: Vec<PathBuf>,
 }
 
+/// Reserves reference exclusion for one exact live cleanup target before it is closed.
+/// The UUID and File are opaque and cannot be replaced by the caller.
+pub struct LoadedThreadCleanupGuard {
+    store: LocalThreadStore,
+    thread_id: ThreadId,
+    reference_deletion: std::fs::File,
+}
+
+impl LoadedThreadCleanupGuard {
+    /// Use the same File throughout shutdown and final deletion; never reacquire it.
+    /// This operation owns the reservation through storage IO if its caller cancels.
+    pub async fn delete(self) -> ThreadStoreResult<()> {
+        tokio::spawn(async move {
+            delete_threads_owned(
+                &self.store,
+                DeleteThreadsParams {
+                    thread_ids: vec![self.thread_id],
+                },
+                Some(self.reference_deletion),
+            )
+            .await
+        })
+        .await
+        .map_err(|error| ThreadStoreError::OutcomeUnknown {
+            message: format!("loaded cleanup deletion owner failed: {error}"),
+        })?
+    }
+}
+
 impl LocalThreadStore {
     /// Reject deletion while any candidate has attached threads. Call before stopping live work;
     /// deletion repeats this check under existing writer ownership to cover concurrent creation.
@@ -47,13 +76,19 @@ impl LocalThreadStore {
         check_attached_children(&reference_index, thread_ids)
     }
 
-    /// Check every reference rejection before cleanup closes a loaded runtime.
-    /// The final deletion repeats these checks under writer ownership.
-    pub async fn ensure_cleanup_references_allow(
+    /// Acquire global deletion exclusion and validate references before closing live work.
+    /// The returned exact-ID reservation must be retained through shutdown and deletion.
+    pub async fn reserve_loaded_cleanup(
         &self,
-        thread_ids: &[ThreadId],
-    ) -> ThreadStoreResult<()> {
-        prepare_thread_deletions(self, thread_ids).await.map(|_| ())
+        thread_id: ThreadId,
+    ) -> ThreadStoreResult<LoadedThreadCleanupGuard> {
+        let reference_deletion = self.reserve_reference_deletion()?;
+        prepare_thread_deletions(self, &[thread_id]).await?;
+        Ok(LoadedThreadCleanupGuard {
+            store: self.clone(),
+            thread_id,
+            reference_deletion,
+        })
     }
 }
 
@@ -149,7 +184,7 @@ pub(super) async fn delete_threads(
     params: DeleteThreadsParams,
 ) -> ThreadStoreResult<()> {
     let owner = store.clone();
-    tokio::spawn(async move { delete_threads_owned(&owner, params).await })
+    tokio::spawn(async move { delete_threads_owned(&owner, params, None).await })
         .await
         .map_err(|error| ThreadStoreError::OutcomeUnknown {
             message: format!("delete_threads owner task failed: {error}"),
@@ -159,6 +194,7 @@ pub(super) async fn delete_threads(
 async fn delete_threads_owned(
     store: &LocalThreadStore,
     params: DeleteThreadsParams,
+    reference_deletion: Option<std::fs::File>,
 ) -> ThreadStoreResult<()> {
     let thread_ids = params.thread_ids;
     if thread_ids.is_empty() {
@@ -178,7 +214,10 @@ async fn delete_threads_owned(
     }
 
     let mut writer_guards = store.acquire_writer_locks(&lock_thread_ids).await?;
-    let reference_deletion = store.reserve_reference_deletion()?;
+    let reference_deletion = match reference_deletion {
+        Some(reservation) => reservation,
+        None => store.reserve_reference_deletion()?,
+    };
     delete_threads_under_writer_locks(
         store,
         thread_ids,
