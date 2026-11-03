@@ -106,3 +106,45 @@ controls-copy-confirmed = Copied { $value } to clipboard
 controls-copy-unconfirmed = Copy unconfirmed; /export saves chat
 controls-copy-pending = Copying { $value }…
 controls-copy-busy = Copy already in progress
+
+
+cleanup-unsupported = The selected server does not support the subagent cleanup API. No conversations were deleted. Specify a supporting server with --remote, or switch to a supporting server before retrying.
+cleanup-selection-preserved = The selected item is preserved because its terminal state could not be confirmed: { $id }
+cleanup-confirmation-required = Actual cleanup requires terminal confirmation or --apply --confirm.
+cleanup-confirmation-token = cleanup
+cleanup-confirmation-prompt = Type '{ $token }' to permanently delete the { $count } conversations selected in the preview above:
+cleanup-partial-failure = Some items were preserved or their cleanup could not be confirmed. Check the per-item results above.
+
+controls-compact-pending = Compaction will be attempted once after this turn completes. It has not started yet; busy conversations or pending messages prevent admission.
+
+controls-compact-started = Compaction started. Completion is reported by the compaction events.
+
+controls-compact-busy = Compaction did not start because the conversation is busy or has pending messages.
+
+controls-compact-not-started = Compaction did not start:
+
+controls-compact-failed = Compaction request failed:
+
+controls-compact-timeout = Compaction result is unknown after timeout. Do not resend automatically.
+
+controls-memory-disabled = Memories are disabled or unavailable. Ask to enable memories explicitly; saved reading preferences alone do not enable the feature. Environment or managed restrictions may prevent activation.
+
+controls-memory-overridden = Memory settings were saved but overridden. Current runtime activation is unconfirmed; do not resend automatically.
+
+controls-memory-runtime-differs = Memory settings were saved, but the current runtime differs. Explicit session, managed, or environment restrictions may prevent activation. Do not resend automatically.
+
+controls-memory-confirmed = Memory settings and current runtime were confirmed. Reading applies to future context, generation to new work; running work may finish. No summary generation or model turn was started.
+
+diagnostics-status = Startup mode and saved settings are shown separately. General logging alone does not enable cache observation.
+
+diagnostics-saved-next-launch = Saved for the next launch. The current process keeps its startup mode. General logging alone does not enable cache observation.
+
+diagnostics-home-failed = Could not find the local diagnostics settings directory: { $error }
+
+diagnostics-operation-failed = The diagnostics operation failed: { $error }. Query status before retrying any change.
+
+diagnostics-settings-busy = Diagnostics settings are busy. Query status before retrying the change.
+
+diagnostics-operation-unconfirmed = The diagnostics operation could not be confirmed: { $error }. Query status before retrying any change.
+
+diagnostics-cache-wire-requires-response = Wire cache observation requires response observation. Select both explicitly.

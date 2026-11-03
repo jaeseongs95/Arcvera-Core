@@ -43,7 +43,7 @@ impl App {
                             text("Storage:"), response.root.as_deref().unwrap_or("-"),
                             response.summary.as_deref().unwrap_or(text("No stored memory summary is available.")),
                             text("This is the stored summary. Existing chat context is unchanged; new context loads the latest summary.")),
-                            Some("/memory edit <correction> · /memory read on|off · /memory generate on|off".to_string()));
+                            Some(text("/memory enable on|off · /memory edit <correction> · /memory read on|off · /memory generate on|off").to_string()));
                     }
                     Err(error) => self.chat_widget.add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
                 }
@@ -83,7 +83,7 @@ impl App {
                     Err(error) => self.chat_widget.add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
                 }
             }
-            _ => self.chat_widget.add_error_message(text("Usage: /memory view | edit <correction> | read on|off | generate on|off | scope project|global").to_string()),
+            _ => self.chat_widget.add_error_message(text("Usage: /memory view | enable on|off | edit <correction> | read on|off | generate on|off | scope project|global").to_string()),
         }
     }
 }

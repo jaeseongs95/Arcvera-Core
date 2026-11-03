@@ -250,3 +250,30 @@ fn warning_links_preserve_destinations_when_wrapped_and_scrolled() {
             .all(|cell| cell.symbol().starts_with(&format!("\x1b]8;;{url}\x07")))
     );
 }
+
+#[test]
+fn localized_warning_copy_hint_uses_action_id_and_keeps_remapped_copy() {
+    for (locale, label) in [
+        (crate::i18n::Locale::English, "copy"),
+        (crate::i18n::Locale::Korean, "복사"),
+    ] {
+        crate::i18n::with_locale(locale, || {
+            let (tx, mut rx) = unbounded_channel();
+            let keymap =
+                RuntimeKeymap::from_config(&toml::from_str("[global]\ncopy = 'f10'").unwrap())
+                    .unwrap();
+            let mut view =
+                WarningsView::new(entries(), Arc::default(), keymap, AppEventSender::new(tx));
+            let screen = draw(&view, 180, 14);
+            assert!(
+                screen.to_lowercase().contains("f10"),
+                "{locale:?}: {screen}"
+            );
+            assert!(screen.contains(label), "{locale:?}: {screen}");
+            view.handle_key(KeyEvent::new(KeyCode::F(10), KeyModifiers::NONE));
+            assert!(
+                matches!(rx.try_recv(), Ok(AppEvent::CopyWarning(text)) if text == entries()[0].details)
+            );
+        });
+    }
+}

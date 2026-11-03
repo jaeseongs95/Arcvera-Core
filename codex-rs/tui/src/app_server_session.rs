@@ -4490,7 +4490,8 @@ mod tests {
         let home = tempfile::tempdir()?;
         std::fs::write(home.path().join("config.toml"), "service_tier = 'flex'\n")?;
         for tier in [None, Some("priority"), Some("default")] {
-            let config = ConfigBuilder::without_managed_config_for_tests()
+            let config = ConfigBuilder::default()
+                .loader_overrides(codex_config::LoaderOverrides::without_managed_config_for_tests())
                 .codex_home(home.path().to_path_buf())
                 .fallback_cwd(Some(home.path().to_path_buf()))
                 .cli_overrides(
@@ -4529,7 +4530,8 @@ mod tests {
         let original = "service_tier = 'flex'\n";
         let file = home.path().join("config.toml");
         std::fs::write(&file, original)?;
-        let config = ConfigBuilder::without_managed_config_for_tests()
+        let config = ConfigBuilder::default()
+            .loader_overrides(codex_config::LoaderOverrides::without_managed_config_for_tests())
             .codex_home(home.path().to_path_buf())
             .fallback_cwd(Some(home.path().to_path_buf()))
             .build()

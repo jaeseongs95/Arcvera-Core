@@ -601,6 +601,9 @@ fn help_message_id(original: &str) -> Option<&'static str> {
         "Start the local app server daemon if it is not already running" => {
             Some("cli-help-main-start-the-local-app-server-daemon-if-it")
         }
+        "Install only if no installation, settings, or recovery state exists under the lifecycle lock." => {
+            Some("cli-help-first-installation-only")
+        }
         "Use only the selected installation; preserve settings and updater state" => {
             Some("cli-help-main-use-only-the-selected-installation-preserve-settings-and")
         }

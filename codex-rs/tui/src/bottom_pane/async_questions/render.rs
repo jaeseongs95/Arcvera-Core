@@ -174,10 +174,7 @@ impl AsyncQuestions {
         let mut tips = Vec::new();
         let chat_hint = |action| self.keymap.primary_hint(KeymapContext::Chat, action);
         let (context, action) = if self.focus_is_notes() {
-            (
-                KeymapContext::Composer,
-                &crate::i18n::message("dialogs-submit-short", &[]),
-            )
+            (KeymapContext::Composer, "submit")
         } else {
             (KeymapContext::List, "accept")
         };

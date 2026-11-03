@@ -79,6 +79,30 @@ impl App {
         command: Command,
     ) -> Result<Value, String> {
         match command {
+            Command::LoggingStatus => {
+                super::diagnostics_control::handle(
+                    super::diagnostics_control::Action::LoggingStatus,
+                )
+                .await
+            }
+            Command::LoggingSet { enabled } => {
+                super::diagnostics_control::handle(super::diagnostics_control::Action::LoggingSet {
+                    enabled,
+                })
+                .await
+            }
+            Command::CacheDiagnosticsStatus => {
+                super::diagnostics_control::handle(
+                    super::diagnostics_control::Action::CacheDiagnosticsStatus,
+                )
+                .await
+            }
+            Command::CacheDiagnosticsSet { response, wire } => {
+                super::diagnostics_control::handle(
+                    super::diagnostics_control::Action::CacheDiagnosticsSet { response, wire },
+                )
+                .await
+            }
             Command::Status => Ok(json!({
                 "threadId": thread,
                 "uiLanguage": crate::i18n::locale().as_str(),

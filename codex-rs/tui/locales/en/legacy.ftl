@@ -382,7 +382,8 @@ legacy-memory-correction-saved-for-later-consolidation-the-stored-summary-and-ex
 legacy-memory-settings-saved-reading-changes-apply-to-new-chats-generation-changes-stop-new-claim = { "Memory settings saved. Reading changes apply to new chats. Generation changes stop new claims; already running work may finish." }
 legacy-memory-scope-saved-for-new-chats-existing-global-or-external-memories-were-not-moved = { "Memory scope saved for new chats. Existing global or external memories were not moved." }
 legacy-memory-scope-was-overridden-by-managed-configuration = { "Memory scope was overridden by managed configuration." }
-legacy-usage-memory-view-edit-correction-read-on-off-generate-on-off-scope-project-global = { "Usage: /memory view | edit <correction> | read on|off | generate on|off | scope project|global" }
+legacy-usage-memory-view-edit-correction-read-on-off-generate-on-off-scope-project-global = { "Usage: /memory view | enable on|off | edit <correction> | read on|off | generate on|off | scope project|global" }
+legacy-memory-command-hint = { "/memory enable on|off · /memory edit <correction> · /memory read on|off · /memory generate on|off" }
 legacy-project-memory-reset-is-unavailable-disable-generation-and-use-an-explicit-correction-no-d = { "Project memory reset is unavailable. Disable generation and use an explicit correction; no deletion has been performed." }
 legacy-local-memory-reset-completed-existing-conversations-and-running-memory-work-may-still-reta = { "Local memory reset completed; existing conversations and running memory work may still retain earlier information." }
 legacy-start-with-remote-control-disabled-preserving-saved-registrations-and-settings = { "Start with remote control disabled, preserving saved registrations and settings" }

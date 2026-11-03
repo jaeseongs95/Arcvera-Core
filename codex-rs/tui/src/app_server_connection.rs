@@ -50,14 +50,13 @@ pub(crate) async fn connect(target: &AppServerTarget) -> color_eyre::Result<AppS
         let AppServerClient::Remote(remote) = &client else {
             unreachable!("local daemon connections are remote clients");
         };
-        // Keep build metadata: different OpenDIY revisions can share an upstream version.
+        // Build metadata identifies the runtime; it is not a protocol negotiation.
+        // Keep local socket/peer validation and per-feature checks independently.
         if remote.server_version() != Some(env!("CARGO_PKG_VERSION")) {
-            let observed = remote.server_version().unwrap_or("unknown").to_owned();
-            // Only close this client's connection. Other sessions and daemon jobs survive.
-            let _ = client.shutdown().await;
-            color_eyre::eyre::bail!(
-                "Background server version {observed} does not match this CLI {}",
-                env!("CARGO_PKG_VERSION")
+            tracing::warn!(
+                cli_version = env!("CARGO_PKG_VERSION"),
+                server_version = remote.server_version().unwrap_or("unknown"),
+                "shared server build differs; feature and RPC support must be checked separately"
             );
         }
     }

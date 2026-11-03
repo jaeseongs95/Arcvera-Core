@@ -5,6 +5,7 @@ use std::sync::atomic::Ordering;
 
 pub mod batch_log;
 pub mod cache_diagnostics;
+pub mod settings_control;
 
 static GAUGES: Mutex<Vec<&'static Gauge>> = Mutex::new(Vec::new());
 

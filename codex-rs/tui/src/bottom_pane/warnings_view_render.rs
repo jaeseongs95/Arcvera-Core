@@ -108,11 +108,8 @@ impl Renderable for WarningsView {
                 crate::i18n::message("dialogs-warning-dismiss-close", &[]),
             ),
             (
-                hint(
-                    KeymapContext::Global,
-                    crate::i18n::message("dialogs-copy", &[]),
-                )
-                .map(crate::key_hint::ShortcutHint::display_label),
+                hint(KeymapContext::Global, "copy")
+                    .map(crate::key_hint::ShortcutHint::display_label),
                 crate::i18n::message("dialogs-copy", &[]),
             ),
             (
