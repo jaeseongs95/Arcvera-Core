@@ -19,6 +19,64 @@ const AGENT_STATUS_PREVIEW_ITEMS: usize = 6;
 const AGENT_STATUS_PREVIEW_GRAPHEMES: usize = 240;
 const AGENT_STATUS_PREVIEW_INDENT: u16 = 4;
 
+/// Reuse delivered UI events for the footer; never attach to or read more thread history.
+pub(super) fn footer_detail(
+    store: &ThreadEventStore,
+) -> (Option<String>, Option<i64>, Option<i64>) {
+    let turn_id = store.active_turn_id().or(store.latest_turn_id.as_deref());
+    let mut turn = None;
+    let mut task = None;
+    // ponytail: the footer is a short best-effort preview; full activity remains in /subagents.
+    for event in store.buffer.iter().rev().take(64) {
+        let ThreadBufferedEvent::Notification(notification) = event else {
+            continue;
+        };
+        match notification.as_ref() {
+            ServerNotification::TurnStarted(event)
+                if Some(event.turn.id.as_str()) == turn_id && turn.is_none() =>
+            {
+                turn = Some(&event.turn)
+            }
+            ServerNotification::TurnCompleted(event)
+                if Some(event.turn.id.as_str()) == turn_id && turn.is_none() =>
+            {
+                turn = Some(&event.turn)
+            }
+            ServerNotification::ItemStarted(event)
+                if Some(event.turn_id.as_str()) == turn_id && task.is_none() =>
+            {
+                task = activity_summary(&event.item.payload)
+            }
+            ServerNotification::ItemCompleted(event)
+                if Some(event.turn_id.as_str()) == turn_id && task.is_none() =>
+            {
+                task = activity_summary(&event.item.payload)
+            }
+            _ => {}
+        }
+    }
+    let turn = turn.or_else(|| {
+        store
+            .turns
+            .iter()
+            .rev()
+            .find(|turn| Some(turn.id.as_str()) == turn_id)
+    });
+    if task.is_none() {
+        task = turn.and_then(|turn| {
+            turn.items
+                .iter()
+                .rev()
+                .find_map(|item| activity_summary(&item.payload))
+        });
+    }
+    (
+        task,
+        turn.and_then(|turn| turn.started_at),
+        turn.and_then(|turn| turn.duration_ms),
+    )
+}
+
 #[derive(Debug)]
 pub(super) struct AgentStatusHistoryCell {
     entries: Vec<AgentStatusThreadPreview>,
@@ -227,3 +285,63 @@ fn indent_preview_line(mut line: Line<'static>) -> Line<'static> {
 #[cfg(test)]
 #[path = "agent_status_feed_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod footer_tests {
+    use super::*;
+    use codex_app_server_protocol::{
+        ItemCompletedNotification, Turn, TurnStartedNotification, TurnStatus,
+    };
+
+    #[test]
+    fn footer_detail_only_uses_current_turn_and_backend_time() {
+        let mut store = ThreadEventStore::new(16);
+        let turn = Turn {
+            id: "current".to_string(),
+            root_turn_id: None,
+            items: Vec::new(),
+            items_view: Default::default(),
+            status: TurnStatus::InProgress,
+            error: None,
+            started_at: Some(123),
+            completed_at: None,
+            duration_ms: None,
+        };
+        store.push_notification(ServerNotification::TurnStarted(TurnStartedNotification {
+            thread_id: "child".to_string(),
+            turn,
+        }));
+        let message = |turn: &str, text: &str| {
+            ServerNotification::ItemCompleted(ItemCompletedNotification::new(
+                "child".to_string(),
+                turn.to_string(),
+                ThreadItemPayload::AgentMessage {
+                    id: text.to_string(),
+                    text: text.to_string(),
+                    phase: None,
+                    memory_citation: None,
+                    delivery: None,
+                    questions: None,
+                },
+                None,
+                1,
+            ))
+        };
+        store.push_notification(message("current", "Checking the current task"));
+        store.push_notification(message("old", "stale task"));
+        assert_eq!(
+            footer_detail(&store),
+            (
+                Some("Checking the current task".to_string()),
+                Some(123),
+                None
+            )
+        );
+        store.set_active_turn_id("next".to_string());
+        assert_eq!(
+            footer_detail(&store),
+            (None, None, None),
+            "old details must not leak into a new turn"
+        );
+    }
+}

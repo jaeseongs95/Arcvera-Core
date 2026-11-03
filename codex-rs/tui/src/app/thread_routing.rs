@@ -1161,6 +1161,10 @@ impl App {
                         .unwrap_or(fallback),
                 };
                 self.agent_navigation.set_cached_status(thread_id, state);
+                let (task, started_at, duration_ms) =
+                    super::agent_status_feed::footer_detail(&store);
+                self.agent_navigation
+                    .set_footer_detail(thread_id, task, started_at, duration_ms);
             }
             if !displayed && store.has_pending_thread_approvals() {
                 pending_thread_ids.push(thread_id);
