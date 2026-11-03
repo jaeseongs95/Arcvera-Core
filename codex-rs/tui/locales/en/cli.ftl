@@ -16,7 +16,7 @@ cli-cleanup-confirm = Explicitly approve deleting the selected preview items
 
 cli-cleanup-about = Preview and clean up completed local second-generation subagent conversations under the current parent.
 
-cli-cleanup-long-about = Read-only preview is the default. --apply requests explicit confirmation after the preview. Running or unknown-state items, other generations, remote-owned items, and legacy items are preserved. Repeated --thread flags clean up only the exact selection and preserve unselected descendants.
+cli-cleanup-long-about = Preview is the default and each item's reason explains eligibility or preservation. --apply requests explicit confirmation after the preview. Unloaded historical terminal items are preserved with reference_participants_unverified because reference safety cannot be established. Operational cleanup support for these items is incomplete. Running or unknown-state items, other generations, remote-owned items, and legacy items are preserved. Repeated --thread flags clean up only the exact selection and preserve unselected descendants.
 
 cli-help-doctor-options-for-building-a-local-codex-diagnostic-report = Options for building a local Codex diagnostic report
 

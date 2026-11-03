@@ -9,8 +9,8 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='a666c9bb1623dbe2f651c50b9e67ae833c367997'
-PREVIOUS_PUBLIC='3e3e2094fbe41e795b73da09590f721292d12fe0'
+PATCHED='1b3e7ecd17c8566f8a6967c275a7c76f93bdd98f'
+PREVIOUS_PUBLIC='dc22830d5dcf474c8b097f3d39d7ff10755adec5'
 PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md','docs/native-cli-r35.ko.md','docs/native-cli-r36.ko.md','docs/r36-cleanup.ko.md','docs/r36-cloud-ci.ko.md','docs/r36-fast-compaction.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
@@ -333,9 +333,11 @@ NOTICE_OVERRIDES.update({path: ('R36', '2026-11-03') for path in (
     'codex-rs/thread-store/src/local/thread_history_materialization_tests.rs',
     'codex-rs/thread-store/src/local/unarchive_thread.rs',
     'codex-rs/thread-store/src/local/unloaded_cleanup.rs',
+    'codex-rs/tui/locales/en/cli.ftl',
     'codex-rs/tui/locales/en/r36-agents.ftl',
     'codex-rs/tui/locales/en/r36-ci.ftl',
     'codex-rs/tui/locales/en/r36-cleanup.ftl',
+    'codex-rs/tui/locales/ko/cli.ftl',
     'codex-rs/tui/locales/ko/r36-agents.ftl',
     'codex-rs/tui/locales/ko/r36-ci.ftl',
     'codex-rs/tui/locales/ko/r36-cleanup.ftl',

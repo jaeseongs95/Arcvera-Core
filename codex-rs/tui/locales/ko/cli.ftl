@@ -16,7 +16,7 @@ cli-cleanup-confirm = 미리보기의 선택 항목 삭제를 명시적으로 �
 
 cli-cleanup-about = 현재 부모 아래 로컬 2세대 서브에이전트의 종료 대화를 미리 보고 정리합니다.
 
-cli-cleanup-long-about = 읽기 전용 미리보기가 기본입니다. --apply는 미리보기 뒤 명시 확인을 받습니다. 실행 중이거나 상태가 불명확한 항목, 다른 세대·원격 소유·이전 방식 항목은 보존합니다. --thread를 반복하면 정확한 선택 집합만 정리하며 선택하지 않은 후손은 보존합니다.
+cli-cleanup-long-about = 미리보기가 기본이며 각 항목의 reason에 정리·보존 사유를 표시합니다. --apply는 미리보기 뒤 명시 확인을 받습니다. 메모리에 없는 과거 종료 항목은 참조 안전성을 입증할 수 없어 reference_participants_unverified로 보존합니다. 해당 항목의 운영 정리 지원은 미완입니다. 실행 중이거나 상태가 불명확한 항목, 다른 세대·원격 소유·이전 방식 항목은 보존합니다. --thread를 반복하면 정확한 선택 집합만 정리하며 선택하지 않은 후손은 보존합니다.
 
 cli-help-doctor-options-for-building-a-local-codex-diagnostic-report = 로컬 Codex 진단 보고서 생성 옵션
 
