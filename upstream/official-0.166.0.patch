@@ -39330,7 +39330,7 @@ index 21cff3a7a..4644e0f31 100644
      fn daemon_app_server_human_lines_include_path_and_version() {
          assert_eq!(
 diff --git a/codex-rs/cli/tests/daemon_startup.rs b/codex-rs/cli/tests/daemon_startup.rs
-index ae2fe3eef..90877631b 100644
+index ae2fe3eef..cf78e88fd 100644
 --- a/codex-rs/cli/tests/daemon_startup.rs
 +++ b/codex-rs/cli/tests/daemon_startup.rs
 @@ -3,6 +3,8 @@
@@ -39373,21 +39373,24 @@ index ae2fe3eef..90877631b 100644
      #[cfg(windows)]
      let elevated = codex_app_server_daemon::is_elevated()?;
      #[cfg(not(windows))]
-@@ -188,9 +207,11 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -188,9 +207,14 @@ async fn daemon_startup(command: &str) -> Result<()> {
           notice.model_migrations.\"gpt-5.6-terra\" = \"gpt-6-sol\"\n\
           [projects.{}]\ntrust_level = \"{}\"\n",
              if command == "discovered" {
 -                "tui.status_line=[\"model\",\"thread-id\",\"thread-name\"]\nfeatures.daemon_auto_start=false"
 +                "tui.status_line=[\"model\",\"thread-id\",\"thread-name\"]\nfeatures.daemon_auto_start=false".to_string()
 +            } else if let Some(server) = &model_server {
-+                format!("model_providers.openai.base_url = \"{}\"", server.uri())
++                format!(
++                    "model_provider = \"r34-test\"\nmodel_providers.r34-test.name = \"R34 test provider\"\nmodel_providers.r34-test.base_url = \"{}\"\nmodel_providers.r34-test.wire_api = \"responses\"\nmodel_providers.r34-test.requires_openai_auth = false",
++                    server.uri()
++                )
              } else {
 -                ""
 +                String::new()
              },
              serde_json::to_string(&workspace_path)?,
              if command.starts_with("agents-untrusted") {
-@@ -230,6 +251,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -230,6 +254,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
          home.path().display().to_string(),
      );
      env.insert("TERM".into(), "xterm-256color".into());
@@ -39397,7 +39400,7 @@ index ae2fe3eef..90877631b 100644
      let mut args = vec!["--no-alt-screen".to_string()];
      let mut steps: VecDeque<(&str, &[u8])> = VecDeque::new();
      if matches!(
-@@ -267,6 +291,55 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -267,6 +294,55 @@ async fn daemon_startup(command: &str) -> Result<()> {
              )?;
          }
      }
@@ -39453,7 +39456,7 @@ index ae2fe3eef..90877631b 100644
      let pid_file = home.path().join("app-server-daemon/daemon.pid");
      let result = async {
          let mut existing_daemon = if matches!(command, "bedrock-running" | "discovered")
-@@ -329,6 +402,13 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -329,6 +405,13 @@ async fn daemon_startup(command: &str) -> Result<()> {
          } else if command == "restrictive-job" {
              steps.push_back(("GPT-5.6-Terra", b"\x14"));
              "Runningwithoutthesharedbackgroundserver:thisWindowslauncher"
@@ -39467,7 +39470,7 @@ index ae2fe3eef..90877631b 100644
          } else if mismatch {
              args.extend(if disabling && !persisted {
                  ["--disable".into(), "auth_elicitation".into()]
-@@ -415,6 +495,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -415,6 +498,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
          let writer = session.writer_sender();
          let mut stdout = spawned.stdout_rx;
          let mut output = String::new();
@@ -39475,7 +39478,7 @@ index ae2fe3eef..90877631b 100644
          let mut initial_agents_screen = String::new();
          let mut screen = vt100::Parser::new(
              /*rows*/ 40, /*cols*/ 120, /*scrollback_len*/ 0,
-@@ -431,6 +512,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -431,6 +515,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
          let result = tokio::time::timeout(timeout, async {
              while let Some(bytes) = stdout.recv().await {
                  output.push_str(&String::from_utf8_lossy(&bytes));
@@ -39485,7 +39488,7 @@ index ae2fe3eef..90877631b 100644
                  screen.process(&bytes);
                  for (query, reply) in &mut queries {
                      if !query.is_empty() && output.contains(*query) {
-@@ -456,6 +540,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -456,6 +543,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
                  if let Some((ready, input)) = steps.front()
                      && text.contains(ready)
                  {
@@ -39495,7 +39498,7 @@ index ae2fe3eef..90877631b 100644
                      if command == "agents-untrusted" && *ready == "Notasksyet" {
                          if !text.contains("enteropennnew") {
                              continue;
-@@ -558,6 +645,11 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -558,6 +648,11 @@ async fn daemon_startup(command: &str) -> Result<()> {
                              insta::assert_snapshot!("restrictive_launcher_warning", warning.trim());
                          }
                      }
@@ -39507,7 +39510,7 @@ index ae2fe3eef..90877631b 100644
                      return Ok::<_, anyhow::Error>(());
                  }
              }
-@@ -567,7 +659,10 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -567,7 +662,10 @@ async fn daemon_startup(command: &str) -> Result<()> {
              )
          })
          .await;
@@ -39519,7 +39522,7 @@ index ae2fe3eef..90877631b 100644
              let status = tokio::time::timeout(Duration::from_secs(/*secs*/ 5), exit).await??;
              ensure!(status != 0, "incompatible daemon launch must fail");
          }
-@@ -578,18 +673,50 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -578,18 +676,50 @@ async fn daemon_startup(command: &str) -> Result<()> {
      }
      .await;
      // Always stop the detached daemon, including on timeout or failed assertions.
