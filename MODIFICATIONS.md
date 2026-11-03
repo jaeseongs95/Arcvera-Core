@@ -1,16 +1,12 @@
 # R36 개발 후보
 
-고정 소스는 `1992480a1b13b90b91c767b5a36e2c05ff12c5db`입니다. 공식 최신 안정판을 2026-11-03 다시 조회했으며 0.166.0입니다. R34 발행본·R35 원본·공유 daemon·사용자 데이터를 보존합니다.
+고정 소스는 `0bb394e4412d6ea687d9c27b7a4d3c77f32b3435`입니다. PR30은 사용자가 병합했으며 후속 변경은 PR31에서 검토합니다. 제품 빌드·동결·main 병합·릴리스·설치는 하지 않습니다.
 
-서브에이전트 요약1행과 상세최대3행·내부스크롤, 읽기 전용 `codex ci status/list/watch`, fast/ultrafast 전파 시험, 내용 없는 compact 계측을 포함합니다. 제품 unloaded cold 정리는 `reference_participants_unverified`로 보존하며 운영 기능은 미완입니다. 구버전의 미게시·지연 참조 부재를 현재 DB·새 lease·일회성 프로세스 목록으로 증명했다고 주장하지 않습니다.
+1992480a의 thread-store 293개·Core cleanup 36개가 통과했습니다. 기존 34개 정리 시험을 유지하고 실제 Local owner에서 삭제 전후 잠금·취소·실패 2개를 추가했습니다. 제품 cold/unloaded 정리는 참조 참여자를 입증할 수 없어 `reference_participants_unverified`로 보존하며 운영 지원은 미완입니다.
 
-선행4be3702 실행은 thread-store293개 통과, Core cleanup19개 통과/15개 실패였습니다. loaded 참조 경합과 repeated revert의 실제 RED는 이 후보에서 GREEN이 됐습니다. Core fault wrapper의 Local 진입 검사 충돌은 실제 Local owner 내부 test-support 한정 전후 callback으로 보강했습니다. 기존34개 assertion을 유지하고 실제 삭제 전후 File/writer/lifecycle 수명·요청 취소·실패 뒤 lease 반납2개를 추가했습니다.
+1992480a의 CLI는 root parser 1개·CI 8개(1개 ignored)·최초 설치 parser 1개 통과, localization 14개 통과/1개 실패였습니다. 이번 후보는 기존 한국어 선언과 영문 변환의 비교 기대값을 보완한 시험 변경뿐입니다. 재시험은 localization 14개 통과/1개 실패로 끝났습니다. 전역 옵션이 하위 명령에 상속되기 전 해당 옵션을 조회한 fixture 오류이며, 후속 수정과 새 후보 재시험으로 구분합니다. 전체 통과나 독립감사 완료를 주장하지 않습니다.
 
-4be3702의 별도 CLI 실행은 CI/parser10개와 first-install parser1개 통과, localization15개 중11개 통과/4개 실패였습니다. 첫 설치 매핑 마침표와 실제 Subcommand variant의 cleanup long_about를 수정했고, command build 준비 비대칭과 잘못된 TooManyValues fixture를 바로잡으면서 기존 delimiter typed 허용 동작을 검증합니다.
-
-현재1992480a1은 위 수정 소스를 고정해 store/Core→CLI/CI→tier→TUI/Cloud/compact 순차 시험을 시작했습니다. 아직 현재 후보의 전체 통과나 새 독립감사를 완료하지 않았습니다. 앞 후보 감사는 FAIL이며 이전/부분 시험을 현재 전체 통과로 계산하지 않습니다. 공개 내보내기는 소스9454개/공식 대비 변경717개입니다.
-
-사용자가 PR30을 병합했으며 후속 수정은 새 PR로 구분합니다. 이 작업에서는 main 병합·제품 빌드/동결·릴리스·설치를 실행하지 않습니다. 원시 로그·실행 파일·인증·사용자 데이터를 게시하지 않습니다.
+서브에이전트 제한 높이 표시·Cloud/읽기 전용 CI 관측·fast 전파·내용 없는 compact 계측의 최종 후보 검증은 미완료입니다. R34 발행본·R35 원본·공유 daemon·사용자 데이터를 보존하며 원시 로그·실행 파일·인증은 게시하지 않습니다.
 
 ## 이전 후보 기록
 
