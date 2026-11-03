@@ -1,12 +1,14 @@
 # R36 개발 후보
 
-고정 소스는 `4be3702c1ed7854f3c25ade8d76f9e4024687628`입니다. 공식 안정판 조회 기준은 0.166.0이며, 새 안정판이 나오면 최종 제품 빌드 전에 기반을 갱신하고 기존 패치와 대조합니다. R34 발행본과 R35 원본은 보존합니다.
+고정 소스는 `867de5dd2fa5162703a7eafd78a741b05149d51d`입니다. 공식 최신 안정판을 2026-11-03 다시 조회했으며 0.166.0입니다. R34 발행본과 R35 원본, 공유 daemon과 사용자 데이터를 보존합니다.
 
-서브에이전트 기본 요약 1행·펼침 최대 3행과 내부 스크롤, 읽기 전용 `codex ci status/list/watch`, fast/ultrafast 전파 시험, 내용 없는 압축 phase 계측을 포함합니다. 과거 세션 정리 결과는 보존 사유를 구분합니다.
+서브에이전트 요약 1행과 상세 최대 3행, 내부 스크롤, 읽기 전용 `codex ci status/list/watch`, fast/ultrafast 전파 시험과 내용 없는 compact phase 계측을 포함합니다. 제품 unloaded cold 정리는 `reference_participants_unverified`로 보존하며 운영 기능은 미완입니다. 구버전 참여자 부재를 DB 조회나 새 lease만으로 증명했다고 주장하지 않습니다.
 
-같은 버전의 여러 저장소가 분기 참조를 준비하는 동안 원본을 삭제할 수 있었던 실제 RED를 확인해 기존 OS 잠금과 recorder 수명으로 보호를 보강했습니다. 구버전 프로세스의 참여는 입증할 수 없으므로 제품의 unloaded cold preview/confirm은 `reference_participants_unverified`로 기본 보존합니다. 운영 cold 삭제 지원은 미완이며, 기존 loaded 삭제의 구버전 혼합 위험이 해결됐다고 주장하지 않습니다.
+선행 후보4be3702의 실제 시험은 전체 thread-store293개 통과, Core cleanup19개 통과/15개 실패입니다. loaded 참조 경합과 repeated revert의 실제 RED는 이 후보에서 GREEN이 됐습니다. Core fault wrapper가 Local 진입 검사에 거절되는 실패는 실제 Local guard 내부의 test-support 한정 전후 callback으로 보강했습니다. 기존34개 회귀 assertion은 유지하고, 실제 삭제 전후 File/writer/lifecycle 수명과 취소/실패를 확인하는2개를 추가했습니다. 새 후보의 동적 시험은 아직 NOT_RUN입니다.
 
-이전 후보 a666c9bb는 protocol 333개 통과·1개 무시, rollout 162개 통과, Core 정리 32개 통과였으며 full store 290개 통과·2개 실패였습니다. 5aba5801e에서 loaded 참조 경합과 revert projection 누락의 실제 assertion RED를 확인한 뒤 close 전 참조 예약 유지와 projection 선행 준비를 반영했습니다. 두 RED 시험 본문은 유지했습니다. 첨부 시험은 실제 삭제 owner 대기열 등록을 기다리며, 새 projection 실패 시 current path·원본 보존과 재시도·삭제 회귀도 추가했습니다. 85b5bc610의 새 회귀는 동적 SQL의 SqlSafeStr 컴파일 오류로 미실행됐고 현 후보는 고정 SQL로 수정했습니다. 수정 후 full store/Core 정리→CLI/CI→fast 전파를 고정 소스에서 순차 실행하며 전체 수용 검증과 최종 새 독립감사는 미완료입니다. 실제 생성 JSON/TS와 precomputed exports는 소스에 반영했으나 현재 후보 전체의 시험 통과를 뜻하지 않습니다. 기존 R34 Cloud 조회 종료 0·작업 1건은 R36 실행 검증이나 원격 작업 제출 성공이 아닙니다. 제품 빌드·main 병합·릴리스·설치는 수행하지 않습니다.
+4be3702의 별도 CLI 시험은 CI/parser10개와 first-install parser1개 통과, localization15개 중11개 통과/4개 실패입니다. 긴 cleanup 도움말 전달과 문구 매핑 및 현재 Clap 경계 fixture의 보강은 별도 후속 수정입니다. tier 실행과 최종 새 독립감사는 미완료이며 앞 후보 감사는 FAIL입니다. 이전 후보 또는 부분 시험을 현재 전체 후보의 통과로 계산하지 않습니다.
+
+공개 내보내기는 소스9454개/공식 대비 변경717개입니다. 원시 로그, 실행 파일, 인증과 사용자 데이터는 게시하지 않습니다. main 병합은 사용자가 수행하며 이 작업에서 제품 빌드/동결/릴리스/설치를 실행하지 않습니다.
 
 ## 이전 후보 기록
 

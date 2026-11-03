@@ -9,8 +9,8 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='4be3702c1ed7854f3c25ade8d76f9e4024687628'
-PREVIOUS_PUBLIC='751f6462e126aeda9493eba6d6ce41315f6cd04e'
+PATCHED='867de5dd2fa5162703a7eafd78a741b05149d51d'
+PREVIOUS_PUBLIC='170125e5bb1873448bec42dc69472c877b882d23'
 PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md','docs/native-cli-r35.ko.md','docs/native-cli-r36.ko.md','docs/r36-cleanup.ko.md','docs/r36-cloud-ci.ko.md','docs/r36-fast-compaction.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
@@ -303,6 +303,7 @@ NOTICE_OVERRIDES.update({path: ('R36', '2026-11-03') for path in (
     'codex-rs/cli/src/cleanup_agents.rs',
     'codex-rs/cli/src/localization.rs',
     'codex-rs/cli/src/main.rs',
+    'codex-rs/core/Cargo.toml',
     'codex-rs/core/src/agent/control/mailbox.rs',
     'codex-rs/core/src/agent/control/runtime.rs',
     'codex-rs/core/src/compact.rs',
