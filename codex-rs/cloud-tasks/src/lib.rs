@@ -189,49 +189,10 @@ async fn run_exec_command(args: crate::cli::ExecCommand, config: &Config) -> any
 }
 
 async fn resolve_environment_id(ctx: &BackendContext, requested: &str) -> anyhow::Result<String> {
-    let trimmed = requested.trim();
-    if trimmed.is_empty() {
-        return Err(anyhow!("environment id must not be empty"));
-    }
     let normalized = util::normalize_base_url(&ctx.base_url);
     let headers = util::build_chatgpt_headers(&ctx.auth_manager).await?;
-    let environments =
-        crate::env_detect::list_environments(&ctx.environment_http, &normalized, &headers).await?;
-    if environments.is_empty() {
-        return Err(anyhow!(
-            "no cloud environments are available for this workspace"
-        ));
-    }
-
-    if let Some(row) = environments.iter().find(|row| row.id == trimmed) {
-        return Ok(row.id.clone());
-    }
-
-    let label_matches = environments
-        .iter()
-        .filter(|row| {
-            row.label
-                .as_deref()
-                .map(|label| label.eq_ignore_ascii_case(trimmed))
-                .unwrap_or(false)
-        })
-        .collect::<Vec<_>>();
-    match label_matches.as_slice() {
-        [] => Err(anyhow!(
-            "environment '{trimmed}' not found; run `codex cloud` to list available environments"
-        )),
-        [single] => Ok(single.id.clone()),
-        [first, rest @ ..] => {
-            let first_id = &first.id;
-            if rest.iter().all(|row| row.id == *first_id) {
-                Ok(first_id.clone())
-            } else {
-                Err(anyhow!(
-                    "environment label '{trimmed}' is ambiguous; run `codex cloud` to pick the desired environment id"
-                ))
-            }
-        }
-    }
+    env_detect::resolve_environment_id(&ctx.environment_http, &normalized, &headers, requested)
+        .await
 }
 
 fn resolve_query_input(query_arg: Option<String>) -> anyhow::Result<String> {

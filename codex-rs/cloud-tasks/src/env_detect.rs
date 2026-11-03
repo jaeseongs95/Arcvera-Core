@@ -315,6 +315,66 @@ pub async fn list_all_environments(
     list_environments_with_origins(http, base_url, headers, &[]).await
 }
 
+/// Resolve an explicit CLI target using the complete accessible environment list.
+pub async fn resolve_environment_id(
+    http: &RouteAwareClientPool,
+    base_url: &str,
+    headers: &HeaderMap,
+    requested: &str,
+) -> anyhow::Result<String> {
+    resolve_environment_id_with_http(http, base_url, headers, requested).await
+}
+
+async fn resolve_environment_id_with_http(
+    http: &impl EnvironmentHttp,
+    base_url: &str,
+    headers: &HeaderMap,
+    requested: &str,
+) -> anyhow::Result<String> {
+    let trimmed = requested.trim();
+    if trimmed.is_empty() {
+        return Err(anyhow::anyhow!("environment id must not be empty"));
+    }
+    // Explicit CLI targets require a complete list: TUI discovery may return partial
+    // by-repository results when the global request fails.
+    let environments = list_environments_with_origins(http, base_url, headers, &[]).await?;
+    if environments.is_empty() {
+        return Err(anyhow::anyhow!(
+            "no cloud environments are available for this workspace"
+        ));
+    }
+
+    if let Some(row) = environments.iter().find(|row| row.id == trimmed) {
+        return Ok(row.id.clone());
+    }
+
+    let label_matches = environments
+        .iter()
+        .filter(|row| {
+            row.label
+                .as_deref()
+                .map(|label| label.eq_ignore_ascii_case(trimmed))
+                .unwrap_or(false)
+        })
+        .collect::<Vec<_>>();
+    match label_matches.as_slice() {
+        [] => Err(anyhow::anyhow!(
+            "environment '{trimmed}' not found; run `codex cloud environments` to list available environments"
+        )),
+        [single] => Ok(single.id.clone()),
+        [first, rest @ ..] => {
+            let first_id = &first.id;
+            if rest.iter().all(|row| row.id == *first_id) {
+                Ok(first_id.clone())
+            } else {
+                Err(anyhow::anyhow!(
+                    "environment label '{trimmed}' is ambiguous; run `codex cloud environments` to pick the desired environment id"
+                ))
+            }
+        }
+    }
+}
+
 async fn list_environments_with_origins(
     http: &impl EnvironmentHttp,
     base_url: &str,
