@@ -671,18 +671,20 @@ impl ThreadManager {
             {
                 return Ok("has_descendants".into());
             }
+            let cleanup_runtime = self
+                .get_thread(parent)
+                .await?
+                .session
+                .services
+                .local_agent_runtime
+                .clone();
             reservation.committed = true;
             if let Err(error) = guard.delete().await {
                 return Ok(format!(
                     "storage_unconfirmed_partial_deletion_possible: {error}"
                 ));
             }
-            self.get_thread(parent)
-                .await?
-                .session
-                .services
-                .local_agent_runtime
-                .forget_cleaned_child(id);
+            cleanup_runtime.forget_cleaned_child(id);
             return Ok("deleted".into());
         };
         let parent_thread = self.get_thread(parent).await?;
