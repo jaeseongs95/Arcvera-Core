@@ -19,6 +19,7 @@ impl StoreBarrier {
 
 #[derive(Default)]
 struct StoreFaults {
+    cold_delete: StdMutex<Option<(ThreadId, Arc<StoreBarrier>)>>,
     shutdown: StdMutex<Option<(ThreadId, Option<Arc<StoreBarrier>>)>>,
     create: StdMutex<Option<Arc<StoreBarrier>>>,
     discard: StdMutex<Option<Arc<StoreBarrier>>>,
@@ -275,6 +276,21 @@ async fn fixture_with_graph(
     ),
     Arc<StoreFaults>,
 ) {
+    fixture_with_graph_options(graph, false).await
+}
+
+async fn fixture_with_graph_options(
+    graph: Option<Arc<dyn codex_agent_graph_store::AgentGraphStore>>,
+    persistent_graph: bool,
+) -> (
+    (
+        tempfile::TempDir,
+        ThreadManager,
+        crate::config::Config,
+        super::super::NewThread,
+    ),
+    Arc<StoreFaults>,
+) {
     let home = tempfile::tempdir().unwrap();
     let mut config = crate::config::test_config().await;
     config.codex_home = home.path().to_path_buf().try_into().unwrap();
@@ -301,15 +317,46 @@ async fn fixture_with_graph(
         config.model_provider.clone(),
         config.codex_home.to_path_buf(),
         Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
-        Some(state_db),
+        Some(Arc::clone(&state_db)),
     );
     let faults = Arc::new(StoreFaults::default());
     let state = Arc::get_mut(&mut manager.state).unwrap();
+    let cleanup_faults = Arc::clone(&faults);
+    let local = state
+        .thread_store
+        .as_any()
+        .downcast_ref::<LocalThreadStore>()
+        .unwrap()
+        .clone()
+        .with_thread_data_cleanup(move |ids| {
+            let faults = Arc::clone(&cleanup_faults);
+            Box::pin(async move {
+                let barrier = {
+                    let mut slot = faults.cold_delete.lock().unwrap();
+                    if slot.as_ref().is_some_and(|(id, _)| ids == [*id]) {
+                        slot.take().map(|(_, barrier)| barrier)
+                    } else {
+                        None
+                    }
+                };
+                if let Some(barrier) = barrier {
+                    barrier.block().await;
+                    barrier.finished.notify_one();
+                }
+                Ok(())
+            })
+        });
     state.thread_store = Arc::new(FaultStore {
-        inner: Arc::clone(&state.thread_store),
+        inner: Arc::new(local),
         faults: Arc::clone(&faults),
     });
-    state.agent_graph_store = graph;
+    state.agent_graph_store = if persistent_graph {
+        Some(Arc::new(
+            codex_agent_graph_store::LocalAgentGraphStore::new(state_db),
+        ))
+    } else {
+        graph
+    };
     let root = manager
         .start_thread(StartThreadOptions::new(config.clone()))
         .await
@@ -1245,6 +1292,9 @@ async fn loaded_runtime_read_guard_linearizes_raw_removal_without_touching_activ
 
 #[path = "idle_control_followup_tests.rs"]
 mod idle_control_followup_tests;
+
+#[path = "cleanup_unloaded_tests.rs"]
+mod unloaded_tests;
 
 // Shared only by the management-owned regression; no production accessors are exposed.
 impl ThreadManager {

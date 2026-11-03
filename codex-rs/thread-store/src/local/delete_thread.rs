@@ -143,12 +143,20 @@ pub(super) async fn delete_threads(
     }
 
     let mut writer_guards = store.acquire_writer_locks(&lock_thread_ids).await?;
+    delete_threads_under_writer_locks(store, thread_ids, &mut writer_guards).await
+}
+
+pub(super) async fn delete_threads_under_writer_locks(
+    store: &LocalThreadStore,
+    thread_ids: Vec<ThreadId>,
+    writer_guards: &mut Vec<super::WriterLockGuard>,
+) -> ThreadStoreResult<()> {
     let reference_index = scan_reference_index(store).await?;
     let thread_rollouts = thread_ids
         .iter()
         .map(|thread_id| ThreadRollouts::from_index(&reference_index, *thread_id))
         .collect::<Vec<_>>();
-    check_attached_children(&reference_index, &lock_thread_ids)?;
+    check_attached_children(&reference_index, &thread_ids)?;
     ensure_no_external_references(&reference_index, thread_rollouts.as_slice())?;
     #[cfg(feature = "test-support")]
     store.wait_for_delete_barriers_for_test(&thread_ids).await;
@@ -156,8 +164,7 @@ pub(super) async fn delete_threads(
         cleanup(thread_ids.clone()).await?;
     }
     for thread_rollouts in thread_rollouts {
-        match delete_thread_after_reference_check(store, thread_rollouts, &mut writer_guards).await
-        {
+        match delete_thread_after_reference_check(store, thread_rollouts, writer_guards).await {
             Ok(()) | Err(ThreadStoreError::ThreadNotFound { .. }) => {}
             Err(err) => return Err(err),
         }

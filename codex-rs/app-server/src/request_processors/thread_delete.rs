@@ -123,6 +123,7 @@ impl ThreadRequestProcessor {
                     codex_core::CompletedChildCleanupResult {
                         thread_id: id,
                         outcome: reason.into(),
+                        reason: reason.into(),
                         snapshot: None,
                     }
                 }));
@@ -130,6 +131,7 @@ impl ThreadRequestProcessor {
                 for (id, reason) in blocked {
                     if let Some(result) = results.iter_mut().find(|result| result.thread_id == id) {
                         result.outcome = reason.into();
+                        result.reason = reason.into();
                         result.snapshot = None;
                     }
                 }
@@ -159,6 +161,7 @@ impl ThreadRequestProcessor {
                     |item| codex_app_server_protocol::CompletedChildCleanupResult {
                         thread_id: item.thread_id.to_string(),
                         outcome: item.outcome,
+                        reason: item.reason,
                         snapshot: item.snapshot.map(|item| {
                             codex_app_server_protocol::CompletedChildSnapshot {
                                 thread_id: item.thread_id.to_string(),

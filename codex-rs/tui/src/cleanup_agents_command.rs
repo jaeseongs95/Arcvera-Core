@@ -13,6 +13,7 @@ use codex_app_server_protocol::experimental_required_message;
 use color_eyre::Report;
 use color_eyre::eyre::Result;
 use color_eyre::eyre::eyre;
+use std::collections::BTreeMap;
 use std::io::BufRead;
 use std::io::IsTerminal;
 use std::io::Write;
@@ -90,6 +91,7 @@ async fn run_cleanup_agents_action(
     )
     .await?;
     println!("{}", serde_json::to_string_pretty(&preview)?);
+    write_cleanup_reasons(&preview, locale, &mut std::io::stderr().lock())?;
     let selected = select_cleanup_snapshots(preview, &command.threads, locale)?;
     if !command.apply || selected.is_empty() {
         return Ok(());
@@ -117,6 +119,37 @@ async fn run_cleanup_agents_action(
     .await?;
     println!("{}", serde_json::to_string_pretty(&result)?);
     check_cleanup_result(&result, locale)
+}
+
+fn write_cleanup_reasons(
+    preview: &ThreadCleanupCompletedResponse,
+    locale: Locale,
+    output: &mut impl Write,
+) -> std::io::Result<()> {
+    let mut counts = BTreeMap::new();
+    for entry in &preview.results {
+        let reason = if entry.reason.is_empty() {
+            entry.outcome.as_str()
+        } else {
+            entry.reason.as_str()
+        };
+        *counts
+            .entry((entry.outcome.as_str(), reason))
+            .or_insert(0_i64) += 1;
+    }
+    for ((outcome, reason), count) in counts {
+        writeln!(
+            output,
+            "{}",
+            crate::i18n::message_with_count_for(
+                locale,
+                "cleanup-reason-summary",
+                &[("outcome", outcome), ("reason", reason)],
+                count,
+            )
+        )?;
+    }
+    Ok(())
 }
 
 fn select_cleanup_snapshots(

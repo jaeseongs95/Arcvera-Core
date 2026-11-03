@@ -24,7 +24,12 @@ mod thread_history_materialization;
 mod thread_rollout_resolver;
 mod thread_sections;
 mod unarchive_thread;
+mod unloaded_cleanup;
 mod update_thread_metadata;
+
+pub use unloaded_cleanup::UnloadedThreadCleanupGuard;
+pub use unloaded_cleanup::UnloadedThreadCleanupPreview;
+pub use unloaded_cleanup::UnloadedThreadCleanupSnapshot;
 
 #[cfg(test)]
 #[path = "compression_writer_tests.rs"]

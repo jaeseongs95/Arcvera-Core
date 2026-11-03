@@ -247,6 +247,10 @@ impl LocalAgentRuntime {
         self.mailboxes.remove(id);
     }
 
+    pub(crate) fn has_pending_cleanup_mail(&self, id: ThreadId) -> bool {
+        self.mailboxes.has_pending(id)
+    }
+
     pub(super) fn new(
         manager: Weak<ThreadManagerState>,
         thread_id_generator: ThreadIdGenerator,

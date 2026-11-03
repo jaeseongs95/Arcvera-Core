@@ -839,6 +839,9 @@ pub struct CompletedChildSnapshot {
 pub struct CompletedChildCleanupResult {
     pub thread_id: String,
     pub outcome: String,
+    /// Stable eligibility or preservation code; older servers may omit it.
+    #[serde(default)]
+    pub reason: String,
     pub snapshot: Option<CompletedChildSnapshot>,
 }
 
