@@ -618,6 +618,8 @@ async fn thread_resume_rejoins_unmaterialized_thread_from_another_connection(
 ) -> Result<()> {
     use super::connection_handling_websocket as websocket;
     use codex_app_server_protocol::JSONRPCMessage;
+    use codex_app_server_protocol::TurnCompletedNotification;
+    use codex_app_server_protocol::TurnStartedNotification;
     use futures::SinkExt;
 
     let server = create_mock_responses_server_repeating_assistant("Done").await;
@@ -829,6 +831,57 @@ async fn thread_resume_rejoins_unmaterialized_thread_from_another_connection(
             .message
             .contains("with history while it is already running")
     );
+
+    // Explicit attach must not inject input or call the model to make the thread joinable.
+    let requests = server
+        .received_requests()
+        .await
+        .expect("wiremock should record response requests");
+    assert!(
+        requests
+            .iter()
+            .all(|request| !request.url.path().ends_with("/responses")),
+        "metadata-only rejoin must not submit a model request"
+    );
+
+    // Only after successful rejoin, submit a synthetic turn from the owner. The joining
+    // connection must receive the real events without making its own turn/start call.
+    websocket::send_request(
+        &mut owner,
+        "turn/start",
+        15,
+        Some(serde_json::to_value(TurnStartParams {
+            thread_id: started.thread.id.clone(),
+            input: vec![UserInput::Text {
+                text: "verify explicit resume event subscription".to_string(),
+                text_elements: Vec::new(),
+            }],
+            ..Default::default()
+        })?),
+    )
+    .await?;
+    let turn: TurnStartResponse =
+        to_response(websocket::read_response_for_id(&mut owner, 15).await?)?;
+    let notification = timeout(
+        websocket::DEFAULT_READ_TIMEOUT,
+        websocket::read_notification_for_method(&mut joining, "turn/started"),
+    )
+    .await??;
+    let turn_started: TurnStartedNotification =
+        serde_json::from_value(notification.params.expect("turn/started params"))?;
+    assert_eq!(turn_started.thread_id, started.thread.id);
+    assert_eq!(turn_started.turn.id, turn.turn.id);
+    assert_eq!(turn_started.turn.status, TurnStatus::InProgress);
+    let notification = timeout(
+        websocket::DEFAULT_READ_TIMEOUT,
+        websocket::read_notification_for_method(&mut joining, "turn/completed"),
+    )
+    .await??;
+    let turn_completed: TurnCompletedNotification =
+        serde_json::from_value(notification.params.expect("turn/completed params"))?;
+    assert_eq!(turn_completed.thread_id, started.thread.id);
+    assert_eq!(turn_completed.turn.id, turn.turn.id);
+    assert_eq!(turn_completed.turn.status, TurnStatus::Completed);
 
     // Disconnect only the joining client; the original runtime must remain usable.
     joining.close(None).await?;
