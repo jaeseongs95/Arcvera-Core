@@ -45870,10 +45870,10 @@ index 88d556870..f1d8727b4 100644
  pub(crate) mod error;
 diff --git a/codex-rs/codex-api/src/sse/cache_observation.rs b/codex-rs/codex-api/src/sse/cache_observation.rs
 new file mode 100644
-index 000000000..94b13e251
+index 000000000..002ba5e15
 --- /dev/null
 +++ b/codex-rs/codex-api/src/sse/cache_observation.rs
-@@ -0,0 +1,352 @@
+@@ -0,0 +1,403 @@
 +//! Bounded structural observations only; never log the response or complete usage object.
 +use serde_json::Value;
 +
@@ -46225,9 +46225,60 @@ index 000000000..94b13e251
 +            assert!(events.lock().unwrap().is_empty());
 +        }
 +    }
++
++    #[tokio::test]
++    async fn completed_cache_usage_survives_notification_backpressure_and_receiver_close() {
++        use tracing::instrument::WithSubscriber;
++
++        let capture = Capture::default();
++        let observed = Arc::clone(&capture.0);
++        let response = json!({
++            "type": "response.completed",
++            "response": {
++                "id": "resp_cache_backpressure",
++                "headers": { "openai-model": "fixture-model" },
++                "usage": {
++                    "input_tokens": 2048,
++                    "input_tokens_details": { "cached_tokens": 1024 },
++                    "output_tokens": 1,
++                    "total_tokens": 2049
++                }
++            }
++        });
++        let body = format!("event: response.completed\ndata: {response}\n\n");
++        let stream = futures::stream::once(async move {
++            Ok::<_, codex_client::TransportError>(bytes::Bytes::from(body))
++        });
++        let (tx, rx) = tokio::sync::mpsc::channel(1);
++        tx.send(Ok(ResponseEvent::Created { response_id: None }))
++            .await
++            .unwrap();
++        let processing = super::super::process_sse(
++            Box::pin(stream),
++            tx,
++            std::time::Duration::from_secs(1),
++            None,
++        )
++        .with_subscriber(capture);
++        tokio::pin!(processing);
++
++        // The model notification cannot enter the full channel. Usage must
++        // already be observed even if the consumer never drains that channel.
++        assert!(futures::poll!(&mut processing).is_pending());
++        {
++            let events = observed.lock().unwrap();
++            assert_eq!(events.len(), 1);
++            assert_eq!(events[0]["input_tokens"], "2048");
++            assert_eq!(events[0]["cached_tokens"], "1024");
++            assert_eq!(events[0]["cached_state"], "positive");
++        }
++        drop(rx);
++        processing.await;
++        assert_eq!(observed.lock().unwrap().len(), 1);
++    }
 +}
 diff --git a/codex-rs/codex-api/src/sse/responses.rs b/codex-rs/codex-api/src/sse/responses.rs
-index 67f627e60..08560173f 100644
+index 67f627e60..8ac633ffd 100644
 --- a/codex-rs/codex-api/src/sse/responses.rs
 +++ b/codex-rs/codex-api/src/sse/responses.rs
 @@ -1,4 +1,5 @@
@@ -46361,7 +46412,7 @@ index 67f627e60..08560173f 100644
  ) {
      let mut stream = stream.eventsource();
      let mut response_error: Option<ApiError> = None;
-@@ -634,6 +662,9 @@ async fn process_sse_with_treatment(
+@@ -634,10 +662,16 @@ async fn process_sse_with_treatment(
                  continue;
              }
          };
@@ -46370,7 +46421,24 @@ index 67f627e60..08560173f 100644
 +        }
          let safety_buffering = event.safety_buffering(&safety_buffering_treatment);
          let metadata_events = event.metadata_events(safety_buffering);
++        let response_model = event.response_model();
++        // Observe terminal usage before consumer notifications can block or close.
++        let processed_event = process_responses_event(event);
  
+-        if let Some(model) = event.response_model()
++        if let Some(model) = response_model
+             && last_server_model.as_deref() != Some(model.as_str())
+         {
+             if tx_event
+@@ -655,7 +689,7 @@ async fn process_sse_with_treatment(
+             }
+         }
+ 
+-        match process_responses_event(event) {
++        match processed_event {
+             Ok(Some(event)) => {
+                 let is_completed = matches!(event, ResponseEvent::Completed { .. });
+                 if tx_event.send(Ok(event)).await.is_err() {
 diff --git a/codex-rs/codex-api/tests/cache_batch_boundary.rs b/codex-rs/codex-api/tests/cache_batch_boundary.rs
 new file mode 100644
 index 000000000..65ca267d0

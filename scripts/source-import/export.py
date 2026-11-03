@@ -9,8 +9,8 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='0133cf002d1e1215e71292e004ed8d56cadba9dc'
-PREVIOUS_PUBLIC='40e952e5211ab2059de7250bbbec44b211aac19c'
+PATCHED="d5b41a93814e9f49e0715c0d65c43727d8d655bf"
+PREVIOUS_PUBLIC='58e3c952b158202c3fe831c5c5f99f5dfc247668'
 PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
@@ -90,6 +90,8 @@ NOTICE_OVERRIDES.update({path: ('R34', '2026-11-03') for path in (
     'tools/windows-cli/test_update_output.py',
 )})
 NOTICE_OVERRIDES.update({path: ('R35', '2026-11-03') for path in (
+    'codex-rs/codex-api/src/sse/responses.rs',
+    'codex-rs/codex-api/src/sse/cache_observation.rs',
     'codex-rs/Cargo.lock',
     'codex-rs/app-server-protocol/src/lib.rs',
     'codex-rs/app-server-protocol/src/protocol/common.rs',
