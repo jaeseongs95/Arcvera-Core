@@ -28,6 +28,7 @@ pub struct UnloadedThreadCleanupGuard {
     _lifecycle: OwnedRwLockWriteGuard<()>,
     _writer: OwnedMutexGuard<()>,
     writer_lock: WriterLockGuard,
+    _reference_deletion: std::fs::File,
 }
 
 #[derive(Debug)]
@@ -64,12 +65,14 @@ impl LocalThreadStore {
         let writer = self.live_writer_locks.lock(thread_id).await;
         self.ensure_live_recorder_absent(thread_id).await?;
         let writer_lock = self.acquire_writer_lock(thread_id)?;
+        let reference_deletion = self.reserve_reference_deletion()?;
         Ok(UnloadedThreadCleanupGuard {
             store: self.clone(),
             thread_id,
             _lifecycle: lifecycle,
             _writer: writer,
             writer_lock,
+            _reference_deletion: reference_deletion,
         })
     }
 }
@@ -116,12 +119,14 @@ impl UnloadedThreadCleanupGuard {
 
     /// The caller must keep its owner task, admission, ancestry, queue and goal fences.
     /// Retain these store locks through the existing reference checks and exact deletion.
-    pub async fn delete(self) -> ThreadStoreResult<()> {
+    pub async fn delete(self, before_mutation: impl FnOnce()) -> ThreadStoreResult<()> {
         let mut locks = vec![self.writer_lock.clone()];
         super::delete_thread::delete_threads_under_writer_locks(
             &self.store,
             vec![self.thread_id],
             &mut locks,
+            before_mutation,
+            &self._reference_deletion,
         )
         .await
     }

@@ -421,6 +421,30 @@ impl LocalThreadStore {
         Ok(())
     }
 
+    fn reference_lock_error(error: std::io::Error) -> ThreadStoreError {
+        if error.kind() == std::io::ErrorKind::WouldBlock {
+            ThreadStoreError::Retryable {
+                message: error.to_string(),
+            }
+        } else {
+            ThreadStoreError::Internal {
+                message: error.to_string(),
+            }
+        }
+    }
+
+    fn reserve_reference_publication(&self) -> ThreadStoreResult<std::fs::File> {
+        self.writer_lock_coordinator
+            .reserve_reference_publication()
+            .map_err(Self::reference_lock_error)
+    }
+
+    fn reserve_reference_deletion(&self) -> ThreadStoreResult<std::fs::File> {
+        self.writer_lock_coordinator
+            .reserve_reference_deletion()
+            .map_err(Self::reference_lock_error)
+    }
+
     fn acquire_writer_lock(&self, thread_id: ThreadId) -> ThreadStoreResult<WriterLockGuard> {
         self.writer_lock_coordinator
             .acquire(thread_id)

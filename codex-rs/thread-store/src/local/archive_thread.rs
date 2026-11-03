@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 use super::LocalThreadStore;
 use super::helpers::owned_rollout_paths_from_index;
 use super::helpers::restore_rollout_moves;
@@ -16,6 +17,19 @@ pub(super) async fn archive_threads(
     store: &LocalThreadStore,
     params: ArchiveThreadsParams,
 ) -> ThreadStoreResult<Vec<codex_protocol::ThreadId>> {
+    let owner = store.clone();
+    tokio::spawn(async move { archive_threads_owned(&owner, params).await })
+        .await
+        .map_err(|error| ThreadStoreError::OutcomeUnknown {
+            message: format!("archive_threads owner task failed: {error}"),
+        })?
+}
+
+async fn archive_threads_owned(
+    store: &LocalThreadStore,
+    params: ArchiveThreadsParams,
+) -> ThreadStoreResult<Vec<codex_protocol::ThreadId>> {
+    let _reference_publication = store.reserve_reference_publication()?;
     let thread_ids = params.thread_ids;
     if thread_ids.is_empty() {
         return Ok(Vec::new());

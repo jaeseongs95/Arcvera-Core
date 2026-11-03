@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Shared cross-process ownership for local thread writers and rollout publication.
 //! Thread lock-file creation and removal uses a bounded wait for the home coordination lock.
 
@@ -18,6 +19,8 @@ use tracing::warn;
 
 const WRITER_LOCK_DIR: &str = "thread-writer-locks";
 const COORDINATION_LOCK_FILE: &str = ".coordination.lock";
+// Never unlink this file: on Unix unlinking a locked file splits the lock namespace.
+const REFERENCE_LOCK_FILE: &str = ".references.lock";
 
 /// Coordinates writer ownership within one Codex home.
 pub struct WriterLockCoordinator {
@@ -38,6 +41,41 @@ impl WriterLockCoordinator {
         Self {
             directory: codex_home.join(WRITER_LOCK_DIR),
             cleanup_attempted: AtomicBool::new(false),
+        }
+    }
+
+    /// Shared across processes from reference preparation until canonical metadata is durable.
+    /// Independent of writer ownership, so an active source can continue accepting writes.
+    pub fn reserve_reference_publication(&self) -> io::Result<File> {
+        self.reference_lock(false)
+    }
+
+    /// Exclusive across processes from the deletion scan through all file and DB deletion.
+    /// Both modes are nonblocking: contention is a preservation result, never a lock wait.
+    pub fn reserve_reference_deletion(&self) -> io::Result<File> {
+        self.reference_lock(true)
+    }
+
+    fn reference_lock(&self, exclusive: bool) -> io::Result<File> {
+        fs::create_dir_all(&self.directory)?;
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(self.directory.join(REFERENCE_LOCK_FILE))?;
+        let result = if exclusive {
+            file.try_lock()
+        } else {
+            file.try_lock_shared()
+        };
+        match result {
+            Ok(()) => Ok(file),
+            Err(fs::TryLockError::WouldBlock) => Err(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "reference publication or deletion is active",
+            )),
+            Err(fs::TryLockError::Error(error)) => Err(error),
         }
     }
 
@@ -93,16 +131,23 @@ impl WriterLockCoordinator {
     pub(crate) fn try_acquire_for_publication(
         &self,
         thread_id: ThreadId,
-    ) -> io::Result<Option<File>> {
+    ) -> io::Result<Option<(File, File)>> {
+        let reference_lock = match self.reserve_reference_publication() {
+            Ok(lock) => lock,
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(None),
+            Err(error) => return Err(error),
+        };
         let coordination_lock = self.lock_coordination()?;
         let path = self.directory.join(format!("{thread_id}.lock"));
         match OpenOptions::new().read(true).write(true).open(path) {
             Ok(file) => match file.try_lock() {
-                Ok(()) => Ok(Some(coordination_lock)),
+                Ok(()) => Ok(Some((coordination_lock, reference_lock))),
                 Err(std::fs::TryLockError::WouldBlock) => Ok(None),
                 Err(std::fs::TryLockError::Error(err)) => Err(err),
             },
-            Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(Some(coordination_lock)),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                Ok(Some((coordination_lock, reference_lock)))
+            }
             Err(err) => Err(err),
         }
     }

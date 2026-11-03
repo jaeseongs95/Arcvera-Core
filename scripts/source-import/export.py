@@ -9,8 +9,8 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='d5ca137a5273e8a4759c6e28b0c3ff16336254d1'
-PREVIOUS_PUBLIC='7796fc0ca4a5cb36dc9fcb4b3995a0b493d3442c'
+PATCHED='a666c9bb1623dbe2f651c50b9e67ae833c367997'
+PREVIOUS_PUBLIC='3e3e2094fbe41e795b73da09590f721292d12fe0'
 PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md','docs/native-cli-r35.ko.md','docs/native-cli-r36.ko.md','docs/r36-cleanup.ko.md','docs/r36-cloud-ci.ko.md','docs/r36-fast-compaction.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
@@ -291,6 +291,12 @@ ATTR_END=b'# END OpenDIY pinned source attributes\n'
 NOTICE_OVERRIDES.update({path: ('R36', '2026-11-03') for path in (
     'codex-rs/Cargo.lock',
     'codex-rs/Cargo.toml',
+    'codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.schemas.json',
+    'codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.v2.schemas.json',
+    'codex-rs/app-server-protocol/schema/json/v2/ThreadCleanupCompletedResponse.json',
+    'codex-rs/app-server-protocol/schema/precomputed/app-server-exports-experimental.json.zst',
+    'codex-rs/app-server-protocol/schema/precomputed/app-server-exports-stable.json.zst',
+    'codex-rs/app-server-protocol/schema/typescript/v2/CompletedChildCleanupResult.ts',
     'codex-rs/app-server-protocol/src/protocol/v2/thread.rs',
     'codex-rs/app-server/src/request_processors/thread_delete.rs',
     'codex-rs/cli/src/ci.rs',
@@ -309,10 +315,23 @@ NOTICE_OVERRIDES.update({path: ('R36', '2026-11-03') for path in (
     'codex-rs/core/src/thread_manager/cleanup.rs',
     'codex-rs/core/src/thread_manager/cleanup_tests.rs',
     'codex-rs/core/src/thread_manager/cleanup_unloaded_tests.rs',
+    'codex-rs/core/tests/subagent_service_tier.rs',
+    'codex-rs/core/tests/suite/mod.rs',
     'codex-rs/core/tests/suite/subagent_service_tier.rs',
+    'codex-rs/core/tests/suite/test_binary_dispatch.rs',
+    'codex-rs/rollout/src/recorder.rs',
+    'codex-rs/rollout/src/recorder_tests.rs',
+    'codex-rs/rollout/src/writer_lock.rs',
+    'codex-rs/rollout/src/writer_lock_tests.rs',
     'codex-rs/thread-store/src/lib.rs',
+    'codex-rs/thread-store/src/local/archive_thread.rs',
     'codex-rs/thread-store/src/local/delete_thread.rs',
+    'codex-rs/thread-store/src/local/live_writer.rs',
     'codex-rs/thread-store/src/local/mod.rs',
+    'codex-rs/thread-store/src/local/paginated_fork.rs',
+    'codex-rs/thread-store/src/local/revert_thread.rs',
+    'codex-rs/thread-store/src/local/thread_history_materialization_tests.rs',
+    'codex-rs/thread-store/src/local/unarchive_thread.rs',
     'codex-rs/thread-store/src/local/unloaded_cleanup.rs',
     'codex-rs/tui/locales/en/r36-agents.ftl',
     'codex-rs/tui/locales/en/r36-ci.ftl',
