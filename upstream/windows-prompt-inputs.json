@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "284253eff61a6a0e2976d2f9eee5f9a841aad8d5",
+  "sourceCommit": "23670648e1927d8ee67042aa3823c32eb7a7c0d1",
   "files": [
     {
       "path": "codex-rs/collaboration-mode-templates/templates/default.md",
