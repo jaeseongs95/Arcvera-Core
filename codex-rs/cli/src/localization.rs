@@ -88,7 +88,6 @@ fn localize_built_help(mut command: Command, locale: Locale) -> Command {
             locale,
             command
                 .get_subcommand_help_heading()
-                .map(|s| s.as_str())
                 .unwrap_or("Commands"),
         );
         let usage_heading = message_for(locale, "cli-usage-heading", &[]);
@@ -1371,7 +1370,7 @@ pub(super) fn exit_error(error: clap::Error, locale: Locale) -> ! {
 struct KoreanErrorFormatter;
 
 impl ErrorFormatter for KoreanErrorFormatter {
-    fn format_error(error: &clap::Error<Self>) -> StyledStr {
+    fn format_error(error: &clap::error::Error<Self>) -> StyledStr {
         let locale = Locale::Korean;
         let context = |kind| error.get(kind).map(ToString::to_string).unwrap_or_default();
         let arg = context(ContextKind::InvalidArg);
@@ -1501,7 +1500,7 @@ mod tests {
             );
             if let Some(heading) = before.get_subcommand_help_heading() {
                 assert!(
-                    help_message_id(heading.as_str()).is_some(),
+                    help_message_id(heading).is_some(),
                     "uncataloged heading {path}: {heading}"
                 );
             }

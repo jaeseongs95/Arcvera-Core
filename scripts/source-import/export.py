@@ -9,9 +9,9 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED="2e9f6050aac19bb230dfcff10138d255edc613f7"
-PREVIOUS_PUBLIC='28e34926069af7a647f07d3ee013fb4137bb0107'
-PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md','docs/native-cli-r35.ko.md']
+PATCHED="9f084b6361bd5bdcef4d34852d2f956d72c5a1f0"
+PREVIOUS_PUBLIC='9b78872af2f26e681228e46484cce7342a8c2761'
+PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md','docs/native-cli-r35.ko.md','docs/native-cli-r36.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
 PATCH_PATH='upstream/official-0.166.0.patch'

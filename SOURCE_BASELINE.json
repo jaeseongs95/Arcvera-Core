@@ -2,11 +2,11 @@
   "schema": 2,
   "upstream": "https://github.com/openai/codex",
   "officialVersion": "0.166.0",
-  "previousPublicCommit": "28e34926069af7a647f07d3ee013fb4137bb0107",
+  "previousPublicCommit": "9b78872af2f26e681228e46484cce7342a8c2761",
   "officialCommit": "6ff1e1ca3b30fc8b914720681fcf5fe62e95f856",
-  "patchedCommit": "2e9f6050aac19bb230dfcff10138d255edc613f7",
+  "patchedCommit": "9f084b6361bd5bdcef4d34852d2f956d72c5a1f0",
   "officialTree": "03f3b46689faf274f126dc78508ed238564da8ba",
-  "patchedTree": "f5e3855dbe866ebe965ab7c6f72966a7b21e02cd",
+  "patchedTree": "d0447e3315cab56c33beed9ecba8c9b5677fb908",
   "selectedPrefixes": [
     "codex-rs",
     "third_party",
@@ -17,15 +17,16 @@
     "docs/native-cli-r27.ko.md",
     "docs/native-cli-cron.ko.md",
     "docs/native-cli-r33-cache-observation.ko.md",
-    "docs/native-cli-r35.ko.md"
+    "docs/native-cli-r35.ko.md",
+    "docs/native-cli-r36.ko.md"
   ],
   "patchPath": "upstream/official-0.166.0.patch",
-  "patchSha256": "e8354703f09e6e062fc647cba80fbdcb350e8f79ad650eafb20da17e92c464cb",
-  "sourceInventorySha256": "afe45c706531f7a3edbc0310b27db0b81d02eff582f04ccde35c76b48fe3ddc5",
+  "patchSha256": "0393f2795fd4ce6ac90be9157c36974c86b11d711b011149e5beb280435506c8",
+  "sourceInventorySha256": "d400ba7d70e74b120e3ccece41f18ff997f6f487dfb3b92165cf9c4409b095d7",
   "windowsPromptInputsPath": "upstream/windows-prompt-inputs.json",
   "windowsPromptInputsSha256": "7e0a5654bb5d172dd5b457bfc126845d0399ea94fe9716aaa3634e6e66c4a88e",
-  "sourceFileCount": 9439,
-  "publishedBytes": 93855948,
+  "sourceFileCount": 9440,
+  "publishedBytes": 93861024,
   "modifiedNoticeDate": "2026-11-01",
   "modifiedNoticeLabel": "R32",
   "modifiedFiles": [
@@ -45,9 +46,9 @@
     {
       "path": "codex-rs/Cargo.lock",
       "gitMode": "100644",
-      "gitBlob": "428c31b9823a38734b0b57089aed46046cda5945",
-      "sourceSha256": "4913df664aa78a1ccf1a9cdc03df2fc96f1cafab9792c1eea6dbf3f285efa1c7",
-      "publishedSha256": "4a71e9d954202d988e5346fb883d919e461e8325fe3f3000968392b9fd1a2be3",
+      "gitBlob": "6788817b613808d0728db74935c6d893c1847023",
+      "sourceSha256": "5645be5d88bbc99cee47483d2396df62e6f9a6f8aa5dc5a59d5ddde180f6e35a",
+      "publishedSha256": "1d495d15956438f2317fd295a3351b6a8d5440f55dd689a2729dc199a6015ec1",
       "bytes": 413415,
       "modified": true,
       "noticeOnly": true
@@ -55,9 +56,9 @@
     {
       "path": "codex-rs/Cargo.toml",
       "gitMode": "100644",
-      "gitBlob": "45c5d17e00e57577dad40d39027851f788f3c843",
-      "sourceSha256": "e5f36d408d504d9e56196dfc56a6c81b3edfeca3593b0f49696d21041e049922",
-      "publishedSha256": "b10ce50036338f7bd66054d484f27d6cd7d701168b04e2ee043c7854a44153dd",
+      "gitBlob": "f691290fb3fb11bb30458d7a09c32b9d8a17af89",
+      "sourceSha256": "d2b40859ea4452df9d6a65441450a3599a58787f5327b835fe0e8aa30fe90f2f",
+      "publishedSha256": "6bb94e902b9d31514ad3fd015159a5b8c5a2dba6d4a730df5e344fc265440891",
       "bytes": 22015,
       "modified": true,
       "noticeOnly": true
@@ -1565,10 +1566,10 @@
     {
       "path": "codex-rs/cli/src/localization.rs",
       "gitMode": "100644",
-      "gitBlob": "66952688867c83b7d23bec50d4c4273654f6060f",
-      "sourceSha256": "482f2a85b4850fb6ea0ce197144bf223db538ffbacaaed48acf767a253855400",
-      "publishedSha256": "039b4571dfc98fd15f3e9ce0cdd000701972462099ec2d2a652c64bf6beb5d80",
-      "bytes": 118843,
+      "gitBlob": "9f0cfcd1eb16616fdc86843c4360aa1c635dd184",
+      "sourceSha256": "97cb7366a0a9ad630a5f4196373b979a90e7fa2208a6016d3053ccc8d1ad9f0e",
+      "publishedSha256": "a9056f95ca65f726bb002e069b525a59655f2bb2e07a4b6a5438deeec280c76d",
+      "bytes": 118804,
       "modified": true,
       "noticeOnly": true
     },
@@ -6739,6 +6740,16 @@
       "sourceSha256": "9006685a76c6e969fb597ceaa056d829d67ddd635e2f9bcb9c587ce31e8e497c",
       "publishedSha256": "5b52b9287eae9d11a14c804405f5884f6ed48397d1a977f1bb64bea8f4b96cfd",
       "bytes": 4450,
+      "modified": true,
+      "noticeOnly": true
+    },
+    {
+      "path": "docs/native-cli-r36.ko.md",
+      "gitMode": "100644",
+      "gitBlob": "8c51e4acc06111e15685c6e034e95f4d84b69df7",
+      "sourceSha256": "72075e97822d37721cf188d6c81cdf2a7377cd6899f85a0f9215f544a3a4fa2d",
+      "publishedSha256": "7a8ea6eaa195fddb635133800c6391d73a063d54af577b48c7a42faff051983c",
+      "bytes": 5115,
       "modified": true,
       "noticeOnly": true
     },
