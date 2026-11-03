@@ -760,16 +760,22 @@ impl ThreadManager {
         {
             return Ok("changed".into());
         }
-        if let Some(store) = self
+        let local_cleanup = if let Some(store) = self
             .state
             .thread_store
             .as_any()
             .downcast_ref::<LocalThreadStore>()
         {
-            if let Err(error) = store.ensure_cleanup_references_allow(&[id]).await {
-                return Ok(format!("storage_rejected_before_deletion: {error}"));
+            match store.reserve_loaded_cleanup(id).await {
+                Ok(guard) => Some(guard),
+                Err(codex_thread_store::ThreadStoreError::Retryable { .. }) => {
+                    return Ok("reference_publication_busy".into());
+                }
+                Err(error) => return Ok(format!("storage_rejected_before_deletion: {error}")),
             }
-        }
+        } else {
+            None
+        };
         if !thread.session.close_for_cleanup().await {
             return Ok("busy".into());
         }
@@ -796,14 +802,17 @@ impl ThreadManager {
             return Ok("changed".into());
         }
         // Never expand this exact one-ID operation into a subtree deletion.
-        if let Err(error) = self
-            .state
-            .thread_store
-            .delete_threads(DeleteThreadsParams {
-                thread_ids: vec![id],
-            })
-            .await
-        {
+        let deletion = if let Some(guard) = local_cleanup {
+            guard.delete().await
+        } else {
+            self.state
+                .thread_store
+                .delete_threads(DeleteThreadsParams {
+                    thread_ids: vec![id],
+                })
+                .await
+        };
+        if let Err(error) = deletion {
             return Ok(format!(
                 "storage_unconfirmed_partial_deletion_possible: {error}"
             ));

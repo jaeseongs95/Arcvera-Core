@@ -145,6 +145,15 @@ async fn revert_owned(
     recorder.persist().await.map_err(thread_store_io_error)?;
     recorder.shutdown().await.map_err(thread_store_io_error)?;
 
+    // History reads require a checkpoint for every lineage segment. Publish the new
+    // SQLite path only after its durable replacement can be read, even with no turns.
+    super::thread_history_materialization::materialize_to_sqlite(
+        store,
+        rollout_id,
+        replacement_path.as_path(),
+    )
+    .await?;
+
     let replaced = state_db
         .replace_rollout_path_if_current(
             thread_id,
