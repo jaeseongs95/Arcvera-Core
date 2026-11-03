@@ -193,7 +193,9 @@ async fn run_remote_compact_task_inner(
         phase,
     )
     .await;
+    let hooks_timer = crate::compact::CompactionPhaseTimer::new(sess, turn_context, "pre_hooks");
     let pre_compact_outcome = run_pre_compact_hooks(sess, turn_context, trigger).await;
+    hooks_timer.finish();
     match pre_compact_outcome {
         PreCompactHookOutcome::Continue => {}
         PreCompactHookOutcome::Stopped => {
@@ -217,7 +219,12 @@ async fn run_remote_compact_task_inner(
         None
     };
     let candidate = if candidate.is_none() && fallback == CompactionFallback::Foreground {
-        crate::session::async_compaction::wait_for_pending(sess, step_context).await
+        let wait_timer =
+            crate::compact::CompactionPhaseTimer::new(sess, turn_context, "pending_background");
+        let candidate =
+            crate::session::async_compaction::wait_for_pending(sess, step_context).await;
+        wait_timer.finish();
+        candidate
     } else {
         candidate
     };
@@ -244,7 +251,10 @@ async fn run_remote_compact_task_inner(
     let status = compaction_status_from_result(&result);
     let codex_error = result.as_ref().err();
     if result.is_ok() {
+        let hooks_timer =
+            crate::compact::CompactionPhaseTimer::new(sess, turn_context, "post_hooks");
         let post_compact_outcome = run_post_compact_hooks(sess, turn_context, trigger).await;
+        hooks_timer.finish();
         if let PostCompactHookOutcome::Stopped = post_compact_outcome {
             attempt
                 .track(sess.as_ref(), status, codex_error, analytics_details)
@@ -302,6 +312,8 @@ async fn run_remote_compaction_request_v2(
             // Replay the routing token without letting this request change foreground routing.
             let turn_state = Arc::new(turn_state.map(OnceLock::from).unwrap_or_default());
             let http_executor = ResponsesHttpExecutor::new(&sess.services.model_client);
+            let request_timer =
+                crate::compact::CompactionPhaseTimer::new(sess, turn_context, "background_request");
             let stream = tokio::select! {
                 biased;
                 _ = cancellation.cancelled() => return Err(CodexErr::TurnAborted),
@@ -311,13 +323,15 @@ async fn run_remote_compaction_request_v2(
                     &trace,
                 ) => stream?,
             };
-            return collect_compaction_output(
+            let result = collect_compaction_output(
                 sess,
                 turn_context,
                 stream,
                 CompactionRequestKind::Background(&cancellation),
             )
             .await;
+            request_timer.finish();
+            return result;
         }
         CompactionRequestTransport::Foreground(client_session) => client_session,
     };
@@ -329,6 +343,8 @@ async fn run_remote_compaction_request_v2(
         .min(MAX_REMOTE_COMPACTION_V2_STREAM_RETRIES);
     let mut retry_state = ResponsesStreamRetryState::default();
     loop {
+        let request_timer =
+            crate::compact::CompactionPhaseTimer::new(sess, turn_context, "foreground_request");
         let result = match client_session
             .stream(
                 prompt,
@@ -354,10 +370,13 @@ async fn run_remote_compaction_request_v2(
             }
             Err(err) => Err(err),
         };
+        request_timer.finish();
         match result {
             Ok(compaction_output) => return Ok(compaction_output),
             Err(err) => {
-                handle_response_stream_error(
+                let retry_timer =
+                    crate::compact::CompactionPhaseTimer::new(sess, turn_context, "retry_wait");
+                let retry_result = handle_response_stream_error(
                     &mut retry_state,
                     max_retries,
                     err,
@@ -366,7 +385,9 @@ async fn run_remote_compaction_request_v2(
                     step_context,
                     ResponsesStreamRequest::RemoteCompactionV2,
                 )
-                .await?;
+                .await;
+                retry_timer.finish();
+                retry_result?;
             }
         }
     }
@@ -438,6 +459,11 @@ async fn collect_compaction_output(
                         }
                     }
                     CompactionRequestKind::Foreground => {
+                        let publish_timer = crate::compact::CompactionPhaseTimer::new(
+                            sess,
+                            turn_context,
+                            "publish_response_completed",
+                        );
                         sess.record_observed_response_completed(
                             turn_context,
                             &response_id,
@@ -445,6 +471,7 @@ async fn collect_compaction_output(
                             usage_metadata.as_ref(),
                         )
                         .await;
+                        publish_timer.finish();
                     }
                 }
                 completed_response_id = Some(response_id);

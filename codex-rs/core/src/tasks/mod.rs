@@ -438,26 +438,40 @@ impl Session {
             let sess = Arc::clone(&session);
             // Private reviewers save their transcript together with the terminal event.
             // Errors and cancellation retain their existing save path.
-            if (!sess.is_private_guardian_reviewer().await
+            if !sess.is_private_guardian_reviewer().await
                 || task_cancellation_token.is_cancelled()
-                || task_result.is_err())
-                && let Err(err) = sess.flush_rollout().await
+                || task_result.is_err()
             {
-                warn!("failed to flush rollout before completing turn: {err}");
-                sess.send_event(
-                    ctx_for_finish.as_ref(),
-                    EventMsg::Warning(WarningEvent {
-                        message: format!(
-                            "Failed to save the conversation transcript; Codex will continue retrying. Error: {err}"
-                        ),
-                    }),
-                )
-                .await;
+                let flush_timer = (task_kind == TaskKind::Compact).then(|| {
+                    crate::compact::CompactionPhaseTimer::new(&sess, &ctx_for_finish, "history_flush")
+                });
+                let flush_result = sess.flush_rollout().await;
+                if let Some(timer) = flush_timer {
+                    timer.finish();
+                }
+                if let Err(err) = flush_result {
+                    warn!("failed to flush rollout before completing turn: {err}");
+                    sess.send_event(
+                        ctx_for_finish.as_ref(),
+                        EventMsg::Warning(WarningEvent {
+                            message: format!(
+                                "Failed to save the conversation transcript; Codex will continue retrying. Error: {err}"
+                            ),
+                        }),
+                    )
+                    .await;
+                }
             }
             if !task_cancellation_token.is_cancelled() {
+                let finish_timer = (task_kind == TaskKind::Compact).then(|| {
+                    crate::compact::CompactionPhaseTimer::new(&sess, &ctx_for_finish, "finish_turn")
+                });
                 // Finish uniformly from the spawn site so all tasks share the same lifecycle.
                 sess.on_task_finished(Arc::clone(&ctx_for_finish), task_result)
                     .await;
+                if let Some(timer) = finish_timer {
+                    timer.finish();
+                }
             }
             done_clone.notify_waiters();
         }

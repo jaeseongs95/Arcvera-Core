@@ -62,6 +62,46 @@ pub use codex_prompts::SUMMARIZATION_PROMPT;
 pub use codex_prompts::SUMMARY_PREFIX;
 const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 20_000;
 
+/// Measures a compaction boundary without recording prompts, history, or errors.
+/// `returned` means `finish` was reached; `dropped` also covers early errors or cancellation.
+/// Keep labels static and these events separate from success/error analytics.
+pub(crate) struct CompactionPhaseTimer {
+    span: tracing::Span,
+    start: Instant,
+    returned: bool,
+}
+
+impl CompactionPhaseTimer {
+    pub(crate) fn new(sess: &Session, turn_context: &TurnContext, phase: &'static str) -> Self {
+        Self {
+            span: tracing::info_span!(
+                "codex.compaction.phase",
+                conversation.id = %sess.thread_id,
+                turn.id = %turn_context.sub_id,
+                phase,
+            ),
+            start: Instant::now(),
+            returned: false,
+        }
+    }
+
+    pub(crate) fn finish(mut self) {
+        self.returned = true;
+    }
+}
+
+impl Drop for CompactionPhaseTimer {
+    fn drop(&mut self) {
+        self.span.in_scope(|| {
+            tracing::info!(
+                elapsed_ms = u64::try_from(self.start.elapsed().as_millis()).unwrap_or(u64::MAX),
+                outcome = if self.returned { "returned" } else { "dropped" },
+                "compaction phase ended"
+            );
+        });
+    }
+}
+
 /// Thread-local policy that preserves inherited context without changing model or skill budgets.
 /// Insert into `StartThreadOptions::thread_extension_init` to disable automatic compaction.
 pub struct AutoCompactionDisabled;

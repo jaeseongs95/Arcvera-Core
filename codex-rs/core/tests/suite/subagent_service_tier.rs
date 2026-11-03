@@ -6,6 +6,7 @@ use codex_core::config::AgentRoleConfig;
 use codex_core::config::Config;
 use codex_features::Feature;
 use codex_protocol::config_types::SERVICE_TIER_DEFAULT_REQUEST_VALUE;
+use codex_protocol::openai_models::ModelServiceTier;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::Op;
 use codex_protocol::protocol::ThreadSettingsOverrides;
@@ -63,7 +64,12 @@ fn assert_request_service_tier(request: &ResponseMock, expected: Option<&str>) {
 }
 
 fn configure_priority_role(config: &mut Config) {
-    for feature in [Feature::Collab, Feature::MultiAgentV2] {
+    for feature in [
+        Feature::Collab,
+        Feature::MultiAgentV2,
+        Feature::FastMode,
+        Feature::UltrafastMode,
+    ] {
         config
             .features
             .enable(feature)
@@ -147,20 +153,38 @@ async fn mount_completed_child(
     .await
 }
 
-#[test_case(Some("priority"), None; "disabling fast mode updates active and idle child work")]
-#[test_case(Some("priority"), Some("default"); "explicit default updates active and idle child work")]
-#[test_case(None, Some("priority"); "enabling fast mode updates active and idle child work")]
+#[test_case(Some("priority"), None, true; "disabling fast mode updates active and idle child work")]
+#[test_case(Some("priority"), Some("default"), true; "explicit default updates active and idle child work")]
+#[test_case(None, Some("priority"), true; "enabling fast mode updates active and idle child work")]
+#[test_case(None, Some("ultrafast"), true; "enabling ultrafast updates active and idle child work")]
+#[test_case(Some("ultrafast"), Some("priority"), true; "ultrafast to fast updates active and idle child work")]
+#[test_case(Some("priority"), Some("ultrafast"), true; "fast to ultrafast updates active and idle child work")]
+#[test_case(Some("ultrafast"), None, true; "disabling ultrafast updates active and idle child work")]
+#[test_case(None, Some("ultrafast"), false; "unsupported ultrafast is omitted for child work and compaction")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn root_service_tier_change_updates_existing_subagent(
     initial_service_tier: Option<&str>,
     updated_service_tier: Option<&str>,
+    supports_ultrafast: bool,
 ) -> Result<()> {
     let server = start_mock_server().await;
     let initial_service_tier_owned = initial_service_tier.map(str::to_string);
     let updated_request_service_tier = updated_service_tier
-        .filter(|service_tier| *service_tier != SERVICE_TIER_DEFAULT_REQUEST_VALUE);
+        .filter(|service_tier| *service_tier != SERVICE_TIER_DEFAULT_REQUEST_VALUE)
+        .filter(|service_tier| *service_tier != "ultrafast" || supports_ultrafast);
     let mut builder = test_codex()
         .with_model("gpt-5.6-sol")
+        .with_model_info_override("gpt-5.6-sol", move |model| {
+            model.service_tiers = ["priority", "ultrafast"]
+                .into_iter()
+                .filter(|tier| *tier != "ultrafast" || supports_ultrafast)
+                .map(|tier| ModelServiceTier {
+                    id: tier.to_string(),
+                    name: tier.to_string(),
+                    description: tier.to_string(),
+                })
+                .collect();
+        })
         .with_config(move |config| {
             config.service_tier = initial_service_tier_owned;
             configure_priority_role(config);
