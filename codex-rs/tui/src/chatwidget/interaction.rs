@@ -213,13 +213,7 @@ impl ChatWidget {
                 self.quit_shortcut_expires_at = None;
                 self.quit_shortcut_key = None;
             }
-            key if key.kind == KeyEventKind::Press
-                && ((matches!(key.code, KeyCode::Char(c) if c.eq_ignore_ascii_case(&'v'))
-                    && key
-                        .modifiers
-                        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT))
-                    || (cfg!(windows) && key_hint::shift(KeyCode::Insert).is_press(key))) =>
-            {
+            key if key.kind == KeyEventKind::Press && crate::keymap::is_image_paste_key(key) => {
                 if Instant::now() < self.suppress_image_paste_until {
                     self.suppress_image_paste_until =
                         Instant::now() + clipboard::IMAGE_PASTE_REPEAT_WINDOW;
@@ -747,3 +741,7 @@ impl ChatWidget {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "interaction_tests.rs"]
+mod tests;

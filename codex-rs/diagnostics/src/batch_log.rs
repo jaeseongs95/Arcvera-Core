@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Content-free tracing batches. The producer never performs filesystem I/O.
 //! Completed local batches are copied once to an optional streaming-drive path.
 use crate::cache_diagnostics::CacheMode;
@@ -33,7 +33,7 @@ fn cache_metadata(metadata: &tracing::Metadata<'_>) -> bool {
     ) && *metadata.level() == tracing::Level::DEBUG
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Settings {
     pub enabled: bool,
@@ -62,7 +62,7 @@ impl Default for Settings {
 }
 
 impl Settings {
-    fn validate(&self, spool: &Path) -> io::Result<()> {
+    pub(crate) fn validate(&self, spool: &Path) -> io::Result<()> {
         if !(1..=3600).contains(&self.flush_seconds)
             || !(1..=3600).contains(&self.sample_seconds)
             || !(16 * 1024..=64 * 1024 * 1024).contains(&self.max_batch_bytes)
@@ -147,20 +147,23 @@ impl Drop for Guard {
 /// Configuration is deliberately outside model/project config: only the local
 /// operator's CODEX_HOME/cli-logging.toml can enable diagnostic file output.
 pub fn start(home: &Path) -> io::Result<(Option<BatchLayer>, Option<Guard>)> {
-    let file = home.join("cli-logging.toml");
-    let text = match fs::read_to_string(file) {
-        Ok(text) => text,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => String::new(),
-        Err(e) => return Err(e),
-    };
-    let settings: Settings =
-        toml::from_str(&text).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let settings = read_settings(home)?;
     let mode = crate::cache_diagnostics::initialize(home, settings.enabled)?;
     if !settings.enabled {
         return Ok((None, None));
     }
     start_with_mode(home.join("log").join("cli-batches"), settings, mode)
         .map(|(layer, guard)| (Some(layer), Some(guard)))
+}
+
+pub fn read_settings(home: &Path) -> io::Result<Settings> {
+    let file = home.join("cli-logging.toml");
+    let text = match fs::read_to_string(file) {
+        Ok(text) => text,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(e),
+    };
+    toml::from_str(&text).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))
 }
 
 #[cfg(test)]

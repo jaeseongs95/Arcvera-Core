@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Explicit memory management commands; model inference is not needed.
 use super::App;
 use crate::app_server_session::AppServerSession;
@@ -44,7 +44,7 @@ impl App {
                             text("Storage:"), response.root.as_deref().unwrap_or("-"),
                             response.summary.as_deref().unwrap_or(text("No stored memory summary is available.")),
                             text("This is the stored summary. Existing chat context is unchanged; new context loads the latest summary.")),
-                            Some("/memory edit <correction> · /memory read on|off · /memory generate on|off".to_string()));
+                            Some(text("/memory enable on|off · /memory edit <correction> · /memory read on|off · /memory generate on|off").to_string()));
                     }
                     Err(error) => self.chat_widget.add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
                 }
@@ -57,19 +57,21 @@ impl App {
                     Err(error) => self.chat_widget.add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
                 }
             }
+            "enable" if matches!(value, "on" | "off") => {
+                let on = value == "on";
+                match self.set_memory_control(app_server, thread_id, Some(on), on, on, true).await {
+                    Ok(result) => self.chat_widget.add_info_message(result["message"].as_str().unwrap_or_default().to_string(), None),
+                    Err(error) => self.chat_widget.add_error_message(error),
+                }
+            }
             "read" | "generate" if matches!(value, "on" | "off") => {
                 let on = value == "on";
                 let use_memories = if command == "read" { on } else { self.config.memories.use_memories };
                 let generate = if command == "generate" { on } else { self.config.memories.generate_memories };
-                if !self.update_memory_settings(app_server, use_memories, generate).await { return; }
-                if command == "generate" {
-                    let mode = if on { codex_app_server_protocol::ThreadMemoryMode::Enabled } else { codex_app_server_protocol::ThreadMemoryMode::Disabled };
-                    if let Err(error) = app_server.thread_memory_mode_set(thread_id, mode).await {
-                        self.chat_widget.add_error_message(format!("{} {error:#}", text("Memory request failed:")));
-                        return;
-                    }
+                match self.set_memory_control(app_server, thread_id, on.then_some(true), use_memories, generate, command == "generate").await {
+                    Ok(result) => self.chat_widget.add_info_message(result["message"].as_str().unwrap_or_default().to_string(), None),
+                    Err(error) => self.chat_widget.add_error_message(error),
                 }
-                self.chat_widget.add_info_message(text("Memory settings saved. Reading changes apply to new chats. Generation changes stop new claims; already running work may finish.").to_string(), None);
             }
             "scope" if matches!(value, "project" | "global") => {
                 let edits = vec![crate::config_update::replace_config_value("memories.scope", serde_json::json!(value))];
@@ -82,7 +84,7 @@ impl App {
                     Err(error) => self.chat_widget.add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
                 }
             }
-            _ => self.chat_widget.add_error_message(text("Usage: /memory view | edit <correction> | read on|off | generate on|off | scope project|global").to_string()),
+            _ => self.chat_widget.add_error_message(text("Usage: /memory view | enable on|off | edit <correction> | read on|off | generate on|off | scope project|global").to_string()),
         }
     }
 }

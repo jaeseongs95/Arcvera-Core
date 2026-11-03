@@ -679,3 +679,38 @@ fn localized_async_question_chrome_preserves_question_and_answer_payloads() {
         });
     }
 }
+
+#[test]
+fn localized_notes_submit_hint_uses_action_id_and_keeps_remapped_submission() {
+    for (locale, label) in [
+        (crate::i18n::Locale::English, "submit"),
+        (crate::i18n::Locale::Korean, "제출"),
+    ] {
+        crate::i18n::with_locale(locale, || {
+            let keymap =
+                RuntimeKeymap::from_config(&toml::from_str("[composer]\nsubmit = 'f12'").unwrap())
+                    .unwrap();
+            let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+            let mut editor = AsyncQuestions::new(AppEventSender::new(tx), true, true, true, keymap);
+            editor.append("message", &[question("Question", None)]);
+            editor.set_expanded(true);
+            editor.handle_paste("unchanged answer 답변".into());
+            let footer = editor
+                .footer_lines(160, None)
+                .into_iter()
+                .map(|line| line.to_string())
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert!(
+                footer.to_lowercase().contains("f12"),
+                "{locale:?}: {footer}"
+            );
+            assert!(footer.contains(label), "{locale:?}: {footer}");
+            editor.handle_key_event(KeyEvent::new(KeyCode::F(12), KeyModifiers::NONE));
+            let Some(QuestionSubmission::Submit(reply)) = editor.submission else {
+                panic!("remapped submit must submit in {locale:?}");
+            };
+            assert_eq!(reply, "> Question\n\nunchanged answer 답변");
+        });
+    }
+}

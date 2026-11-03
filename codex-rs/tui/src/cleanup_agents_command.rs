@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Cleanup commands share the same backend selection as other session commands.
 
 use crate::app_server_session::AppServerSession;
@@ -7,12 +7,14 @@ use crate::session_archive_commands::SessionArchiveCommandOptions;
 use crate::session_archive_commands::start_app_server_for_session_command;
 use codex_app_server_client::TypedRequestError;
 use codex_app_server_protocol::ClientRequest;
+use codex_app_server_protocol::CompletedChildSnapshot;
 use codex_app_server_protocol::ThreadCleanupCompletedParams;
 use codex_app_server_protocol::ThreadCleanupCompletedResponse;
 use codex_app_server_protocol::experimental_required_message;
 use color_eyre::Report;
 use color_eyre::eyre::Result;
 use color_eyre::eyre::eyre;
+use std::io::BufRead;
 use std::io::IsTerminal;
 use std::io::Write;
 
@@ -66,12 +68,7 @@ fn cleanup_request_error(error: TypedRequestError, locale: Locale) -> Report {
     ) {
         // Legacy parsers list every supported RPC in this rejection. Replace that
         // known compatibility failure without concealing unrelated server errors.
-        eyre!(match locale {
-            Locale::Korean =>
-                "선택한 서버는 서브에이전트 정리 API를 지원하지 않습니다. 삭제한 대화는 0개입니다. 지원하는 서버를 --remote로 명시하거나, 지원하는 서버로 전환한 뒤 다시 사용하세요.",
-            Locale::English =>
-                "The selected server does not support the subagent cleanup API. No conversations were deleted. Specify a supporting server with --remote, or switch to a supporting server before retrying.",
-        })
+        eyre!(crate::i18n::message_for(locale, "cleanup-unsupported", &[]))
     } else {
         error.into()
     }
@@ -81,6 +78,7 @@ async fn run_cleanup_agents_action(
     app_server: &mut AppServerSession,
     command: CleanupAgentsCommandOptions,
 ) -> Result<()> {
+    let locale = crate::i18n::locale();
     let parent = command.parent.unwrap_or_else(|| command.current.clone());
     let preview = request_cleanup(
         app_server,
@@ -93,38 +91,20 @@ async fn run_cleanup_agents_action(
     )
     .await?;
     println!("{}", serde_json::to_string_pretty(&preview)?);
-    let mut selected = Vec::new();
-    for result in preview.results {
-        if command.threads.is_empty() || command.threads.contains(&result.thread_id) {
-            if let Some(snapshot) = result.snapshot {
-                selected.push(snapshot);
-            }
-        }
-    }
-    for id in &command.threads {
-        if !selected.iter().any(|item| &item.thread_id == id) {
-            color_eyre::eyre::bail!("선택한 항목은 종료 상태를 확정할 수 없어 보존됩니다: {id}");
-        }
-    }
+    let selected = select_cleanup_snapshots(preview, &command.threads, locale)?;
     if !command.apply || selected.is_empty() {
         return Ok(());
     }
-    if !command.confirm {
-        if !std::io::stdin().is_terminal() {
-            color_eyre::eyre::bail!(
-                "실제 정리에는 터미널 확인 또는 --apply --confirm이 필요합니다."
-            );
-        }
-        eprint!(
-            "위 미리보기에서 선택한 {}개 대화를 영구 삭제하려면 '정리'를 입력하세요: ",
-            selected.len()
-        );
-        std::io::stderr().flush()?;
-        let mut answer = String::new();
-        std::io::stdin().read_line(&mut answer)?;
-        if answer.trim() != "정리" {
-            return Ok(());
-        }
+    if !command.confirm
+        && !confirm_cleanup(
+            std::io::stdin().is_terminal(),
+            &mut std::io::stdin().lock(),
+            &mut std::io::stderr().lock(),
+            selected.len(),
+            locale,
+        )?
+    {
+        return Ok(());
     }
     let result = request_cleanup(
         app_server,
@@ -137,14 +117,76 @@ async fn run_cleanup_agents_action(
     )
     .await?;
     println!("{}", serde_json::to_string_pretty(&result)?);
+    check_cleanup_result(&result, locale)
+}
+
+fn select_cleanup_snapshots(
+    preview: ThreadCleanupCompletedResponse,
+    threads: &[String],
+    locale: Locale,
+) -> Result<Vec<CompletedChildSnapshot>> {
+    let mut selected = Vec::new();
+    for result in preview.results {
+        if threads.is_empty() || threads.contains(&result.thread_id) {
+            if let Some(snapshot) = result.snapshot {
+                selected.push(snapshot);
+            }
+        }
+    }
+    for id in threads {
+        if !selected.iter().any(|item| &item.thread_id == id) {
+            color_eyre::eyre::bail!(crate::i18n::message_for(
+                locale,
+                "cleanup-selection-preserved",
+                &[("id", id)],
+            ));
+        }
+    }
+    Ok(selected)
+}
+
+fn confirm_cleanup(
+    is_terminal: bool,
+    input: &mut impl BufRead,
+    output: &mut impl Write,
+    count: usize,
+    locale: Locale,
+) -> Result<bool> {
+    if !is_terminal {
+        color_eyre::eyre::bail!(crate::i18n::message_for(
+            locale,
+            "cleanup-confirmation-required",
+            &[],
+        ));
+    }
+    let token = crate::i18n::message_for(locale, "cleanup-confirmation-token", &[]);
+    write!(
+        output,
+        "{} ",
+        crate::i18n::message_with_count_for(
+            locale,
+            "cleanup-confirmation-prompt",
+            &[("token", &token)],
+            count as i64,
+        )
+    )?;
+    output.flush()?;
+    let mut answer = String::new();
+    input.read_line(&mut answer)?;
+    Ok(answer.trim() == token)
+}
+
+fn check_cleanup_result(result: &ThreadCleanupCompletedResponse, locale: Locale) -> Result<()> {
     if result
         .results
         .iter()
         .any(|entry| entry.outcome != "deleted")
     {
-        color_eyre::eyre::bail!(
-            "일부 항목을 보존했거나 정리 결과를 확정하지 못했습니다. 출력된 항목별 결과를 확인하세요."
-        );
+        color_eyre::eyre::bail!(crate::i18n::message_for(
+            locale,
+            "cleanup-partial-failure",
+            &[],
+        ));
     }
     Ok(())
 }
@@ -267,3 +309,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "cleanup_agents_command_tests.rs"]
+mod regression_tests;

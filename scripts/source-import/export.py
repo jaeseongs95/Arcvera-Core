@@ -9,9 +9,9 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED="d5b41a93814e9f49e0715c0d65c43727d8d655bf"
-PREVIOUS_PUBLIC='58e3c952b158202c3fe831c5c5f99f5dfc247668'
-PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md']
+PATCHED="10491a732e1d11398ce5bda6f92ffee331c276b9"
+PREVIOUS_PUBLIC='d2e63ba3a8e221b3e2936a57d19a3e22e87955e7'
+PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md','docs/native-cli-r35.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
 PATCH_PATH='upstream/official-0.166.0.patch'
@@ -237,6 +237,54 @@ NOTICE_OVERRIDES.update({path: ('R35', '2026-11-03') for path in (
     'codex-rs/tui/src/status/thread_usage_tests.rs',
     'codex-rs/tui/src/token_usage.rs',
     'codex-rs/tui/src/transcript_view/input_tests.rs',
+)})
+NOTICE_OVERRIDES.update({path: ('R35', '2026-11-03') for path in (
+    "codex-rs/Cargo.lock",
+    "codex-rs/Cargo.toml",
+    "codex-rs/app-server-daemon/src/lib.rs",
+    "codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.schemas.json",
+    "codex-rs/app-server-protocol/schema/json/v1/InitializeResponse.json",
+    "codex-rs/app-server-protocol/schema/precomputed/app-server-exports-experimental.json.zst",
+    "codex-rs/app-server-protocol/schema/precomputed/app-server-exports-stable.json.zst",
+    "codex-rs/app-server-protocol/schema/typescript/InitializeResponse.ts",
+    "codex-rs/app-server-protocol/schema/typescript/OpenDiyCapabilities.ts",
+    "codex-rs/app-server-protocol/schema/typescript/index.ts",
+    "codex-rs/cli/src/localization.rs",
+    "codex-rs/cli/src/main.rs",
+    "codex-rs/core/src/config/runtime_refresh.rs",
+    "codex-rs/core/src/config/runtime_refresh_tests.rs",
+    "codex-rs/diagnostics/Cargo.toml",
+    "codex-rs/diagnostics/src/batch_log.rs",
+    "codex-rs/diagnostics/src/cache_diagnostics.rs",
+    "codex-rs/diagnostics/src/lib.rs",
+    "codex-rs/diagnostics/src/settings_control.rs",
+    "codex-rs/diagnostics/src/settings_control_tests.rs",
+    "codex-rs/tui/locales/en/cli.ftl",
+    "codex-rs/tui/locales/en/controls.ftl",
+    "codex-rs/tui/locales/en/legacy.ftl",
+    "codex-rs/tui/locales/ko/cli.ftl",
+    "codex-rs/tui/locales/ko/controls.ftl",
+    "codex-rs/tui/locales/ko/legacy.ftl",
+    "codex-rs/tui/src/app.rs",
+    "codex-rs/tui/src/app/diagnostics_control.rs",
+    "codex-rs/tui/src/app/diagnostics_control_tests.rs",
+    "codex-rs/tui/src/app/memory.rs",
+    "codex-rs/tui/src/app/session_control.rs",
+    "codex-rs/tui/src/app/session_control_tests.rs",
+    "codex-rs/tui/src/app_server_connection.rs",
+    "codex-rs/tui/src/app_server_session.rs",
+    "codex-rs/tui/src/bottom_pane/async_questions/render.rs",
+    "codex-rs/tui/src/bottom_pane/async_questions/state_tests.rs",
+    "codex-rs/tui/src/bottom_pane/warnings_view_render.rs",
+    "codex-rs/tui/src/bottom_pane/warnings_view_tests.rs",
+    "codex-rs/tui/src/chatwidget/interaction.rs",
+    "codex-rs/tui/src/chatwidget/interaction_tests.rs",
+    "codex-rs/tui/src/cleanup_agents_command.rs",
+    "codex-rs/tui/src/cleanup_agents_command_tests.rs",
+    "codex-rs/tui/src/daemon_startup_tests.rs",
+    "codex-rs/tui/src/keymap.rs",
+    "codex-rs/tui/src/session_control.rs",
+    "docs/native-cli-r35.ko.md",
 )})
 ATTR_BEGIN=b'# BEGIN OpenDIY pinned source attributes\n'
 ATTR_END=b'# END OpenDIY pinned source attributes\n'

@@ -4,6 +4,32 @@
     "AbsolutePathBuf": {
       "description": "A path that is guaranteed to be absolute and normalized (though it is not guaranteed to be canonicalized or exist on the filesystem).\n\nIMPORTANT: When deserializing an `AbsolutePathBuf`, a base path must be set using [AbsolutePathBufGuard::new]. If no base path is set, the deserialization will fail unless the path being deserialized is already absolute.",
       "type": "string"
+    },
+    "OpenDiyCapabilities": {
+      "description": "Independent server support declarations, not session readiness or authorization. Missing fields default to false; clients enable each extension only for literal true.",
+      "properties": {
+        "compactStartIfIdle": {
+          "default": false,
+          "description": "`thread/compact/startIfIdle`: atomically admit compaction only while idle.",
+          "type": "boolean"
+        },
+        "historySummary": {
+          "default": false,
+          "description": "Summary itemsView in thread/turns/list and resume.initialTurnsPage. Does not imply passive subscription, materialized items, or a summary DTO.",
+          "type": "boolean"
+        },
+        "passiveSubscription": {
+          "default": false,
+          "description": "`thread/subscribePassive`: observe a loaded runtime without resuming pending work.",
+          "type": "boolean"
+        },
+        "userTurnStartIfIdle": {
+          "default": false,
+          "description": "`turn/startUserIfIdle`: atomically admit user input only while idle.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
     }
   },
   "properties": {
@@ -14,6 +40,17 @@
         }
       ],
       "description": "Absolute path to the server's $CODEX_HOME directory."
+    },
+    "opendiyCapabilities": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/OpenDiyCapabilities"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Optional support declarations for this connection's server. Absence is not support."
     },
     "platformFamily": {
       "description": "Platform family for the running app-server target, for example `\"unix\"` or `\"windows\"`.",

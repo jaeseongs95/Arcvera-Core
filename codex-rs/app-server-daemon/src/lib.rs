@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Managed app-server lifecycle, serialized across CLI invocations and the updater.
 
 mod backend;
@@ -75,6 +75,7 @@ const STATE_DIR_NAME: &str = "app-server-daemon";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LifecycleCommand {
     Start,
+    StartFirstInstallation,
     StartExistingInstallation,
     Restart {
         feature_overrides: BTreeMap<String, bool>,
@@ -250,6 +251,7 @@ pub async fn run(command: LifecycleCommand) -> Result<LifecycleOutput> {
     if matches!(
         command,
         LifecycleCommand::Start
+            | LifecycleCommand::StartFirstInstallation
             | LifecycleCommand::StartExistingInstallation
             | LifecycleCommand::Restart { .. }
     ) {
@@ -438,9 +440,14 @@ impl Daemon {
             return self.version().await;
         }
         let _operation_lock = self.acquire_operation_lock().await?;
+        if command == LifecycleCommand::StartFirstInstallation {
+            self.ensure_first_installation()?;
+        }
         let selected = self.current_installation()?;
         match command {
-            LifecycleCommand::Start => selected.start(&BTreeMap::new()).await,
+            LifecycleCommand::Start | LifecycleCommand::StartFirstInstallation => {
+                selected.start(&BTreeMap::new()).await
+            }
             LifecycleCommand::StartExistingInstallation => {
                 selected.start_existing_installation().await
             }
@@ -464,6 +471,53 @@ impl Daemon {
 
     async fn start_existing_installation(&self) -> Result<LifecycleOutput> {
         self.start_with_overrides(None).await
+    }
+
+    // The operation lock must cover both this check and the subsequent start.
+    // A caller's earlier observation cannot authorize changing an installation
+    // that another lifecycle command created while this command was waiting.
+    fn ensure_first_installation(&self) -> Result<()> {
+        let state = self
+            .settings_file
+            .parent()
+            .context("daemon settings path has no state directory")?;
+        let home = state
+            .parent()
+            .context("daemon settings path has no Codex home")?;
+        let artifacts = [
+            home.join("packages/app-server-daemon/current"),
+            home.join("packages/standalone/current"),
+            self.settings_file.clone(),
+            self.recovery_file()?,
+            state.join(DAEMON_PID_FILE_NAME),
+            state.join("daemon.stderr.log"),
+            state.join(DAEMON_UPDATE_PID_FILE_NAME),
+            state.join("daemon-updater.stderr.log"),
+            state.join(LEGACY_PID_FILE_NAME),
+            state.join("app-server.stderr.log"),
+            state.join(LEGACY_UPDATE_PID_FILE_NAME),
+            state.join("app-server-updater.stderr.log"),
+        ];
+        for artifact in artifacts {
+            match artifact.symlink_metadata() {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    return Err(error).with_context(|| {
+                        format!(
+                            "first-installation start could not inspect {}; no installation or recovery state was changed",
+                            artifact.display()
+                        )
+                    });
+                }
+                Ok(_) => {
+                    return Err(anyhow!(
+                        "first-installation start refused: existing daemon state at {}; use --existing-installation for an intact installation; no installation or recovery state was changed",
+                        artifact.display()
+                    ));
+                }
+            }
+        }
+        Ok(())
     }
 
     async fn start_with_overrides(
@@ -1329,6 +1383,182 @@ mod tests {
     use crate::client::ProbeInfo;
     #[cfg(unix)]
     use crate::settings::DaemonSettings;
+
+    fn first_installation_daemon(home: &std::path::Path) -> Daemon {
+        let state = home.join("app-server-daemon");
+        Daemon {
+            log_diagnostics: false,
+            socket_path: home.join("server.sock"),
+            pid_file: state.join("daemon.pid"),
+            update_pid_file: state.join("daemon-updater.pid"),
+            operation_lock_file: state.join("daemon.lock"),
+            settings_file: state.join("settings.json"),
+            managed_codex_bin: super::managed_codex_bin(home),
+        }
+    }
+
+    #[tokio::test]
+    async fn first_installation_accepts_pristine_home_under_operation_lock() {
+        let home = TempDir::new().expect("isolated home");
+        let daemon = first_installation_daemon(home.path());
+        let _lock = daemon.acquire_operation_lock().await.expect("lock");
+        daemon
+            .ensure_first_installation()
+            .expect("operation lock alone is not an installation");
+        assert!(!daemon.settings_file.exists());
+        assert!(!daemon.recovery_file().unwrap().exists());
+        assert!(!home.path().join("packages").exists());
+    }
+
+    #[tokio::test]
+    async fn first_installation_rejects_each_existing_artifact_without_side_effects() {
+        for artifact in [
+            "packages/app-server-daemon/current",
+            "packages/standalone/current",
+            "app-server-daemon/settings.json",
+            "app-server-daemon/loaded-threads.json",
+            "app-server-daemon/daemon.pid",
+            "app-server-daemon/daemon.stderr.log",
+            "app-server-daemon/daemon-updater.pid",
+            "app-server-daemon/daemon-updater.stderr.log",
+            "app-server-daemon/app-server.pid",
+            "app-server-daemon/app-server.stderr.log",
+            "app-server-daemon/app-server-updater.pid",
+            "app-server-daemon/app-server-updater.stderr.log",
+        ] {
+            let home = TempDir::new().expect("isolated home");
+            let daemon = first_installation_daemon(home.path());
+            // Existing state directories must have the production private ACL;
+            // otherwise Windows rejects the fixture before acquiring the lock.
+            codex_uds::prepare_private_socket_directory(daemon.settings_file.parent().unwrap())
+                .await
+                .expect("private state directory");
+            let path = home.path().join(artifact);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, b"preserve existing state").unwrap();
+            let error = daemon
+                .run(super::LifecycleCommand::StartFirstInstallation)
+                .await
+                .expect_err(artifact);
+            assert!(
+                error
+                    .to_string()
+                    .contains("first-installation start refused"),
+                "artifact={artifact}; error={error:#}"
+            );
+            assert_eq!(
+                std::fs::read(&path).unwrap(),
+                b"preserve existing state",
+                "artifact={artifact}; error={error:#}"
+            );
+            if path != daemon.settings_file {
+                assert!(!daemon.settings_file.exists());
+            }
+            if path != daemon.recovery_file().unwrap() {
+                assert!(!daemon.recovery_file().unwrap().exists());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn first_installation_rechecks_after_waiting_and_preserves_concurrent_install() {
+        let home = TempDir::new().expect("isolated home");
+        let daemon = first_installation_daemon(home.path());
+        daemon.ensure_first_installation().expect("initially empty");
+        let lock = daemon
+            .acquire_operation_lock()
+            .await
+            .expect("competing lock");
+        let start = daemon.run(super::LifecycleCommand::StartFirstInstallation);
+        tokio::pin!(start);
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(20), &mut start)
+                .await
+                .is_err()
+        );
+
+        // Another lifecycle operation installs and persists its launch state
+        // after the caller observed absence, before the caller owns the lock.
+        std::fs::create_dir_all(daemon.managed_codex_bin.parent().unwrap()).unwrap();
+        let recovery = daemon.recovery_file().unwrap();
+        let preserved = [
+            (
+                &daemon.managed_codex_bin,
+                b"concurrently installed binary".as_slice(),
+            ),
+            (
+                &daemon.settings_file,
+                br#"{"featureOverrides":{"auth_elicitation":true}}"#.as_slice(),
+            ),
+            (&recovery, br#"["saved-thread"]"#.as_slice()),
+        ];
+        for (path, bytes) in preserved {
+            std::fs::write(path, bytes).unwrap();
+        }
+        drop(lock);
+        let error = start
+            .await
+            .expect_err("late installation must be preserved");
+        assert!(
+            error
+                .to_string()
+                .contains("first-installation start refused")
+        );
+        for (path, bytes) in preserved {
+            assert_eq!(std::fs::read(path).unwrap(), bytes);
+        }
+        assert!(!daemon.pid_file.exists());
+        assert!(!daemon.update_pid_file.exists());
+        let _lock = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            daemon.acquire_operation_lock(),
+        )
+        .await
+        .expect("rejection releases operation lock")
+        .expect("operation lock");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn first_installation_rejects_dangling_selection_and_metadata_errors() {
+        let home = TempDir::new().expect("isolated home");
+        let daemon = first_installation_daemon(home.path());
+        let root = home.path().join("packages/app-server-daemon");
+        std::fs::create_dir_all(&root).unwrap();
+        std::os::unix::fs::symlink("missing-release", root.join("current")).unwrap();
+        let error = daemon
+            .run(super::LifecycleCommand::StartFirstInstallation)
+            .await
+            .expect_err("dangling current is an existing installation");
+        assert!(
+            error
+                .to_string()
+                .contains("first-installation start refused")
+        );
+        assert_eq!(
+            std::fs::read_link(root.join("current")).unwrap(),
+            std::path::Path::new("missing-release")
+        );
+
+        let home = TempDir::new().expect("isolated home");
+        let daemon = first_installation_daemon(home.path());
+        std::fs::write(home.path().join("packages"), b"not a directory").unwrap();
+        let error = daemon
+            .run(super::LifecycleCommand::StartFirstInstallation)
+            .await
+            .expect_err("metadata errors must not be treated as absence");
+        assert!(
+            error
+                .to_string()
+                .contains("first-installation start could not inspect")
+        );
+        assert_eq!(
+            std::fs::read(home.path().join("packages")).unwrap(),
+            b"not a directory"
+        );
+        assert!(!daemon.settings_file.exists());
+        assert!(!daemon.recovery_file().unwrap().exists());
+    }
 
     #[tokio::test]
     async fn existing_installation_start_rejects_missing_binary_without_side_effects() {
