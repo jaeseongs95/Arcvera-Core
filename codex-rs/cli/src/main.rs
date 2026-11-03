@@ -4903,6 +4903,66 @@ enabled = true
     }
 
     #[test]
+    fn ci_entry_point_parses_and_rejects_unsupported_root_options() {
+        for args in [
+            vec!["codex", "ci", "status", "--json"],
+            vec!["codex", "ci", "-R", "owner/repo", "list", "--limit", "1"],
+            vec![
+                "codex",
+                "ci",
+                "watch",
+                "42",
+                "--timeout",
+                "1",
+                "--interval",
+                "1",
+            ],
+        ] {
+            let cli = MultitoolCli::try_parse_from(args).expect("CI command should parse");
+            assert!(matches!(&cli.subcommand, Some(Subcommand::Ci(_))));
+            reject_remote_mode_for_subcommand(
+                cli.remote.remote.as_deref(),
+                cli.remote.remote_auth_token_env.as_deref(),
+                "ci",
+            )
+            .expect("local CI should be supported");
+            reject_root_strict_config_for_subcommand(
+                cli.interactive.strict_config,
+                &cli.subcommand,
+            )
+            .expect("ordinary CI should be supported");
+        }
+
+        let cli = MultitoolCli::try_parse_from([
+            "codex",
+            "--remote",
+            "ws://127.0.0.1:4500",
+            "ci",
+            "status",
+        ])
+        .expect("root remote option parses before subcommand dispatch");
+        let error = reject_remote_mode_for_subcommand(
+            cli.remote.remote.as_deref(),
+            cli.remote.remote_auth_token_env.as_deref(),
+            "ci",
+        )
+        .expect_err("CI must not silently accept a remote TUI connection");
+        assert!(error.to_string().contains("codex ci"));
+
+        let cli = MultitoolCli::try_parse_from(["codex", "--strict-config", "ci", "status"])
+            .expect("root strict option parses before subcommand dispatch");
+        let error = reject_root_strict_config_for_subcommand(
+            cli.interactive.strict_config,
+            &cli.subcommand,
+        )
+        .expect_err("CI must not silently ignore strict config");
+        assert_eq!(
+            error.to_string(),
+            "`--strict-config` is not supported for `codex ci`"
+        );
+    }
+
+    #[test]
     fn remote_control_pair_parses() {
         let cli = MultitoolCli::try_parse_from(["codex", "remote-control", "pair"]).expect("parse");
         let Some(Subcommand::RemoteControl(remote_control)) = &cli.subcommand else {
