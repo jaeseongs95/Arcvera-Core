@@ -115,12 +115,13 @@ impl UnloadedThreadCleanupGuard {
 
     /// The caller must keep its owner task, admission, ancestry, queue and goal fences.
     /// Retain these store locks through the existing reference checks and exact deletion.
-    pub async fn delete(self) -> ThreadStoreResult<()> {
+    pub async fn delete(self, before_mutation: impl FnOnce()) -> ThreadStoreResult<()> {
         let mut locks = vec![self.writer_lock.clone()];
         super::delete_thread::delete_threads_under_writer_locks(
             &self.store,
             vec![self.thread_id],
             &mut locks,
+            before_mutation,
         )
         .await
     }

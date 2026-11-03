@@ -45,6 +45,15 @@ impl LocalThreadStore {
         let reference_index = scan_reference_index(self).await?;
         check_attached_children(&reference_index, thread_ids)
     }
+
+    /// Check every reference rejection before cleanup closes a loaded runtime.
+    /// The final deletion repeats these checks under writer ownership.
+    pub async fn ensure_cleanup_references_allow(
+        &self,
+        thread_ids: &[ThreadId],
+    ) -> ThreadStoreResult<()> {
+        prepare_thread_deletions(self, thread_ids).await.map(|_| ())
+    }
 }
 
 fn check_attached_children(
@@ -143,23 +152,22 @@ pub(super) async fn delete_threads(
     }
 
     let mut writer_guards = store.acquire_writer_locks(&lock_thread_ids).await?;
-    delete_threads_under_writer_locks(store, thread_ids, &mut writer_guards).await
+    delete_threads_under_writer_locks(store, thread_ids, &mut writer_guards, || {}).await
 }
 
 pub(super) async fn delete_threads_under_writer_locks(
     store: &LocalThreadStore,
     thread_ids: Vec<ThreadId>,
     writer_guards: &mut Vec<super::WriterLockGuard>,
+    before_mutation: impl FnOnce(),
 ) -> ThreadStoreResult<()> {
-    let reference_index = scan_reference_index(store).await?;
-    let thread_rollouts = thread_ids
-        .iter()
-        .map(|thread_id| ThreadRollouts::from_index(&reference_index, *thread_id))
-        .collect::<Vec<_>>();
-    check_attached_children(&reference_index, &thread_ids)?;
-    ensure_no_external_references(&reference_index, thread_rollouts.as_slice())?;
+    let thread_rollouts = prepare_thread_deletions(store, &thread_ids).await?;
     #[cfg(feature = "test-support")]
     store.wait_for_delete_barriers_for_test(&thread_ids).await;
+    // No host cleanup, history, rollout or DB deletion has started before this boundary.
+    // A caller may release an uncommitted admission on an earlier error, regardless of
+    // its error variant. Every error after this callback remains potentially partial.
+    before_mutation();
     if let Some(cleanup) = &store.thread_data_cleanup {
         cleanup(thread_ids.clone()).await?;
     }
@@ -169,9 +177,22 @@ pub(super) async fn delete_threads_under_writer_locks(
             Err(err) => return Err(err),
         }
     }
-    // Retain the complete retry graph until every rollout has been removed.
     delete_state_rows(store, &thread_ids).await?;
     Ok(())
+}
+
+async fn prepare_thread_deletions(
+    store: &LocalThreadStore,
+    thread_ids: &[ThreadId],
+) -> ThreadStoreResult<Vec<ThreadRollouts>> {
+    let reference_index = scan_reference_index(store).await?;
+    let thread_rollouts = thread_ids
+        .iter()
+        .map(|thread_id| ThreadRollouts::from_index(&reference_index, *thread_id))
+        .collect::<Vec<_>>();
+    check_attached_children(&reference_index, thread_ids)?;
+    ensure_no_external_references(&reference_index, thread_rollouts.as_slice())?;
+    Ok(thread_rollouts)
 }
 
 pub(super) async fn delete_state_rows(

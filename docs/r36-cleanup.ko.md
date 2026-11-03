@@ -15,7 +15,7 @@ R36은 `CompletedChildCleanupResult.reason`을 추가한다. 기존 `outcome`과
 5. snapshot은 `stored-v1:<부모 런타임 ID>:<durable revision digest>`에 결속한다. 경로와 파일 시각은 public snapshot에 노출하지 않는다. 확인 시 같은 UUID·부모 실행 세대·파일 revision·마지막 턴·종료 상태를 다시 비교한다. 로드된 snapshot을 unload 뒤에 재사용할 수 없다.
 6. Core의 예약 아래 pending agent mail을 재확인하고, app-server의 사용자 queue/goal/goal-resume guard를 기존 owner task가 유지한다. 선택하지 않은 자손이 있으면 삭제하지 않는다. 기존 attached-thread/history-reference 검사와 host-owned data 정리는 writer 소유를 유지한 채 그대로 실행한다. 정확히 선택한 UUID 하나만 삭제하고 성공 뒤 관련 로컬 registry 항목을 해제한다.
 
-삭제 owner task는 호출자가 취소되어도 admission·writer·host guard를 유지한다. 저장소 삭제 결과가 불명확하면 성공으로 바꾸지 않고 기존 `storage_unconfirmed_partial_deletion_possible` 결과와 tombstone을 유지한다. 부모·현재 대화, 원격/host 소유, 다른 세대, 활동 중/종료 불명 항목의 보호를 완화하지 않는다.
+삭제 owner task는 호출자가 취소되어도 admission·writer·host guard를 유지한다. attached-child와 외부 history reference 검사는 host cleanup·파일·DB 변경 전에 끝낸다. 이 사전 검사에서 거부되면 `storage_rejected_before_deletion`을 반환하고 cold admission 예약을 해제한다. 로드된 항목도 이 검사를 close/shutdown 전에 수행하므로 명확한 사전 거부가 런타임을 종료하지 않는다. 저장소는 실제 첫 변경 직전에 callback으로 admission을 확정한다. 그 뒤 발생한 오류는 파일이 남아 있더라도 부분 변경 가능성을 배제하지 않고 `storage_unconfirmed_partial_deletion_possible`과 tombstone을 유지한다. 오류 문자열이나 오류 enum만으로 변경 여부를 추정하지 않는다. 부모·현재 대화, 원격/host 소유, 다른 세대, 활동 중/종료 불명 항목의 보호를 완화하지 않는다.
 
 ## 주요 reason
 
@@ -31,6 +31,8 @@ R36은 `CompletedChildCleanupResult.reason`을 추가한다. 기존 `outcome`과
 | `missing_metadata`, `invalid_metadata`, `incomplete_metadata`, `invalid_metadata_ordinal` | 저장된 메타데이터를 안전하게 검증할 수 없음 |
 | `inherited_history_unverified`, `rollback_unverified`, `activity_after_terminal` | 상속/되돌림/추가 작업 때문에 종료 판정 불가 |
 | `metadata_scan_limit`, `persistent_graph_unavailable` | 조사 상한 초과 또는 영속 그래프 미제공 |
+| `storage_rejected_before_deletion` | 실제 삭제 전 reference 검사에서 거부됨; admission 재진입 가능 |
+| `storage_unconfirmed_partial_deletion_possible` | 실제 변경 경계를 통과한 뒤 저장 오류; tombstone 유지 |
 | `changed`, `has_descendants` | 미리보기 이후 변경 또는 보존할 자손 존재 |
 
 ## 검증 계획과 실행 상태
@@ -46,6 +48,12 @@ CS 불변조건은 (C1) UUID·소유 범위·실행 세대의 혼동 금지, (C2
 | `metadata_cleanup_requires_matching_latest_terminal_and_rejects_uncertain_tail` | 시작/완료/중단·ID 불일치·새 시작·부분 기록·잘못된 JSON·rollback·종료 뒤 사용자/미래 이벤트 판정(C1/C3) |
 | `metadata_cleanup_never_uses_inherited_parent_completion_as_child_completion` | 부모 완료를 자체 완료로 쓰지 않고 자체 경계 이후 턴만 인정, ordinal 간격 보존(C1) |
 | `cleanup_summary_counts_preservation_reasons_and_accepts_older_responses` | 언어별 사유 집계와 reason이 없는 구버전 응답 역직렬화 |
+| `unloaded_cleanup_reference_rejection_releases_admission_and_allows_real_reload` | attached/external reference 사전 거부 뒤 원본·참조 보존, admission 해제와 실제 재로드 가능 |
+| `loaded_cleanup_reference_rejection_preserves_live_owner_and_admission` | 같은 사전 거부가 live owner·admission·런타임을 종료하지 않음 |
+| `unloaded_cleanup_retains_tombstone_after_host_cleanup_mutation_boundary_failure` | host cleanup 시작 경계를 통과한 오류는 실제 원본이 남아도 tombstone 유지 |
+| `metadata_cleanup_cannot_publish_dangling_cross_store_prepared_fork` | 별도 A/B store가 같은 격리 home/DB를 사용; B.prepare_fork 보유 → A cold preview/delete → B.create/persist에서 삭제된 부모를 가리키는 참조를 게시하면 실패 |
 | 기존 Core/app-server cleanup suite | 실제 shutdown 실패, stale Arc, host queue/goal, 선택하지 않은 자손, 저장 오류 보호 회귀(C1–C5) |
 
-이 문서 작성 시 Cargo/시험 실행은 통합 담당에게 일원화되어 **NOT_RUN**이다. 위 7개 신규 시험의 실행 근거, 기존 suite 결과, 프로토콜 생성물, 독립 감사, 실제 앱 부하 조건과 효과는 통합 검증에서 확인해야 한다. 포맷 명령은 지정된 Rust 1.99.1의 `rustfmt.exe --edition 2024 --config skip_children=true`로 소유 파일에만 실행했다. 이 문서만으로 실제 사용자 항목의 삭제 가능 여부나 문제 해결을 선언하지 않는다.
+Cargo/시험 실행은 통합 담당에게 일원화한다. 통합 담당의 `d5ca137a5` 격리 실행 영수증에는 14개 filter 모두 exit 0, `sourceFilesUnchanged=true`가 기록되었고 기존 cold 4개 시험의 PASS 로그를 확인했다. 이번 사전 거부 수정에 추가한 Core 3개와 cross-store 저장소 1개는 아직 **NOT_RUN**이다. 특히 cross-store 시험은 안전성을 판별하는 회귀 시험이며, 아직 해당 경계를 수정하거나 통과를 확인하지 않았다. 현재 `PreparedFork`의 lifecycle 예약은 store 인스턴스에 묶여 있고, 비 attached fork 게시에는 원본 OS writer 소유 확인이 없어 다른 store의 삭제와 경합할 가능성이 있다. 이 경계의 실제 실패 여부와 수정은 새 시험 실행 결과로 판단해야 한다.
+
+`reason` 생성물은 실제 Rust generator의 stable/experimental 각 1개 시험 exit 0으로 생성했다. `manual-generated-schema`와 통합 runner의 `generated-schema`는 1,118개 파일의 상대 경로와 SHA-256이 모두 일치했다. 의미가 바뀐 JSON 3개, TypeScript 1개, precomputed 압축 export 2개만 반영했으며 텍스트는 저장소 CRLF를 유지했다. 생성 실행의 source는 `d5ca137a5`이고 이번 사전 거부 패치는 protocol 선언을 바꾸지 않는다. 새 시험, 생성물 fixture 대조, 독립 감사, 실제 앱 부하 조건과 효과는 후속 통합 검증에서 확인해야 한다. 포맷 명령은 지정된 Rust 1.99.1의 `rustfmt.exe --edition 2024 --config skip_children=true`로 소유 파일에만 실행했다. 이 문서만으로 실제 사용자 항목의 삭제 가능 여부나 문제 해결을 선언하지 않는다.

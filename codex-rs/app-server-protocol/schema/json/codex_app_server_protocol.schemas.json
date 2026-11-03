@@ -9655,6 +9655,11 @@
           "outcome": {
             "type": "string"
           },
+          "reason": {
+            "default": "",
+            "description": "Stable eligibility or preservation code; older servers may omit it.",
+            "type": "string"
+          },
           "snapshot": {
             "anyOf": [
               {

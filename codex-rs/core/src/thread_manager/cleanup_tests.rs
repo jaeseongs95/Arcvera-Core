@@ -20,6 +20,7 @@ impl StoreBarrier {
 #[derive(Default)]
 struct StoreFaults {
     cold_delete: StdMutex<Option<(ThreadId, Arc<StoreBarrier>)>>,
+    fail_cold_cleanup: StdMutex<HashSet<ThreadId>>,
     shutdown: StdMutex<Option<(ThreadId, Option<Arc<StoreBarrier>>)>>,
     create: StdMutex<Option<Arc<StoreBarrier>>>,
     discard: StdMutex<Option<Arc<StoreBarrier>>>,
@@ -342,6 +343,14 @@ async fn fixture_with_graph_options(
                 if let Some(barrier) = barrier {
                     barrier.block().await;
                     barrier.finished.notify_one();
+                }
+                if ids
+                    .iter()
+                    .any(|id| faults.fail_cold_cleanup.lock().unwrap().contains(id))
+                {
+                    return Err(store::ThreadStoreError::OutcomeUnknown {
+                        message: "injected host cleanup failure after mutation boundary".into(),
+                    });
                 }
                 Ok(())
             })

@@ -1513,6 +1513,127 @@ async fn cancelled_fork_keeps_source_reserved_until_lineage_resolution_finishes(
 }
 
 #[tokio::test]
+async fn metadata_cleanup_cannot_publish_dangling_cross_store_prepared_fork() {
+    let home = TempDir::new().expect("isolated home");
+    let store_a = projection_store(home.path()).await;
+    let store_b = LocalThreadStore::new(test_config(home.path()), store_a.state_db().await);
+    let source_id = ThreadId::new();
+    let parent_id = ThreadId::new();
+    let params = CreateThreadParams {
+        creator_user_id: None,
+        creator_account_id: None,
+        session_id: parent_id.into(),
+        thread_id: source_id,
+        extra_config: None,
+        forked_from_id: None,
+        attached_thread: false,
+        parent_thread_id: Some(parent_id),
+        source: SessionSource::SubAgent(codex_protocol::protocol::SubAgentSource::ThreadSpawn {
+            parent_thread_id: parent_id,
+            depth: 1,
+            agent_path: None,
+            agent_nickname: None,
+            agent_role: None,
+        }),
+        thread_source: None,
+        originator: "isolated-cross-store-cleanup-fixture".into(),
+        base_instructions: BaseInstructions::default(),
+        dynamic_tools: Vec::new(),
+        selected_capability_roots: Vec::new(),
+        multi_agent_version: Some(codex_protocol::protocol::MultiAgentVersion::V2),
+        history_mode: ThreadHistoryMode::Paginated,
+        history_base: None,
+        subagent_history_start_ordinal: None,
+        initial_window_id: "fixture-window".into(),
+        runtime_workspace_roots: None,
+        metadata: ThreadPersistenceMetadata {
+            cwd: Some(home.path().to_path_buf()),
+            model_provider: "test-provider".into(),
+            memory_mode: ThreadMemoryMode::Disabled,
+        },
+    };
+    store_a
+        .create_thread(params.clone())
+        .await
+        .expect("create source");
+    store_a
+        .append_items(AppendThreadItemsParams {
+            thread_id: source_id,
+            items: vec![turn_started("source-turn"), turn_completed("source-turn")],
+        })
+        .await
+        .expect("append terminal source turn");
+    store_a
+        .persist_thread(source_id, PersistContext::Standard)
+        .await
+        .expect("persist source");
+    let source_path = store_a
+        .live_rollout_path(source_id)
+        .await
+        .expect("source path");
+    store_a
+        .shutdown_thread(source_id)
+        .await
+        .expect("unload source");
+    // B owns a separate synchronization registry, sharing only this fixture's home/DB.
+    let prepared = store_b
+        .prepare_fork(PrepareForkParams {
+            thread_id: source_id,
+            boundary: ForkBoundary::Latest,
+        })
+        .await
+        .expect("B prepares source before publishing a fork");
+    let history_base = prepared.history_base.expect("real inherited source prefix");
+    assert_eq!(history_base.thread_id, source_id);
+    let deletion = tokio::time::timeout(Duration::from_secs(10), async {
+        let guard = store_a.reserve_unloaded_cleanup(source_id).await?;
+        let preview = guard.preview().await?;
+        assert_eq!(preview.reason, "unloaded_terminal");
+        assert!(
+            preview.snapshot.is_some(),
+            "fixture must reach real cold eligibility"
+        );
+        guard.delete(|| {}).await
+    })
+    .await
+    .expect("cleanup must return bounded deletion/preservation result");
+    let source_exists = source_path.exists();
+    let fork_id = ThreadId::new();
+    let mut fork_params = params;
+    fork_params.thread_id = fork_id;
+    fork_params.session_id = fork_id.into();
+    fork_params.parent_thread_id = None;
+    fork_params.source = SessionSource::Exec;
+    fork_params.multi_agent_version = None;
+    fork_params.forked_from_id = Some(source_id);
+    fork_params.history_base = Some(history_base);
+    let publication = async {
+        store_b.create_thread(fork_params).await?;
+        store_b
+            .persist_thread(fork_id, PersistContext::Standard)
+            .await
+    }
+    .await;
+    // PreparedFork stays alive through A's deletion and B's durable publication.
+    // RAM context alone cannot make a canonical reference to a deleted source safe.
+    assert!(
+        source_exists || publication.is_err(),
+        "dangling fork published after cold source deletion: deletion={deletion:?}, publication={publication:?}"
+    );
+    if source_exists {
+        publication.expect("publication remains usable when source is preserved");
+        store_b
+            .load_latest_model_context(crate::LoadThreadHistoryParams {
+                thread_id: fork_id,
+                include_archived: true,
+            })
+            .await
+            .expect("published reference remains resolvable");
+    }
+    drop(prepared);
+}
+
+#[tokio::test]
 async fn prepared_fork_reserves_source_until_child_reference_is_durable() {
     let home = TempDir::new().expect("temp dir");
     let store = projection_store(home.path()).await;

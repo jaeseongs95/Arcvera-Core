@@ -571,7 +571,10 @@ impl ThreadManager {
                     Ok(outcome) if outcome == "has_descendants" => deferred.push(expected),
                     Ok(outcome) => results.push(CompletedChildCleanupResult {
                         thread_id: id,
-                        reason: outcome.clone(),
+                        reason: outcome
+                            .split_once(": ")
+                            .map_or(outcome.as_str(), |(code, _)| code)
+                            .into(),
                         outcome,
                         snapshot: None,
                     }),
@@ -678,11 +681,13 @@ impl ThreadManager {
                 .services
                 .local_agent_runtime
                 .clone();
-            reservation.committed = true;
-            if let Err(error) = guard.delete().await {
-                return Ok(format!(
-                    "storage_unconfirmed_partial_deletion_possible: {error}"
-                ));
+            if let Err(error) = guard.delete(|| reservation.committed = true).await {
+                let outcome = if reservation.committed {
+                    "storage_unconfirmed_partial_deletion_possible"
+                } else {
+                    "storage_rejected_before_deletion"
+                };
+                return Ok(format!("{outcome}: {error}"));
             }
             cleanup_runtime.forget_cleaned_child(id);
             return Ok("deleted".into());
@@ -726,10 +731,9 @@ impl ThreadManager {
             .as_any()
             .downcast_ref::<LocalThreadStore>()
         {
-            store
-                .ensure_no_attached_threads(&[id])
-                .await
-                .map_err(|error| CodexErr::InvalidRequest(error.to_string()))?;
+            if let Err(error) = store.ensure_cleanup_references_allow(&[id]).await {
+                return Ok(format!("storage_rejected_before_deletion: {error}"));
+            }
         }
         if !thread.session.close_for_cleanup().await {
             return Ok("busy".into());
