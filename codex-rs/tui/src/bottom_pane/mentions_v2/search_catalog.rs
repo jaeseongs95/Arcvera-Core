@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use std::collections::HashSet;
 
 use codex_app_server_protocol::SkillMetadata;
@@ -206,9 +207,12 @@ fn plugin_description(plugin: &PluginCapabilitySummary) -> Option<String> {
     let capability_labels = plugin_capability_labels(plugin);
     plugin.description.clone().or_else(|| {
         Some(if capability_labels.is_empty() {
-            "Plugin".to_string()
+            crate::i18n::message("dialogs-mention-plugin", &[])
         } else {
-            format!("Plugin - {}", capability_labels.join(" - "))
+            crate::i18n::message(
+                "dialogs-plugin-capabilities",
+                &[("capabilities", &capability_labels.join(" - "))],
+            )
         })
     })
 }
@@ -216,22 +220,26 @@ fn plugin_description(plugin: &PluginCapabilitySummary) -> Option<String> {
 fn plugin_capability_labels(plugin: &PluginCapabilitySummary) -> Vec<String> {
     let mut labels = Vec::new();
     if plugin.has_skills {
-        labels.push("skills".to_string());
+        labels.push(crate::i18n::message("dialogs-skills", &[]));
     }
     if !plugin.mcp_server_names.is_empty() {
         let mcp_server_count = plugin.mcp_server_names.len();
         labels.push(if mcp_server_count == 1 {
-            "1 MCP server".to_string()
+            crate::i18n::message_with_count("dialogs-mcp-server-count", &[], 1)
         } else {
-            format!("{mcp_server_count} MCP servers")
+            crate::i18n::message_with_count(
+                "dialogs-mcp-server-count",
+                &[],
+                mcp_server_count as i64,
+            )
         });
     }
     if !plugin.app_connector_ids.is_empty() {
         let app_count = plugin.app_connector_ids.len();
         labels.push(if app_count == 1 {
-            "1 app".to_string()
+            crate::i18n::message_with_count("dialogs-app-count", &[], 1)
         } else {
-            format!("{app_count} apps")
+            crate::i18n::message_with_count("dialogs-app-count", &[], app_count as i64)
         });
     }
     labels

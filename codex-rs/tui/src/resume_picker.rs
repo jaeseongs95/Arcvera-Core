@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
@@ -125,7 +126,10 @@ impl SessionTarget {
     pub(crate) fn ensure_backend(&self, backend_id: crate::backend_id::BackendId) -> Result<()> {
         color_eyre::eyre::ensure!(
             self.backend_id == backend_id,
-            "This session belongs to a different backend. Open the session picker again."
+            "{}",
+            crate::i18n::static_message(
+                "picker-this-session-belongs-to-a-different-backend-open-the-session-picker-again"
+            )
         );
         Ok(())
     }
@@ -134,7 +138,12 @@ impl SessionTarget {
         self.path
             .as_ref()
             .map(|path| path.display().to_string())
-            .unwrap_or_else(|| format!("thread {}", self.thread_id))
+            .unwrap_or_else(|| {
+                crate::i18n::message(
+                    "picker-thread-label",
+                    &[("value", self.thread_id.to_string().as_str())],
+                )
+            })
     }
 }
 
@@ -162,15 +171,19 @@ pub enum SessionPickerLaunchContext {
 impl SessionPickerAction {
     fn title(self) -> &'static str {
         match self {
-            SessionPickerAction::Resume => "Resume a previous session",
-            SessionPickerAction::Fork => "Fork a previous session",
+            SessionPickerAction::Resume => {
+                crate::i18n::static_message("picker-resume-a-previous-session")
+            }
+            SessionPickerAction::Fork => {
+                crate::i18n::static_message("picker-fork-a-previous-session")
+            }
         }
     }
 
     fn action_label(self) -> &'static str {
         match self {
-            SessionPickerAction::Resume => "resume",
-            SessionPickerAction::Fork => "fork",
+            SessionPickerAction::Resume => crate::i18n::static_message("picker-resume"),
+            SessionPickerAction::Fork => crate::i18n::static_message("picker-fork"),
         }
     }
 
@@ -759,8 +772,12 @@ async fn picker_provider_filter(
 }
 
 fn picker_runtime_keymap(config: &crate::local_settings::LocalSettings) -> Result<RuntimeKeymap> {
-    RuntimeKeymap::from_config(&config.tui.keymap)
-        .map_err(|err| color_eyre::eyre::eyre!("invalid keymap configuration: {err}"))
+    RuntimeKeymap::from_config(&config.tui.keymap).map_err(|err| {
+        color_eyre::eyre::eyre!(crate::i18n::message(
+            "picker-invalid-keymap",
+            &[("value", err.to_string().as_str())]
+        ))
+    })
 }
 
 fn picker_cwd_filter(
@@ -917,9 +934,9 @@ fn spawn_app_server_page_loader(
 /// Returns the human-readable column header for the given sort key.
 fn sort_key_label(sort_key: ThreadSortKey) -> &'static str {
     match sort_key {
-        ThreadSortKey::CreatedAt => "Created",
+        ThreadSortKey::CreatedAt => crate::i18n::static_message("picker-created"),
         ThreadSortKey::UpdatedAt | ThreadSortKey::RecencyAt | ThreadSortKey::SectionPosition => {
-            "Updated"
+            crate::i18n::static_message("picker-updated")
         }
     }
 }
@@ -1300,7 +1317,10 @@ impl PickerState {
             return;
         };
         let Some(thread_id) = row.thread_id else {
-            self.inline_error = Some("No transcript available for this session".to_string());
+            self.inline_error = Some(
+                crate::i18n::static_message("picker-no-transcript-available-for-this-session")
+                    .to_string(),
+            );
             self.request_frame();
             return;
         };
@@ -1442,10 +1462,10 @@ impl PickerState {
                     }
                     self.inline_error = Some(match path {
                         Some(path) => {
-                            format!("Failed to read session metadata from {}", path.display())
+                            crate::i18n::message("picker-metadata-path", &[("value", path.display().to_string().as_str())])
                         }
                         None => {
-                            String::from("Failed to read session metadata from selected session")
+                            String::from(crate::i18n::static_message("picker-failed-to-read-session-metadata-from-selected-session"))
                         }
                     });
                     self.request_frame();
@@ -1623,8 +1643,12 @@ impl PickerState {
             }
             BackgroundEvent::SourceError { request_token } => {
                 if self.pagination.is_pending(request_token) {
-                    self.inline_error =
-                        Some("Could not load one backend. Reopen the picker to retry.".into());
+                    self.inline_error = Some(
+                        crate::i18n::static_message(
+                            "picker-could-not-load-one-backend-reopen-the-picker-to-retry",
+                        )
+                        .into(),
+                    );
                     self.request_frame();
                 }
             }
@@ -1672,7 +1696,10 @@ impl PickerState {
                         self.pending_page_down_target = None;
                         self.frozen_footer_percent = None;
                         self.search_state = SearchState::Idle;
-                        self.inline_error = Some("Could not load more sessions".to_string());
+                        self.inline_error = Some(
+                            crate::i18n::static_message("picker-could-not-load-more-sessions")
+                                .to_string(),
+                        );
                         self.request_frame();
                         return Ok(None);
                     }
@@ -1715,7 +1742,10 @@ impl PickerState {
                         self.pending_transcript_cancellation = None;
                         self.pending_transcript_open = None;
                         self.transcript_loading_frame_shown = false;
-                        self.inline_error = Some("Could not load transcript preview".to_string());
+                        self.inline_error = Some(
+                            crate::i18n::static_message("picker-could-not-load-transcript-preview")
+                                .to_string(),
+                        );
                     }
                     self.request_frame();
                 }
@@ -2082,7 +2112,10 @@ impl PickerState {
         self.ensure_selected_visible();
         if let Err(err) = self.persist_density().await {
             warn!(error = %err, "failed to persist session picker view mode");
-            self.inline_error = Some(format!("Failed to save view mode: {err}"));
+            self.inline_error = Some(crate::i18n::message(
+                "picker-save-mode",
+                &[("value", err.to_string().as_str())],
+            ));
         }
         self.request_frame();
     }
@@ -2096,7 +2129,12 @@ impl PickerState {
             .set_session_picker_view(SessionPickerViewMode::from(self.density))
             .apply()
             .await
-            .map_err(|err| color_eyre::eyre::eyre!("failed to write config.toml: {err}"))?;
+            .map_err(|err| {
+                color_eyre::eyre::eyre!(crate::i18n::message(
+                    "picker-write-config-error",
+                    &[("value", err.to_string().as_str())]
+                ))
+            })?;
 
         Ok(())
     }
@@ -2221,7 +2259,7 @@ fn row_from_app_server_thread(thread: Thread) -> Option<Row> {
         history_mode: None,
         path: thread.path,
         preview: if preview.is_empty() {
-            String::from("(no message yet)")
+            String::from(crate::i18n::static_message("picker-no-message-yet"))
         } else {
             preview.to_string()
         },
@@ -2320,9 +2358,15 @@ fn search_line(state: &PickerState, width: u16) -> Line<'_> {
         return Line::from(truncate_text(error, usize::from(width)).red());
     }
     if state.query.is_empty() {
-        "Type to search".set_style(secondary_text_style()).into()
+        crate::i18n::static_message("picker-type-to-search")
+            .set_style(secondary_text_style())
+            .into()
     } else {
-        truncate_text(&format!("Search: {}", state.query), usize::from(width)).into()
+        truncate_text(
+            &crate::i18n::message("picker-search-query", &[("value", state.query.as_str())]),
+            usize::from(width),
+        )
+        .into()
     }
 }
 
@@ -2340,11 +2384,11 @@ fn toolbar_for_width(state: &PickerState, width: u16) -> Line<'static> {
         ToolbarControl::Filter => filter_control_spans(state, /*compact*/ true),
         ToolbarControl::Sort => sort_control_spans(state, /*compact*/ true),
         ToolbarControl::Status => vec![
-            "Status:".set_style(secondary_text_style()),
+            crate::i18n::static_message("picker-status-label").set_style(secondary_text_style()),
             toolbar_value(
                 match state.status {
-                    SessionStatus::Active => "Active",
-                    SessionStatus::Archived => "Archived",
+                    SessionStatus::Active => crate::i18n::static_message("picker-active"),
+                    SessionStatus::Archived => crate::i18n::static_message("picker-archived"),
                 },
                 /*active*/ true,
                 /*focused*/ true,
@@ -2367,8 +2411,8 @@ fn toolbar_line(state: &PickerState, compact: bool) -> Line<'static> {
         let status_focused = state.toolbar_focus == ToolbarControl::Status;
         if compact {
             let active_status = match state.status {
-                SessionStatus::Active => "Active",
-                SessionStatus::Archived => "Archived",
+                SessionStatus::Active => crate::i18n::static_message("picker-active"),
+                SessionStatus::Archived => crate::i18n::static_message("picker-archived"),
             };
             spans.push(toolbar_value(
                 active_status,
@@ -2376,14 +2420,17 @@ fn toolbar_line(state: &PickerState, compact: bool) -> Line<'static> {
                 status_focused,
             ));
         } else {
-            spans.push("Status: ".set_style(secondary_text_style()));
+            spans.push(
+                crate::i18n::static_message("picker-status-spaced")
+                    .set_style(secondary_text_style()),
+            );
             spans.push(toolbar_value(
-                "Active",
+                crate::i18n::static_message("picker-active"),
                 state.status == SessionStatus::Active,
                 status_focused,
             ));
             spans.push(toolbar_value(
-                "Archived",
+                crate::i18n::static_message("picker-archived"),
                 state.status == SessionStatus::Archived,
                 status_focused,
             ));
@@ -2398,7 +2445,7 @@ fn sort_control_spans(state: &PickerState, compact: bool) -> Vec<Span<'static>> 
     let sort_focused = state.toolbar_focus == ToolbarControl::Sort;
     if compact {
         return vec![
-            "Sort:".set_style(secondary_text_style()),
+            crate::i18n::static_message("picker-sort").set_style(secondary_text_style()),
             toolbar_value(
                 sort_key_label(state.sort_key),
                 /*active*/ true,
@@ -2407,7 +2454,7 @@ fn sort_control_spans(state: &PickerState, compact: bool) -> Vec<Span<'static>> 
         ];
     }
     vec![
-        "Sort: ".set_style(secondary_text_style()),
+        crate::i18n::static_message("picker-sort-spaced").set_style(secondary_text_style()),
         toolbar_value(
             sort_key_label(ThreadSortKey::UpdatedAt),
             state.sort_key == ThreadSortKey::UpdatedAt,
@@ -2425,7 +2472,7 @@ fn filter_control_spans(state: &PickerState, compact: bool) -> Vec<Span<'static>
     let filter_focused = state.toolbar_focus == ToolbarControl::Filter;
     if compact || state.filter_cwd.is_none() {
         return vec![
-            "Filter:".set_style(secondary_text_style()),
+            crate::i18n::static_message("picker-filter-label").set_style(secondary_text_style()),
             toolbar_value(
                 filter_mode_label(state.filter_mode),
                 /*active*/ true,
@@ -2434,7 +2481,7 @@ fn filter_control_spans(state: &PickerState, compact: bool) -> Vec<Span<'static>
         ];
     }
     let mut values = vec![
-        "Filter: ".set_style(secondary_text_style()),
+        crate::i18n::static_message("picker-filter-spaced").set_style(secondary_text_style()),
         toolbar_value(
             filter_mode_label(SessionFilterMode::Cwd),
             state.filter_mode == SessionFilterMode::Cwd,
@@ -2472,9 +2519,9 @@ fn toolbar_value(label: &'static str, active: bool, focused: bool) -> Span<'stat
 
 fn filter_mode_label(filter_mode: SessionFilterMode) -> &'static str {
     match filter_mode {
-        SessionFilterMode::Cwd => "Cwd",
-        SessionFilterMode::Repo => "Repo",
-        SessionFilterMode::All => "All",
+        SessionFilterMode::Cwd => crate::i18n::static_message("picker-cwd"),
+        SessionFilterMode::Repo => crate::i18n::static_message("picker-repo"),
+        SessionFilterMode::All => crate::i18n::static_message("picker-all"),
     }
 }
 
@@ -2606,15 +2653,15 @@ fn footer_hint_lines(state: &PickerState, width: u16) -> Vec<Line<'static>> {
     if state.is_transcript_loading() {
         let hints = [
             PickerFooterHint {
-                key: "loading".to_string(),
-                wide_label: String::from("transcript"),
-                compact_label: String::from("transcript"),
+                key: crate::i18n::static_message("picker-loading").to_string(),
+                wide_label: String::from(crate::i18n::static_message("picker-transcript")),
+                compact_label: String::from(crate::i18n::static_message("picker-transcript")),
                 priority: 0,
             },
             PickerFooterHint {
                 key: crate::key_hint::ctrl(KeyCode::Char('c')).display_label(),
-                wide_label: String::from("quit"),
-                compact_label: String::from("quit"),
+                wide_label: String::from(crate::i18n::static_message("picker-quit")),
+                compact_label: String::from(crate::i18n::static_message("picker-quit")),
                 priority: 1,
             },
         ];
@@ -2626,29 +2673,40 @@ fn footer_hint_lines(state: &PickerState, width: u16) -> Vec<Line<'static>> {
     }
 
     let action_label = if state.status == SessionStatus::Archived {
-        "restore"
+        crate::i18n::static_message("picker-restore")
     } else {
         state.action.action_label()
     };
     let (esc_label, esc_compact_label) = if state.query.is_empty() {
         match state.launch_context {
-            SessionPickerLaunchContext::Startup => ("start new", "new"),
-            SessionPickerLaunchContext::ExistingSession { .. } => ("exit", "exit"),
+            SessionPickerLaunchContext::Startup => (
+                crate::i18n::static_message("picker-start-new"),
+                crate::i18n::static_message("picker-new"),
+            ),
+            SessionPickerLaunchContext::ExistingSession { .. } => (
+                crate::i18n::static_message("picker-exit"),
+                crate::i18n::static_message("picker-exit"),
+            ),
         }
     } else {
-        ("clear search", "clear")
+        (
+            crate::i18n::static_message("picker-clear-search"),
+            crate::i18n::static_message("picker-clear"),
+        )
     };
     let ctrl_c_label = match state.launch_context {
-        SessionPickerLaunchContext::Startup => "quit",
-        SessionPickerLaunchContext::ExistingSession { .. } => "exit",
+        SessionPickerLaunchContext::Startup => crate::i18n::static_message("picker-quit"),
+        SessionPickerLaunchContext::ExistingSession { .. } => {
+            crate::i18n::static_message("picker-exit")
+        }
     };
     let density_label = match state.density {
-        SessionListDensity::Comfortable => "dense view",
-        SessionListDensity::Dense => "comfortable view",
+        SessionListDensity::Comfortable => crate::i18n::static_message("picker-dense-view"),
+        SessionListDensity::Dense => crate::i18n::static_message("picker-comfortable-view"),
     };
     let density_compact_label = match state.density {
-        SessionListDensity::Comfortable => "dense",
-        SessionListDensity::Dense => "comfy",
+        SessionListDensity::Comfortable => crate::i18n::static_message("picker-dense"),
+        SessionListDensity::Dense => crate::i18n::static_message("picker-comfy"),
     };
     let mut first_row_hints = Vec::new();
     if let Some(accept) = state.keymap.list.primary_hint(ListAction::Accept) {
@@ -2662,8 +2720,8 @@ fn footer_hint_lines(state: &PickerState, width: u16) -> Vec<Line<'static>> {
     if !state.filtered_rows.is_empty() && state.archive_shortcut_available() {
         first_row_hints.push(PickerFooterHint {
             key: crate::key_hint::ctrl(KeyCode::Char('a')).display_label(),
-            wide_label: String::from("archive"),
-            compact_label: String::from("archive"),
+            wide_label: String::from(crate::i18n::static_message("picker-archive")),
+            compact_label: String::from(crate::i18n::static_message("picker-archive")),
             priority: 2,
         });
     }
@@ -2684,8 +2742,8 @@ fn footer_hint_lines(state: &PickerState, width: u16) -> Vec<Line<'static>> {
         },
         PickerFooterHint {
             key: "tab".to_string(),
-            wide_label: String::from("focus sort/filter"),
-            compact_label: String::from("focus"),
+            wide_label: String::from(crate::i18n::static_message("picker-focus-sort-filter")),
+            compact_label: String::from(crate::i18n::static_message("picker-focus")),
             priority: 7,
         },
     ]);
@@ -2698,8 +2756,8 @@ fn footer_hint_lines(state: &PickerState, width: u16) -> Vec<Line<'static>> {
     if !option_keys.is_empty() {
         first_row_hints.push(PickerFooterHint {
             key: option_keys,
-            wide_label: String::from("change option"),
-            compact_label: String::from("option"),
+            wide_label: String::from(crate::i18n::static_message("picker-change-option")),
+            compact_label: String::from(crate::i18n::static_message("picker-option")),
             priority: 8,
         });
     }
@@ -2712,14 +2770,14 @@ fn footer_hint_lines(state: &PickerState, width: u16) -> Vec<Line<'static>> {
         },
         PickerFooterHint {
             key: crate::key_hint::ctrl(KeyCode::Char('t')).display_label(),
-            wide_label: String::from("transcript"),
-            compact_label: String::from("preview"),
+            wide_label: String::from(crate::i18n::static_message("picker-transcript")),
+            compact_label: String::from(crate::i18n::static_message("picker-preview")),
             priority: 4,
         },
         PickerFooterHint {
             key: crate::key_hint::ctrl(KeyCode::Char('e')).display_label(),
-            wide_label: String::from("expand"),
-            compact_label: String::from("exp"),
+            wide_label: String::from(crate::i18n::static_message("picker-expand")),
+            compact_label: String::from(crate::i18n::static_message("picker-exp")),
             priority: 6,
         },
     ];
@@ -2732,8 +2790,8 @@ fn footer_hint_lines(state: &PickerState, width: u16) -> Vec<Line<'static>> {
     if !browse_keys.is_empty() {
         second_row_hints.push(PickerFooterHint {
             key: browse_keys,
-            wide_label: String::from("browse"),
-            compact_label: String::from("browse"),
+            wide_label: String::from(crate::i18n::static_message("picker-browse")),
+            compact_label: String::from(crate::i18n::static_message("picker-browse")),
             priority: 5,
         });
     }
@@ -2776,7 +2834,7 @@ fn render_transcript_loading_overlay(frame: &mut crate::custom_terminal::Frame, 
         return;
     }
 
-    let message = "Loading transcript…";
+    let message = crate::i18n::static_message("picker-loading-transcript");
     let message_width = UnicodeWidthStr::width(message) as u16;
     let overlay_width = if area.width >= message_width.saturating_add(10) {
         message_width + 10
@@ -2931,7 +2989,7 @@ fn render_list(frame: &mut crate::custom_terminal::Frame, area: Rect, state: &Pi
     );
     if show_more_above {
         frame.render_widget_ref(
-            &more_line("↑ more"),
+            &more_line(crate::i18n::static_message("picker-more-above")),
             Rect::new(area.x, area.y, area.width, 1),
         );
     }
@@ -2966,7 +3024,7 @@ fn render_list(frame: &mut crate::custom_terminal::Frame, area: Rect, state: &Pi
     if state.pagination.is_loading() && y < content_area.y.saturating_add(content_area.height) {
         let loading_line: Line = vec![
             "  ".into(),
-            "Loading older sessions…"
+            crate::i18n::static_message("picker-loading-older-sessions")
                 .set_style(secondary_text_style())
                 .italic(),
         ]
@@ -2976,9 +3034,9 @@ fn render_list(frame: &mut crate::custom_terminal::Frame, area: Rect, state: &Pi
     }
     if show_more_below {
         let label = if state.pagination.is_loading() {
-            "↓ loading more"
+            crate::i18n::static_message("picker-loading-more-below")
         } else {
-            "↓ more"
+            crate::i18n::static_message("picker-more-below")
         };
         frame.render_widget_ref(
             &more_line(label),
@@ -3280,8 +3338,8 @@ impl FooterPart {
         match self {
             FooterPart::Date(text) => text,
             FooterPart::Branch(Some(text)) | FooterPart::Cwd(Some(text)) => text,
-            FooterPart::Branch(None) => "no branch",
-            FooterPart::Cwd(None) => "no cwd",
+            FooterPart::Branch(None) => crate::i18n::static_message("picker-no-branch"),
+            FooterPart::Cwd(None) => crate::i18n::static_message("picker-no-cwd"),
         }
     }
 
@@ -3442,7 +3500,7 @@ fn render_transcript_preview_lines(
             vec![
                 vec![
                     "  │ ".set_style(secondary_text_style()),
-                    "Loading recent transcript..."
+                    crate::i18n::static_message("picker-loading-recent-transcript")
                         .set_style(secondary_text_style())
                         .italic(),
                 ]
@@ -3452,7 +3510,7 @@ fn render_transcript_preview_lines(
         Some(TranscriptPreviewState::Failed) => vec![
             vec![
                 "  │ ".set_style(secondary_text_style()),
-                "Could not load transcript preview"
+                crate::i18n::static_message("picker-could-not-load-transcript-preview")
                     .set_style(crate::style::status_style(
                         crate::style::StatusTone::Failure,
                     ))
@@ -3488,31 +3546,41 @@ fn render_expanded_session_details(
         .unwrap_or_else(|| "-".to_string());
     let branch = format!(
         "{SESSION_META_BRANCH_ICON} {}",
-        row.git_branch.as_deref().unwrap_or("no branch")
+        row.git_branch
+            .as_deref()
+            .unwrap_or(crate::i18n::static_message("picker-no-branch"))
     );
 
     vec![
-        expanded_detail_line("Session:", &session, width),
+        expanded_detail_line(
+            crate::i18n::static_message("picker-session"),
+            &session,
+            width,
+        ),
         expanded_time_detail_line(
-            "Created:",
+            crate::i18n::static_message("picker-created-label"),
             reference,
             row.created_at,
             width,
             state.clock_format,
         ),
         expanded_time_detail_line(
-            "Updated:",
+            crate::i18n::static_message("picker-updated-label"),
             reference,
             row.updated_at.or(row.created_at),
             width,
             state.clock_format,
         ),
-        expanded_detail_line("Directory:", &directory, width),
-        expanded_detail_line("Branch:", &branch, width),
+        expanded_detail_line(
+            crate::i18n::static_message("picker-directory-label"),
+            &directory,
+            width,
+        ),
+        expanded_detail_line(crate::i18n::static_message("picker-branch"), &branch, width),
         vec!["  │".set_style(secondary_text_style())].into(),
         vec![
             "  │ ".set_style(secondary_text_style()),
-            "Conversation:".set_style(secondary_text_style()),
+            crate::i18n::static_message("picker-conversation").set_style(secondary_text_style()),
         ]
         .into(),
     ]
@@ -3527,7 +3595,7 @@ fn render_conversation_preview_lines(
         return vec![
             vec![
                 "  └ ".set_style(secondary_text_style()),
-                "No transcript preview available"
+                crate::i18n::static_message("picker-no-transcript-preview-available")
                     .set_style(secondary_text_style())
                     .italic(),
             ]
@@ -3638,7 +3706,11 @@ fn expanded_detail_line(label: &'static str, value: &str, width: u16) -> Line<'s
         .max(1);
     vec![
         "  │ ".set_style(secondary_text_style()),
-        format!("{label:<LABEL_WIDTH$}").set_style(secondary_text_style()),
+        format!(
+            "{label}{}",
+            " ".repeat(LABEL_WIDTH.saturating_sub(UnicodeWidthStr::width(label)))
+        )
+        .set_style(secondary_text_style()),
         "  ".set_style(secondary_text_style()),
         truncate_text(value, value_width).into(),
     ]
@@ -3669,27 +3741,27 @@ pub(crate) fn format_relative_time(reference: DateTime<Utc>, ts: Option<DateTime
     };
     let seconds = (reference - ts).num_seconds().max(0);
     if seconds == 0 {
-        return "now".to_string();
+        return crate::i18n::static_message("picker-now").to_string();
     }
     if seconds < 60 {
-        return format!("{seconds}s ago");
+        return crate::i18n::message("picker-time-s", &[("value", seconds.to_string().as_str())]);
     }
     let minutes = seconds / 60;
     if minutes < 60 {
-        return format!("{minutes}m ago");
+        return crate::i18n::message("picker-time-m", &[("value", minutes.to_string().as_str())]);
     }
     let hours = minutes / 60;
     if hours < 24 {
-        return format!("{hours}h ago");
+        return crate::i18n::message("picker-time-h", &[("value", hours.to_string().as_str())]);
     }
     let days = hours / 24;
-    format!("{days}d ago")
+    crate::i18n::message("picker-time-d", &[("value", days.to_string().as_str())])
 }
 
 fn format_relative_time_long(reference: DateTime<Utc>, ts: DateTime<Utc>) -> String {
     let seconds = (reference - ts).num_seconds().max(0);
     if seconds == 0 {
-        return "now".to_string();
+        return crate::i18n::static_message("picker-now").to_string();
     }
     if seconds < 60 {
         return plural_time(seconds, "second");
@@ -3706,11 +3778,17 @@ fn format_relative_time_long(reference: DateTime<Utc>, ts: DateTime<Utc>) -> Str
 }
 
 fn plural_time(value: i64, unit: &str) -> String {
-    if value == 1 {
-        format!("1 {unit} ago")
-    } else {
-        format!("{value} {unit}s ago")
-    }
+    let id = match (unit, value == 1) {
+        ("second", true) => "picker-time-second-one",
+        ("second", false) => "picker-time-second-many",
+        ("minute", true) => "picker-time-minute-one",
+        ("minute", false) => "picker-time-minute-many",
+        ("hour", true) => "picker-time-hour-one",
+        ("hour", false) => "picker-time-hour-many",
+        ("day", true) => "picker-time-day-one",
+        _ => "picker-time-day-many",
+    };
+    crate::i18n::message(id, &[("value", value.to_string().as_str())])
 }
 
 fn format_timestamp(ts: DateTime<Utc>, clock_format: ClockFormat) -> String {
@@ -3726,17 +3804,25 @@ fn render_empty_state_line(state: &PickerState) -> Line<'static> {
         if state.search_state.is_active()
             || (state.pagination.is_loading() && state.pagination.next_cursor.is_some())
         {
-            return vec!["Searching…".set_style(secondary_text_style()).italic()].into();
+            return vec![
+                crate::i18n::static_message("picker-searching")
+                    .set_style(secondary_text_style())
+                    .italic(),
+            ]
+            .into();
         }
         if state.pagination.reached_scan_cap {
-            let msg = format!(
-                "Search scanned first {} sessions; more may exist",
-                state.pagination.num_scanned_files
+            let msg = crate::i18n::message(
+                "picker-search-cap",
+                &[(
+                    "value",
+                    state.pagination.num_scanned_files.to_string().as_str(),
+                )],
             );
             return vec![Span::from(msg).set_style(secondary_text_style()).italic()].into();
         }
         return vec![
-            "No results for your search"
+            crate::i18n::static_message("picker-no-results-for-your-search")
                 .set_style(secondary_text_style())
                 .italic(),
         ]
@@ -3746,21 +3832,26 @@ fn render_empty_state_line(state: &PickerState) -> Line<'static> {
     if state.pagination.is_loading() {
         if state.all_rows.is_empty() && state.pagination.num_scanned_files == 0 {
             return vec![
-                "Loading sessions…"
+                crate::i18n::static_message("picker-loading-sessions")
                     .set_style(secondary_text_style())
                     .italic(),
             ]
             .into();
         }
         return vec![
-            "Loading older sessions…"
+            crate::i18n::static_message("picker-loading-older-sessions")
                 .set_style(secondary_text_style())
                 .italic(),
         ]
         .into();
     }
 
-    vec!["No sessions yet".set_style(secondary_text_style()).italic()].into()
+    vec![
+        crate::i18n::static_message("picker-no-sessions-yet")
+            .set_style(secondary_text_style())
+            .italic(),
+    ]
+    .into()
 }
 
 #[cfg(test)]
@@ -3863,6 +3954,82 @@ mod tests {
         );
         state.initial_page_mode = PageLoadMode::StateDbOnly;
         (state, requests)
+    }
+
+    #[test]
+    fn localized_picker_preserves_query_and_fits_footer_display_widths() {
+        for (locale, title, search, filter, created) in [
+            (
+                crate::i18n::Locale::English,
+                "Resume a previous session",
+                "Search: ",
+                "Filter:",
+                "Created",
+            ),
+            (
+                crate::i18n::Locale::Korean,
+                "이전 세션 재개",
+                "검색: ",
+                "필터:",
+                "생성",
+            ),
+        ] {
+            crate::i18n::with_locale(locale, || {
+                let (mut state, requests) = local_db_first_state();
+                state.query = "원문 /resume --id=abc 中🙂".to_string();
+                let query = state.query.clone();
+                assert_eq!(state.action.title(), title);
+                assert_eq!(sort_key_label(ThreadSortKey::CreatedAt), created);
+                assert_eq!(
+                    search_line(&state, 120).to_string(),
+                    format!("{search}{query}")
+                );
+                assert!(toolbar_for_width(&state, 120).to_string().contains(filter));
+                for width in [12, 24, 40, 80, 120] {
+                    assert!(search_line(&state, width).width() <= usize::from(width));
+                    for line in footer_hint_lines(&state, width) {
+                        assert!(line.width() <= usize::from(width));
+                    }
+                }
+                assert_eq!(state.query, query);
+                assert!(requests.lock().unwrap().is_empty());
+                let detail = expanded_detail_line(
+                    crate::i18n::static_message("picker-directory-label"),
+                    "/repo/원문🙂",
+                    40,
+                );
+                assert!(detail.width() <= 40);
+                assert!(detail.to_string().contains("/repo/원문🙂"));
+            });
+        }
+    }
+
+    #[test]
+    fn localized_archive_error_preserves_server_text() {
+        for (locale, prefix) in [
+            (crate::i18n::Locale::English, "Failed to archive session: "),
+            (crate::i18n::Locale::Korean, "세션을 보관하지 못했습니다: "),
+        ] {
+            crate::i18n::with_locale(locale, || {
+                let original = "thread/archive failed: 원문 (code -32600)";
+                let (mut state, _) = local_db_first_state();
+                let thread_id = ThreadId::new();
+                let mut row =
+                    make_row("/repo/original.jsonl", "2025-01-01T00:00:00Z", "원문 title");
+                row.thread_id = Some(thread_id);
+                state.all_rows = vec![row.clone()];
+                state.filtered_rows = vec![row];
+                state.archive_state = archive::ArchiveState::Pending { thread_id };
+                state.handle_archive_result(thread_id, Err(std::io::Error::other(original)));
+                assert_eq!(
+                    state.inline_error.as_deref(),
+                    Some(format!("{prefix}{original}").as_str())
+                );
+                assert_eq!(state.archive_state, archive::ArchiveState::Idle);
+                assert_eq!(state.all_rows.len(), 1);
+                assert_eq!(state.filtered_rows[0].preview, "원문 title");
+            });
+        }
     }
 
     fn footer_lines_text(state: &PickerState, width: u16) -> String {

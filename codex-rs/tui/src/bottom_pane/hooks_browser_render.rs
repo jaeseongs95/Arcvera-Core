@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Responsive hook browsing presentation, including URL-preserving wrapped details.
 //! Trust and toggle policies stay in the view; truncation ellipses stay outside links.
 
@@ -18,7 +19,11 @@ impl HooksBrowserView {
         let mut rows = header.split_off(header.len().saturating_sub(events.len()));
         if width < 72 {
             header.pop();
-            header.push("Event               Active/Installed".dim().into());
+            header.push(
+                crate::i18n::message("dialogs-hook-compact-header", &[])
+                    .dim()
+                    .into(),
+            );
             rows = events
                 .iter()
                 .enumerate()
@@ -141,7 +146,7 @@ impl Renderable for HooksBrowserView {
             HooksBrowserPage::Events => render_line_rows(body, buf, rows, self.state),
             HooksBrowserPage::Handlers(event) => {
                 if rows.is_empty() {
-                    Paragraph::new("  No hooks installed for this event.")
+                    Paragraph::new(crate::i18n::message("dialogs-hook-empty-indented", &[]))
                         .dim()
                         .render(body, buf);
                 } else {
@@ -166,8 +171,9 @@ impl Renderable for HooksBrowserView {
 }
 
 pub(super) fn detail_line(label: &str, value: &str) -> crate::terminal_hyperlinks::HyperlinkLine {
+    let label = detail_label(label);
     crate::terminal_hyperlinks::annotate_web_urls_in_line(Line::from(vec![
-        format!("{label:<10}").into(),
+        padded_label(&label, 10).into(),
         value.to_string().dim(),
     ]))
 }
@@ -178,6 +184,7 @@ pub(super) fn detail_wrapped_lines(
     width: usize,
     max_lines: Option<usize>,
 ) -> Vec<crate::terminal_hyperlinks::HyperlinkLine> {
+    let label = detail_label(label);
     let label_width = label.width().saturating_add(1).max(10);
     let available = width.saturating_sub(label_width).max(1);
     let mut first = true;
@@ -191,14 +198,15 @@ pub(super) fn detail_wrapped_lines(
                 .map(|range| {
                     let prefix = if first {
                         first = false;
-                        format!("{label:<label_width$}")
+                        padded_label(&label, label_width)
                     } else {
                         " ".repeat(label_width)
                     };
+                    let prefix_bytes = prefix.len();
                     crate::wrapping::WrappedLine {
                         line: vec![prefix.into(), text[range.clone()].to_owned().dim()].into(),
                         range,
-                        prefix_bytes: label_width,
+                        prefix_bytes,
                     }
                 })
                 .collect();
@@ -241,3 +249,25 @@ pub(super) fn detail_wrapped_lines(
 #[cfg(test)]
 #[path = "hooks_browser_render_tests.rs"]
 mod tests;
+
+// Terminal columns are display cells; hyperlink offsets are UTF-8 bytes.
+pub(super) fn padded_label(label: &str, width: usize) -> String {
+    format!("{label}{}", " ".repeat(width.saturating_sub(label.width())))
+}
+
+fn detail_label(label: &str) -> String {
+    match label {
+        "Event" => crate::i18n::message("dialogs-event", &[]),
+        "Matcher" => crate::i18n::message("dialogs-matcher", &[]),
+        "Source" => crate::i18n::message("dialogs-source", &[]),
+        "Command" => crate::i18n::message("dialogs-command", &[]),
+        "Mode" => crate::i18n::message("dialogs-mode", &[]),
+        "MCP Server" => crate::i18n::message("dialogs-mcp-server", &[]),
+        "MCP Tool" => crate::i18n::message("dialogs-mcp-tool", &[]),
+        "Handler" => crate::i18n::message("dialogs-handler", &[]),
+        "Timeout" => crate::i18n::message("dialogs-timeout", &[]),
+        "Context" => crate::i18n::message("dialogs-context", &[]),
+        "Trust" => crate::i18n::message("dialogs-trust-label", &[]),
+        _ => label.to_string(),
+    }
+}

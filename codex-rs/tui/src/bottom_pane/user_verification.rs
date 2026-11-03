@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Presentation-only user-verification approval prompt.
 //!
 //! This view intentionally does not share the approval overlay state machine. User verification
@@ -93,9 +94,9 @@ impl UserVerificationView {
             footer_note: Some(
                 accept_cancel_hint_line(
                     list_keymap.primary_hint(ListAction::Accept),
-                    "to confirm",
+                    &crate::i18n::message("dialogs-confirm", &[]),
                     list_keymap.primary_hint(ListAction::Cancel),
-                    "to cancel",
+                    &crate::i18n::message("dialogs-to-cancel", &[]),
                 )
                 .dim(),
             ),
@@ -253,12 +254,12 @@ impl Renderable for UserVerificationView {
 fn user_verification_options(keymap: &ApprovalKeymap) -> Vec<UserVerificationOption> {
     vec![
         UserVerificationOption {
-            label: "Verify and approve".to_string(),
+            label: crate::i18n::message("dialogs-verify-approve", &[]).to_string(),
             decision: UserVerificationDecision::Verify,
             shortcuts: keymap.approve.clone(),
         },
         UserVerificationOption {
-            label: "Cancel this request".to_string(),
+            label: crate::i18n::message("dialogs-verification-cancel", &[]).to_string(),
             decision: UserVerificationDecision::Cancel,
             shortcuts: keymap.cancel.clone(),
         },
@@ -279,13 +280,16 @@ fn request_details(request: &UserVerificationRequest) -> Box<dyn Renderable> {
     let mut lines = Vec::new();
     if let Some(thread_label) = &request.thread_label {
         lines.push(Line::from(vec![
-            "Thread: ".into(),
+            crate::i18n::message("dialogs-thread-label", &[]).into(),
             thread_label.clone().bold(),
         ]));
         lines.push(Line::from(""));
     }
     lines.extend([
-        Line::from(vec!["Server: ".into(), request.server_name.clone().bold()]),
+        Line::from(vec![
+            crate::i18n::message("dialogs-server-label", &[]).into(),
+            request.server_name.clone().bold(),
+        ]),
         Line::from(""),
         Line::from(request.description.clone()),
     ]);
@@ -294,7 +298,10 @@ fn request_details(request: &UserVerificationRequest) -> Box<dyn Renderable> {
 
 fn waiting_view(request: &UserVerificationRequest, keymap: &ListKeymap) -> Box<dyn Renderable> {
     let mut view = ColumnRenderable::new();
-    view.push(Paragraph::new("Waiting for verification…".bold()).wrap(Wrap { trim: false }));
+    view.push(
+        Paragraph::new(crate::i18n::message("dialogs-verification-waiting", &[]).bold())
+            .wrap(Wrap { trim: false }),
+    );
     view.push(Line::from(""));
     view.push(request_details(request));
     view.push(Line::from(""));
@@ -303,7 +310,7 @@ fn waiting_view(request: &UserVerificationRequest, keymap: &ListKeymap) -> Box<d
             /*accept*/ None,
             "",
             keymap.primary_hint(ListAction::Cancel),
-            "to cancel this request",
+            &crate::i18n::message("dialogs-verification-to-cancel", &[]),
         ))
         .wrap(Wrap { trim: false }),
     );

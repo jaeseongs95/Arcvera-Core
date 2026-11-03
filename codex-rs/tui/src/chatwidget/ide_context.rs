@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Chat-widget wiring for the `/ide` command and IDE context prompt injection.
 
 use codex_app_server_protocol::UserInput;
@@ -35,7 +36,10 @@ impl ChatWidget {
         if self.ide_context.is_enabled() {
             self.ide_context.disable();
             self.sync_ide_context_status_indicator();
-            self.add_info_message("IDE context is off.".to_string(), /*hint*/ None);
+            self.add_info_message(
+                crate::i18n::static_message("controls-ide-off").to_string(),
+                /*hint*/ None,
+            );
         } else {
             self.ide_context.enable();
             self.add_ide_context_status_message();
@@ -52,13 +56,18 @@ impl ChatWidget {
             "off" => {
                 self.ide_context.disable();
                 self.sync_ide_context_status_indicator();
-                self.add_info_message("IDE context is off.".to_string(), /*hint*/ None);
+                self.add_info_message(
+                    crate::i18n::static_message("controls-ide-off").to_string(),
+                    /*hint*/ None,
+                );
             }
             "status" => {
                 self.add_ide_context_status_message();
             }
             _ => {
-                self.add_error_message("Usage: /ide [on|off|status]".to_string());
+                self.add_error_message(
+                    crate::i18n::static_message("controls-ide-usage").to_string(),
+                );
             }
         }
     }
@@ -80,7 +89,7 @@ impl ChatWidget {
                 if !self.ide_context.prompt_fetch_warned {
                     self.ide_context.prompt_fetch_warned = true;
                     self.add_info_message(
-                        "IDE context was skipped for this message.".to_string(),
+                        crate::i18n::static_message("controls-ide-skipped").to_string(),
                         Some(err.prompt_skip_hint()),
                     );
                 }
@@ -91,7 +100,10 @@ impl ChatWidget {
     fn add_ide_context_status_message(&mut self) {
         if !self.ide_context.is_enabled() {
             self.sync_ide_context_status_indicator();
-            self.add_info_message("IDE context is off.".to_string(), /*hint*/ None);
+            self.add_info_message(
+                crate::i18n::static_message("controls-ide-off").to_string(),
+                /*hint*/ None,
+            );
             return;
         }
 
@@ -101,16 +113,13 @@ impl ChatWidget {
                 self.sync_ide_context_status_indicator();
                 if crate::ide_context::has_prompt_context(&context) {
                     self.add_info_message(
-                        "IDE context is on.".to_string(),
-                        Some(
-                            "Future messages will include your current IDE selection and open tabs."
-                                .to_string(),
-                        ),
+                        crate::i18n::static_message("controls-ide-on").to_string(),
+                        Some(crate::i18n::static_message("controls-ide-future").to_string()),
                     );
                 } else {
                     self.add_info_message(
-                        "IDE context is on.".to_string(),
-                        Some("Connected to your IDE.".to_string()),
+                        crate::i18n::static_message("controls-ide-on").to_string(),
+                        Some(crate::i18n::static_message("controls-ide-connected").to_string()),
                     );
                 }
             }
@@ -118,7 +127,7 @@ impl ChatWidget {
                 self.ide_context.disable();
                 self.sync_ide_context_status_indicator();
                 self.add_info_message(
-                    "IDE context could not be enabled.".to_string(),
+                    crate::i18n::static_message("controls-ide-enable-failed").to_string(),
                     Some(err.user_facing_hint()),
                 );
             }

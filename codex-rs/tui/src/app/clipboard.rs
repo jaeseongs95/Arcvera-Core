@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Dispatch clipboard key actions in order and apply completions to their selection owner.
 
 use super::*;
@@ -18,7 +19,10 @@ impl App {
                 let result = tui
                     .clipboard
                     .copy(text, CopyFormat::Markdown, tui.frame_requester());
-                self.chat_widget.show_copy_result("last message", result);
+                self.chat_widget.show_copy_result(
+                    crate::i18n::static_message("clipboard-label-last-message"),
+                    result,
+                );
             }
             KeyEventAction::PasteImage { text_fallback } => {
                 if text_fallback.is_some()

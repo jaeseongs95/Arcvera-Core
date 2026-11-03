@@ -1,0 +1,41 @@
+# 로컬 표시 언어 설정 오류. 원인 오류는 원문 그대로 표시한다.
+language-save-home-failed = 로컬 설정 폴더 확인 실패: { $error }
+language-save-write-failed = 표시 언어 저장 실패: { $error }
+cron-description = CLI 실행 중에만 대화별 프롬프트 예약 실행
+
+# Keyboard shortcut reference. Key tokens remain unchanged.
+shortcuts-compose = { "작성" }
+shortcuts-commands = { "명령어" }
+shortcuts-mention-files = { "파일 참조" }
+shortcuts-shell-command = { "셸 명령" }
+shortcuts-new-line = { "줄바꿈" }
+shortcuts-paste-image = { "이미지 붙여넣기" }
+shortcuts-external-editor = { "외부 편집기" }
+shortcuts-search-history = { "이력 검색" }
+shortcuts-edit-last-message = { "마지막 메시지 편집" }
+shortcuts-session = { "세션" }
+shortcuts-queue-message = { "메시지 대기열에 추가" }
+shortcuts-send-message = { "메시지 보내기" }
+shortcuts-change-mode = { "모드 변경" }
+shortcuts-less-reasoning = { "추론 줄이기" }
+shortcuts-more-reasoning = { "추론 늘리기" }
+shortcuts-voice = { "음성" }
+shortcuts-agents-empty-prompt = { "에이전트 (입력란이 비었을 때)" }
+shortcuts-subagents-empty-prompt = { "하위 에이전트 (입력란이 비었을 때)" }
+shortcuts-inspect-activity = { "활동 확인" }
+shortcuts-interrupt = { "중단" }
+shortcuts-quit = { "종료" }
+shortcuts-transcript-open-first = { "대화 기록 (먼저 열기)" }
+shortcuts-open-transcript = { "대화 기록 열기" }
+shortcuts-find-text = { "텍스트 찾기" }
+shortcuts-scroll = { "스크롤" }
+shortcuts-start-selection = { "선택 시작" }
+shortcuts-top-latest = { "맨 위 / 최신" }
+shortcuts-keyboard-shortcuts = { "키보드 단축키" }
+shortcuts-close = { " 닫기" }
+shortcuts-customize = { " 사용자 지정" }
+shortcuts-resize-to-see-all = { "… 모두 보려면 창 크기를 늘리세요" }
+clipboard-label-last-message = 마지막 메시지
+clipboard-label-conversation = 대화
+clipboard-label-selection = 선택 영역
+clipboard-copy-error = 복사 실패: { $error }

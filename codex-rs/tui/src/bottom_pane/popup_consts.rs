@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Shared popup-related constants for bottom pane widgets.
 
 use ratatui::style::Stylize;
@@ -45,9 +45,9 @@ pub(crate) fn picker_hint_line_for_keymap(list_keymap: &ListKeymap) -> Line<'sta
 
 pub(crate) fn accept_cancel_hint_line(
     accept: Option<ShortcutHint>,
-    accept_label: &'static str,
+    accept_label: &str,
     cancel: Option<ShortcutHint>,
-    cancel_label: &'static str,
+    cancel_label: &str,
 ) -> Line<'static> {
     let accept_label = crate::i18n::text(accept_label);
     let cancel_label = crate::i18n::text(cancel_label);

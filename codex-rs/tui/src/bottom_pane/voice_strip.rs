@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Renders compact voice controls and caller-owned microphone/speaker sample histories.
 //! Keep control positions stable and show mute only when the current phase permits it.
 //! Reduced motion hides the sample-history row while preserving voice controls.
@@ -94,28 +95,32 @@ impl Renderable for VoiceStrip {
         } else {
             "◌".dark_gray()
         };
-        let activity = format!(" {}", self.state.activity).into();
-        let mut status = Line::from(vec!["voice ".dim(), marker, activity]);
+        let activity = match self.state.activity {
+            "connecting" => crate::i18n::message("dialogs-voice-connecting", &[]),
+            "muted" => crate::i18n::message("dialogs-voice-muted", &[]),
+            "heard" => crate::i18n::message("dialogs-voice-heard", &[]),
+            "speaking" => crate::i18n::message("dialogs-voice-speaking", &[]),
+            "listening" => crate::i18n::message("dialogs-voice-listening", &[]),
+            other => other.to_string(),
+        };
+        let activity = format!(" {activity}").into();
+        let voice_label = crate::i18n::message("dialogs-voice-prefix", &[]);
+        let mute_label = if self.state.microphone_muted {
+            crate::i18n::message("dialogs-voice-unmute", &[])
+        } else {
+            crate::i18n::message("dialogs-voice-mute", &[])
+        };
+        let mut status = Line::from(vec![voice_label.clone().dim(), marker, activity]);
         let mute = self.state.mute_hint.map_or_else(
             || "/voice mute".to_string(),
-            |hint| {
-                format!(
-                    "{} {}",
-                    hint.display_label(),
-                    if self.state.microphone_muted {
-                        "unmute"
-                    } else {
-                        "mute  "
-                    }
-                )
-            },
+            |hint| format!("{} {}", hint.display_label(), mute_label),
         );
         let full_controls = format!("{mute}   /voice stop");
         let available = usize::from(area.width);
         let can_mute = !connecting || self.state.microphone_live || self.state.microphone_muted;
         if can_mute
             && available < status.width() + full_controls.width() + 1
-            && available >= "voice ".len() + full_controls.width() + 2
+            && available >= voice_label.width() + full_controls.width() + 2
         {
             status.spans.pop();
         }
@@ -126,7 +131,7 @@ impl Renderable for VoiceStrip {
             "/voice stop"
         };
         if available < status.width() + controls.width() + 1 {
-            status = Line::from(vec!["voice".dim()]);
+            status = Line::from(vec![crate::i18n::message("dialogs-voice", &[]).dim()]);
         }
         status.spans.push(
             " ".repeat(available.saturating_sub(status.width() + controls.width()))
@@ -134,11 +139,9 @@ impl Renderable for VoiceStrip {
         );
         if show_full_controls && let Some(hint) = self.state.mute_hint {
             status.spans.extend(hint.spans());
-            status.spans.push(if self.state.microphone_muted {
-                " unmute   /voice stop".dim()
-            } else {
-                " mute     /voice stop".dim()
-            });
+            status
+                .spans
+                .push(format!(" {mute_label}   /voice stop").dim());
         } else {
             status.spans.push(controls.dim());
         }
@@ -146,12 +149,14 @@ impl Renderable for VoiceStrip {
         if !self.state.animations || area.height < 2 {
             return;
         }
+        let mic_label = crate::i18n::message("dialogs-voice-mic", &[]);
+        let speaker_label = "  codex ";
         let meter_width = available
-            .saturating_sub(/*rhs*/ 14)
+            .saturating_sub(mic_label.width() + speaker_label.width())
             .saturating_div(/*rhs*/ 2)
             .min(/*other*/ 6);
         let mut meters = Vec::with_capacity(meter_width * 2 + 2);
-        meters.push("  mic ".dim());
+        meters.push(mic_label.dim());
         append_voice_history(
             &mut meters,
             &self.state.microphone_history,
@@ -159,7 +164,7 @@ impl Renderable for VoiceStrip {
             Color::Cyan,
             self.state.microphone_muted || !self.state.microphone_live,
         );
-        meters.push("  codex ".dim());
+        meters.push(speaker_label.dim());
         append_voice_history(
             &mut meters,
             &self.state.speaker_history,

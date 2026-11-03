@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! The textarea owns editable composer text, placeholder elements, cursor/wrap state, and a
 //! single-entry kill buffer, including atomic ranges; rich payloads remain composer-owned.
 //! Single-line inputs ignore line breaks and scroll horizontally.
@@ -460,9 +461,9 @@ impl TextArea {
             return None;
         }
         Some(match self.vim_mode {
-            VimMode::Normal => "Vim: Normal".magenta(),
-            VimMode::Insert => "Vim: Insert".green(),
-            VimMode::Replace => "Vim: Replace".cyan(),
+            VimMode::Normal => crate::i18n::message("dialogs-vim-normal", &[]).magenta(),
+            VimMode::Insert => crate::i18n::message("dialogs-vim-insert", &[]).green(),
+            VimMode::Replace => crate::i18n::message("dialogs-vim-replace", &[]).cyan(),
         })
     }
 
@@ -2379,6 +2380,35 @@ impl TextArea {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn localized_vim_indicator_preserves_the_mode() {
+        for (locale, labels) in [
+            (
+                crate::i18n::Locale::English,
+                ["Vim: Normal", "Vim: Insert", "Vim: Replace"],
+            ),
+            (
+                crate::i18n::Locale::Korean,
+                ["Vim: 일반", "Vim: 입력", "Vim: 덮어쓰기"],
+            ),
+        ] {
+            crate::i18n::with_locale(locale, || {
+                let mut textarea = TextArea::new();
+                textarea.set_vim_enabled(true);
+                for (mode, expected) in [VimMode::Normal, VimMode::Insert, VimMode::Replace]
+                    .into_iter()
+                    .zip(labels)
+                {
+                    textarea.vim_mode = mode;
+                    assert_eq!(
+                        textarea.vim_mode_indicator_span().unwrap().content,
+                        expected
+                    );
+                    assert_eq!(textarea.vim_mode, mode);
+                }
+            });
+        }
+    }
     use super::*;
     use crate::key_hint;
     // crossterm types are intentionally not imported here to avoid unused warnings

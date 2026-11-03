@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! TUI token usage models and display formatting.
 
 use std::fmt;
@@ -18,6 +19,55 @@ pub struct TokenUsage {
 }
 
 impl TokenUsage {
+    /// Localized terminal UI; the public Display format remains stable for other consumers.
+    pub(crate) fn ui_summary(&self, so_far: bool) -> String {
+        let cached = if self.cached_input() > 0 {
+            crate::i18n::message(
+                "controls-tokens-cached",
+                &[(
+                    "value",
+                    format_with_separators(self.cached_input()).as_str(),
+                )],
+            )
+        } else {
+            String::new()
+        };
+        let reasoning = if self.reasoning_output_tokens > 0 {
+            crate::i18n::message(
+                "controls-tokens-reasoning",
+                &[(
+                    "value",
+                    format_with_separators(self.reasoning_output_tokens).as_str(),
+                )],
+            )
+        } else {
+            String::new()
+        };
+        crate::i18n::message(
+            if so_far {
+                "controls-tokens-so-far"
+            } else {
+                "controls-tokens"
+            },
+            &[
+                (
+                    "total",
+                    format_with_separators(self.blended_total()).as_str(),
+                ),
+                (
+                    "input",
+                    format_with_separators(self.non_cached_input()).as_str(),
+                ),
+                ("cached", cached.as_str()),
+                (
+                    "output",
+                    format_with_separators(self.output_tokens).as_str(),
+                ),
+                ("reasoning", reasoning.as_str()),
+            ],
+        )
+    }
+
     pub fn is_zero(&self) -> bool {
         self.total_tokens == 0
     }
@@ -85,5 +135,41 @@ impl fmt::Display for TokenUsage {
                 String::new()
             }
         )
+    }
+}
+
+#[cfg(test)]
+mod localization_tests {
+    use super::*;
+
+    #[test]
+    fn token_usage_ui_translates_labels_without_changing_numbers_or_public_display() {
+        let usage = TokenUsage {
+            input_tokens: 200,
+            cached_input_tokens: 50,
+            output_tokens: 300,
+            reasoning_output_tokens: 100,
+            total_tokens: 500,
+        };
+        let english = "Token usage: total=450 input=150 (+ 50 cached) output=300 (reasoning 100)";
+        for (locale, expected, so_far) in [
+            (
+                crate::i18n::Locale::English,
+                english,
+                "Token usage so far: total=450 input=150 (+ 50 cached) output=300 (reasoning 100)",
+            ),
+            (
+                crate::i18n::Locale::Korean,
+                "토큰 사용량: 합계=450 입력=150 (+ 캐시 50) 출력=300 (추론 100)",
+                "현재까지 토큰 사용량: 합계=450 입력=150 (+ 캐시 50) 출력=300 (추론 100)",
+            ),
+        ] {
+            crate::i18n::with_locale(locale, || {
+                assert_eq!(usage.ui_summary(false), expected);
+                assert_eq!(usage.ui_summary(true), so_far);
+                assert_eq!(usage.to_string(), english);
+                assert!(!TokenUsage::default().ui_summary(false).contains('('));
+            });
+        }
     }
 }

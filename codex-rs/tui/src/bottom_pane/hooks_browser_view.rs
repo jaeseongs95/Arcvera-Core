@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use codex_app_server_protocol::HookEventName;
 use codex_app_server_protocol::HookHandlerMetadata;
 use codex_app_server_protocol::HookMetadata;
@@ -21,6 +22,7 @@ use strum::IntoEnumIterator;
 
 use self::render::detail_line;
 use self::render::detail_wrapped_lines;
+use self::render::padded_label;
 use super::CancellationEvent;
 use super::bottom_pane_view::BottomPaneView;
 use super::picker_style::selection_style;
@@ -261,8 +263,8 @@ impl HooksBrowserView {
 
     fn event_header_lines() -> Vec<Line<'static>> {
         vec![
-            "Hooks".bold().into(),
-            "Lifecycle hooks from config and enabled plugins."
+            crate::i18n::message("dialogs-hooks", &[]).bold().into(),
+            crate::i18n::message("dialogs-hooks-subtitle", &[])
                 .dim()
                 .into(),
         ]
@@ -281,10 +283,14 @@ impl HooksBrowserView {
         event_name: HookEventName,
         review_needed_count: usize,
     ) -> Vec<Line<'static>> {
-        let mut lines = vec![format!("{} hooks", event_label(event_name)).bold().into()];
+        let mut lines = vec![
+            crate::i18n::message("dialogs-event-hooks", &[("event", event_label(event_name))])
+                .bold()
+                .into(),
+        ];
         match review_needed_message(review_needed_count) {
             None => lines.push(
-                "Turn hooks on or off. Your changes are saved automatically."
+                crate::i18n::message("dialogs-hooks-auto-save", &[])
                     .dim()
                     .into(),
             ),
@@ -305,14 +311,32 @@ impl HooksBrowserView {
         let show_review = rows.iter().any(|row| row.needs_review > 0);
         let mut lines = Vec::new();
         let mut header = vec![
-            format!("{:<EVENT_COLUMN_WIDTH$}", "Event").into(),
-            format!("{:<COUNT_COLUMN_WIDTH$}", "Installed").into(),
-            format!("{:<COUNT_COLUMN_WIDTH$}", "Active").into(),
+            padded_label(
+                &crate::i18n::message("dialogs-event", &[]),
+                EVENT_COLUMN_WIDTH,
+            )
+            .into(),
+            padded_label(
+                &crate::i18n::message("dialogs-installed", &[]),
+                COUNT_COLUMN_WIDTH,
+            )
+            .into(),
+            padded_label(
+                &crate::i18n::message("dialogs-active", &[]),
+                COUNT_COLUMN_WIDTH,
+            )
+            .into(),
         ];
         if show_review {
-            header.push(format!("{:<COUNT_COLUMN_WIDTH$}", "Review").into());
+            header.push(
+                padded_label(
+                    &crate::i18n::message("dialogs-review-heading", &[]),
+                    COUNT_COLUMN_WIDTH,
+                )
+                .into(),
+            );
         }
-        header.push("Description".into());
+        header.push(crate::i18n::message("dialogs-description", &[]).into());
         lines.push(Line::from(header));
         for (idx, row) in rows.into_iter().enumerate() {
             let selected = self.state.selected_idx == Some(idx);
@@ -364,7 +388,7 @@ impl HooksBrowserView {
             return lines;
         }
 
-        lines.push("Issues".bold().into());
+        lines.push(crate::i18n::message("dialogs-issues", &[]).bold().into());
         lines.extend(
             self.entry
                 .warnings
@@ -417,16 +441,17 @@ impl HooksBrowserView {
                 } else {
                     ' '
                 };
+                let unnamed_title = crate::i18n::message("dialogs-unnamed-hook", &[]);
                 let title = hook
                     .status_message
                     .as_deref()
                     .map(str::trim)
                     .filter(|title| !title.is_empty())
-                    .unwrap_or("Unnamed hook");
+                    .unwrap_or(unnamed_title.as_str());
                 let trust_suffix = match hook.trust_status {
-                    HookTrustStatus::Modified => " · modified",
-                    HookTrustStatus::Untrusted => " · new",
-                    HookTrustStatus::Managed | HookTrustStatus::Trusted => "",
+                    HookTrustStatus::Modified => crate::i18n::message("dialogs-hook-modified", &[]),
+                    HookTrustStatus::Untrusted => crate::i18n::message("dialogs-hook-new", &[]),
+                    HookTrustStatus::Managed | HookTrustStatus::Trusted => String::new(),
                 };
                 let prefix = if self.state.selected_idx == Some(idx) {
                     "› "
@@ -459,7 +484,7 @@ impl HooksBrowserView {
     ) -> Vec<crate::terminal_hyperlinks::HyperlinkLine> {
         let Some(hook) = self.selected_hook(event_name) else {
             return crate::terminal_hyperlinks::plain_hyperlink_lines(vec![
-                "No hooks installed for this event.".dim().into(),
+                crate::i18n::message("dialogs-no-hooks", &[]).dim().into(),
             ]);
         };
 
@@ -483,7 +508,14 @@ impl HooksBrowserView {
                     width,
                     Some(MAX_COMMAND_DETAIL_LINES),
                 ));
-                lines.push(detail_line("Mode", if *r#async { "Async" } else { "Sync" }));
+                lines.push(detail_line(
+                    "Mode",
+                    &if *r#async {
+                        crate::i18n::message("dialogs-async", &[])
+                    } else {
+                        crate::i18n::message("dialogs-sync", &[])
+                    },
+                ));
             }
             HookHandlerMetadata::McpTool { server, tool } => {
                 lines.extend(detail_wrapped_lines(
@@ -497,22 +529,28 @@ impl HooksBrowserView {
                 ));
             }
             HookHandlerMetadata::Prompt {} => {
-                lines.push(detail_line("Handler", "Prompt"));
+                lines.push(detail_line(
+                    "Handler",
+                    &crate::i18n::message("dialogs-prompt-handler", &[]),
+                ));
             }
             HookHandlerMetadata::Agent {} => {
-                lines.push(detail_line("Handler", "Agent"));
+                lines.push(detail_line(
+                    "Handler",
+                    &crate::i18n::message("dialogs-agent-handler", &[]),
+                ));
             }
         }
         lines.push(detail_line("Timeout", &format!("{}s", hook.timeout_sec)));
         if let Some(limit) = hook.additional_context_limit {
             let value = if limit == 0 {
-                "unlimited".to_string()
+                crate::i18n::message("dialogs-unlimited", &[]).to_string()
             } else {
-                format!("limit: {limit} approximate tokens")
+                crate::i18n::message("dialogs-hook-token-limit", &[("limit", &limit.to_string())])
             };
             lines.push(detail_line("Context", &value));
         }
-        lines.push(detail_line("Trust", hook_trust_label(hook.trust_status)));
+        lines.push(detail_line("Trust", &hook_trust_label(hook.trust_status)));
         lines
     }
 
@@ -533,25 +571,25 @@ impl HooksBrowserView {
             HooksBrowserPage::Events => {
                 if self.review_needed_total_count() > 0 {
                     spans.extend(key_hint::plain(KeyCode::Char('t')).spans());
-                    spans.push(" trust all · ".dim());
+                    spans.push(crate::i18n::message("dialogs-trust-all", &[]).dim());
                     if let Some(accept) = accept {
                         spans.extend(accept.spans());
-                        spans.push(" review · ".dim());
+                        spans.push(crate::i18n::message("dialogs-review", &[]).dim());
                     }
                 } else if let Some(accept) = accept {
                     spans.extend(accept.spans());
-                    spans.push(" details · ".dim());
+                    spans.push(crate::i18n::message("dialogs-details", &[]).dim());
                 }
                 spans.extend(cancel.spans());
-                spans.push(" close".dim());
+                spans.push(crate::i18n::message("dialogs-close", &[]).dim());
             }
             HooksBrowserPage::Handlers(event_name) => {
                 if let Some(hook) = self.selected_hook(event_name) {
                     if hook.is_managed {
-                        spans.push("Managed (always on) · ".dim());
+                        spans.push(crate::i18n::message("dialogs-managed-always", &[]).dim());
                     } else if hook_needs_review(hook) {
                         spans.extend(key_hint::plain(KeyCode::Char('t')).spans());
-                        spans.push(" trust · ".dim());
+                        spans.push(crate::i18n::message("dialogs-trust", &[]).dim());
                     } else {
                         let mut toggle = key_hint::plain(KeyCode::Char(' ')).display_label();
                         if let Some(accept) = accept {
@@ -559,11 +597,11 @@ impl HooksBrowserView {
                             toggle.push_str(&accept.display_label());
                         }
                         spans.extend(key_hint::key_label_spans(&toggle));
-                        spans.push(" toggle · ".dim());
+                        spans.push(crate::i18n::message("dialogs-toggle", &[]).dim());
                     }
                 }
                 spans.extend(cancel.spans());
-                spans.push(" back".dim());
+                spans.push(crate::i18n::message("dialogs-back", &[]).dim());
             }
         }
         let footer = Line::from(spans);
@@ -648,8 +686,11 @@ fn hook_is_active(hook: &HookMetadata) -> bool {
 fn review_needed_message(count: usize) -> Option<String> {
     match count {
         0 => None,
-        1 => Some("1 hook needs review before it can run.".to_string()),
-        count => Some(format!("{count} hooks need review before they can run.")),
+        1 => Some(crate::i18n::message("dialogs-hook-review-one", &[]).to_string()),
+        count => Some(crate::i18n::message(
+            "dialogs-hook-review-count",
+            &[("count", &count.to_string())],
+        )),
     }
 }
 
@@ -660,12 +701,12 @@ struct EventRow {
     needs_review: usize,
 }
 
-fn hook_trust_label(status: HookTrustStatus) -> &'static str {
+fn hook_trust_label(status: HookTrustStatus) -> String {
     match status {
-        HookTrustStatus::Managed => "Managed",
-        HookTrustStatus::Trusted => "Trusted",
-        HookTrustStatus::Untrusted => "New hook - review required",
-        HookTrustStatus::Modified => "Modified since last trusted - review required",
+        HookTrustStatus::Managed => crate::i18n::message("dialogs-hook-managed", &[]),
+        HookTrustStatus::Trusted => crate::i18n::message("dialogs-hook-trusted", &[]),
+        HookTrustStatus::Untrusted => crate::i18n::message("dialogs-hook-untrusted", &[]),
+        HookTrustStatus::Modified => crate::i18n::message("dialogs-hook-modified-review", &[]),
     }
 }
 
@@ -688,35 +729,37 @@ fn event_label(event_name: HookEventName) -> &'static str {
     }
 }
 
-fn event_description(event_name: HookEventName) -> &'static str {
+fn event_description(event_name: HookEventName) -> String {
     match event_name {
-        HookEventName::PreToolUse => "Before a tool executes",
-        HookEventName::PermissionRequest => "When permission is requested",
-        HookEventName::PostToolUse => "After a tool executes",
-        HookEventName::PreCompact => "Before context compaction",
-        HookEventName::PostCompact => "After context compaction",
-        HookEventName::PreModelRequest => "Before a model request",
-        HookEventName::PostModelRequest => "After a model request, including failures",
-        HookEventName::SessionStart => "When a new session starts",
-        HookEventName::SessionEnd => "Right before a session ends",
-        HookEventName::UserPromptSubmit => "When the user submits a prompt",
-        HookEventName::SubagentStart => "When a subagent is created",
-        HookEventName::SubagentStop => "Right before a subagent ends its turn",
-        HookEventName::Stop => "Right before Codex ends its turn",
-        HookEventName::Interrupt => "Right before an interrupted turn is aborted",
+        HookEventName::PreToolUse => crate::i18n::message("dialogs-before-tool", &[]),
+        HookEventName::PermissionRequest => {
+            crate::i18n::message("dialogs-permission-requested", &[])
+        }
+        HookEventName::PostToolUse => crate::i18n::message("dialogs-after-tool", &[]),
+        HookEventName::PreCompact => crate::i18n::message("dialogs-before-compaction", &[]),
+        HookEventName::PostCompact => crate::i18n::message("dialogs-after-compaction", &[]),
+        HookEventName::PreModelRequest => crate::i18n::message("dialogs-before-model", &[]),
+        HookEventName::PostModelRequest => crate::i18n::message("dialogs-after-model", &[]),
+        HookEventName::SessionStart => crate::i18n::message("dialogs-session-start", &[]),
+        HookEventName::SessionEnd => crate::i18n::message("dialogs-session-end", &[]),
+        HookEventName::UserPromptSubmit => crate::i18n::message("dialogs-user-submit", &[]),
+        HookEventName::SubagentStart => crate::i18n::message("dialogs-subagent-start", &[]),
+        HookEventName::SubagentStop => crate::i18n::message("dialogs-subagent-stop", &[]),
+        HookEventName::Stop => crate::i18n::message("dialogs-codex-stop", &[]),
+        HookEventName::Interrupt => crate::i18n::message("dialogs-interrupt", &[]),
     }
 }
 
 fn hook_source_summary(hook: &HookMetadata) -> String {
     if let Some(id) = &hook.environment_id {
-        return format!("Environment - {id}");
+        return crate::i18n::message("dialogs-hook-environment", &[("id", id.as_str())]);
     }
     match hook.source {
         HookSource::Plugin => hook
             .plugin_id
             .as_deref()
-            .map(|plugin_id| format!("Plugin - {plugin_id}"))
-            .unwrap_or_else(|| "Plugin".to_string()),
+            .map(|plugin_id| crate::i18n::message("dialogs-hook-plugin", &[("id", plugin_id)]))
+            .unwrap_or_else(|| crate::i18n::message("dialogs-plugin", &[]).to_string()),
         _ => config_source_label(hook.source).to_string(),
     }
 }
@@ -741,19 +784,19 @@ fn detail_source_value(hook: &HookMetadata) -> String {
     }
 }
 
-fn config_source_label(source: HookSource) -> &'static str {
+fn config_source_label(source: HookSource) -> String {
     match source {
-        HookSource::System => "Admin config",
-        HookSource::User => "User config",
-        HookSource::Project => "Project config",
-        HookSource::Mdm => "Admin config",
-        HookSource::SessionFlags => "Session flags",
+        HookSource::System => crate::i18n::message("dialogs-admin-config", &[]),
+        HookSource::User => crate::i18n::message("dialogs-user-config", &[]),
+        HookSource::Project => crate::i18n::message("dialogs-project-config", &[]),
+        HookSource::Mdm => crate::i18n::message("dialogs-admin-config", &[]),
+        HookSource::SessionFlags => crate::i18n::message("dialogs-session-flags", &[]),
         HookSource::Plugin => unreachable!("plugin hooks are handled by summary_source"),
-        HookSource::CloudRequirements => "Admin config",
-        HookSource::CloudManagedConfig => "Cloud-managed config",
-        HookSource::LegacyManagedConfigFile => "Admin config",
-        HookSource::LegacyManagedConfigMdm => "Admin config",
-        HookSource::Unknown => "Unknown source",
+        HookSource::CloudRequirements => crate::i18n::message("dialogs-admin-config", &[]),
+        HookSource::CloudManagedConfig => crate::i18n::message("dialogs-cloud-config", &[]),
+        HookSource::LegacyManagedConfigFile => crate::i18n::message("dialogs-admin-config", &[]),
+        HookSource::LegacyManagedConfigMdm => crate::i18n::message("dialogs-admin-config", &[]),
+        HookSource::Unknown => crate::i18n::message("dialogs-unknown-source", &[]),
     }
 }
 

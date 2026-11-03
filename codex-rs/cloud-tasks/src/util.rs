@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use chrono::DateTime;
 use chrono::Local;
 use chrono::Utc;
@@ -43,11 +43,8 @@ pub fn normalize_base_url(input: &str) -> String {
 /// Validate the destination before loading saved ChatGPT credentials, including in mock mode:
 /// environment discovery still makes authenticated HTTP requests when the task backend is mocked.
 pub(crate) fn validate_chatgpt_base_url(input: &str) -> anyhow::Result<String> {
-    let invalid_url = || {
-        anyhow::anyhow!(
-            "CODEX_CLOUD_TASKS_BASE_URL must use a trusted HTTPS origin on port 443, without user information, a query, or a fragment; custom backends cannot use saved ChatGPT credentials"
-        )
-    };
+    let invalid_url =
+        || anyhow::anyhow!("{}", codex_tui::i18n::message("cloud-trusted-origin", &[]));
     let uri = input.parse::<http::Uri>().map_err(|_| invalid_url())?;
     let authority = uri
         .authority()
@@ -98,15 +95,14 @@ pub async fn build_chatgpt_headers(auth_manager: &AuthManager) -> anyhow::Result
         USER_AGENT,
         HeaderValue::from_str(&ua).unwrap_or(HeaderValue::from_static("codex-cli")),
     );
-    let auth = auth_manager.auth().await.ok_or_else(|| {
-        anyhow::anyhow!("{}", codex_tui::i18n::text("Not signed in. Run 'codex login' with the ChatGPT account and workspace to use Codex Cloud."))
-    })?;
+    let auth = auth_manager
+        .auth()
+        .await
+        .ok_or_else(|| anyhow::anyhow!("{}", codex_tui::i18n::message("cloud-signin", &[])))?;
     if !auth.uses_codex_backend() {
         anyhow::bail!(
             "{}",
-            codex_tui::i18n::text(
-                "Codex Cloud requires ChatGPT sign-in; API key authentication is not supported."
-            )
+            codex_tui::i18n::message("cloud-chatgpt-auth-required", &[])
         );
     }
     headers.extend(codex_model_provider::auth_provider_from_auth(&auth).to_auth_headers()?);
@@ -134,18 +130,23 @@ pub fn format_relative_time(reference: DateTime<Utc>, ts: DateTime<Utc>) -> Stri
         secs = 0;
     }
     if secs < 60 {
-        return format!("{secs}s ago");
+        return codex_tui::i18n::message("cloud-relative-s", &[("count", &secs.to_string())]);
     }
     let mins = secs / 60;
     if mins < 60 {
-        return format!("{mins}m ago");
+        return codex_tui::i18n::message("cloud-relative-m", &[("count", &mins.to_string())]);
     }
     let hours = mins / 60;
     if hours < 24 {
-        return format!("{hours}h ago");
+        return codex_tui::i18n::message("cloud-relative-h", &[("count", &hours.to_string())]);
     }
     let local = ts.with_timezone(&Local);
-    local.format("%b %e %H:%M").to_string()
+    let pattern = if matches!(codex_tui::i18n::locale(), codex_tui::i18n::Locale::Korean) {
+        "%m월 %d일 %H:%M"
+    } else {
+        "%b %e %H:%M"
+    };
+    local.format(pattern).to_string()
 }
 
 pub fn format_relative_time_now(ts: DateTime<Utc>) -> String {

@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Startup bootstrap, draft handoff, and protected-input orchestration for the TUI app.
 //!
 //! Owns the main app run loop from app-server bootstrap through terminal shutdown. Startup input
@@ -1607,7 +1607,7 @@ See the Codex keymap documentation for supported actions and examples."
                                 app.chat_widget.reconnect_failed();
                                 app.chat_widget.add_error_message(error.to_string());
                                 if let Ok(mut state) = app.agents_overview.view_state.lock() {
-                                    state.connection_notice = Some("Reconnect failed — agent list is stale; relaunch to retry");
+                                    state.connection_notice = Some(crate::i18n::static_message("picker-center-notice-failed"));
                                 }
                             }
                         }

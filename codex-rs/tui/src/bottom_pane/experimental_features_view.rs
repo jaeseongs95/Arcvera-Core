@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Experimental controls with popup-owned discovery and configured enablement.
 //! Failed saves retain intent for explicit retry; cancellation remains available.
 //! Retired stable features stay hidden even if an older server reports them as beta.
@@ -285,7 +285,7 @@ impl BottomPaneView for ExperimentalFeaturesView {
             Ok(result) => result,
             Err(oneshot::error::TryRecvError::Empty) => return false,
             Err(oneshot::error::TryRecvError::Closed) => {
-                Err("Discovery was interrupted".to_string())
+                Err(crate::i18n::message("dialogs-discovery-interrupted", &[]).to_string())
             }
         };
         self.catalog_rx = None;

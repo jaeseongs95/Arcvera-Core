@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Request-user-input overlay state machine.
 //!
 //! Core behaviors:
@@ -55,21 +56,19 @@ use codex_protocol::ThreadId;
 use codex_protocol::user_input::TextElement;
 use unicode_width::UnicodeWidthStr;
 
-const NOTES_PLACEHOLDER: &str = "Add notes";
-const ANSWER_PLACEHOLDER: &str = "Type your answer (optional)";
+const NOTES_PLACEHOLDER: &str = "dialogs-notes-placeholder";
+const ANSWER_PLACEHOLDER: &str = "dialogs-optional-answer-placeholder";
 // Keep in sync with ChatComposer's minimum composer height.
 const MIN_COMPOSER_HEIGHT: u16 = 3;
-const SELECT_OPTION_PLACEHOLDER: &str = "Select an option to add notes";
+const SELECT_OPTION_PLACEHOLDER: &str = "dialogs-select-option-notes";
 pub(super) const TIP_SEPARATOR: &str = " | ";
 pub(super) const DESIRED_SPACERS_BETWEEN_SECTIONS: u16 = 2;
 const OTHER_OPTION_LABEL: &str = "None of the above";
-const OTHER_OPTION_DESCRIPTION: &str = "Optionally, add details in notes (tab)";
-const UNANSWERED_CONFIRM_TITLE: &str = "Submit with unanswered questions?";
-const UNANSWERED_CONFIRM_GO_BACK: &str = "Go back";
-const UNANSWERED_CONFIRM_GO_BACK_DESC: &str = "Return to the first unanswered question";
-const UNANSWERED_CONFIRM_SUBMIT: &str = "Proceed";
-const UNANSWERED_CONFIRM_SUBMIT_DESC_SINGULAR: &str = "question";
-const UNANSWERED_CONFIRM_SUBMIT_DESC_PLURAL: &str = "questions";
+const OTHER_OPTION_DESCRIPTION: &str = "dialogs-other-notes-description";
+const UNANSWERED_CONFIRM_TITLE: &str = "dialogs-unanswered-title";
+const UNANSWERED_CONFIRM_GO_BACK: &str = "dialogs-go-back";
+const UNANSWERED_CONFIRM_GO_BACK_DESC: &str = "dialogs-first-unanswered";
+const UNANSWERED_CONFIRM_SUBMIT: &str = "dialogs-proceed";
 const AUTO_RESOLUTION_HIDDEN_GRACE: Duration = Duration::from_secs(/*secs*/ 60);
 const AUTO_RESOLUTION_VISIBLE_COUNTDOWN: Duration = Duration::from_secs(/*secs*/ 60);
 
@@ -93,11 +92,20 @@ fn format_auto_resolution_remaining(remaining: Duration) -> String {
         seconds = seconds.saturating_add(1);
     }
     if seconds < 60 {
-        return format!("{seconds}s");
+        return crate::i18n::message(
+            "dialogs-duration-seconds",
+            &[("seconds", &seconds.to_string())],
+        );
     }
     let minutes = seconds / 60;
     let seconds = seconds % 60;
-    format!("{minutes}m {seconds:02}s")
+    crate::i18n::message(
+        "dialogs-duration-minutes-seconds",
+        &[
+            ("minutes", &minutes.to_string()),
+            ("seconds", &format!("{seconds:02}")),
+        ],
+    )
 }
 
 #[derive(Default, Clone, PartialEq)]
@@ -194,7 +202,7 @@ impl RequestUserInputOverlay {
             has_input_focus,
             app_event_tx.clone(),
             enhanced_keys_supported,
-            ANSWER_PLACEHOLDER.to_string(),
+            crate::i18n::message(ANSWER_PLACEHOLDER, &[]),
             disable_paste_burst,
             ChatComposerConfig::plain_text(),
         );
@@ -313,9 +321,9 @@ impl RequestUserInputOverlay {
 
     fn auto_resolution_countdown_text_at(&self, now: Instant) -> Option<String> {
         match self.auto_resolution_timing_at(now) {
-            AutoResolutionTiming::VisibleCountdown { remaining } => Some(format!(
-                "auto-resolves in {}",
-                format_auto_resolution_remaining(remaining)
+            AutoResolutionTiming::VisibleCountdown { remaining } => Some(crate::i18n::message(
+                "dialogs-auto-resolves",
+                &[("remaining", &format_auto_resolution_remaining(remaining))],
             )),
             AutoResolutionTiming::Disabled
             | AutoResolutionTiming::HiddenGrace { .. }
@@ -327,15 +335,24 @@ impl RequestUserInputOverlay {
         if self.question_count() > 0 {
             let idx = self.current_index() + 1;
             let total = self.question_count();
-            let base = format!("Question {idx}/{total}");
+            let base = crate::i18n::message(
+                "dialogs-question-progress",
+                &[("index", &idx.to_string()), ("total", &total.to_string())],
+            );
             let unanswered = self.unanswered_count();
             if unanswered > 0 {
-                format!("{base} ({unanswered} unanswered)")
+                crate::i18n::message(
+                    "dialogs-question-unanswered",
+                    &[
+                        ("progress", base.as_str()),
+                        ("count", &unanswered.to_string()),
+                    ],
+                )
             } else {
                 base
             }
         } else {
-            "No questions".to_string()
+            crate::i18n::message("dialogs-no-questions", &[]).to_string()
         }
     }
 
@@ -460,8 +477,11 @@ impl RequestUserInputOverlay {
                     let wrap_indent = UnicodeWidthStr::width(prefix_label.as_str());
                     rows.push(GenericDisplayRow {
                         selection_style: Some(crate::bottom_pane::selection_style()),
-                        name: format!("{prefix_label}{OTHER_OPTION_LABEL}"),
-                        description: Some(OTHER_OPTION_DESCRIPTION.to_string()),
+                        name: format!(
+                            "{prefix_label}{}",
+                            crate::i18n::message("dialogs-none-above", &[])
+                        ),
+                        description: Some(crate::i18n::message(OTHER_OPTION_DESCRIPTION, &[])),
                         wrap_indent: Some(wrap_indent),
                         ..Default::default()
                     });
@@ -544,7 +564,7 @@ impl RequestUserInputOverlay {
 
     fn restore_current_draft(&mut self) {
         self.composer
-            .set_placeholder_text(self.notes_placeholder().to_string());
+            .set_placeholder_text(crate::i18n::message(self.notes_placeholder(), &[]));
         self.composer.set_footer_hint_override(Some(Vec::new()));
         let Some(answer) = self.current_answer() else {
             self.composer
@@ -571,7 +591,7 @@ impl RequestUserInputOverlay {
 
     fn sync_composer_placeholder(&mut self) {
         self.composer
-            .set_placeholder_text(self.notes_placeholder().to_string());
+            .set_placeholder_text(crate::i18n::message(self.notes_placeholder(), &[]));
     }
 
     fn clear_notes_draft(&mut self) {
@@ -592,15 +612,18 @@ impl RequestUserInputOverlay {
         let notes_visible = self.notes_ui_visible();
         if self.has_options() {
             if self.selected_option_index().is_some() && !notes_visible {
-                tips.push(shortcut("tab", "to add notes"));
+                tips.push(shortcut(
+                    "tab",
+                    &crate::i18n::message("dialogs-add-notes", &[]),
+                ));
             }
             if self.selected_option_index().is_some() && notes_visible {
                 tips.push(Line::from(
                     [
                         crate::key_hint::key_label_spans("tab"),
-                        vec![" or ".dim()],
+                        vec![crate::i18n::message("dialogs-or", &[]).dim()],
                         crate::key_hint::key_label_spans("esc"),
-                        vec![" to clear notes".dim()],
+                        vec![crate::i18n::message("dialogs-clear-notes", &[]).dim()],
                     ]
                     .concat(),
                 ));
@@ -618,17 +641,29 @@ impl RequestUserInputOverlay {
         };
         if let Some(submit_key) = submit_key {
             let submit_tip = if question_count == 1 {
-                shortcut(&submit_key, "to submit answer")
+                shortcut(
+                    &submit_key,
+                    &crate::i18n::message("dialogs-submit-answer", &[]),
+                )
             } else if is_last_question {
-                shortcut(&submit_key, "to submit all")
+                shortcut(
+                    &submit_key,
+                    &crate::i18n::message("dialogs-submit-all", &[]),
+                )
             } else {
-                shortcut(&submit_key, "to submit answer")
+                shortcut(
+                    &submit_key,
+                    &crate::i18n::message("dialogs-submit-answer", &[]),
+                )
             };
             tips.push(submit_tip);
         }
         if question_count > 1 {
             if self.has_options() && !self.focus_is_notes() {
-                tips.push(shortcut("←/→", "to navigate questions"));
+                tips.push(shortcut(
+                    "←/→",
+                    &crate::i18n::message("dialogs-navigate-questions", &[]),
+                ));
             } else if !self.has_options() {
                 tips.push(shortcut(
                     &format!(
@@ -636,7 +671,7 @@ impl RequestUserInputOverlay {
                         crate::key_hint::ctrl(KeyCode::Char('p')).display_label(),
                         crate::key_hint::ctrl(KeyCode::Char('n')).display_label()
                     ),
-                    "change question",
+                    &crate::i18n::message("dialogs-change-question", &[]),
                 ));
             }
         }
@@ -645,7 +680,10 @@ impl RequestUserInputOverlay {
                 && notes_visible
                 && interrupt_key == ShortcutHint::Single(crate::key_hint::plain(KeyCode::Esc)))
         {
-            tips.push(shortcut(&interrupt_key.display_label(), "to interrupt"));
+            tips.push(shortcut(
+                &interrupt_key.display_label(),
+                &crate::i18n::message("dialogs-to-interrupt", &[]),
+            ));
         }
         tips
     }
@@ -975,12 +1013,7 @@ impl RequestUserInputOverlay {
 
     fn unanswered_submit_description(&self) -> String {
         let count = self.unanswered_question_count();
-        let suffix = if count == 1 {
-            UNANSWERED_CONFIRM_SUBMIT_DESC_SINGULAR
-        } else {
-            UNANSWERED_CONFIRM_SUBMIT_DESC_PLURAL
-        };
-        format!("Submit with {count} unanswered {suffix}")
+        crate::i18n::message_with_count("dialogs-submit-unanswered", &[], count as i64)
     }
 
     fn first_unanswered_index(&self) -> Option<usize> {
@@ -1001,12 +1034,12 @@ impl RequestUserInputOverlay {
             .unwrap_or(0);
         let entries = [
             (
-                UNANSWERED_CONFIRM_SUBMIT,
+                crate::i18n::message(UNANSWERED_CONFIRM_SUBMIT, &[]),
                 self.unanswered_submit_description(),
             ),
             (
-                UNANSWERED_CONFIRM_GO_BACK,
-                UNANSWERED_CONFIRM_GO_BACK_DESC.to_string(),
+                crate::i18n::message(UNANSWERED_CONFIRM_GO_BACK, &[]),
+                crate::i18n::message(UNANSWERED_CONFIRM_GO_BACK_DESC, &[]),
             ),
         ];
         entries
@@ -1541,6 +1574,54 @@ impl BottomPaneView for RequestUserInputOverlay {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn localized_question_ui_preserves_server_options_and_other_response_value() {
+        for (locale, other, submit) in [
+            (
+                crate::i18n::Locale::English,
+                "None of the above",
+                "Submit with 1 unanswered question",
+            ),
+            (
+                crate::i18n::Locale::Korean,
+                "해당 사항 없음",
+                "질문 1개에 답하지 않고 제출",
+            ),
+        ] {
+            crate::i18n::with_locale(locale, || {
+                let mut question = question_with_options_and_other("q1", "SERVER HEADER");
+                let original = "서버 e\u{301}🦀 { $count }";
+                question.options.as_mut().unwrap()[0].label = original.into();
+                question.options.as_mut().unwrap()[0].description = "SERVER DESCRIPTION".into();
+                assert_eq!(
+                    RequestUserInputOverlay::option_label_for_index(&question, 3).as_deref(),
+                    Some("None of the above")
+                );
+                let (tx, _rx) = test_sender();
+                let overlay = RequestUserInputOverlay::new(
+                    request_event("turn-1", vec![question]),
+                    tx,
+                    true,
+                    false,
+                    true,
+                );
+                let rows = overlay.option_rows();
+                assert!(rows[0].name.ends_with(original));
+                assert_eq!(rows[0].description.as_deref(), Some("SERVER DESCRIPTION"));
+                assert!(rows[3].name.ends_with(other));
+                assert_eq!(overlay.unanswered_submit_description(), submit);
+                assert_eq!(
+                    format_auto_resolution_remaining(Duration::from_secs(61)),
+                    if locale == crate::i18n::Locale::English {
+                        "1m 01s"
+                    } else {
+                        "1분 01초"
+                    }
+                );
+            });
+        }
+    }
     use super::*;
     use crate::app_event::AppEvent;
     use crate::bottom_pane::selection_popup_common::menu_surface_inset;

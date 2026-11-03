@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! A compact footer advertises primary actions; help lists the configured task shortcuts.
 
 use super::*;
@@ -57,40 +58,92 @@ impl AgentsOverviewView {
 
     pub(super) fn center_help_lines(&self, width: u16) -> Vec<Line<'static>> {
         let mut navigate = Group {
-            title: "Navigate",
+            title: crate::i18n::static_message("picker-center-navigate"),
             entries: Vec::new(),
         };
         for (action, label) in [
-            (ListAction::MoveUp, "Up"),
-            (ListAction::MoveDown, "Down"),
-            (ListAction::Accept, "Open"),
-            (ListAction::PageUp, "Page up"),
-            (ListAction::PageDown, "Page down"),
+            (
+                ListAction::MoveUp,
+                crate::i18n::static_message("picker-center-up"),
+            ),
+            (
+                ListAction::MoveDown,
+                crate::i18n::static_message("picker-center-down"),
+            ),
+            (
+                ListAction::Accept,
+                crate::i18n::static_message("picker-center-open-title"),
+            ),
+            (
+                ListAction::PageUp,
+                crate::i18n::static_message("picker-center-page-up"),
+            ),
+            (
+                ListAction::PageDown,
+                crate::i18n::static_message("picker-center-page-down"),
+            ),
         ] {
             navigate.push(self.center_list_hint(action), label);
         }
-        navigate
-            .entries
-            .push(Shortcut::new(key_hint::ctrl(KeyCode::Char('c')), "Quit"));
+        navigate.entries.push(Shortcut::new(
+            key_hint::ctrl(KeyCode::Char('c')),
+            crate::i18n::static_message("picker-center-quit-title"),
+        ));
         let mut tasks = Group {
-            title: "Tasks",
+            title: crate::i18n::static_message("picker-center-tasks"),
             entries: Vec::new(),
         };
         for (action, bindings, label) in [
-            ("new_task", &self.agents_keymap.new_task, "New"),
+            (
+                "new_task",
+                &self.agents_keymap.new_task,
+                crate::i18n::static_message("picker-center-new-title"),
+            ),
             (
                 "new_worktree",
                 &self.agents_keymap.new_worktree,
-                "New worktree",
+                crate::i18n::static_message("picker-center-new-worktree"),
             ),
-            ("resume", &self.agents_keymap.resume, "Resume"),
-            ("fork", &self.agents_keymap.fork, "Fork"),
-            ("rename", &self.agents_keymap.rename, "Rename"),
-            ("stop", &self.agents_keymap.stop, "Stop"),
-            ("archive", &self.agents_keymap.archive, "Archive"),
-            ("hide", &self.agents_keymap.hide, "Hide"),
-            ("delete", &self.agents_keymap.delete, "Delete"),
-            ("toggle_pin", &self.agents_keymap.toggle_pin, "Pin/unpin"),
+            (
+                "resume",
+                &self.agents_keymap.resume,
+                crate::i18n::static_message("picker-center-resume-title"),
+            ),
+            (
+                "fork",
+                &self.agents_keymap.fork,
+                crate::i18n::static_message("picker-center-fork-title"),
+            ),
+            (
+                "rename",
+                &self.agents_keymap.rename,
+                crate::i18n::static_message("picker-center-rename-title"),
+            ),
+            (
+                "stop",
+                &self.agents_keymap.stop,
+                crate::i18n::static_message("picker-center-stop-title"),
+            ),
+            (
+                "archive",
+                &self.agents_keymap.archive,
+                crate::i18n::static_message("picker-center-archive-title"),
+            ),
+            (
+                "hide",
+                &self.agents_keymap.hide,
+                crate::i18n::static_message("picker-center-hide-title"),
+            ),
+            (
+                "delete",
+                &self.agents_keymap.delete,
+                crate::i18n::static_message("picker-center-delete-title"),
+            ),
+            (
+                "toggle_pin",
+                &self.agents_keymap.toggle_pin,
+                crate::i18n::static_message("picker-center-toggle-pin"),
+            ),
         ] {
             if (action != "new_worktree" || self.worktrees_enabled)
                 && (action != "toggle_pin" || self.can_toggle_selected_pin())
@@ -99,27 +152,36 @@ impl AgentsOverviewView {
             }
         }
         let mut view = Group {
-            title: "View",
+            title: crate::i18n::static_message("picker-center-view"),
             entries: Vec::new(),
         };
         let filter = self.center_filter_hint();
         if !filter.is_empty() {
             view.entries.push(Shortcut {
                 key: filter,
-                action: "Filter",
+                action: crate::i18n::static_message("picker-center-filter-title"),
             });
         }
         for (action, bindings, label) in [
-            ("search", &self.agents_keymap.search, "Search"),
+            (
+                "search",
+                &self.agents_keymap.search,
+                crate::i18n::static_message("picker-center-search-title"),
+            ),
             (
                 "toggle_grouping",
                 &self.agents_keymap.toggle_grouping,
-                "Group",
+                crate::i18n::static_message("picker-center-group-title"),
             ),
         ] {
             view.push(self.agents_keymap.primary_hint(action, bindings), label);
         }
-        let mut lines = vec!["Task shortcuts".bold().into(), Line::default()];
+        let mut lines = vec![
+            crate::i18n::static_message("picker-center-task-shortcuts")
+                .bold()
+                .into(),
+            Line::default(),
+        ];
         lines.extend(crate::shortcut_help::group_lines(
             [navigate, tasks, view],
             width,
@@ -142,7 +204,10 @@ impl AgentsOverviewView {
                         .is_pressed(KeyEvent::new(KeyCode::Char('?'), modifiers))
                 })
         {
-            hints.push(("?".into(), "help".into()));
+            hints.push((
+                "?".into(),
+                crate::i18n::static_message("picker-center-help").into(),
+            ));
         }
         let cancel = if state.help {
             self.keymap.primary_hint(ListAction::Cancel)
@@ -150,7 +215,10 @@ impl AgentsOverviewView {
             self.center_list_hint(ListAction::Cancel)
         };
         if let Some(hint) = cancel {
-            hints.push((hint.display_label(), "back".into()));
+            hints.push((
+                hint.display_label(),
+                crate::i18n::static_message("picker-center-back").into(),
+            ));
         }
         if state.help {
             return hints;
@@ -163,16 +231,19 @@ impl AgentsOverviewView {
                 .collect::<Vec<_>>()
                 .join("/");
             if !navigation.is_empty() {
-                hints.push((navigation, "move".into()));
+                hints.push((
+                    navigation,
+                    crate::i18n::static_message("picker-center-move").into(),
+                ));
             }
         }
         if let Some(hint) = self.center_list_hint(ListAction::Accept) {
             hints.push((
                 hint.display_label(),
                 if state.rename_target.is_some() {
-                    "rename"
+                    crate::i18n::static_message("picker-center-rename")
                 } else {
-                    "open"
+                    crate::i18n::static_message("picker-center-open")
                 }
                 .into(),
             ));
@@ -182,7 +253,10 @@ impl AgentsOverviewView {
                 .agents_keymap
                 .primary_hint("new_task", &self.agents_keymap.new_task)
         {
-            hints.push((hint.display_label(), "new".into()));
+            hints.push((
+                hint.display_label(),
+                crate::i18n::static_message("picker-new").into(),
+            ));
         }
         hints
     }

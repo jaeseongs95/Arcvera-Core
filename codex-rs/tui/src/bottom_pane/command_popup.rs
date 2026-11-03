@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::widgets::WidgetRef;
@@ -246,8 +247,10 @@ impl CommandPopup {
                     match_indices: indices.map(|v| v.into_iter().map(|i| i + 1).collect()),
                     description: Some(description),
                     is_disabled: unavailable,
-                    disabled_reason: unavailable
-                        .then(|| "not available in a side conversation".to_string()),
+                    disabled_reason: unavailable.then(|| {
+                        crate::i18n::message("dialogs-side-conversation-unavailable", &[])
+                            .to_string()
+                    }),
                     ..Default::default()
                 }
             })
@@ -322,7 +325,7 @@ impl WidgetRef for CommandPopup {
             &rows,
             &self.state,
             MAX_POPUP_ROWS,
-            "no matches",
+            &crate::i18n::message("dialogs-no-matches", &[]),
             COMMAND_COLUMN_WIDTH,
         );
     }

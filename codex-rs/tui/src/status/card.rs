@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use crate::history_cell::CompositeHistoryCell;
 use crate::history_cell::HistoryCell;
 use crate::history_cell::PlainHistoryCell;
@@ -17,6 +18,7 @@ use codex_model_provider_info::WireApi;
 use codex_protocol::ThreadId;
 use codex_protocol::account::PlanType;
 use codex_protocol::config_types::ApprovalsReviewer;
+use codex_protocol::config_types::ReasoningSummary;
 use codex_protocol::models::ActivePermissionProfile;
 use codex_protocol::models::BUILT_IN_PERMISSION_PROFILE_DANGER_FULL_ACCESS;
 use codex_protocol::models::BUILT_IN_PERMISSION_PROFILE_READ_ONLY;
@@ -321,16 +323,16 @@ impl StatusHistoryCell {
         if config.model_provider.wire_api == WireApi::Responses {
             let effort_value = reasoning_effort_override
                 .unwrap_or_else(|| config.model_reasoning_effort.clone())
-                .map(|effort| effort.to_string())
-                .unwrap_or_else(|| "none".to_string());
+                .map(|effort| status_model_effort_display(&effort))
+                .unwrap_or_else(|| status_model_effort_display(&ReasoningEffort::None));
             config_entries.push(("reasoning effort", effort_value));
             if remote_connection.is_none() {
                 config_entries.push((
                     "reasoning summaries",
                     config
                         .model_reasoning_summary
-                        .map(|summary| summary.to_string())
-                        .unwrap_or_else(|| "auto".to_string()),
+                        .map(status_model_summary_display)
+                        .unwrap_or_else(|| status_model_summary_display(ReasoningSummary::Auto)),
                 ));
             }
         }
@@ -433,13 +435,13 @@ impl StatusHistoryCell {
 
         vec![
             Span::from(total_fmt),
-            Span::from(" total "),
+            Span::from(crate::i18n::message("status-tokens-total", &[])),
             Span::from(" (").dim(),
             Span::from(input_fmt).dim(),
-            Span::from(" input").dim(),
+            Span::from(crate::i18n::message("status-tokens-input", &[])).dim(),
             Span::from(" + ").dim(),
             Span::from(output_fmt).dim(),
-            Span::from(" output").dim(),
+            Span::from(crate::i18n::message("status-tokens-output", &[])).dim(),
             Span::from(")").dim(),
         ]
     }
@@ -451,10 +453,13 @@ impl StatusHistoryCell {
         let window_fmt = format_tokens_compact(context.window);
 
         Some(vec![
-            Span::from(format!("{percent}% left")),
+            Span::from(crate::i18n::message(
+                "status-percent-left",
+                &[("percent", &percent.to_string())],
+            )),
             Span::from(" (").dim(),
             Span::from(used_fmt).dim(),
-            Span::from(" used / ").dim(),
+            Span::from(crate::i18n::message("status-tokens-used", &[])).dim(),
             Span::from(window_fmt).dim(),
             Span::from(")").dim(),
         ])
@@ -471,7 +476,10 @@ impl StatusHistoryCell {
                 if rows_data.is_empty() {
                     return vec![formatter.line(
                         "Limits",
-                        vec![Span::from("not available for this account").dim()],
+                        vec![
+                                Span::from(crate::i18n::message("status-limits-unavailable", &[]))
+                                    .dim(),
+                            ],
                     )];
                 }
 
@@ -483,9 +491,9 @@ impl StatusHistoryCell {
                 lines.push(formatter.line(
                     "Warning",
                     vec![Span::from(if state.refreshing_rate_limits {
-                        "limits may be stale - run /status again shortly."
+                        crate::i18n::message("status-limits-stale-refresh", &[])
                     } else {
-                        "limits may be stale - start new turn to refresh."
+                        crate::i18n::message("status-limits-stale-turn", &[])
                     })
                     .dim()],
                 ));
@@ -494,16 +502,16 @@ impl StatusHistoryCell {
             StatusRateLimitData::Unavailable => {
                 vec![formatter.line(
                     "Limits",
-                    vec![Span::from("not available for this account").dim()],
+                    vec![Span::from(crate::i18n::message("status-limits-unavailable", &[])).dim()],
                 )]
             }
             StatusRateLimitData::Missing => {
                 vec![formatter.line(
                     "Limits",
                     vec![Span::from(if state.refreshing_rate_limits {
-                        "refresh requested; run /status again shortly."
+                        crate::i18n::message("status-limits-refresh", &[])
                     } else {
-                        "data not available yet"
+                        crate::i18n::message("status-limits-missing", &[])
                     })
                     .dim()],
                 )]
@@ -546,7 +554,11 @@ impl StatusHistoryCell {
                     let base_line = Line::from(base_spans.clone());
 
                     if let Some(resets_at) = resets_at.as_ref() {
-                        let resets_span = Span::from(format!("(resets {resets_at})")).dim();
+                        let resets_span = Span::from(crate::i18n::message(
+                            "status-resets",
+                            &[("time", resets_at.as_str())],
+                        ))
+                        .dim();
                         let mut inline_spans = base_spans.clone();
                         inline_spans.push(Span::from(" ").dim());
                         inline_spans.push(resets_span.clone());
@@ -555,7 +567,10 @@ impl StatusHistoryCell {
                             lines.push(Line::from(inline_spans));
                         } else {
                             lines.push(base_line);
-                            let reset_text = format!("(resets {resets_at})");
+                            let reset_text = crate::i18n::message(
+                                "status-resets",
+                                &[("time", resets_at.as_str())],
+                            );
                             let reset_width = formatter.value_width(available_inner_width).max(1);
                             let wrap_options =
                                 textwrap::Options::new(reset_width).break_words(false);
@@ -627,6 +642,30 @@ impl StatusHistoryCell {
     }
 }
 
+fn status_model_effort_display(effort: &ReasoningEffort) -> String {
+    match effort {
+        ReasoningEffort::None => crate::i18n::message("status-model-effort-none", &[]),
+        ReasoningEffort::Minimal => crate::i18n::message("status-model-effort-minimal", &[]),
+        ReasoningEffort::Low => crate::i18n::message("status-model-effort-low", &[]),
+        ReasoningEffort::Medium => crate::i18n::message("status-model-effort-medium", &[]),
+        ReasoningEffort::High => crate::i18n::message("status-model-effort-high", &[]),
+        ReasoningEffort::XHigh => crate::i18n::message("status-model-effort-xhigh", &[]),
+        ReasoningEffort::Max => crate::i18n::message("status-model-effort-max", &[]),
+        ReasoningEffort::Ultra => crate::i18n::message("status-model-effort-ultra", &[]),
+        ReasoningEffort::Persistent => crate::i18n::message("status-model-effort-persistent", &[]),
+        ReasoningEffort::Custom(value) => value.clone(),
+    }
+}
+
+fn status_model_summary_display(summary: ReasoningSummary) -> String {
+    match summary {
+        ReasoningSummary::Auto => crate::i18n::message("status-model-summary-auto", &[]),
+        ReasoningSummary::Concise => crate::i18n::message("status-model-summary-concise", &[]),
+        ReasoningSummary::Detailed => crate::i18n::message("status-model-summary-detailed", &[]),
+        ReasoningSummary::None => "none".to_string(),
+    }
+}
+
 fn status_permission_summary(
     permission_profile: &PermissionProfile,
     cwd: &PathUri,
@@ -676,23 +715,29 @@ fn status_permissions_label(
     match active_id {
         Some(BUILT_IN_PERMISSION_PROFILE_READ_ONLY) => {
             let label = if sandbox == "read-only with network access" {
-                "Read Only with network access"
+                crate::i18n::message("status-readonly-network", &[])
             } else {
-                "Read Only"
+                crate::i18n::message("status-readonly", &[])
             };
             return format!("{label} ({approval})");
         }
         Some(BUILT_IN_PERMISSION_PROFILE_WORKSPACE) => match sandbox {
             "workspace" => {
-                return format!(
-                    "Workspace{} ({approval})",
-                    workspace_root_suffix.unwrap_or("")
+                return crate::i18n::message(
+                    "status-workspace",
+                    &[
+                        ("roots", workspace_root_suffix.unwrap_or("")),
+                        ("approval", approval),
+                    ],
                 );
             }
             "workspace with network access" => {
-                return format!(
-                    "Workspace with network access{} ({approval})",
-                    workspace_root_suffix.unwrap_or("")
+                return crate::i18n::message(
+                    "status-workspace-network",
+                    &[
+                        ("roots", workspace_root_suffix.unwrap_or("")),
+                        ("approval", approval),
+                    ],
                 );
             }
             _ => {}
@@ -701,40 +746,69 @@ fn status_permissions_label(
             if permission_profile == &PermissionProfile::Disabled =>
         {
             return if approval_policy == AskForApproval::Never {
-                "Full Access".to_string()
+                crate::i18n::message("status-full-access", &[])
             } else {
-                format!("No Sandbox ({approval})")
+                crate::i18n::message("status-no-sandbox", &[("approval", approval)])
             };
         }
         Some(id) => {
             let sandbox = decorate_workspace_sandbox_label(sandbox, workspace_root_suffix);
-            return format!("Profile {id} ({sandbox}, {approval})");
+            return crate::i18n::message(
+                "status-profile",
+                &[("id", id), ("sandbox", &sandbox), ("approval", approval)],
+            );
         }
         None => {}
     }
 
     if sandbox == "read-only" {
-        return format!("Read Only ({approval})");
+        return crate::i18n::message("status-readonly-approval", &[("approval", approval)]);
     }
     if approval_policy == AskForApproval::OnRequest && sandbox == "workspace" {
-        return format!(
-            "Workspace{} ({approval})",
-            workspace_root_suffix.unwrap_or("")
+        return crate::i18n::message(
+            "status-workspace",
+            &[
+                ("roots", workspace_root_suffix.unwrap_or("")),
+                ("approval", approval),
+            ],
         );
     }
     if approval_policy == AskForApproval::Never
         && permission_profile == &PermissionProfile::Disabled
     {
-        return "Full Access".to_string();
+        return crate::i18n::message("status-full-access", &[]);
     }
     let sandbox = decorate_workspace_sandbox_label(sandbox, workspace_root_suffix);
-    format!("Custom ({sandbox}, {approval})")
+    crate::i18n::message(
+        "status-custom",
+        &[("sandbox", &sandbox), ("approval", approval)],
+    )
 }
 
 fn decorate_workspace_sandbox_label(sandbox: &str, workspace_root_suffix: Option<&str>) -> String {
-    match workspace_root_suffix {
-        Some(suffix) if sandbox.starts_with("workspace") => format!("{sandbox}{suffix}"),
+    let display = match sandbox {
+        "read-only" => crate::i18n::message("status-sandbox-readonly", &[]),
+        "read-only with network access" => {
+            crate::i18n::message("status-sandbox-readonly-network", &[])
+        }
+        "workspace" => crate::i18n::message("status-sandbox-workspace", &[]),
+        "workspace with network access" => {
+            crate::i18n::message("status-sandbox-workspace-network", &[])
+        }
+        "custom permissions" => crate::i18n::message("status-sandbox-custom", &[]),
+        "custom permissions with network access" => {
+            crate::i18n::message("status-sandbox-custom-network", &[])
+        }
+        "danger-full-access" => crate::i18n::message("status-sandbox-disabled", &[]),
+        "external-sandbox" => crate::i18n::message("status-sandbox-external", &[]),
+        "external-sandbox (network access enabled)" => {
+            crate::i18n::message("status-sandbox-external-network", &[])
+        }
         _ => sandbox.to_string(),
+    };
+    match workspace_root_suffix {
+        Some(suffix) if sandbox.starts_with("workspace") => format!("{display}{suffix}"),
+        _ => display,
     }
 }
 
@@ -745,8 +819,8 @@ fn status_approval_label(
 ) -> String {
     if approval_policy == AskForApproval::OnRequest {
         return match approvals_reviewer {
-            ApprovalsReviewer::AutoReview => "Approve for me".to_string(),
-            ApprovalsReviewer::User => "Ask for approval".to_string(),
+            ApprovalsReviewer::AutoReview => crate::i18n::message("status-auto-review", &[]),
+            ApprovalsReviewer::User => crate::i18n::message("status-ask-approval", &[]),
         };
     }
 
@@ -768,9 +842,7 @@ impl StatusHistoryCell {
                 (None, Some(plan)) => plan.clone(),
                 (None, None) => "ChatGPT".to_string(),
             },
-            StatusAccountDisplay::ApiKey => {
-                "API key configured (run codex login to use ChatGPT)".to_string()
-            }
+            StatusAccountDisplay::ApiKey => crate::i18n::message("status-api-key", &[]),
         });
 
         let workspace = match &self.account {
@@ -829,7 +901,7 @@ impl StatusHistoryCell {
 
         if let Some(remote_connection) = self.remote_connection.as_ref() {
             let value = if remote_connection.is_local_daemon {
-                Line::from("Local background server")
+                Line::from(crate::i18n::message("status-local-server", &[]))
             } else {
                 Line::from(vec![
                     Span::from(remote_connection.address.clone()),
@@ -923,11 +995,11 @@ impl StatusHistoryCell {
             rendered.extend(word_wrap_lines(
                 [
                     Line::from(vec![
-                        "Visit ".fg(accent_color()),
+                        crate::i18n::message("status-usage-visit", &[]).fg(accent_color()),
                         CHATGPT_USAGE_URL.fg(accent_color()).underlined(),
-                        " for up-to-date".fg(accent_color()),
+                        crate::i18n::message("status-usage-updated", &[]).fg(accent_color()),
                     ]),
-                    "information on rate limits and credits"
+                    crate::i18n::message("status-usage-information", &[])
                         .fg(accent_color())
                         .into(),
                 ],
@@ -1011,5 +1083,33 @@ impl HistoryCell for Arc<StatusHistoryCell> {
         width: u16,
     ) -> Vec<crate::terminal_hyperlinks::HyperlinkLine> {
         self.display_hyperlink_lines(width)
+    }
+}
+
+#[cfg(test)]
+mod localization_tests {
+    use super::*;
+    use crate::i18n::{Locale, with_locale};
+
+    #[test]
+    fn status_model_details_translate_typed_values_and_preserve_custom_effort() {
+        for (locale, high, automatic) in [
+            (Locale::English, "high", "auto"),
+            (Locale::Korean, "높음", "자동"),
+        ] {
+            with_locale(locale, || {
+                assert_eq!(status_model_effort_display(&ReasoningEffort::High), high);
+                assert_eq!(
+                    status_model_summary_display(ReasoningSummary::Auto),
+                    automatic
+                );
+                let custom = ReasoningEffort::Custom("한글🧪{reason}".to_string());
+                assert_eq!(status_model_effort_display(&custom), "한글🧪{reason}");
+                assert_eq!(
+                    status_model_effort_display(&ReasoningEffort::Custom("high".to_string())),
+                    "high"
+                );
+            });
+        }
     }
 }

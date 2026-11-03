@@ -209,9 +209,9 @@ class VerifierChecks(unittest.TestCase):
                      'codex-rs/tui/src/chatwidget.rs', 'codex-rs/tui/src/keymap.rs',
                      'codex-rs/tui/src/app/tests/startup_defaults_tests.rs']:
             with self.subTest(path=path):
-                self.assertEqual(EXPORT.notice(path), b'// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.\n')
+                self.assertEqual(EXPORT.notice(path), (b'// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/cli/src/main.rs' else b'// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.\n'))
         for path in ['codex-rs/Cargo.toml', 'codex-rs/Cargo.lock', 'codex-rs/cli/Cargo.toml']:
             with self.subTest(path=path):
-                self.assertEqual(EXPORT.notice(path), b'# Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.\n')
+                self.assertEqual(EXPORT.notice(path), (b'# Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/Cargo.toml' else b'# Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n'))
 
 if __name__=='__main__':unittest.main()

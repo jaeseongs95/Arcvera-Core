@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use super::protocol::ClientEnvelope;
 use super::protocol::ClientEvent;
 use super::protocol::ClientId;
@@ -137,6 +137,7 @@ fn invalid_response_becomes_remote_control_jsonrpc_error() {
             message: Box::new(OutgoingMessage::Response(OutgoingResponse {
                 id: RequestId::Integer(7),
                 result: Box::new(ClientResponsePayload::Initialize(InitializeResponse {
+                    opendiy_capabilities: None,
                     supports_subagent_management: false,
                     supports_expected_turn_interrupt: None,
                     user_agent: "codex-test-agent".to_string(),

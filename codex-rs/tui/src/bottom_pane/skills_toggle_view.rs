@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use crossterm::event::KeyModifiers;
@@ -33,7 +34,7 @@ use super::popup_consts::MAX_POPUP_ROWS;
 use super::scroll_state::ScrollState;
 use super::selection_popup_common::GenericDisplayRow;
 
-const SEARCH_PLACEHOLDER: &str = "Type to search skills";
+const SEARCH_PLACEHOLDER: &str = "dialogs-skill-search";
 
 pub(crate) struct SkillsToggleItem {
     pub name: String,
@@ -63,11 +64,14 @@ impl SkillsToggleView {
     ) -> Self {
         let mut header = ColumnRenderable::new();
         header.push(
-            Paragraph::new(Line::from("Enable/Disable Skills".bold())).wrap(Wrap { trim: false }),
+            Paragraph::new(Line::from(
+                crate::i18n::message("dialogs-skills-title", &[]).bold(),
+            ))
+            .wrap(Wrap { trim: false }),
         );
         header.push(
             Paragraph::new(Line::from(
-                "Turn skills on or off. Your changes are saved automatically.".dim(),
+                crate::i18n::message("dialogs-skills-auto-save", &[]).dim(),
             ))
             .wrap(Wrap { trim: false }),
         );
@@ -301,7 +305,7 @@ impl Renderable for SkillsToggleView {
 
         if search_area.height > 0 {
             let query_span = if self.search_query.is_empty() {
-                SEARCH_PLACEHOLDER.dim()
+                crate::i18n::message(SEARCH_PLACEHOLDER, &[]).dim()
             } else {
                 self.search_query.clone().into()
             };
@@ -315,7 +319,7 @@ impl Renderable for SkillsToggleView {
                 &rows,
                 &self.state,
                 render_area.height as usize,
-                "no matches",
+                &crate::i18n::message("dialogs-no-matches", &[]),
             );
         }
 
@@ -342,11 +346,11 @@ fn skills_toggle_hint_line(keymap: &ListKeymap) -> Line<'static> {
         toggle.push_str(&accept.display_label());
     }
     let mut spans = key_hint::key_label_spans(&toggle);
-    spans.push(" toggle".dim());
+    spans.push(crate::i18n::message("dialogs-memory-toggle", &[]).dim());
     if let Some(cancel) = cancel {
         spans.push(" · ".dim());
         spans.extend(cancel.spans());
-        spans.push(" close".dim());
+        spans.push(crate::i18n::message("dialogs-close", &[]).dim());
     }
     spans.into()
 }

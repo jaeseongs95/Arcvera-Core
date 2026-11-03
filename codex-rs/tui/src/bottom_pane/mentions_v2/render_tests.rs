@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Render the live mention frame at full, clipped and narrow dimensions.
 
 use super::*;
@@ -199,5 +200,48 @@ fn long_mentions_leave_room_for_distinguishing_parent_paths() {
             "no matches",
         );
         insta::assert_snapshot!(name, text(&buffer));
+    }
+}
+
+#[test]
+fn localized_mentions_preserve_names_selection_values_and_tag_cell_width() {
+    for (locale, header, plugin) in [
+        (crate::i18n::Locale::English, "Mentions", "Plugin"),
+        (crate::i18n::Locale::Korean, "멘션", "플러그인"),
+    ] {
+        crate::i18n::with_locale(locale, || {
+            let rows = rows();
+            let mut buffer = Buffer::empty(Rect::new(0, 0, 80, POPUP_HEIGHT));
+            render_popup(
+                buffer.area,
+                &mut buffer,
+                &rows,
+                &ScrollState::default(),
+                "",
+                SearchMode::Results,
+                "",
+            );
+            let rendered = text(&buffer);
+            assert!(rendered.contains(header));
+            assert!(rendered.contains("Plugin 00"));
+            assert!(rendered.contains(plugin));
+            let tags = [
+                MentionType::Plugin,
+                MentionType::Skill,
+                MentionType::Task,
+                MentionType::File,
+                MentionType::Directory,
+            ]
+            .map(|kind| kind.span(Style::default()));
+            assert!(tags.iter().all(|tag| tag.width() == tags[0].width()));
+            assert_eq!(rows[0].display_name, "Plugin 00");
+            assert_eq!(
+                rows[0].selection,
+                Selection::Tool {
+                    insert_text: "plugin-0".into(),
+                    path: None
+                }
+            );
+        });
     }
 }
