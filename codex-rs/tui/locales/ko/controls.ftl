@@ -148,3 +148,6 @@ diagnostics-settings-busy = 다른 작업이 진단 설정을 변경하고 있�
 diagnostics-operation-unconfirmed = 진단 설정 처리 결과를 확인하지 못했습니다: { $error }. 변경을 다시 시도하기 전에 상태를 조회하세요.
 
 diagnostics-cache-wire-requires-response = 캐시 wire 관측에는 응답 관측이 필요합니다. 두 항목을 명시적으로 선택하세요.
+
+controls-memory-command-hint = /memory enable on|off · /memory edit <정정 내용> · /memory read on|off · /memory generate on|off
+controls-memory-usage = 사용법: /memory view | enable on|off | edit <정정 내용> | read on|off | generate on|off | scope project|global

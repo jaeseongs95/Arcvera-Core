@@ -710,7 +710,19 @@ fn localized_notes_submit_hint_uses_action_id_and_keeps_remapped_submission() {
             let Some(QuestionSubmission::Submit(reply)) = editor.submission else {
                 panic!("remapped submit must submit in {locale:?}");
             };
-            assert_eq!(reply, "> Question\n\nunchanged answer 답변");
+            let payload = reply
+                .strip_prefix("<send_user_message_question_reply>\n")
+                .unwrap()
+                .strip_suffix("\n</send_user_message_question_reply>")
+                .unwrap();
+            assert_eq!(
+                serde_json::from_str::<serde_json::Value>(payload).unwrap(),
+                serde_json::json!([{
+                    "answer": "unchanged answer 답변",
+                    "question": "Question",
+                    "questionItemId": "[\"request_user_input_async\",\"message\",0]"
+                }])
+            );
         });
     }
 }

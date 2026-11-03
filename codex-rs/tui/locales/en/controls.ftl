@@ -148,3 +148,6 @@ diagnostics-settings-busy = Diagnostics settings are busy. Query status before r
 diagnostics-operation-unconfirmed = The diagnostics operation could not be confirmed: { $error }. Query status before retrying any change.
 
 diagnostics-cache-wire-requires-response = Wire cache observation requires response observation. Select both explicitly.
+
+controls-memory-command-hint = /memory enable on|off · /memory edit <correction> · /memory read on|off · /memory generate on|off
+controls-memory-usage = Usage: /memory view | enable on|off | edit <correction> | read on|off | generate on|off | scope project|global

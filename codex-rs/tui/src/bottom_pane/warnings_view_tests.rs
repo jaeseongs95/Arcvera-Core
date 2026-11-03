@@ -270,7 +270,14 @@ fn localized_warning_copy_hint_uses_action_id_and_keeps_remapped_copy() {
                 screen.to_lowercase().contains("f10"),
                 "{locale:?}: {screen}"
             );
-            assert!(screen.contains(label), "{locale:?}: {screen}");
+            // The test buffer retains blank continuation cells after wide glyphs.
+            assert!(
+                screen
+                    .split_whitespace()
+                    .collect::<String>()
+                    .contains(label),
+                "{locale:?}: {screen}"
+            );
             view.handle_key(KeyEvent::new(KeyCode::F(10), KeyModifiers::NONE));
             assert!(
                 matches!(rx.try_recv(), Ok(AppEvent::CopyWarning(text)) if text == entries()[0].details)

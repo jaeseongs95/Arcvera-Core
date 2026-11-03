@@ -382,8 +382,7 @@ legacy-memory-correction-saved-for-later-consolidation-the-stored-summary-and-ex
 legacy-memory-settings-saved-reading-changes-apply-to-new-chats-generation-changes-stop-new-claim = { "메모리 설정을 저장했습니다. 읽기 변경은 새 대화부터 적용됩니다. 생성 변경은 새 작업 접수에 적용되며 실행 중인 작업은 완료될 수 있습니다." }
 legacy-memory-scope-saved-for-new-chats-existing-global-or-external-memories-were-not-moved = { "새 대화에 적용할 메모리 범위를 저장했습니다. 기존 전역·외부 메모리는 옮기지 않았습니다." }
 legacy-memory-scope-was-overridden-by-managed-configuration = { "관리 설정이 메모리 범위 설정에 우선합니다." }
-legacy-usage-memory-view-edit-correction-read-on-off-generate-on-off-scope-project-global = { "사용법: /memory view | enable on|off | edit <정정 내용> | read on|off | generate on|off | scope project|global" }
-legacy-memory-command-hint = { "/memory enable on|off · /memory edit <정정 내용> · /memory read on|off · /memory generate on|off" }
+legacy-usage-memory-view-edit-correction-read-on-off-generate-on-off-scope-project-global = { "사용법: /memory view | edit <정정 내용> | read on|off | generate on|off | scope project|global" }
 legacy-project-memory-reset-is-unavailable-disable-generation-and-use-an-explicit-correction-no-d = { "프로젝트 메모리 초기화는 아직 지원하지 않습니다. 생성을 끄고 명시적으로 정정하세요. 삭제는 수행하지 않았습니다." }
 legacy-local-memory-reset-completed-existing-conversations-and-running-memory-work-may-still-reta = { "로컬 메모리 초기화를 수행했습니다. 기존 대화와 실행 중인 메모리 작업에는 이전 정보가 남아 있을 수 있습니다." }
 legacy-start-with-remote-control-disabled-preserving-saved-registrations-and-settings = { "저장된 등록과 설정을 유지하며 원격 제어를 끈 상태로 시작합니다" }

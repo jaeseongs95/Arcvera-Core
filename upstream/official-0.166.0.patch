@@ -64776,10 +64776,10 @@ index a966e4aee..a59c6865f 100644
  /// A process-wide gauge that registers itself the first time it is used.
 diff --git a/codex-rs/diagnostics/src/settings_control.rs b/codex-rs/diagnostics/src/settings_control.rs
 new file mode 100644
-index 000000000..ca2bc4ee9
+index 000000000..c76def139
 --- /dev/null
 +++ b/codex-rs/diagnostics/src/settings_control.rs
-@@ -0,0 +1,151 @@
+@@ -0,0 +1,159 @@
 +//! Explicit local operator edits. Startup choices and completed log batches are immutable.
 +
 +use crate::batch_log;
@@ -64914,7 +64914,11 @@ index 000000000..ca2bc4ee9
 +                .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
 +        }
 +    }
-+    let mut temporary = tempfile::NamedTempFile::new_in(home)?;
++    // Use an ordinary file so the published settings do not retain Windows'
++    // FILE_ATTRIBUTE_TEMPORARY cache hint.
++    let mut temporary = tempfile::Builder::new().make_in(home, |path| {
++        OpenOptions::new().write(true).create_new(true).open(path)
++    })?;
 +    temporary.write_all(updated.as_bytes())?;
 +    match fs::metadata(&target) {
 +        Ok(metadata) => temporary
@@ -64924,7 +64928,11 @@ index 000000000..ca2bc4ee9
 +        Err(error) => return Err(error),
 +    }
 +    temporary.as_file().sync_all()?;
-+    temporary.persist(&target).map_err(|error| error.error)?;
++    let temporary = temporary.into_temp_path();
++    // Unlike tempfile::persist's MoveFileExW-only implementation, std rename
++    // supports replacing a Windows file while readers retain the old handle.
++    // TempPath still cleans up the source if publication fails.
++    fs::rename(&temporary, &target)?;
 +    status(home)
 +}
 +
@@ -64933,10 +64941,10 @@ index 000000000..ca2bc4ee9
 +mod tests;
 diff --git a/codex-rs/diagnostics/src/settings_control_tests.rs b/codex-rs/diagnostics/src/settings_control_tests.rs
 new file mode 100644
-index 000000000..f7cf5063a
+index 000000000..37211b8d3
 --- /dev/null
 +++ b/codex-rs/diagnostics/src/settings_control_tests.rs
-@@ -0,0 +1,249 @@
+@@ -0,0 +1,305 @@
 +use super::*;
 +
 +#[test]
@@ -64964,13 +64972,69 @@ index 000000000..f7cf5063a
 +            }
 +            reads
 +        });
-+        for enabled in [true, false].into_iter().cycle().take(20) {
-+            update(home.path(), Update::Logging { enabled }).unwrap();
-+        }
++        let writer_result = [true, false]
++            .into_iter()
++            .cycle()
++            .take(20)
++            .try_for_each(|enabled| update(home.path(), Update::Logging { enabled }).map(|_| ()));
++        // Report the writer's original failure without leaving its reader spinning.
 +        done.store(true, std::sync::atomic::Ordering::Release);
-+        assert!(reader.join().unwrap() > 0);
++        let reader_result = reader.join();
++        writer_result.expect("settings publication must succeed with concurrent readers");
++        assert!(reader_result.unwrap() > 0);
 +    });
 +    assert_eq!(fs::read_dir(home.path()).unwrap().count(), 2);
++}
++
++#[test]
++fn open_reader_retains_old_settings_while_new_readers_see_replacement() {
++    use std::io::Read;
++
++    let home = tempfile::tempdir().unwrap();
++    let logging = home.path().join("cli-logging.toml");
++    update(home.path(), Update::Logging { enabled: false }).unwrap();
++    let original = fs::read_to_string(&logging).unwrap();
++    let mut old_reader = fs::File::open(&logging).unwrap();
++
++    update(home.path(), Update::Logging { enabled: true }).unwrap();
++    assert!(status(home.path()).unwrap().saved_logging.enabled);
++    assert_eq!(
++        fs::read_to_string(&logging).unwrap(),
++        original.replace("false", "true")
++    );
++    let mut old_contents = String::new();
++    old_reader.read_to_string(&mut old_contents).unwrap();
++    assert_eq!(old_contents, original);
++    drop(old_reader);
++    assert_eq!(fs::read_dir(home.path()).unwrap().count(), 2);
++}
++
++#[cfg(windows)]
++#[test]
++fn reader_without_delete_sharing_rejects_publication_and_preserves_settings() {
++    use std::os::windows::fs::OpenOptionsExt;
++
++    let home = tempfile::tempdir().unwrap();
++    let logging = home.path().join("cli-logging.toml");
++    update(home.path(), Update::Logging { enabled: false }).unwrap();
++    let original = fs::read(&logging).unwrap();
++    // FILE_SHARE_READ | FILE_SHARE_WRITE deliberately excludes FILE_SHARE_DELETE.
++    let reader = OpenOptions::new()
++        .read(true)
++        .share_mode(0x1 | 0x2)
++        .open(&logging)
++        .unwrap();
++    let error = update(home.path(), Update::Logging { enabled: true }).unwrap_err();
++    assert!(matches!(error.raw_os_error(), Some(5 | 32)), "{error}");
++    assert_eq!(fs::read(&logging).unwrap(), original);
++    assert_eq!(fs::read_dir(home.path()).unwrap().count(), 2);
++    drop(reader);
++    assert!(
++        update(home.path(), Update::Logging { enabled: true })
++            .unwrap()
++            .saved_logging
++            .enabled
++    );
 +}
 +
 +#[test]
@@ -73771,10 +73835,10 @@ index 000000000..e75508e1a
 +cloud-cli-help-diff-attempt = { "Attempt number to display (1-based)" }
 diff --git a/codex-rs/tui/locales/en/controls.ftl b/codex-rs/tui/locales/en/controls.ftl
 new file mode 100644
-index 000000000..213dd5407
+index 000000000..d19c7e495
 --- /dev/null
 +++ b/codex-rs/tui/locales/en/controls.ftl
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,153 @@
 +# Application-owned chat controls and exit guidance.
 +controls-back = Back
 +controls-goal-edit = Edit goal
@@ -73925,6 +73989,9 @@ index 000000000..213dd5407
 +diagnostics-operation-unconfirmed = The diagnostics operation could not be confirmed: { $error }. Query status before retrying any change.
 +
 +diagnostics-cache-wire-requires-response = Wire cache observation requires response observation. Select both explicitly.
++
++controls-memory-command-hint = /memory enable on|off · /memory edit <correction> · /memory read on|off · /memory generate on|off
++controls-memory-usage = Usage: /memory view | enable on|off | edit <correction> | read on|off | generate on|off | scope project|global
 diff --git a/codex-rs/tui/locales/en/core.ftl b/codex-rs/tui/locales/en/core.ftl
 new file mode 100644
 index 000000000..94d17e5dd
@@ -74403,10 +74470,10 @@ index 000000000..bc6d2e863
 +dialogs-onboarding-trust-error = Failed to set trust for { $path }: { $error }
 diff --git a/codex-rs/tui/locales/en/legacy.ftl b/codex-rs/tui/locales/en/legacy.ftl
 new file mode 100644
-index 000000000..dbc7f7843
+index 000000000..68783b854
 --- /dev/null
 +++ b/codex-rs/tui/locales/en/legacy.ftl
-@@ -0,0 +1,478 @@
+@@ -0,0 +1,477 @@
 +# Stable IDs for the existing UI-literal compatibility API.
 +# String literals preserve whitespace and brace tokens exactly.
 +legacy-current-ui-language = { "Current UI language:" }
@@ -74791,8 +74858,7 @@ index 000000000..dbc7f7843
 +legacy-memory-settings-saved-reading-changes-apply-to-new-chats-generation-changes-stop-new-claim = { "Memory settings saved. Reading changes apply to new chats. Generation changes stop new claims; already running work may finish." }
 +legacy-memory-scope-saved-for-new-chats-existing-global-or-external-memories-were-not-moved = { "Memory scope saved for new chats. Existing global or external memories were not moved." }
 +legacy-memory-scope-was-overridden-by-managed-configuration = { "Memory scope was overridden by managed configuration." }
-+legacy-usage-memory-view-edit-correction-read-on-off-generate-on-off-scope-project-global = { "Usage: /memory view | enable on|off | edit <correction> | read on|off | generate on|off | scope project|global" }
-+legacy-memory-command-hint = { "/memory enable on|off · /memory edit <correction> · /memory read on|off · /memory generate on|off" }
++legacy-usage-memory-view-edit-correction-read-on-off-generate-on-off-scope-project-global = { "Usage: /memory view | edit <correction> | read on|off | generate on|off | scope project|global" }
 +legacy-project-memory-reset-is-unavailable-disable-generation-and-use-an-explicit-correction-no-d = { "Project memory reset is unavailable. Disable generation and use an explicit correction; no deletion has been performed." }
 +legacy-local-memory-reset-completed-existing-conversations-and-running-memory-work-may-still-reta = { "Local memory reset completed; existing conversations and running memory work may still retain earlier information." }
 +legacy-start-with-remote-control-disabled-preserving-saved-registrations-and-settings = { "Start with remote control disabled, preserving saved registrations and settings" }
@@ -76337,10 +76403,10 @@ index 000000000..e526eba68
 +cloud-cli-help-diff-attempt = { "표시할 시도 번호입니다 (1부터 시작)." }
 diff --git a/codex-rs/tui/locales/ko/controls.ftl b/codex-rs/tui/locales/ko/controls.ftl
 new file mode 100644
-index 000000000..9245c5520
+index 000000000..c74ca1380
 --- /dev/null
 +++ b/codex-rs/tui/locales/ko/controls.ftl
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,153 @@
 +# Application-owned chat controls and exit guidance.
 +controls-back = 뒤로
 +controls-goal-edit = 목표 편집
@@ -76491,6 +76557,9 @@ index 000000000..9245c5520
 +diagnostics-operation-unconfirmed = 진단 설정 처리 결과를 확인하지 못했습니다: { $error }. 변경을 다시 시도하기 전에 상태를 조회하세요.
 +
 +diagnostics-cache-wire-requires-response = 캐시 wire 관측에는 응답 관측이 필요합니다. 두 항목을 명시적으로 선택하세요.
++
++controls-memory-command-hint = /memory enable on|off · /memory edit <정정 내용> · /memory read on|off · /memory generate on|off
++controls-memory-usage = 사용법: /memory view | enable on|off | edit <정정 내용> | read on|off | generate on|off | scope project|global
 diff --git a/codex-rs/tui/locales/ko/core.ftl b/codex-rs/tui/locales/ko/core.ftl
 new file mode 100644
 index 000000000..1a52e03c8
@@ -76948,10 +77017,10 @@ index 000000000..e95cdf348
 +dialogs-onboarding-trust-error = 다음 경로의 신뢰를 설정하지 못했습니다: { $path }: { $error }
 diff --git a/codex-rs/tui/locales/ko/legacy.ftl b/codex-rs/tui/locales/ko/legacy.ftl
 new file mode 100644
-index 000000000..4367ca27c
+index 000000000..06e1a5857
 --- /dev/null
 +++ b/codex-rs/tui/locales/ko/legacy.ftl
-@@ -0,0 +1,478 @@
+@@ -0,0 +1,477 @@
 +# Stable IDs for the existing UI-literal compatibility API.
 +# String literals preserve whitespace and brace tokens exactly.
 +legacy-current-ui-language = { "현재 표시 언어:" }
@@ -77336,8 +77405,7 @@ index 000000000..4367ca27c
 +legacy-memory-settings-saved-reading-changes-apply-to-new-chats-generation-changes-stop-new-claim = { "메모리 설정을 저장했습니다. 읽기 변경은 새 대화부터 적용됩니다. 생성 변경은 새 작업 접수에 적용되며 실행 중인 작업은 완료될 수 있습니다." }
 +legacy-memory-scope-saved-for-new-chats-existing-global-or-external-memories-were-not-moved = { "새 대화에 적용할 메모리 범위를 저장했습니다. 기존 전역·외부 메모리는 옮기지 않았습니다." }
 +legacy-memory-scope-was-overridden-by-managed-configuration = { "관리 설정이 메모리 범위 설정에 우선합니다." }
-+legacy-usage-memory-view-edit-correction-read-on-off-generate-on-off-scope-project-global = { "사용법: /memory view | enable on|off | edit <정정 내용> | read on|off | generate on|off | scope project|global" }
-+legacy-memory-command-hint = { "/memory enable on|off · /memory edit <정정 내용> · /memory read on|off · /memory generate on|off" }
++legacy-usage-memory-view-edit-correction-read-on-off-generate-on-off-scope-project-global = { "사용법: /memory view | edit <정정 내용> | read on|off | generate on|off | scope project|global" }
 +legacy-project-memory-reset-is-unavailable-disable-generation-and-use-an-explicit-correction-no-d = { "프로젝트 메모리 초기화는 아직 지원하지 않습니다. 생성을 끄고 명시적으로 정정하세요. 삭제는 수행하지 않았습니다." }
 +legacy-local-memory-reset-completed-existing-conversations-and-running-memory-work-may-still-reta = { "로컬 메모리 초기화를 수행했습니다. 기존 대화와 실행 중인 메모리 작업에는 이전 정보가 남아 있을 수 있습니다." }
 +legacy-start-with-remote-control-disabled-preserving-saved-registrations-and-settings = { "저장된 등록과 설정을 유지하며 원격 제어를 끈 상태로 시작합니다" }
@@ -83823,13 +83891,14 @@ index ccf99df96..d5aea0935 100644
                  self.queue_clear_ui_header(tui);
 diff --git a/codex-rs/tui/src/app/memory.rs b/codex-rs/tui/src/app/memory.rs
 new file mode 100644
-index 000000000..6b877646b
+index 000000000..de0f7eb0c
 --- /dev/null
 +++ b/codex-rs/tui/src/app/memory.rs
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,90 @@
 +//! Explicit memory management commands; model inference is not needed.
 +use super::App;
 +use crate::app_server_session::AppServerSession;
++use crate::i18n::message;
 +use crate::i18n::text;
 +use codex_app_server_protocol::WriteStatus;
 +use codex_config::types::MemoryScope;
@@ -83872,7 +83941,7 @@ index 000000000..6b877646b
 +                            text("Storage:"), response.root.as_deref().unwrap_or("-"),
 +                            response.summary.as_deref().unwrap_or(text("No stored memory summary is available.")),
 +                            text("This is the stored summary. Existing chat context is unchanged; new context loads the latest summary.")),
-+                            Some(text("/memory enable on|off · /memory edit <correction> · /memory read on|off · /memory generate on|off").to_string()));
++                            Some(message("controls-memory-command-hint", &[])));
 +                    }
 +                    Err(error) => self.chat_widget.add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
 +                }
@@ -83912,7 +83981,7 @@ index 000000000..6b877646b
 +                    Err(error) => self.chat_widget.add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
 +                }
 +            }
-+            _ => self.chat_widget.add_error_message(text("Usage: /memory view | enable on|off | edit <correction> | read on|off | generate on|off | scope project|global").to_string()),
++            _ => self.chat_widget.add_error_message(message("controls-memory-usage", &[])),
 +        }
 +    }
 +}
@@ -90295,7 +90364,7 @@ index ac3ab1cb2..6d817d437 100644
 +    Ok(client)
  }
 diff --git a/codex-rs/tui/src/app_server_session.rs b/codex-rs/tui/src/app_server_session.rs
-index 683e7328e..5cfeb3b08 100644
+index 683e7328e..431b84677 100644
 --- a/codex-rs/tui/src/app_server_session.rs
 +++ b/codex-rs/tui/src/app_server_session.rs
 @@ -8,6 +8,8 @@ mod events;
@@ -90926,7 +90995,7 @@ index 683e7328e..5cfeb3b08 100644
  
          let params = thread_resume_params_from_config(
              config,
-@@ -4040,6 +4482,91 @@ mod tests {
+@@ -4040,6 +4482,132 @@ mod tests {
          assert_eq!(params.model, None);
          assert_eq!(params.model_provider, None);
          assert_eq!(params.config, None);
@@ -90975,9 +91044,27 @@ index 683e7328e..5cfeb3b08 100644
 +    #[tokio::test]
 +    async fn cold_resume_restores_saved_tier_and_preserves_global_defaults() -> Result<()> {
 +        let home = tempfile::tempdir()?;
-+        let original = "service_tier = 'flex'\n";
++        // This regression assumes a model that actually supports ultrafast. An
++        // unsupported selected tier is intentionally absent from effective snapshots.
++        let mut catalog = codex_models_manager::bundled_models_response()?;
++        let model = catalog
++            .models
++            .iter_mut()
++            .find(|model| model.slug == "gpt-5.5")
++            .expect("bundled gpt-5.5 fixture");
++        model.service_tiers.push(ModelServiceTier {
++            id: "ultrafast".into(),
++            name: "Ultrafast".into(),
++            description: "Cold-resume regression fixture".into(),
++        });
++        let catalog_file = home.path().join("models.json");
++        std::fs::write(&catalog_file, serde_json::to_vec(&catalog)?)?;
++        let original = format!(
++            "service_tier = 'flex'\nmodel = 'gpt-5.5'\nmodel_catalog_json = {}\n[features]\nultrafast_mode = true\n",
++            toml::Value::String(catalog_file.to_string_lossy().into_owned())
++        );
 +        let file = home.path().join("config.toml");
-+        std::fs::write(&file, original)?;
++        std::fs::write(&file, &original)?;
 +        let config = ConfigBuilder::default()
 +            .loader_overrides(codex_config::LoaderOverrides::without_managed_config_for_tests())
 +            .codex_home(home.path().to_path_buf())
@@ -90997,6 +91084,29 @@ index 683e7328e..5cfeb3b08 100644
 +                    ..Default::default()
 +                })
 +                .await?
++        );
++        let updated = tokio::time::timeout(std::time::Duration::from_secs(10), async {
++            loop {
++                let event = first
++                    .next_event()
++                    .await
++                    .expect("live tier-update event stream");
++                if let codex_app_server_client::AppServerEvent::ServerNotification(notification) =
++                    event.event
++                    && let codex_app_server_protocol::ServerNotification::ThreadSettingsUpdated(
++                        notification,
++                    ) = *notification
++                    && notification.thread_id == thread.to_string()
++                {
++                    break notification;
++                }
++            }
++        })
++        .await?;
++        assert_eq!(
++            updated.thread_settings.service_tier.as_deref(),
++            Some("ultrafast"),
++            "the selected tier must be acknowledged before testing cold restoration"
 +        );
 +        first.shutdown().await?;
 +        let mut second = crate::start_embedded_app_server_for_picker(&config).await?;
@@ -91018,7 +91128,7 @@ index 683e7328e..5cfeb3b08 100644
      }
  
      #[tokio::test]
-@@ -4525,6 +5052,10 @@ mod tests {
+@@ -4525,6 +5093,10 @@ mod tests {
          let forked_from_id = ThreadId::new();
          let read_only_profile = PermissionProfile::read_only();
          let response = ThreadResumeResponse {
@@ -93587,10 +93697,10 @@ index 7023328f1..3f55da571 100644
              );
          } else {
 diff --git a/codex-rs/tui/src/bottom_pane/async_questions/state_tests.rs b/codex-rs/tui/src/bottom_pane/async_questions/state_tests.rs
-index 738b67bf8..3fae7c919 100644
+index 738b67bf8..453f20e02 100644
 --- a/codex-rs/tui/src/bottom_pane/async_questions/state_tests.rs
 +++ b/codex-rs/tui/src/bottom_pane/async_questions/state_tests.rs
-@@ -656,3 +656,60 @@ fn oversized_question_ids_keep_questions_answerable_without_echoing_the_id() {
+@@ -656,3 +656,72 @@ fn oversized_question_ids_keep_questions_answerable_without_echoing_the_id() {
      };
      assert_eq!(reply, "> Question\n\nAnswer");
  }
@@ -93647,7 +93757,19 @@ index 738b67bf8..3fae7c919 100644
 +            let Some(QuestionSubmission::Submit(reply)) = editor.submission else {
 +                panic!("remapped submit must submit in {locale:?}");
 +            };
-+            assert_eq!(reply, "> Question\n\nunchanged answer 답변");
++            let payload = reply
++                .strip_prefix("<send_user_message_question_reply>\n")
++                .unwrap()
++                .strip_suffix("\n</send_user_message_question_reply>")
++                .unwrap();
++            assert_eq!(
++                serde_json::from_str::<serde_json::Value>(payload).unwrap(),
++                serde_json::json!([{
++                    "answer": "unchanged answer 답변",
++                    "question": "Question",
++                    "questionItemId": "[\"request_user_input_async\",\"message\",0]"
++                }])
++            );
 +        });
 +    }
 +}
@@ -98093,10 +98215,10 @@ index b49c0ebe6..6eb55acc8 100644
          ] {
              if let Some(hint) = hint {
 diff --git a/codex-rs/tui/src/bottom_pane/warnings_view_tests.rs b/codex-rs/tui/src/bottom_pane/warnings_view_tests.rs
-index db80f2028..5f9e2b492 100644
+index db80f2028..281c46e52 100644
 --- a/codex-rs/tui/src/bottom_pane/warnings_view_tests.rs
 +++ b/codex-rs/tui/src/bottom_pane/warnings_view_tests.rs
-@@ -250,3 +250,30 @@ fn warning_links_preserve_destinations_when_wrapped_and_scrolled() {
+@@ -250,3 +250,37 @@ fn warning_links_preserve_destinations_when_wrapped_and_scrolled() {
              .all(|cell| cell.symbol().starts_with(&format!("\x1b]8;;{url}\x07")))
      );
  }
@@ -98119,7 +98241,14 @@ index db80f2028..5f9e2b492 100644
 +                screen.to_lowercase().contains("f10"),
 +                "{locale:?}: {screen}"
 +            );
-+            assert!(screen.contains(label), "{locale:?}: {screen}");
++            // The test buffer retains blank continuation cells after wide glyphs.
++            assert!(
++                screen
++                    .split_whitespace()
++                    .collect::<String>()
++                    .contains(label),
++                "{locale:?}: {screen}"
++            );
 +            view.handle_key(KeyEvent::new(KeyCode::F(10), KeyModifiers::NONE));
 +            assert!(
 +                matches!(rx.try_recv(), Ok(AppEvent::CopyWarning(text)) if text == entries()[0].details)
@@ -98914,10 +99043,10 @@ index 5e5d8a934..9a75b3165 100644
 +mod tests;
 diff --git a/codex-rs/tui/src/chatwidget/interaction_tests.rs b/codex-rs/tui/src/chatwidget/interaction_tests.rs
 new file mode 100644
-index 000000000..0317057f8
+index 000000000..073291935
 --- /dev/null
 +++ b/codex-rs/tui/src/chatwidget/interaction_tests.rs
-@@ -0,0 +1,78 @@
+@@ -0,0 +1,89 @@
 +use super::*;
 +use codex_config::types::KeybindingSpec;
 +use codex_config::types::KeybindingsSpec;
@@ -98928,7 +99057,7 @@ index 000000000..0317057f8
 +        crate::chatwidget::tests::make_chatwidget_manual_with_sender().await;
 +    chat.bottom_pane
 +        .set_composer_text("keep this input".into(), Vec::new(), Vec::new());
-+    let mut cases = vec![
++    let cases = [
 +        (
 +            "alt-v",
 +            KeyEvent::new(KeyCode::Char('v'), KeyModifiers::ALT),
@@ -98941,12 +99070,6 @@ index 000000000..0317057f8
 +            ),
 +        ),
 +    ];
-+    if cfg!(windows) {
-+        cases.push((
-+            "shift-insert",
-+            KeyEvent::new(KeyCode::Insert, KeyModifiers::SHIFT),
-+        ));
-+    }
 +    for (binding, event) in cases {
 +        let mut keymap = chat.config_ref().tui_keymap.clone();
 +        keymap.composer.submit = Some(KeybindingsSpec::One(KeybindingSpec(binding.into())));
@@ -98959,6 +99082,23 @@ index 000000000..0317057f8
 +            KeyEventAction::PasteImage { text_fallback }
 +                if text_fallback == (cfg!(windows) && event.code == KeyCode::Insert)
 +                    .then_some(KeyCode::Insert)
++        ));
++        chat.handle_key_event(KeyEvent {
++            kind: KeyEventKind::Release,
++            ..event
++        });
++        assert_eq!(chat.bottom_pane.composer_text(), "keep this input");
++    }
++    #[cfg(windows)]
++    {
++        // Legacy Shift+Insert arrives from the terminal even though Insert is
++        // deliberately not accepted by the user keybinding parser.
++        let event = KeyEvent::new(KeyCode::Insert, KeyModifiers::SHIFT);
++        assert!(matches!(
++            chat.handle_key_event(event),
++            KeyEventAction::PasteImage {
++                text_fallback: Some(KeyCode::Insert)
++            }
 +        ));
 +        chat.handle_key_event(KeyEvent {
 +            kind: KeyEventKind::Release,
@@ -107264,7 +107404,7 @@ index 5fd76e0d1..88dde5e80 100644
 +    }
 +}
 diff --git a/codex-rs/tui/src/keymap.rs b/codex-rs/tui/src/keymap.rs
-index 6ac0a2678..ca1273d37 100644
+index 6ac0a2678..dfad4cc19 100644
 --- a/codex-rs/tui/src/keymap.rs
 +++ b/codex-rs/tui/src/keymap.rs
 @@ -147,6 +147,7 @@ pub(crate) struct ChatKeymap {
@@ -107459,7 +107599,18 @@ index 6ac0a2678..ca1273d37 100644
  const MAIN_RESERVED_BINDINGS: &[(&str, KeyBinding)] = &[
      (
          "fixed.interrupt_or_quit",
-@@ -3902,10 +3970,104 @@ mod tests {
+@@ -2821,8 +2889,8 @@ mod tests {
+ 
+     fn expect_conflict(keymap: &TuiKeymap, first: &str, second: &str) {
+         let err = RuntimeKeymap::from_config(keymap).expect_err("expected conflict");
+-        assert!(err.contains(first));
+-        assert!(err.contains(second));
++        assert!(err.contains(first), "{err}");
++        assert!(err.contains(second), "{err}");
+     }
+ 
+     #[test]
+@@ -3902,10 +3970,116 @@ mod tests {
  
      #[test]
      fn rejects_main_bindings_that_collide_with_remaining_fixed_shortcuts() {
@@ -107475,14 +107626,26 @@ index 6ac0a2678..ca1273d37 100644
 +            keymap.composer.submit = Some(one(binding));
 +            expect_conflict(&keymap, "composer.submit", "fixed.paste_image");
 +        }
++        // Insert is a legacy terminal event, not a supported keymap token.
          let mut keymap = TuiKeymap::default();
 -        keymap.composer.submit = Some(one("ctrl-v"));
 +        keymap.composer.submit = Some(one("shift-insert"));
++        let error = RuntimeKeymap::from_config(&keymap).unwrap_err();
++        assert!(
++            error.contains("Invalid `tui.keymap.composer.submit`"),
++            "{error}"
++        );
++        assert!(error.contains("shift-insert"), "{error}");
++
++        // Check reservation separately from parsing, including the platform boundary.
++        let mut runtime = RuntimeKeymap::defaults();
++        runtime.composer.submit = vec![key_hint::shift(KeyCode::Insert)];
 +        if cfg!(windows) {
-+            expect_conflict(&keymap, "composer.submit", "fixed.paste_image");
++            let error = runtime.validate_conflicts().unwrap_err();
++            assert!(error.contains("composer.submit"), "{error}");
++            assert!(error.contains("fixed.paste_image"), "{error}");
 +        } else {
-+            RuntimeKeymap::from_config(&keymap)
-+                .expect("Shift+Insert is not fixed on this platform");
++            runtime.validate_conflicts().unwrap();
 +        }
 +    }
  

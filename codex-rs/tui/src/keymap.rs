@@ -2890,8 +2890,8 @@ mod tests {
 
     fn expect_conflict(keymap: &TuiKeymap, first: &str, second: &str) {
         let err = RuntimeKeymap::from_config(keymap).expect_err("expected conflict");
-        assert!(err.contains(first));
-        assert!(err.contains(second));
+        assert!(err.contains(first), "{err}");
+        assert!(err.contains(second), "{err}");
     }
 
     #[test]
@@ -3983,13 +3983,25 @@ mod tests {
             keymap.composer.submit = Some(one(binding));
             expect_conflict(&keymap, "composer.submit", "fixed.paste_image");
         }
+        // Insert is a legacy terminal event, not a supported keymap token.
         let mut keymap = TuiKeymap::default();
         keymap.composer.submit = Some(one("shift-insert"));
+        let error = RuntimeKeymap::from_config(&keymap).unwrap_err();
+        assert!(
+            error.contains("Invalid `tui.keymap.composer.submit`"),
+            "{error}"
+        );
+        assert!(error.contains("shift-insert"), "{error}");
+
+        // Check reservation separately from parsing, including the platform boundary.
+        let mut runtime = RuntimeKeymap::defaults();
+        runtime.composer.submit = vec![key_hint::shift(KeyCode::Insert)];
         if cfg!(windows) {
-            expect_conflict(&keymap, "composer.submit", "fixed.paste_image");
+            let error = runtime.validate_conflicts().unwrap_err();
+            assert!(error.contains("composer.submit"), "{error}");
+            assert!(error.contains("fixed.paste_image"), "{error}");
         } else {
-            RuntimeKeymap::from_config(&keymap)
-                .expect("Shift+Insert is not fixed on this platform");
+            runtime.validate_conflicts().unwrap();
         }
     }
 
