@@ -106,6 +106,7 @@ async fn revert_keeps_thread_id_and_hides_suffix_across_repeated_reverts() {
         replacement_meta.runtime_workspace_roots,
         Some(vec![home.path().join("workspace")])
     );
+    assert_replacement_projected(&store, first_replacement_path.as_path()).await;
     assert_eq!(turn_ids(&store, thread_id).await, vec!["turn-1"]);
 
     // Simulate an older binary replacing the rollout without the creator fields it does not know.
@@ -113,15 +114,24 @@ async fn revert_keeps_thread_id_and_hides_suffix_across_repeated_reverts() {
         .await
         .expect("read replacement rollout");
     let (meta_line, remaining_lines) = rollout.split_once('\n').expect("session metadata line");
+    let original_meta_line_bytes = meta_line.len();
     let mut meta_line: serde_json::Value = serde_json::from_str(meta_line).expect("parse metadata");
     let payload = meta_line["payload"]
         .as_object_mut()
         .expect("metadata payload");
     payload.remove("creator_user_id");
     payload.remove("creator_account_id");
+    // Keep history byte offsets intact: shortening an already projected rollout
+    // would independently violate the immutable-history contract under test.
+    let legacy_meta_line = meta_line.to_string();
+    let padding = " ".repeat(
+        original_meta_line_bytes
+            .checked_sub(legacy_meta_line.len())
+            .expect("omitting creator fields must shorten the metadata line"),
+    );
     tokio::fs::write(
         &first_replacement_path,
-        format!("{meta_line}\n{remaining_lines}"),
+        format!("{legacy_meta_line}{padding}\n{remaining_lines}"),
     )
     .await
     .expect("write legacy replacement rollout");
@@ -134,12 +144,13 @@ async fn revert_keeps_thread_id_and_hides_suffix_across_repeated_reverts() {
         })
         .await
         .expect("revert before first turn");
-    assert_eq!(turn_ids(&store, thread_id).await, Vec::<String>::new());
     let stored = state_db
         .get_thread(thread_id)
         .await
         .expect("read metadata")
         .expect("thread metadata");
+    assert_replacement_projected(&store, stored.rollout_path.as_path()).await;
+    assert_eq!(turn_ids(&store, thread_id).await, Vec::<String>::new());
     let recovered = codex_rollout::read_session_meta_line(&stored.rollout_path)
         .await
         .expect("read recovered creator metadata")
@@ -300,6 +311,24 @@ async fn create_paginated_thread(store: &LocalThreadStore, thread_id: ThreadId) 
         })
         .await
         .expect("create paginated thread");
+}
+
+// Revert must publish a readable replacement, including an empty retained history.
+// Check the actual rollout ID: the thread ID still names the original history projection.
+async fn assert_replacement_projected(store: &LocalThreadStore, path: &std::path::Path) {
+    let rollout_id = codex_rollout::rollout_id_from_path(path).expect("replacement rollout ID");
+    let checkpoint = super::super::thread_history::projection_state(store, rollout_id)
+        .await
+        .expect("read replacement projection")
+        .expect("revert must project replacement before publishing the current path");
+    assert_eq!(
+        checkpoint.next_byte_offset,
+        tokio::fs::metadata(path)
+            .await
+            .expect("replacement metadata")
+            .len(),
+        "replacement projection must cover the complete durable header"
+    );
 }
 
 async fn turn_ids(store: &LocalThreadStore, thread_id: ThreadId) -> Vec<String> {
