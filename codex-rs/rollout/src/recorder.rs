@@ -998,7 +998,16 @@ impl RolloutRecorder {
                     context_window: initial_window_id.map(SessionContextWindow::new),
                 };
 
+                let reference_publication = if history_base.is_some() || attached_thread {
+                    Some(
+                        crate::WriterLockCoordinator::new(config.codex_home())
+                            .reserve_reference_publication()?,
+                    )
+                } else {
+                    None
+                };
                 RolloutWriterState {
+                    reference_publication,
                     writer: None,
                     deferred_creation: true,
                     pending_items: Vec::new(),
@@ -1013,6 +1022,7 @@ impl RolloutRecorder {
                 let (path, file, ordinal_state) =
                     open_rollout_for_append(path.as_path(), writer_lock.clone()).await?;
                 RolloutWriterState {
+                    reference_publication: None,
                     writer: Some(JsonlWriter { file }),
                     deferred_creation: false,
                     pending_items: Vec::new(),
@@ -1829,6 +1839,8 @@ fn refresh_rollout_modified_time(file: &File) -> std::io::Result<()> {
 /// queue only after it is written successfully. I/O failures drop the file handle but keep the
 /// unwritten suffix so the next barrier can reopen the file and retry.
 struct RolloutWriterState {
+    // Background IO owns this through successful publication, even if the caller cancels.
+    reference_publication: Option<File>,
     writer: Option<JsonlWriter>,
     /// True until a newly created rollout is first materialized.
     deferred_creation: bool,
@@ -1955,6 +1967,8 @@ impl RolloutWriterState {
         if let Some(writer) = self.writer.as_mut() {
             writer.file.flush().await?;
         }
+        // The complete canonical header is now visible to deletion's reference scan.
+        self.reference_publication.take();
         Ok(())
     }
 

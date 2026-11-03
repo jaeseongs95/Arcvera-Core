@@ -19,7 +19,11 @@ use std::sync::atomic::AtomicU64;
 use uuid::Uuid;
 
 #[derive(Default)]
-pub(crate) struct CleanupAdmission(StdMutex<HashMap<ThreadId, AdmissionState>>);
+pub(crate) struct CleanupAdmission {
+    states: StdMutex<HashMap<ThreadId, AdmissionState>>,
+    #[cfg(test)]
+    isolated_unloaded_fixture: AtomicBool,
+}
 #[derive(Default)]
 struct AdmissionState {
     operations: usize,
@@ -36,6 +40,17 @@ struct CleanupReservation {
 }
 
 impl CleanupAdmission {
+    fn unloaded_reference_block_reason(&self) -> Option<&'static str> {
+        // Existing binaries do not publish a participant capability. A new lease cannot
+        // establish that an older process has no prepared or deferred reference.
+        #[cfg(test)]
+        if self.isolated_unloaded_fixture.load(Ordering::Relaxed) {
+            // Private, explicitly isolated fixture only; absent from production builds.
+            return None;
+        }
+        Some("reference_participants_unverified")
+    }
+
     pub(crate) fn admit(
         self: &Arc<Self>,
         ids: impl IntoIterator<Item = ThreadId>,
@@ -44,7 +59,7 @@ impl CleanupAdmission {
         ids.sort_unstable_by_key(ToString::to_string);
         ids.dedup();
         let mut states = self
-            .0
+            .states
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if ids
@@ -65,7 +80,7 @@ impl CleanupAdmission {
     }
     fn reserve(self: &Arc<Self>, id: ThreadId) -> Option<CleanupReservation> {
         let mut states = self
-            .0
+            .states
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let state = states.entry(id).or_default();
@@ -84,7 +99,7 @@ impl Drop for CleanupOperation {
     fn drop(&mut self) {
         let mut states = self
             .admission
-            .0
+            .states
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         for id in &self.ids {
@@ -101,7 +116,7 @@ impl Drop for CleanupReservation {
     fn drop(&mut self) {
         if !self.committed {
             self.admission
-                .0
+                .states
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .remove(&self.id);
@@ -361,6 +376,13 @@ impl ThreadManager {
             return Ok((None, "ownership_unverified"));
         }
         let Ok(thread) = self.get_thread(id).await else {
+            if let Some(reason) = self
+                .state
+                .cleanup_admission
+                .unloaded_reference_block_reason()
+            {
+                return Ok((None, reason));
+            }
             let Some(_reservation) = self.state.cleanup_admission.reserve(id) else {
                 return Ok((None, "busy"));
             };
@@ -378,6 +400,9 @@ impl ThreadManager {
                     codex_thread_store::ThreadStoreError::Conflict { .. }
                     | codex_thread_store::ThreadStoreError::InvalidRequest { .. },
                 ) => return Ok((None, "writer_owned")),
+                Err(codex_thread_store::ThreadStoreError::Retryable { .. }) => {
+                    return Ok((None, "reference_publication_busy"));
+                }
                 Err(error) => {
                     return Err(CodexErr::Fatal(format!(
                         "failed to reserve unloaded child: {error}"
@@ -635,6 +660,13 @@ impl ThreadManager {
             return Ok("has_descendants".into());
         }
         let Ok(thread) = self.get_thread(id).await else {
+            if let Some(reason) = self
+                .state
+                .cleanup_admission
+                .unloaded_reference_block_reason()
+            {
+                return Ok(reason.into());
+            }
             let Some(store) = self
                 .state
                 .thread_store
@@ -649,6 +681,9 @@ impl ThreadManager {
                     codex_thread_store::ThreadStoreError::Conflict { .. }
                     | codex_thread_store::ThreadStoreError::InvalidRequest { .. },
                 ) => return Ok("writer_owned".into()),
+                Err(codex_thread_store::ThreadStoreError::Retryable { .. }) => {
+                    return Ok("reference_publication_busy".into());
+                }
                 Err(error) => {
                     return Err(CodexErr::Fatal(format!(
                         "failed to reserve unloaded child: {error}"

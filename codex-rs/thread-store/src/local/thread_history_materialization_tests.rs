@@ -1634,6 +1634,50 @@ async fn metadata_cleanup_cannot_publish_dangling_cross_store_prepared_fork() {
 }
 
 #[tokio::test]
+async fn metadata_cleanup_rejects_stale_fork_after_complete_set_multi_delete() {
+    let home = TempDir::new().expect("isolated home");
+    let store_a = projection_store(home.path()).await;
+    let store_b = LocalThreadStore::new(test_config(home.path()), store_a.state_db().await);
+    let source = ThreadId::new();
+    create_paginated_thread(&store_a, source).await;
+    store_a
+        .append_items(AppendThreadItemsParams {
+            thread_id: source,
+            items: vec![turn_started("source"), turn_completed("source")],
+        })
+        .await
+        .unwrap();
+    store_a
+        .persist_thread(source, PersistContext::Standard)
+        .await
+        .unwrap();
+    store_a.shutdown_thread(source).await.unwrap();
+    let prepared = prepare_paginated_fork(&store_b, source, ForkBoundary::Latest).await;
+    let base = prepared.history_base.expect("source prefix");
+    let child = ThreadId::new();
+    create_paginated_subagent_thread(&store_b, child, Some(base), None).await;
+    store_b
+        .persist_thread(child, PersistContext::Standard)
+        .await
+        .unwrap();
+    store_b.shutdown_thread(child).await.unwrap();
+    drop(prepared);
+    store_a
+        .delete_threads(crate::DeleteThreadsParams {
+            thread_ids: vec![source, child],
+        })
+        .await
+        .expect("one exclusive lease permits complete-set deletion");
+    let error = store_b
+        .create_thread(paginated_thread_params(ThreadId::new(), Some(base), None))
+        .await
+        .expect_err("stale prefix cannot create a dangling reference");
+    assert!(
+        matches!(error, crate::ThreadStoreError::ThreadNotFound { thread_id } if thread_id == source)
+    );
+}
+
+#[tokio::test]
 async fn prepared_fork_reserves_source_until_child_reference_is_durable() {
     let home = TempDir::new().expect("temp dir");
     let store = projection_store(home.path()).await;
@@ -3323,35 +3367,47 @@ async fn create_paginated_subagent_thread(
     subagent_history_start_ordinal: Option<u64>,
 ) {
     store
-        .create_thread(CreateThreadParams {
-            attached_thread: false,
-            creator_user_id: None,
-            creator_account_id: None,
-            session_id: thread_id.into(),
+        .create_thread(paginated_thread_params(
             thread_id,
-            extra_config: None,
-            forked_from_id: None,
-            parent_thread_id: None,
-            source: SessionSource::Exec,
-            thread_source: None,
-            originator: "test_originator".to_string(),
-            base_instructions: BaseInstructions::default(),
-            dynamic_tools: Vec::new(),
-            selected_capability_roots: Vec::new(),
-            multi_agent_version: None,
-            history_mode: ThreadHistoryMode::Paginated,
             history_base,
             subagent_history_start_ordinal,
-            initial_window_id: "window-1".to_string(),
-            runtime_workspace_roots: None,
-            metadata: ThreadPersistenceMetadata {
-                cwd: Some(std::env::current_dir().expect("cwd")),
-                model_provider: "test-provider".to_string(),
-                memory_mode: ThreadMemoryMode::Enabled,
-            },
-        })
+        ))
         .await
         .expect("create paginated thread");
+}
+
+fn paginated_thread_params(
+    thread_id: ThreadId,
+    history_base: Option<HistoryPosition>,
+    subagent_history_start_ordinal: Option<u64>,
+) -> CreateThreadParams {
+    CreateThreadParams {
+        attached_thread: false,
+        creator_user_id: None,
+        creator_account_id: None,
+        session_id: thread_id.into(),
+        thread_id,
+        extra_config: None,
+        forked_from_id: None,
+        parent_thread_id: None,
+        source: SessionSource::Exec,
+        thread_source: None,
+        originator: "test_originator".to_string(),
+        base_instructions: BaseInstructions::default(),
+        dynamic_tools: Vec::new(),
+        selected_capability_roots: Vec::new(),
+        multi_agent_version: None,
+        history_mode: ThreadHistoryMode::Paginated,
+        history_base,
+        subagent_history_start_ordinal,
+        initial_window_id: "window-1".to_string(),
+        runtime_workspace_roots: None,
+        metadata: ThreadPersistenceMetadata {
+            cwd: Some(std::env::current_dir().expect("cwd")),
+            model_provider: "test-provider".to_string(),
+            memory_mode: ThreadMemoryMode::Enabled,
+        },
+    }
 }
 
 fn turn_started(turn_id: &str) -> RolloutItem {

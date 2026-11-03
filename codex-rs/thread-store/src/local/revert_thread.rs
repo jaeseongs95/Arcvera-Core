@@ -20,6 +20,18 @@ pub(super) async fn revert(
     store: &LocalThreadStore,
     params: RevertThreadParams,
 ) -> ThreadStoreResult<()> {
+    let owner = store.clone();
+    tokio::spawn(async move { revert_owned(&owner, params).await })
+        .await
+        .map_err(|error| ThreadStoreError::OutcomeUnknown {
+            message: format!("revert owner task failed: {error}"),
+        })?
+}
+
+async fn revert_owned(
+    store: &LocalThreadStore,
+    params: RevertThreadParams,
+) -> ThreadStoreResult<()> {
     let RevertThreadParams {
         thread_id,
         before_turn_id,
@@ -31,6 +43,7 @@ pub(super) async fn revert(
         .ok_or(ThreadStoreError::Unsupported {
             operation: "revert_thread",
         })?;
+    let _reference_publication = store.reserve_reference_publication()?;
     let _lifecycle_guard = store.live_writer_locks.lock_lifecycle(thread_id).await;
     let _live_writer_guard = store.live_writer_locks.lock(thread_id).await;
     store.ensure_live_recorder_absent(thread_id).await?;

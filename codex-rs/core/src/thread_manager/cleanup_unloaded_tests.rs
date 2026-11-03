@@ -1,5 +1,62 @@
 use super::*;
 
+// Only these temporary-home libtests exercise the deeper dormant cold-deletion path.
+// This is not a product capability or an assertion about other running binaries.
+async fn isolated_unloaded_fixture() -> (
+    (
+        tempfile::TempDir,
+        ThreadManager,
+        crate::config::Config,
+        super::super::super::NewThread,
+    ),
+    Arc<StoreFaults>,
+) {
+    let ((home, manager, config, root), faults) = fixture_with_graph_options(None, true).await;
+    assert_eq!(config.codex_home.as_path(), home.path());
+    manager
+        .state
+        .cleanup_admission
+        .isolated_unloaded_fixture
+        .store(true, Ordering::Relaxed);
+    ((home, manager, config, root), faults)
+}
+
+#[tokio::test]
+async fn unloaded_cleanup_defaults_to_preservation_when_participants_are_unverified() {
+    let ((_home, manager, config, root), faults) = fixture_with_graph_options(None, true).await;
+    let done = stored_child(&manager, &config, &root).await;
+    complete(&done.thread).await;
+    let selected = selection(&manager, root.thread_id).await;
+    assert_eq!(
+        selected.len(),
+        1,
+        "loaded cleanup retains its existing eligibility"
+    );
+    unload(&manager, &done).await;
+    let path = done.thread.rollout_path().unwrap();
+    let before = std::fs::read(&path).unwrap();
+    let preview = manager
+        .preview_completed_children(root.thread_id, root.thread_id)
+        .await
+        .unwrap();
+    let entry = preview
+        .iter()
+        .find(|entry| entry.thread_id == done.thread_id)
+        .unwrap();
+    assert_eq!(entry.reason, "reference_participants_unverified");
+    assert!(entry.snapshot.is_none());
+    // Confirmation cannot bypass default preservation with a previously loaded snapshot.
+    let results = manager
+        .cleanup_completed_children(root.thread_id, root.thread_id, selected)
+        .await
+        .unwrap();
+    assert_eq!(results[0].reason, "reference_participants_unverified");
+    assert_eq!(std::fs::read(&path).unwrap(), before);
+    assert!(stored(&manager, done.thread_id).await);
+    assert!(manager.admit_thread_activity(done.thread_id).is_ok());
+    assert!(faults.deletes.lock().unwrap().is_empty());
+}
+
 async fn stored_child(
     manager: &ThreadManager,
     config: &crate::config::Config,
@@ -31,7 +88,7 @@ async fn unload(manager: &ThreadManager, child: &super::super::super::NewThread)
 
 #[tokio::test]
 async fn unloaded_terminal_cleanup_uses_metadata_without_loading_and_deletes_only_selection() {
-    let ((_home, manager, config, root), _) = fixture_with_graph_options(None, true).await;
+    let ((_home, manager, config, root), _) = isolated_unloaded_fixture().await;
     let done = stored_child(&manager, &config, &root).await;
     let sibling = stored_child(&manager, &config, &root).await;
     complete(&done.thread).await;
@@ -72,7 +129,7 @@ async fn unloaded_terminal_cleanup_uses_metadata_without_loading_and_deletes_onl
 #[tokio::test]
 async fn unloaded_cleanup_rejects_new_turn_after_preview_and_keeps_history() {
     use std::io::Write;
-    let ((_home, manager, config, root), _) = fixture_with_graph_options(None, true).await;
+    let ((_home, manager, config, root), _) = isolated_unloaded_fixture().await;
     let done = stored_child(&manager, &config, &root).await;
     complete(&done.thread).await;
     unload(&manager, &done).await;
@@ -115,7 +172,7 @@ async fn unloaded_cleanup_rejects_new_turn_after_preview_and_keeps_history() {
 
 #[tokio::test]
 async fn unloaded_cleanup_preserves_a_foreign_manager_writer_and_stale_loaded_snapshot() {
-    let ((_home, manager, config, root), _) = fixture_with_graph_options(None, true).await;
+    let ((_home, manager, config, root), _) = isolated_unloaded_fixture().await;
     let done = stored_child(&manager, &config, &root).await;
     complete(&done.thread).await;
     let loaded = selection(&manager, root.thread_id).await;
@@ -152,7 +209,7 @@ async fn unloaded_cleanup_preserves_a_foreign_manager_writer_and_stale_loaded_sn
 
 #[tokio::test]
 async fn unloaded_cleanup_owner_keeps_writer_and_admission_after_request_cancellation() {
-    let ((_home, manager, config, root), faults) = fixture_with_graph_options(None, true).await;
+    let ((_home, manager, config, root), faults) = isolated_unloaded_fixture().await;
     let done = stored_child(&manager, &config, &root).await;
     complete(&done.thread).await;
     unload(&manager, &done).await;
@@ -233,7 +290,7 @@ fn write_cleanup_reference(source: &CodexThread, attached: bool) -> std::path::P
 #[tokio::test]
 async fn unloaded_cleanup_reference_rejection_releases_admission_and_allows_real_reload() {
     for attached in [true, false] {
-        let ((_home, manager, config, root), _) = fixture_with_graph_options(None, true).await;
+        let ((_home, manager, config, root), _) = isolated_unloaded_fixture().await;
         let done = stored_child(&manager, &config, &root).await;
         complete(&done.thread).await;
         unload(&manager, &done).await;
@@ -289,7 +346,7 @@ async fn unloaded_cleanup_reference_rejection_releases_admission_and_allows_real
 #[tokio::test]
 async fn loaded_cleanup_reference_rejection_preserves_live_owner_and_admission() {
     for attached in [true, false] {
-        let ((_home, manager, config, root), faults) = fixture_with_graph_options(None, true).await;
+        let ((_home, manager, config, root), faults) = isolated_unloaded_fixture().await;
         let done = stored_child(&manager, &config, &root).await;
         complete(&done.thread).await;
         let selected = selection(&manager, root.thread_id).await;
@@ -310,7 +367,7 @@ async fn loaded_cleanup_reference_rejection_preserves_live_owner_and_admission()
 
 #[tokio::test]
 async fn unloaded_cleanup_retains_tombstone_after_host_cleanup_mutation_boundary_failure() {
-    let ((_home, manager, config, root), faults) = fixture_with_graph_options(None, true).await;
+    let ((_home, manager, config, root), faults) = isolated_unloaded_fixture().await;
     let done = stored_child(&manager, &config, &root).await;
     complete(&done.thread).await;
     unload(&manager, &done).await;

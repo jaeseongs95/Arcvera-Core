@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::Path;
 use std::sync::Arc;
 
 use codex_protocol::ThreadId;
@@ -128,4 +129,118 @@ fn publication_skips_live_writers_and_keeps_coordination_locked() {
             .expect("stale lock is idle"),
     );
     assert!(writer.acquire(thread_id).is_ok());
+}
+
+#[test]
+fn reference_leases_share_with_active_writers_and_never_split_the_namespace() {
+    let home = TempDir::new().expect("isolated home");
+    let first = Arc::new(WriterLockCoordinator::new(home.path()));
+    let second = Arc::new(WriterLockCoordinator::new(home.path()));
+    let parent = ThreadId::new();
+    let writer = first.acquire(parent).expect("active parent writer");
+    let prepared = first
+        .reserve_reference_publication()
+        .expect("prepare during active writer");
+    let publishing = second
+        .reserve_reference_publication()
+        .expect("concurrent reference publication");
+    assert_eq!(
+        second.reserve_reference_deletion().unwrap_err().kind(),
+        ErrorKind::WouldBlock
+    );
+    // Writer acquisition also performs stale-file cleanup. It must leave the graph inode alone.
+    let third = Arc::new(WriterLockCoordinator::new(home.path()));
+    let unrelated_writer = third
+        .acquire(ThreadId::new())
+        .expect("unrelated writer remains available");
+    assert_eq!(
+        third.reserve_reference_deletion().unwrap_err().kind(),
+        ErrorKind::WouldBlock
+    );
+    drop(publishing);
+    drop(prepared);
+    let deleting = second
+        .reserve_reference_deletion()
+        .expect("released reference reservations");
+    assert_eq!(
+        first.reserve_reference_publication().unwrap_err().kind(),
+        ErrorKind::WouldBlock
+    );
+    assert!(
+        first
+            .try_acquire_for_publication(ThreadId::new())
+            .unwrap()
+            .is_none(),
+        "compression must not move a reference during deletion's scan"
+    );
+    drop(deleting);
+    drop(unrelated_writer);
+    drop(writer);
+    let shared = first
+        .reserve_reference_publication()
+        .expect("namespace remains usable");
+    assert_eq!(
+        second.reserve_reference_deletion().unwrap_err().kind(),
+        ErrorKind::WouldBlock
+    );
+    drop(shared);
+    second
+        .reserve_reference_deletion()
+        .expect("all guards release without coordination deadlock");
+}
+
+#[test]
+fn reference_leases_cross_process_probe() {
+    let Some(home) = std::env::var_os("CODEX_R36_REFERENCE_FIXTURE_HOME") else {
+        return;
+    };
+    let coordinator = WriterLockCoordinator::new(Path::new(&home));
+    if std::env::var_os("CODEX_R36_REFERENCE_FIXTURE_BLOCKED").is_some() {
+        assert_eq!(
+            coordinator.reserve_reference_deletion().unwrap_err().kind(),
+            ErrorKind::WouldBlock
+        );
+    } else {
+        coordinator
+            .reserve_reference_deletion()
+            .expect("parent released its lease");
+    }
+}
+
+#[test]
+fn reference_leases_are_enforced_across_processes() {
+    let home = TempDir::new().expect("isolated home");
+    let coordinator = WriterLockCoordinator::new(home.path());
+    let shared = coordinator
+        .reserve_reference_publication()
+        .expect("parent publication lease");
+    let run_probe = |blocked| {
+        let mut command =
+            std::process::Command::new(std::env::current_exe().expect("test executable"));
+        command
+            .args([
+                "--exact",
+                "writer_lock::tests::reference_leases_cross_process_probe",
+                "--nocapture",
+            ])
+            .env("CODEX_R36_REFERENCE_FIXTURE_HOME", home.path());
+        if blocked {
+            command.env("CODEX_R36_REFERENCE_FIXTURE_BLOCKED", "1");
+        } else {
+            command.env_remove("CODEX_R36_REFERENCE_FIXTURE_BLOCKED");
+        }
+        let output = command.output().expect("run isolated child lock probe");
+        assert!(
+            output.status.success(),
+            "child failed: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+            "probe must actually run"
+        );
+    };
+    run_probe(true);
+    drop(shared);
+    run_probe(false);
 }

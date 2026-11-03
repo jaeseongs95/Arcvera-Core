@@ -1032,6 +1032,7 @@ async fn writer_state_retries_write_error_before_reporting_flush_success() -> st
     File::create(&rollout_path)?;
     let read_only_file = std::fs::OpenOptions::new().read(true).open(&rollout_path)?;
     let mut state = RolloutWriterState {
+        reference_publication: None,
         writer: Some(JsonlWriter {
             file: tokio::fs::File::from_std(read_only_file),
         }),
@@ -2042,5 +2043,61 @@ async fn resume_candidate_matches_cwd_reads_latest_turn_context() -> std::io::Re
         )
         .await
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn reference_publication_lease_survives_cancelled_reply_and_failed_persist()
+-> std::io::Result<()> {
+    let home = TempDir::new().expect("isolated home");
+    let coordinator = crate::WriterLockCoordinator::new(home.path());
+    let recorder = RolloutRecorder::new(
+        &test_config(home.path()),
+        RolloutRecorderParams::new(
+            ThreadId::new(),
+            None,
+            None,
+            SessionSource::Exec,
+            None,
+            "reference-lease-fixture".into(),
+            BaseInstructions::default(),
+            Vec::new(),
+        )
+        .with_history_mode(ThreadHistoryMode::Paginated)
+        .with_history_base(Some(HistoryPosition {
+            thread_id: ThreadId::new(),
+            end_ordinal_exclusive: 1,
+            end_byte_offset: 1,
+        })),
+    )
+    .await?;
+    assert_eq!(
+        coordinator.reserve_reference_deletion().unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+    // Block real creation so both persistence attempts fail, preserving the reservation.
+    let sessions = home.path().join(crate::SESSIONS_SUBDIR);
+    fs::write(&sessions, b"fixture blocks directory creation")?;
+    assert!(recorder.persist().await.is_err());
+    assert_eq!(
+        coordinator.reserve_reference_deletion().unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+    fs::remove_file(sessions)?;
+    let (ack, cancelled_reply) = oneshot::channel();
+    recorder
+        .tx
+        .send(RolloutCmd::Persist { ack })
+        .await
+        .map_err(IoError::other)?;
+    drop(cancelled_reply);
+    // The following command is sequenced after the abandoned persistence reply.
+    assert!(recorder.unpersisted_session_meta().await?.is_none());
+    assert!(recorder.rollout_path().exists());
+    let deleting = coordinator.reserve_reference_deletion()?;
+    let header = crate::read_session_meta_line(recorder.rollout_path()).await?;
+    assert!(header.meta.history_base.is_some());
+    drop(deleting);
+    recorder.shutdown().await?;
     Ok(())
 }

@@ -20,6 +20,7 @@ pub(super) async fn prepare(
         thread_id,
         boundary,
     } = params;
+    let publication_reservation = store.reserve_reference_publication()?;
     let source_reservation = store.live_writer_locks.reserve_lifecycle(thread_id).await;
     // Keep the source reserved until persistence and lineage materialization finish, even if the
     // caller cancels fork preparation.
@@ -32,7 +33,7 @@ pub(super) async fn prepare(
         let lineage = lineage_store
             .resolve_rollout_lineage_for_reference(thread_id)
             .await?;
-        Ok::<_, ThreadStoreError>((lineage, source_reservation))
+        Ok::<_, ThreadStoreError>((lineage, (source_reservation, publication_reservation)))
     })
     .await
     .map_err(|err| ThreadStoreError::Internal {
