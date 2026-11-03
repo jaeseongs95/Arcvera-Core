@@ -120134,7 +120134,7 @@ index 000000000..5ff5afa10
 +exit $exitCode
 diff --git a/tools/windows-cli/test_update_output.py b/tools/windows-cli/test_update_output.py
 new file mode 100644
-index 000000000..d8432dfea
+index 000000000..016c212dc
 --- /dev/null
 +++ b/tools/windows-cli/test_update_output.py
 @@ -0,0 +1,117 @@
@@ -120210,7 +120210,7 @@ index 000000000..d8432dfea
 +    version = receipt['version'].removeprefix('codex-cli ')
 +    pointer = {'schema': 1, 'installationRoot': str(install),
 +               'bootstrapManifestSha256': digest, 'bootstrapPackageRoot': str(package),
-+               'packageRoot': str(package), 'manifestSha256': digest, 'revision': 33,
++               'packageRoot': str(package), 'manifestSha256': digest, 'revision': int(version.split('+native-r', 1)[1].split('.', 1)[0]),
 +               'version': version, 'sourceCommit': receipt['sourceCommit']}
 +    (install / 'current-package.json').write_text(json.dumps(pointer), encoding='utf-8')
 +    launcher = install / 'opendiy-codex-launcher.exe'
