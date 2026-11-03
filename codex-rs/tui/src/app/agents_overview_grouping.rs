@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Command Center grouping, including restoration and client-local preference persistence.
 //! Directory is view-local so selecting it never writes a value that older clients reject.
 
@@ -44,6 +45,15 @@ pub(super) fn model_name(thread: &Thread) -> &str {
         .as_deref()
         .filter(|model| !model.is_empty())
         .unwrap_or("Unknown")
+}
+
+// Keep model_name's stable grouping key separate from the localized display fallback.
+pub(super) fn display_model_name(thread: &Thread) -> &str {
+    thread
+        .model
+        .as_deref()
+        .filter(|model| !model.is_empty())
+        .unwrap_or(crate::i18n::static_message("picker-center-unknown"))
 }
 
 impl AgentsOverviewView {
@@ -155,8 +165,9 @@ impl App {
                 .apply()
                 .await
         {
-            self.add_agents_overview_error(format!(
-                "Failed to save Command Center grouping: {err}"
+            self.add_agents_overview_error(crate::i18n::message(
+                "picker-center-save-grouping-error",
+                &[("value", err.to_string().as_str())],
             ));
         }
     }

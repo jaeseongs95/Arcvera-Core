@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Status tabs, task rows, the rename editor and details share a wide/narrow layout.
 
 use super::hints::hint_line;
@@ -104,13 +105,15 @@ impl Renderable for AgentsOverviewView {
         if state.editing_metadata() && !layout.search.is_empty() {
             if state.rename_target.is_some() {
                 let mut area = layout.search;
-                let prefix_width = 9.min(area.width);
+                let prefix_width = (crate::i18n::static_message("picker-rename-spaced").width()
+                    as u16)
+                    .min(area.width);
                 area.x += prefix_width;
                 area.width -= prefix_width;
                 return state.input.cursor_pos(area);
             }
             let input = &state.search;
-            let prefix = "Search › ";
+            let prefix = crate::i18n::static_message("picker-search-spaced");
             let available = usize::from(layout.search.width).saturating_sub(prefix.width() + 1);
             return Some((
                 layout.search.x
@@ -136,10 +139,10 @@ impl Renderable for AgentsOverviewView {
             self.center_filter_hint()
         };
         let grouping = match state.grouping {
-            AgentsOverviewGrouping::Project => "Project",
-            AgentsOverviewGrouping::Directory => "Directory",
-            AgentsOverviewGrouping::Status => "Status",
-            AgentsOverviewGrouping::Model => "Model",
+            AgentsOverviewGrouping::Project => crate::i18n::static_message("picker-project"),
+            AgentsOverviewGrouping::Directory => crate::i18n::static_message("picker-directory"),
+            AgentsOverviewGrouping::Status => crate::i18n::static_message("picker-status"),
+            AgentsOverviewGrouping::Model => crate::i18n::static_message("picker-model"),
         };
         let group_key = self
             .agents_keymap
@@ -148,15 +151,26 @@ impl Renderable for AgentsOverviewView {
             .unwrap_or_default();
         line(
             vec![
-                "Agent command center".bold(),
-                format!("  Group: {grouping}  {group_key}").dim(),
+                crate::i18n::static_message("picker-agent-command-center").bold(),
+                format!(
+                    "  {} {grouping}  {group_key}",
+                    crate::i18n::static_message("picker-group-label")
+                )
+                .dim(),
             ],
             inset(layout.header),
             buf,
         );
         let labels = TASK_FILTERS
             .iter()
-            .map(|(label, group)| {
+            .map(|(_, group)| {
+                let label = crate::i18n::static_message(match group {
+                    None => "picker-all",
+                    Some(AgentsOverviewGroup::NeedsYou) => "picker-needs-you",
+                    Some(AgentsOverviewGroup::Working) => "picker-working",
+                    Some(AgentsOverviewGroup::Ready) => "picker-ready",
+                    Some(AgentsOverviewGroup::Finished) => "picker-inactive",
+                });
                 let count = self
                     .rows
                     .iter()
@@ -166,7 +180,10 @@ impl Renderable for AgentsOverviewView {
             })
             .collect::<Vec<_>>();
         let mut tabs = inset(row(layout.header, /*offset*/ 1, /*height*/ 1));
-        let filter_hint = hint_line(&[(filter_keys, "filter".into())]);
+        let filter_hint = hint_line(&[(
+            filter_keys,
+            crate::i18n::static_message("picker-filter").into(),
+        )]);
         if tabs.width >= 80 && filter_hint.width() > 0 {
             let hint_width = filter_hint.width() as u16;
             filter_hint.render(
@@ -191,14 +208,22 @@ impl Renderable for AgentsOverviewView {
         if state.editing_metadata() {
             buf.set_style(layout.search, crate::bottom_pane::active_tab_style());
             if state.rename_target.is_some() {
-                line("Rename › ".cyan().bold(), layout.search, buf);
+                line(
+                    crate::i18n::static_message("picker-rename-spaced")
+                        .cyan()
+                        .bold(),
+                    layout.search,
+                    buf,
+                );
                 let mut area = layout.search;
-                let prefix_width = 9.min(area.width);
+                let prefix_width = (crate::i18n::static_message("picker-rename-spaced").width()
+                    as u16)
+                    .min(area.width);
                 area.x += prefix_width;
                 area.width -= prefix_width;
                 WidgetRef::render_ref(&&state.input, area, buf);
             } else {
-                let label = "Search › ";
+                let label = crate::i18n::static_message("picker-search-spaced");
                 let available = usize::from(layout.search.width).saturating_sub(label.width() + 1);
                 line(
                     vec![
@@ -216,20 +241,23 @@ impl Renderable for AgentsOverviewView {
             .or_else(|| {
                 state
                     .creating_worktree
-                    .then(|| "Creating worktree…".to_owned())
+                    .then(|| crate::i18n::static_message("picker-creating-worktree").to_owned())
             })
             .or_else(|| {
                 state.removal.map(|action| match action {
                     AgentsOverviewAction::Archive => {
-                        "Archiving task…  You can still browse.".to_owned()
+                        crate::i18n::static_message("picker-archiving-task-you-can-still-browse")
+                            .to_owned()
                     }
                     AgentsOverviewAction::Delete => {
-                        "Deleting task…  You can still browse.".to_owned()
+                        crate::i18n::static_message("picker-deleting-task-you-can-still-browse")
+                            .to_owned()
                     }
                 })
             })
             .or_else(|| {
-                (state.refresh_failed && !state.loading).then(|| "Error loading tasks".to_owned())
+                (state.refresh_failed && !state.loading)
+                    .then(|| crate::i18n::static_message("picker-error-loading-tasks").to_owned())
             })
             .or_else(|| state.server_version_notice.clone());
         if let Some(notice) = notice.filter(|_| !state.help && state.key_chord_hint.is_none()) {
@@ -250,7 +278,11 @@ impl Renderable for AgentsOverviewView {
             let mut lines = self.center_help_lines(body.width);
             if lines.len() > usize::from(body.height) {
                 lines.truncate(usize::from(body.height.saturating_sub(/*rhs*/ 1)));
-                lines.push("… resize to see all".dim().into());
+                lines.push(
+                    crate::i18n::static_message("picker-resize-to-see-all")
+                        .dim()
+                        .into(),
+                );
             }
             Paragraph::new(lines).render(body, buf);
             return;
@@ -265,6 +297,31 @@ impl Renderable for AgentsOverviewView {
         self.render_center_rows(layout.list, buf);
         if !layout.details.is_empty() {
             self.render_details(layout.details, buf);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn localized_search_keeps_original_graphemes_in_narrow_rows() {
+        for locale in [crate::i18n::Locale::English, crate::i18n::Locale::Korean] {
+            crate::i18n::with_locale(locale, || {
+                let original = "원문 e\u{301}🙂";
+                for width in [1, 4, 12, 40] {
+                    let area = Rect::new(0, 0, width, 1);
+                    let mut buf = Buffer::empty(area);
+                    let prefix = crate::i18n::static_message("picker-search-spaced");
+                    let available = usize::from(width).saturating_sub(prefix.width() + 1);
+                    let suffix = visible_suffix(original, available);
+                    assert!(original.ends_with(suffix));
+                    assert!(suffix.width() <= available);
+                    line(format!("{prefix}{suffix}"), area, &mut buf);
+                }
+                assert_eq!(visible_suffix(original, 40), original);
+            });
         }
     }
 }

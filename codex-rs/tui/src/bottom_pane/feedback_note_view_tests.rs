@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use super::*;
 use pretty_assertions::assert_eq;
 use std::time::Duration;
@@ -367,4 +368,60 @@ fn feedback_note_cancel_does_not_submit() {
 
     assert_eq!(view.is_complete(), true);
     assert!(rx.try_recv().is_err());
+}
+
+#[test]
+fn localized_feedback_disclosures_keep_policy_links_and_user_text() {
+    for (locale, title, external_label, employee_label) in [
+        (
+            crate::i18n::Locale::English,
+            "Tell us more (bug)",
+            "Learnmore",
+            "here",
+        ),
+        (
+            crate::i18n::Locale::Korean,
+            "자세히 알려주세요 (버그)",
+            "자세히알아보기",
+            "여기",
+        ),
+    ] {
+        crate::i18n::with_locale(locale, || {
+            for (audience, url, label) in [
+                (
+                    FeedbackAudience::External,
+                    FEEDBACK_POLICY_URL,
+                    external_label,
+                ),
+                (
+                    FeedbackAudience::OpenAiEmployee,
+                    EMPLOYEE_FEEDBACK_FAQ_URL,
+                    employee_label,
+                ),
+            ] {
+                let mut view = make_view(FeedbackCategory::Bug);
+                view.feedback_audience = audience;
+                let original = "사용자 e\u{301}🦀 { $host }";
+                view.handle_paste(original.to_string());
+                assert_eq!(view.textarea.text(), original);
+                for width in [40, 80, 120] {
+                    let area = Rect::new(0, 0, width, view.desired_height(width));
+                    let mut buf = Buffer::empty(area);
+                    view.render(area, &mut buf);
+                    assert!(
+                        render_buffer(area, &buf)
+                            .replace(' ', "")
+                            .contains(&title.replace(' ', ""))
+                    );
+                    let linked = buf
+                        .content
+                        .iter()
+                        .filter(|cell| cell.symbol().contains(&format!("\x1b]8;;{url}\x07")))
+                        .map(|cell| crate::terminal_hyperlinks::strip_osc8(cell.symbol()))
+                        .collect::<String>();
+                    assert_eq!(linked, label);
+                }
+            }
+        });
+    }
 }

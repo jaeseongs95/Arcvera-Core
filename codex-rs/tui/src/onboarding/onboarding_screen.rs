@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Onboarding screen orchestration and top-level keyboard routing.
 //!
 //! The onboarding flow is a small state machine over visible steps
@@ -616,6 +617,20 @@ async fn run_onboarding_screen(
     result.and_then(|result| restore.map(|()| result).map_err(Into::into))
 }
 
+fn copy_link_status_message(status: CopyStatus) -> String {
+    let id = match status {
+        CopyStatus::Pending(_) => "dialogs-onboarding-copy-pending",
+        CopyStatus::Busy => "dialogs-onboarding-copy-busy",
+        CopyStatus::Confirmed => "dialogs-onboarding-copy-confirmed",
+        CopyStatus::Unconfirmed => "dialogs-onboarding-copy-unconfirmed",
+    };
+    crate::i18n::message(id, &[])
+}
+
+fn copy_link_error_message(error: &str) -> String {
+    crate::i18n::message("dialogs-onboarding-copy-error", &[("error", error)])
+}
+
 async fn run_onboarding_screen_inner(
     mut onboarding_screen: OnboardingScreen,
     app_server_request_handle: Option<AppServerRequestHandle>,
@@ -660,12 +675,12 @@ async fn run_onboarding_screen_inner(
                                 let message = match result {
                                     Ok(CopyStatus::Pending(id)) => {
                                         pending_copy = Some((id, login_id));
-                                        "Copying link…".to_string()
+                                        copy_link_status_message(CopyStatus::Pending(id))
                                     }
-                                    Ok(CopyStatus::Busy) => "Clipboard busy; try again".to_string(),
-                                    Ok(CopyStatus::Confirmed) => "Copied link to clipboard".to_string(),
-                                    Ok(CopyStatus::Unconfirmed) => "Copy requested; check your clipboard".to_string(),
-                                    Err(error) => format!("Could not copy link: {error}"),
+                                    Ok(CopyStatus::Busy) => copy_link_status_message(CopyStatus::Busy),
+                                    Ok(CopyStatus::Confirmed) => copy_link_status_message(CopyStatus::Confirmed),
+                                    Ok(CopyStatus::Unconfirmed) => copy_link_status_message(CopyStatus::Unconfirmed),
+                                    Err(error) => copy_link_error_message(error.to_string().as_str()),
                                 };
                                 if let Some(Step::Auth(widget)) = onboarding_screen.current_steps_mut().into_iter().last() {
                                     *widget.error.write().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(message);
@@ -700,10 +715,10 @@ async fn run_onboarding_screen_inner(
                                     })
                                 {
                                     let message = match result {
-                                        Ok(CopyStatus::Confirmed) => "Copied link to clipboard".to_string(),
-                                        Ok(CopyStatus::Unconfirmed) => "Copy requested; check your clipboard".to_string(),
-                                        Ok(CopyStatus::Busy | CopyStatus::Pending(_)) => "Clipboard busy; try again".to_string(),
-                                        Err(error) => format!("Could not copy link: {error}"),
+                                        Ok(CopyStatus::Confirmed) => copy_link_status_message(CopyStatus::Confirmed),
+                                        Ok(CopyStatus::Unconfirmed) => copy_link_status_message(CopyStatus::Unconfirmed),
+                                        Ok(CopyStatus::Busy | CopyStatus::Pending(_)) => copy_link_status_message(CopyStatus::Busy),
+                                        Err(error) => copy_link_error_message(error.to_string().as_str()),
                                     };
                                     *widget.error.write().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(message);
                                 }
@@ -875,9 +890,12 @@ async fn persist_selected_trust(
             );
             if let Step::TrustDirectory(widget) = &mut onboarding_screen.steps[trust_step_index] {
                 widget.selection = None;
-                widget.error = Some(format!(
-                    "Failed to set trust for {}: {error}",
-                    trust_target.display()
+                widget.error = Some(crate::i18n::message(
+                    "dialogs-onboarding-trust-error",
+                    &[
+                        ("path", trust_target.display().to_string().as_str()),
+                        ("error", error.as_str()),
+                    ],
                 ));
             }
             false
@@ -903,6 +921,67 @@ mod tests {
     use crossterm::event::KeyModifiers;
     use pretty_assertions::assert_eq;
     use std::path::PathBuf;
+
+    #[test]
+    fn localized_link_copy_messages_keep_delivery_distinctions_and_opaque_errors() {
+        use crate::clipboard_copy::CopyStatus;
+        use crate::i18n::Locale;
+        let error = "backend://opaque/한글-e\u{301} { $error }";
+        for (locale, pending, busy, confirmed, unconfirmed, error_prefix) in [
+            (
+                Locale::English,
+                "Copying link…",
+                "Clipboard busy; try again",
+                "Copied link to clipboard",
+                "Copy requested; check your clipboard",
+                "Could not copy link: ",
+            ),
+            (
+                Locale::Korean,
+                "링크 복사 중…",
+                "클립보드 사용 중. 다시 시도하세요",
+                "링크를 클립보드에 복사했습니다",
+                "복사를 요청했습니다. 클립보드를 확인하세요",
+                "링크를 복사할 수 없습니다: ",
+            ),
+        ] {
+            crate::i18n::with_locale(locale, || {
+                for (status, expected) in [
+                    (CopyStatus::Pending(42), pending),
+                    (CopyStatus::Busy, busy),
+                    (CopyStatus::Confirmed, confirmed),
+                    (CopyStatus::Unconfirmed, unconfirmed),
+                ] {
+                    let actual = super::copy_link_status_message(status);
+                    assert_eq!(actual, expected);
+                    for width in [12, 24, 80] {
+                        let lines = crate::wrapping::word_wrap_lines(
+                            vec![ratatui::text::Line::from(actual.clone())],
+                            width,
+                        );
+                        assert!(lines.iter().all(|line| line.width() <= width));
+                    }
+                }
+                assert_eq!(
+                    super::copy_link_error_message(error),
+                    format!("{error_prefix}{error}")
+                );
+                let path = "opaque/한글-e\u{301}/{ $path }";
+                let prefix = if locale == Locale::English {
+                    "Failed to set trust for "
+                } else {
+                    "다음 경로의 신뢰를 설정하지 못했습니다: "
+                };
+                assert_eq!(
+                    crate::i18n::message(
+                        "dialogs-onboarding-trust-error",
+                        &[("path", path), ("error", error)]
+                    ),
+                    format!("{prefix}{path}: {error}")
+                );
+            });
+        }
+    }
 
     #[test]
     fn suppresses_printable_quit_key_during_api_key_entry() {

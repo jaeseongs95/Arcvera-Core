@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use crossterm::event::KeyModifiers;
@@ -50,14 +50,14 @@ enum MemoriesAction {
 enum MemoriesMenuItem {
     Setting {
         setting: MemoriesSetting,
-        name: &'static str,
-        description: &'static str,
+        name: String,
+        description: String,
         enabled: bool,
     },
     Action {
         action: MemoriesAction,
-        name: &'static str,
-        description: &'static str,
+        name: String,
+        description: String,
     },
 }
 
@@ -84,20 +84,20 @@ impl MemoriesSettingsView {
             items: vec![
                 MemoriesMenuItem::Setting {
                     setting: MemoriesSetting::Use,
-                    name: "Use memories",
-                    description: "Use memories starting with the next thread",
+                    name: crate::i18n::message("dialogs-memory-use", &[]),
+                    description: crate::i18n::message("dialogs-memory-use-description", &[]),
                     enabled: use_memories,
                 },
                 MemoriesMenuItem::Setting {
                     setting: MemoriesSetting::Generate,
-                    name: "Generate memories",
-                    description: "Generate memories from this thread and future threads",
+                    name: crate::i18n::message("dialogs-memory-generate", &[]),
+                    description: crate::i18n::message("dialogs-memory-generate-description", &[]),
                     enabled: generate_memories,
                 },
                 MemoriesMenuItem::Action {
                     action: MemoriesAction::Reset,
-                    name: "Reset all memories",
-                    description: "Clear local memory files and summaries without changing existing threads",
+                    name: crate::i18n::message("dialogs-memory-reset", &[]),
+                    description: crate::i18n::message("dialogs-memory-reset-description", &[]),
                 },
             ],
             state: ScrollState::new(),
@@ -105,7 +105,7 @@ impl MemoriesSettingsView {
             complete: false,
             app_event_tx,
             docs_link: Line::from(vec![
-                "Learn more: ".dim(),
+                crate::i18n::message("dialogs-memory-learn-more", &[]).dim(),
                 MEMORIES_DOC_URL
                     .fg(crate::style::accent_color())
                     .underlined(),
@@ -147,8 +147,7 @@ impl MemoriesSettingsView {
         );
         header.push(
             Paragraph::new(Line::from(
-                "Choose how Codex uses and creates memories. Changes are saved to config.toml"
-                    .dim(),
+                crate::i18n::message("dialogs-memory-settings-description", &[]).dim(),
             ))
             .wrap(Wrap { trim: false }),
         );
@@ -158,12 +157,14 @@ impl MemoriesSettingsView {
     fn reset_confirmation_header(&self) -> ColumnRenderable<'_> {
         let mut header = ColumnRenderable::new();
         header.push(
-            Paragraph::new(Line::from("Reset all memories?".bold())).wrap(Wrap { trim: false }),
+            Paragraph::new(Line::from(
+                crate::i18n::message("dialogs-memory-reset-question", &[]).bold(),
+            ))
+            .wrap(Wrap { trim: false }),
         );
         header.push(
             Paragraph::new(Line::from(
-                "This clears local memory files and rollout summaries for the current Codex home."
-                    .dim(),
+                crate::i18n::message("dialogs-memory-reset-warning", &[]).dim(),
             ))
             .wrap(Wrap { trim: false }),
         );
@@ -188,25 +189,28 @@ impl MemoriesSettingsView {
 
     fn build_rows(&self) -> Vec<GenericDisplayRow> {
         if let Some(state) = self.reset_confirmation.as_ref() {
-            return ["Reset all memories", "Go back"]
-                .into_iter()
-                .enumerate()
-                .map(|(idx, name)| GenericDisplayRow {
-                    selection_style: Some(super::picker_style::selection_style()),
-                    wrap_indent: Some(2),
-                    name: if state.selected_idx == Some(idx) {
-                        format!("› {name}")
-                    } else {
-                        format!("  {name}")
-                    },
-                    description: Some(match idx {
-                        0 => "Delete local memory files and rollout summaries".to_string(),
-                        1 => "Return to memory settings".to_string(),
-                        _ => unreachable!("reset confirmation only renders two rows"),
-                    }),
-                    ..Default::default()
-                })
-                .collect();
+            return [
+                crate::i18n::message("dialogs-memory-reset", &[]),
+                crate::i18n::message("dialogs-go-back", &[]),
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(idx, name)| GenericDisplayRow {
+                selection_style: Some(super::picker_style::selection_style()),
+                wrap_indent: Some(2),
+                name: if state.selected_idx == Some(idx) {
+                    format!("› {name}")
+                } else {
+                    format!("  {name}")
+                },
+                description: Some(match idx {
+                    0 => crate::i18n::message("dialogs-memory-delete-files", &[]).to_string(),
+                    1 => crate::i18n::message("dialogs-memory-return", &[]).to_string(),
+                    _ => unreachable!("reset confirmation only renders two rows"),
+                }),
+                ..Default::default()
+            })
+            .collect();
         }
 
         let selected_idx = self.state.selected_idx;
@@ -441,7 +445,7 @@ impl Renderable for MemoriesSettingsView {
                 &rows,
                 self.active_state(),
                 MAX_POPUP_ROWS,
-                "  No memory settings available",
+                &crate::i18n::message("dialogs-memory-empty", &[]),
             );
         }
         if self.reset_confirmation.is_none() {
@@ -488,16 +492,19 @@ impl Renderable for MemoriesSettingsView {
 }
 
 fn memories_settings_hint_line(keymap: &ListKeymap) -> Line<'static> {
-    let mut spans = vec![key_hint::plain(KeyCode::Char(' ')).into(), " toggle".into()];
+    let mut spans = vec![
+        key_hint::plain(KeyCode::Char(' ')).into(),
+        crate::i18n::message("dialogs-memory-toggle", &[]).into(),
+    ];
     if let Some(accept) = keymap.primary_hint(ListAction::Accept) {
         spans.push(" · ".into());
         spans.extend(accept.spans());
-        spans.push(" save/select".into());
+        spans.push(crate::i18n::message("dialogs-memory-save", &[]).into());
     }
     if let Some(cancel) = keymap.primary_hint(ListAction::Cancel) {
         spans.push(" · ".into());
         spans.extend(cancel.spans());
-        spans.push(" cancel".into());
+        spans.push(crate::i18n::message("dialogs-memory-cancel", &[]).into());
     }
     Line::from(spans)
 }

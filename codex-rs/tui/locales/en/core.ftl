@@ -1,0 +1,41 @@
+# Local UI language preference errors. The underlying error remains opaque.
+language-save-home-failed = Failed to locate local configuration home: { $error }
+language-save-write-failed = Failed to save UI language: { $error }
+cron-description = schedule per-chat prompts while this CLI is running
+
+# Keyboard shortcut reference. Key tokens remain unchanged.
+shortcuts-compose = { "Compose" }
+shortcuts-commands = { "Commands" }
+shortcuts-mention-files = { "Mention files" }
+shortcuts-shell-command = { "Shell command" }
+shortcuts-new-line = { "New line" }
+shortcuts-paste-image = { "Paste image" }
+shortcuts-external-editor = { "External editor" }
+shortcuts-search-history = { "Search history" }
+shortcuts-edit-last-message = { "Edit last message" }
+shortcuts-session = { "Session" }
+shortcuts-queue-message = { "Queue message" }
+shortcuts-send-message = { "Send message" }
+shortcuts-change-mode = { "Change mode" }
+shortcuts-less-reasoning = { "Less reasoning" }
+shortcuts-more-reasoning = { "More reasoning" }
+shortcuts-voice = { "Voice" }
+shortcuts-agents-empty-prompt = { "Agents (empty prompt)" }
+shortcuts-subagents-empty-prompt = { "Subagents (empty prompt)" }
+shortcuts-inspect-activity = { "Inspect activity" }
+shortcuts-interrupt = { "Interrupt" }
+shortcuts-quit = { "Quit" }
+shortcuts-transcript-open-first = { "Transcript (open first)" }
+shortcuts-open-transcript = { "Open transcript" }
+shortcuts-find-text = { "Find text" }
+shortcuts-scroll = { "Scroll" }
+shortcuts-start-selection = { "Start selection" }
+shortcuts-top-latest = { "Top / latest" }
+shortcuts-keyboard-shortcuts = { "Keyboard shortcuts" }
+shortcuts-close = { " close" }
+shortcuts-customize = { " customize" }
+shortcuts-resize-to-see-all = { "… resize to see all" }
+clipboard-label-last-message = last message
+clipboard-label-conversation = conversation
+clipboard-label-selection = selection
+clipboard-copy-error = Copy failed: { $error }

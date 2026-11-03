@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use super::new_status_output;
 use super::new_status_output_with_rate_limits;
 use super::new_status_output_with_rate_limits_handle;
@@ -2407,4 +2408,90 @@ fn reset_timestamps_follow_clock_preference() {
     23:00
     00:00 on 22 Sep
     ");
+}
+
+#[tokio::test]
+async fn localized_status_preserves_opaque_values_at_terminal_widths() {
+    use crate::i18n::{Locale, with_locale};
+    let temp_home = TempDir::new().expect("temp home");
+    let mut config = test_config(&temp_home).await;
+    config
+        .permissions
+        .approval_policy
+        .set(AskForApproval::OnRequest.to_core())
+        .expect("set approval policy");
+    let directory = test_path_buf("/workspace/한글🧪/é/프로젝트");
+    set_workspace_cwd(&mut config, directory.abs());
+    let model = "모델🧪{reason}";
+    let thread = "대화👩‍💻{name}";
+    let account = StatusAccountDisplay::ChatGpt {
+        email: Some("사용자🧪@example.com".to_string()),
+        plan: Some("원문{plan}".to_string()),
+        workspace: Some("워크🧪{workspace}".to_string()),
+    };
+    for (locale, model_label, permission_label, approval_label) in [
+        (
+            Locale::English,
+            "Model:",
+            "Permissions:",
+            "Ask for approval",
+        ),
+        (Locale::Korean, "모델:", "권한:", "승인 요청"),
+    ] {
+        with_locale(locale, || {
+            let (status, handle) = new_status_output_with_rate_limits_handle(
+                &config,
+                true,
+                Some("공급자🧪"),
+                None,
+                Some(&account),
+                None,
+                &TokenUsage::default(),
+                &None,
+                Some(thread.to_string()),
+                None,
+                &[],
+                None,
+                Local::now(),
+                model,
+                None,
+                None,
+                "AGENTS.md🧪".to_string(),
+                false,
+            );
+            for width in [40, 60, 80, 120] {
+                let lines = status.display_lines(width);
+                assert!(
+                    lines.iter().all(|line| line.width() <= usize::from(width)),
+                    "overwide {locale:?} width={width}: {lines:?}"
+                );
+                let joined = lines
+                    .iter()
+                    .map(|line| line.to_string().trim().to_string())
+                    .collect::<String>();
+                assert!(joined.contains(model_label), "{joined}");
+                assert!(joined.contains(permission_label), "{joined}");
+                assert!(joined.contains(approval_label), "{joined}");
+                for opaque in [
+                    model,
+                    thread,
+                    "사용자🧪@example.com",
+                    "원문{plan}",
+                    "워크🧪{workspace}",
+                    "공급자🧪",
+                    "AGENTS.md🧪",
+                ] {
+                    assert!(
+                        joined.contains(opaque),
+                        "opaque value {opaque:?} lost at {locale:?}/{width}: {joined}"
+                    );
+                }
+                assert!(
+                    joined.contains(directory.to_string_lossy().as_ref()),
+                    "{joined}"
+                );
+            }
+            assert!(handle.copy_text().contains(thread));
+        });
+    }
 }

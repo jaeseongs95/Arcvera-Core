@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Clipboard copy backend for the TUI's `/copy` command and `Ctrl+O` hotkey.
 //!
 //! Local copying uses the native clipboard, or the Windows clipboard directly on WSL.
@@ -75,10 +76,12 @@ pub(crate) enum CopyStatus {
 impl CopyStatus {
     pub(crate) fn message(self, label: &str) -> String {
         match self {
-            Self::Confirmed => format!("Copied {label} to clipboard"),
-            Self::Unconfirmed => "Copy unconfirmed; /export saves chat".to_string(),
-            Self::Pending(_) => format!("Copying {label}…"),
-            Self::Busy => "Copy already in progress".to_string(),
+            Self::Confirmed => crate::i18n::message("controls-copy-confirmed", &[("value", label)]),
+            Self::Unconfirmed => {
+                crate::i18n::static_message("controls-copy-unconfirmed").to_string()
+            }
+            Self::Pending(_) => crate::i18n::message("controls-copy-pending", &[("value", label)]),
+            Self::Busy => crate::i18n::static_message("controls-copy-busy").to_string(),
         }
     }
 }
@@ -881,3 +884,47 @@ mod tests {
 #[cfg(test)]
 #[path = "clipboard_copy/routing_tests.rs"]
 mod routing_tests;
+
+#[cfg(test)]
+mod localization_tests {
+    use super::CopyStatus;
+
+    #[test]
+    fn clipboard_status_localizes_without_rewriting_opaque_label_or_request_id() {
+        let label = "English { $value } /export 한글";
+        for (locale, confirmed, pending, unconfirmed, busy) in [
+            (
+                crate::i18n::Locale::English,
+                format!("Copied {label} to clipboard"),
+                format!("Copying {label}…"),
+                "Copy unconfirmed; /export saves chat",
+                "Copy already in progress",
+            ),
+            (
+                crate::i18n::Locale::Korean,
+                format!("{label} 클립보드에 복사됨"),
+                format!("{label} 복사 중…"),
+                "복사 확인 안 됨. /export로 대화를 저장하세요",
+                "이미 복사 중입니다",
+            ),
+        ] {
+            crate::i18n::with_locale(locale, || {
+                assert_eq!(CopyStatus::Confirmed.message(label), confirmed);
+                assert_eq!(CopyStatus::Pending(42).message(label), pending);
+                assert_eq!(CopyStatus::Unconfirmed.message(label), unconfirmed);
+                assert_eq!(CopyStatus::Busy.message(label), busy);
+                let status = CopyStatus::Pending(42);
+                let _ = status.message(label);
+                assert_eq!(status, CopyStatus::Pending(42));
+                assert_eq!(
+                    CopyStatus::Confirmed.message(""),
+                    if locale == crate::i18n::Locale::English {
+                        "Copied  to clipboard"
+                    } else {
+                        " 클립보드에 복사됨"
+                    }
+                );
+            });
+        }
+    }
+}

@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use super::lines;
 use crate::bottom_pane::footer::FooterKeyHints;
 use crate::bottom_pane::footer::FooterMode;
@@ -100,4 +101,44 @@ fn shortcut_overlay_clipping_preserves_customization_in_small_areas() {
         /*height*/ Some(1),
         &props(),
     );
+}
+
+#[test]
+fn localized_shortcuts_keep_runtime_key_tokens_and_cell_widths() {
+    for (locale, heading, action) in [
+        (
+            crate::i18n::Locale::English,
+            "Keyboard shortcuts",
+            "Paste image",
+        ),
+        (
+            crate::i18n::Locale::Korean,
+            "키보드 단축키",
+            "이미지 붙여넣기",
+        ),
+    ] {
+        crate::i18n::with_locale(locale, || {
+            let props = props();
+            for width in [28, 40, 80, 120] {
+                let rendered = lines(&props, width);
+                assert!(
+                    rendered
+                        .iter()
+                        .all(|line| line.width() <= usize::from(width))
+                );
+                let text = rendered
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                assert!(text.contains(heading));
+                if width >= 80 {
+                    assert!(text.contains(action));
+                }
+                for key in ["/keymap", "pgup / pgdn"] {
+                    assert!(text.contains(key), "{locale:?}: {key}");
+                }
+            }
+        });
+    }
 }

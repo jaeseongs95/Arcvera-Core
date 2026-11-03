@@ -1,3 +1,15 @@
+# R35 개발 중 소스 — i18n 카탈로그와 초기화 capability
+
+고정 소스는 `dcea643d0dbfe47589fd7a7374135c6a9db288da`, 이전 공개 기준은 `0f4a2d3062f2fd9bc234c539f3c7e8f0b2add274`다. 공식 0.166.0 기반 `6ff1e1ca3b30fc8b914720681fcf5fe62e95f856`를 유지한다. R34 실행본·기존 공개 PR은 보존하며 R35는 아직 동결 전인 개발 후보다.
+
+R34 고정 소스 대비 145경로에 영어·한국어 Fluent 카탈로그, CLI·TUI·cloud 화면 문구와 언어 선택, app-server 초기화 capability·호환성 시험 소스를 반영했다. 기존 수정 고지는 유지하고 이번 변경 경로에만 R35 고지를 연결한다. 카탈로그 같은 데이터 파일의 변경은 `SOURCE_BASELINE.json`·`upstream/source-inventory.json`과 공식 대비 패치에 기록한다.
+
+이번 공개 checkout의 기존 Python 출처 검증은 소스 9,431개·공식 대비 수정 670개·내장 프롬프트 38개에서 종료 0이었다. 내보내기 도구 시험은 19개 중 18개 통과·실제 심볼릭 링크 생성 1개 건너뜀으로 종료 0이었다. 전체 Cargo 빌드·Rust 제품 시험, 스키마 재생성, CLI·TUI 실행·화면 확인·부하 검증은 수행하지 않았다. 이 소스 PR은 실제 사용 효과 검증이나 릴리스·설치 승인을 뜻하지 않는다. 재현은 `python -B scripts/source-import/verify.py`와 `python -B -m unittest discover -s scripts/source-import -p test_verify.py`로 한다. 원시 로그·운영 근거·실행 파일·인증·로컬 설정은 포함하지 않는다.
+
+## 이전 후보 기록
+
+아래는 각 이전 후보의 당시 기록이며 현재 R35 전체의 검증 결과가 아니다.
+
 # R33 graceful 완료 통지 경계 수정 후보
 
 현재 고정 소스는 `36ae395a552fd55962e19409cbf29b1fdf03b0ec`, 이전 공개 기준은 `5300c7238a23cd29d29e4ffdfbcaf3ac53366886`다. 이전 `3d9` 후보에서 달라진 제품 소스는 `bespoke_event_handling.rs`, `outgoing_message.rs`, `thread_status.rs`의 3경로다. 완료·중단 알림의 쓰기 확인이 끝날 때까지 drain 책임을 유지하고 기존 idle 알림 순서를 보존하는 후속 개발 후보다. 제품 버전은 `0.166.0+native-r33.20261102`를 유지한다.

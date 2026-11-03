@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Shared title, description, and CTA content for banners in the TUI bottom pane.
 //!
 //! Workspace notices and backend banners share the existing selection list for CTA dispatch.
@@ -200,12 +201,16 @@ impl BottomPane {
                 item.dismiss_on_select = false;
             }
             let hint = match (dismissal, has_actions) {
-                (BannerDismissal::Persistent, true) => "Press a number to choose",
-                (BannerDismissal::Persistent, false) => "",
-                (BannerDismissal::Dismissible, true) => {
-                    "Press a number to choose · esc to dismiss · type to continue"
+                (BannerDismissal::Persistent, true) => {
+                    crate::i18n::message("dialogs-banner-choose", &[])
                 }
-                (BannerDismissal::Dismissible, false) => "esc to dismiss · type to continue",
+                (BannerDismissal::Persistent, false) => String::new(),
+                (BannerDismissal::Dismissible, true) => {
+                    crate::i18n::message("dialogs-banner-choose-dismiss", &[])
+                }
+                (BannerDismissal::Dismissible, false) => {
+                    crate::i18n::message("dialogs-banner-dismiss", &[])
+                }
             };
             let hint: Line<'static> = hint.dim().into();
             params.footer_hint = Some(hint.clone());

@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Fans listing requests out to independent workers and routes actions to row sources.
 //! Closing the picker cancels reads while accepted mutations and source shutdown continue
 //! independently; stale listing replies cannot replace current pages.
@@ -61,7 +62,7 @@ pub(super) fn spawn(
                                 pending.clear();
                                 failed.retain(|id| !workers.contains_key(id));
                             }
-                            error = workers.is_empty().then(|| std::io::Error::other("No session backends are available."));
+                            error = workers.is_empty().then(|| std::io::Error::other(crate::i18n::static_message("picker-no-session-backends-are-available")));
                             for (id, worker) in &workers {
                                 if failed.contains(id) { continue; }
                                 if let Some(page) = catalog.begin_page(*id, request.mode) {
@@ -85,7 +86,7 @@ pub(super) fn spawn(
                             if let Some(worker) = workers.get(&backend) {
                                 worker(request);
                             } else {
-                                let error = std::io::Error::other("The session's backend is unavailable.");
+                                let error = std::io::Error::other(crate::i18n::static_message("picker-the-session-s-backend-is-unavailable"));
                                 let event = match request {
                                     PickerLoadRequest::Preview { thread_id, .. } => BackgroundEvent::Preview { thread_id, preview: Err(error) },
                                     PickerLoadRequest::Transcript { thread_id, .. } => BackgroundEvent::Transcript { thread_id, transcript: Err(error) },
@@ -106,7 +107,7 @@ pub(super) fn spawn(
                             failed.insert(id);
                             let Some(request) = current.as_ref().filter(|_| pending.contains_key(&id)) else { continue };
                             BackgroundEvent::Page { request_token: request.request_token, search_token: request.search_token, mode: request.mode,
-                                page: Err(std::io::Error::other("The session backend disconnected.")) }
+                                page: Err(std::io::Error::other(crate::i18n::static_message("picker-the-session-backend-disconnected"))) }
                         }
                     };
                     match event {

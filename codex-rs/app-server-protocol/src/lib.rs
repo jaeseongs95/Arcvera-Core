@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 mod experimental_api;
 mod precomputed_exports;
 mod protocol;
@@ -35,6 +36,7 @@ pub use protocol::v1::InitializeParams;
 pub use protocol::v1::InitializeResponse;
 pub use protocol::v1::InterruptConversationResponse;
 pub use protocol::v1::LoginApiKeyParams;
+pub use protocol::v1::OpenDiyCapabilities;
 pub use protocol::v1::SandboxSettings;
 pub use protocol::v1::Tools;
 pub use protocol::v1::UserSavedConfig;

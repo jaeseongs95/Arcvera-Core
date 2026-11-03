@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Live-updating, thread-scoped billing details embedded in `/status` history cards.
 
 use super::format::FieldFormatter;
@@ -117,7 +118,13 @@ impl StatusThreadUsage {
         }
 
         let credits_micros = estimate.estimated_usage_credits_micros;
-        let mut usage = vec![format!("{} credits", format_credit_micros(credits_micros)).into()];
+        let mut usage = vec![
+            crate::i18n::message(
+                "status-credits-amount",
+                &[("amount", &format_credit_micros(credits_micros))],
+            )
+            .into(),
+        ];
         if let Some(cost) = estimate
             .estimated_usage_usd_micros
             .and_then(format_estimated_usd_micros)
@@ -160,16 +167,25 @@ impl StatusThreadUsage {
         if !estimate.groups.is_empty() && (input_tokens.is_some() || output_tokens.is_some()) {
             let mut tokens = Vec::new();
             if let Some(input_tokens) = input_tokens {
-                tokens.push(format!("{} input", format_tokens_compact(input_tokens)));
+                tokens.push(crate::i18n::message(
+                    "status-thread-input",
+                    &[("tokens", &format_tokens_compact(input_tokens))],
+                ));
                 if let Some(cached_tokens) = cached_tokens {
-                    tokens.push(format!("({} cached)", format_tokens_compact(cached_tokens)));
+                    tokens.push(crate::i18n::message(
+                        "status-thread-cached",
+                        &[("tokens", &format_tokens_compact(cached_tokens))],
+                    ));
                 }
             }
             if let Some(output_tokens) = output_tokens {
                 if !tokens.is_empty() {
                     tokens.push("+".to_string());
                 }
-                tokens.push(format!("{} output", format_tokens_compact(output_tokens)));
+                tokens.push(crate::i18n::message(
+                    "status-thread-output",
+                    &[("tokens", &format_tokens_compact(output_tokens))],
+                ));
             }
             lines.push(formatter.line(BILLED_TOKENS_LABEL, vec![tokens.join(" ").into()]));
         }
@@ -189,7 +205,7 @@ fn grouped_usage(
     groups: &[ThreadUsageBreakdownGroup],
     dimension: BreakdownDimension,
 ) -> Option<String> {
-    let mut totals = BTreeMap::<String, i64>::new();
+    let mut totals = BTreeMap::<(String, Option<&'static str>), i64>::new();
     for group in groups {
         if group.estimated_usage_credits_micros < 0 {
             continue;
@@ -222,7 +238,31 @@ fn grouped_usage(
             }
             .to_string(),
         };
-        let total = totals.entry(value).or_default();
+        // Keep the raw grouping/sort key and the product-owned display ID separate.
+        // Unknown server values must not be translated even when they resemble a label.
+        let message_id = match dimension {
+            BreakdownDimension::Model => group.model.is_none().then_some("status-other"),
+            BreakdownDimension::Reasoning => match group.reasoning_effort.as_deref() {
+                Some("none") => Some("status-thread-effort-none"),
+                Some("minimal") => Some("status-thread-effort-minimal"),
+                Some("low") => Some("status-thread-effort-light"),
+                Some("medium") => Some("status-thread-effort-medium"),
+                Some("high") => Some("status-thread-effort-high"),
+                Some("xhigh") => Some("status-thread-effort-extra-high"),
+                Some("max") => Some("status-thread-effort-max"),
+                Some("ultra") => Some("status-thread-effort-ultra"),
+                None => Some("status-other"),
+                Some(_) => None,
+            },
+            BreakdownDimension::Speed => match group.speed.as_deref() {
+                Some("fast") => Some("status-thread-speed-fast"),
+                Some("ultrafast") => Some("status-thread-speed-ultrafast"),
+                Some("standard") => Some("status-thread-speed-standard"),
+                None => Some("status-other"),
+                Some(_) => None,
+            },
+        };
+        let total = totals.entry((value, message_id)).or_default();
         *total = total.saturating_add(group.estimated_usage_credits_micros);
     }
     if totals.is_empty() {
@@ -236,45 +276,53 @@ fn grouped_usage(
         );
     let mut totals = totals.into_iter().collect::<Vec<_>>();
     totals.sort_by(
-        |(left_name, left_credits), (right_name, right_credits)| match dimension {
-            BreakdownDimension::Model => right_credits
-                .cmp(left_credits)
-                .then_with(|| left_name.cmp(right_name)),
-            BreakdownDimension::Reasoning => REASONING_ORDER
-                .iter()
-                .position(|value| value == left_name)
-                .unwrap_or(usize::MAX)
-                .cmp(
-                    &REASONING_ORDER
-                        .iter()
-                        .position(|value| value == right_name)
-                        .unwrap_or(usize::MAX),
-                )
-                .then_with(|| left_name.cmp(right_name)),
-            BreakdownDimension::Speed => SPEED_ORDER
-                .iter()
-                .position(|value| value == left_name)
-                .unwrap_or(usize::MAX)
-                .cmp(
-                    &SPEED_ORDER
-                        .iter()
-                        .position(|value| value == right_name)
-                        .unwrap_or(usize::MAX),
-                )
-                .then_with(|| left_name.cmp(right_name)),
+        |((left_name, left_id), left_credits), ((right_name, right_id), right_credits)| {
+            match dimension {
+                BreakdownDimension::Model => right_credits
+                    .cmp(left_credits)
+                    .then_with(|| left_name.cmp(right_name))
+                    .then_with(|| left_id.cmp(right_id)),
+                BreakdownDimension::Reasoning => REASONING_ORDER
+                    .iter()
+                    .position(|value| value == left_name)
+                    .unwrap_or(usize::MAX)
+                    .cmp(
+                        &REASONING_ORDER
+                            .iter()
+                            .position(|value| value == right_name)
+                            .unwrap_or(usize::MAX),
+                    )
+                    .then_with(|| left_name.cmp(right_name))
+                    .then_with(|| left_id.cmp(right_id)),
+                BreakdownDimension::Speed => SPEED_ORDER
+                    .iter()
+                    .position(|value| value == left_name)
+                    .unwrap_or(usize::MAX)
+                    .cmp(
+                        &SPEED_ORDER
+                            .iter()
+                            .position(|value| value == right_name)
+                            .unwrap_or(usize::MAX),
+                    )
+                    .then_with(|| left_name.cmp(right_name))
+                    .then_with(|| left_id.cmp(right_id)),
+            }
         },
     );
     Some(
         totals
             .into_iter()
-            .map(|(name, credits)| {
+            .map(|((name, message_id), credits)| {
                 let percentage = if total_credits_micros <= 0 {
                     0
                 } else {
                     (i128::from(credits) * 100 + i128::from(total_credits_micros) / 2)
                         / i128::from(total_credits_micros)
                 };
-                format!("{name} {percentage}%")
+                let display_name = message_id
+                    .map(|id| crate::i18n::message(id, &[]))
+                    .unwrap_or(name);
+                format!("{display_name} {percentage}%")
             })
             .collect::<Vec<_>>()
             .join(", "),

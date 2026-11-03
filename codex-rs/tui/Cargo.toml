@@ -1,4 +1,4 @@
-# Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+# Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 [package]
 name = "codex-tui"
 version.workspace = true
@@ -59,6 +59,9 @@ codex-otel = { workspace = true }
 codex-plugin = { workspace = true }
 codex-protocol = { workspace = true }
 codex-realtime-webrtc = { workspace = true }
+fluent-bundle = "0.16.0"
+fluent-syntax = "0.12.0"
+unic-langid = "0.9.6"
 futures = { workspace = true }
 codex-rollout = { workspace = true }
 codex-sandboxing = { workspace = true }

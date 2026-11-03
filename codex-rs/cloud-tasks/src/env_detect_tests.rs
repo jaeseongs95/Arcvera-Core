@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::io;
 use std::io::Read;
@@ -349,6 +349,108 @@ async fn global_list_distinguishes_empty_from_http_and_decode_failures() {
         .to_string();
     assert!(error.contains("Invalid environment response"), "{error}");
     assert!(!error.contains("sensitive-value"));
+}
+
+/// The CLI must not turn an incomplete discovery response into "not found" or a
+/// unique label match. The TUI may still use its explicitly partial fallback.
+#[tokio::test]
+async fn explicit_resolution_preserves_global_failure_despite_repository_results() {
+    let origins = [SanitizedGitUrl::try_from("https://github.com/openai/codex.git").unwrap()];
+    let headers = HeaderMap::from_iter([(
+        AUTHORIZATION,
+        HeaderValue::from_static("Bearer synthetic-test-token"),
+    )]);
+    for status in [
+        StatusCode::UNAUTHORIZED,
+        StatusCode::FORBIDDEN,
+        StatusCode::TOO_MANY_REQUESTS,
+        StatusCode::INTERNAL_SERVER_ERROR,
+    ] {
+        let responses = HashMap::from([
+            (
+                BY_REPO_URL.to_string(),
+                json_response(r#"[{"id":"env-repo","label":"Repository"}]"#),
+            ),
+            (
+                GLOBAL_URL.to_string(),
+                EnvironmentResponse {
+                    status,
+                    content_type: "application/json".to_string(),
+                    body: "sensitive-backend-response".to_string(),
+                },
+            ),
+        ]);
+        let partial = FakeHttp::new(responses.clone());
+        assert_eq!(
+            list_environments_with_origins(&partial, BASE_URL, &headers, &origins)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+
+        for requested in ["env-global", "Repository"] {
+            let http = FakeHttp::new(responses.clone());
+            let error = resolve_environment_id_with_http(&http, BASE_URL, &headers, requested)
+                .await
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains(&status.as_u16().to_string()), "{error}");
+            assert!(!error.contains("not found"), "{error}");
+            assert!(!error.contains("sensitive-backend-response"));
+            assert_eq!(http.requested_urls(), vec![GLOBAL_URL.to_string()]);
+            assert_eq!(http.requests()[0].headers, headers);
+        }
+    }
+}
+
+#[tokio::test]
+async fn explicit_resolution_requires_an_exact_id_or_unambiguous_label() {
+    let body = r#"[
+        {"id":"env-1","label":"Shared"},
+        {"id":"env-2","label":"Shared"},
+        {"id":"env-3","label":"Unique"},
+        {"id":"env-4","label":"env-1"}
+    ]"#;
+    for (requested, expected) in [(" env-1 ", "env-1"), ("uNiQuE", "env-3")] {
+        let http = FakeHttp::new(HashMap::from([(
+            GLOBAL_URL.to_string(),
+            json_response(body),
+        )]));
+        assert_eq!(
+            resolve_environment_id_with_http(&http, BASE_URL, &HeaderMap::new(), requested)
+                .await
+                .unwrap(),
+            expected
+        );
+    }
+    for (response, requested, expected_error) in [
+        (body, "Shared", "ambiguous"),
+        (body, "missing", "not found"),
+        ("[]", "env-1", "no cloud environments"),
+        (
+            r#"[{"id":"secret","label":42}]"#,
+            "env-1",
+            "Invalid environment response",
+        ),
+    ] {
+        let http = FakeHttp::new(HashMap::from([(
+            GLOBAL_URL.to_string(),
+            json_response(response),
+        )]));
+        let error = resolve_environment_id_with_http(&http, BASE_URL, &HeaderMap::new(), requested)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains(expected_error), "{error}");
+        assert!(!error.contains("secret"));
+    }
+    let http = FakeHttp::new(HashMap::new());
+    let error = resolve_environment_id_with_http(&http, BASE_URL, &HeaderMap::new(), " ")
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("must not be empty"));
+    assert!(http.requests().is_empty());
 }
 
 struct FakeHttp {

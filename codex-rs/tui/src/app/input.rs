@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Keyboard input, external editor, and status-line dispatch for the TUI app.
 //!
 //! This module owns global key bindings that sit above ChatWidget, including transcript overlay
@@ -295,16 +296,16 @@ impl App {
             Err(external_editor::EditorError::MissingEditor) => {
                 self.chat_widget
                     .add_to_history(history_cell::new_error_event(
-                    "Cannot open external editor: set $VISUAL or $EDITOR before starting Codex."
-                        .to_string(),
-                ));
+                        crate::i18n::static_message("controls-editor-missing").to_string(),
+                    ));
                 self.reset_external_editor_state(tui);
                 return;
             }
             Err(err) => {
                 self.chat_widget
-                    .add_to_history(history_cell::new_error_event(format!(
-                        "Failed to open editor: {err}",
+                    .add_to_history(history_cell::new_error_event(crate::i18n::message(
+                        "controls-editor-failed",
+                        &[("value", err.to_string().as_str())],
                     )));
                 self.reset_external_editor_state(tui);
                 return;
@@ -336,8 +337,9 @@ impl App {
             }
             Err(err) => {
                 self.chat_widget
-                    .add_to_history(history_cell::new_error_event(format!(
-                        "Failed to open editor: {err}",
+                    .add_to_history(history_cell::new_error_event(crate::i18n::message(
+                        "controls-editor-failed",
+                        &[("value", err.to_string().as_str())],
                     )));
             }
         }
@@ -391,8 +393,10 @@ impl App {
         let terminal_width = tui.terminal.last_known_screen_size.into();
         if let Err(err) = self.reflow_transcript_now(tui, terminal_width) {
             tracing::warn!(error = %err, "failed to reflow transcript after raw output mode toggle");
-            self.chat_widget
-                .add_error_message(format!("Failed to redraw transcript: {err}"));
+            self.chat_widget.add_error_message(crate::i18n::message(
+                "controls-redraw-failed",
+                &[("value", err.to_string().as_str())],
+            ));
         }
         tui.frame_requester().schedule_frame();
     }
@@ -540,23 +544,23 @@ impl App {
                 let allow_background = running_side_thread_id.is_none()
                     && !self.chat_widget.has_queued_follow_up_messages();
                 self.chat_widget.show_selection_view(SelectionViewParams {
-                    title: Some("Task is still running".to_string()),
-                    subtitle: Some("Choose what happens to the current task.".to_string()),
+                    title: Some(crate::i18n::static_message("controls-exit-running").to_string()),
+                    subtitle: Some(crate::i18n::static_message("controls-exit-choose").to_string()),
                     footer_hint: Some(standard_popup_hint_line()),
                     items: [
                         (
-                            "Cancel task",
-                            "Stop the current task and stay in Codex",
+                            crate::i18n::static_message("controls-exit-cancel"),
+                            crate::i18n::static_message("controls-exit-cancel-help"),
                             RunningTaskExitAction::CancelTask,
                         ),
                         (
-                            "Run in background",
-                            "Exit Codex and leave the task running",
+                            crate::i18n::static_message("controls-exit-background"),
+                            crate::i18n::static_message("controls-exit-background-help"),
                             RunningTaskExitAction::RunInBackground,
                         ),
                         (
-                            "Exit",
-                            "Stop the current task and exit Codex",
+                            crate::i18n::static_message("controls-exit"),
+                            crate::i18n::static_message("controls-exit-help"),
                             RunningTaskExitAction::Exit,
                         ),
                     ]
@@ -720,8 +724,10 @@ impl App {
                 && crate::key_hint::ctrl(KeyCode::Char('7')).is_press(key_event)
         {
             if let Err(err) = self.toggle_side_conversation(tui, app_server).await {
-                self.chat_widget
-                    .add_error_message(format!("Failed to switch side conversation: {err}"));
+                self.chat_widget.add_error_message(crate::i18n::message(
+                    "controls-switch-failed",
+                    &[("value", err.to_string().as_str())],
+                ));
             }
             return true;
         }
@@ -769,8 +775,10 @@ impl App {
             }
             if let Err(err) = self.clear_terminal_ui(tui, /*redraw_header*/ false) {
                 tracing::warn!(error = %err, "failed to clear terminal UI");
-                self.chat_widget
-                    .add_error_message(format!("Failed to clear terminal UI: {err}"));
+                self.chat_widget.add_error_message(crate::i18n::message(
+                    "controls-clear-failed",
+                    &[("value", err.to_string().as_str())],
+                ));
             } else {
                 self.reset_app_ui_state_after_clear();
                 self.queue_clear_ui_header(tui);

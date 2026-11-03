@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Own live mention candidates and asynchronous file search while reserving a stable picker viewport.
 
 use codex_file_search::FileMatch;
@@ -120,7 +121,7 @@ impl WidgetRef for Popup {
             buf,
             &self.rows,
             &self.state,
-            self.file_search.empty_message(),
+            &self.file_search.empty_message(),
             self.search_mode,
             &self.query,
         );
@@ -162,11 +163,11 @@ impl FileSearch {
         !self.matches.is_empty()
     }
 
-    fn empty_message(&self) -> &'static str {
+    fn empty_message(&self) -> String {
         if self.waiting {
-            "loading..."
+            crate::i18n::message("dialogs-mentions-loading", &[])
         } else {
-            "no matches"
+            crate::i18n::message("dialogs-no-matches", &[])
         }
     }
 }

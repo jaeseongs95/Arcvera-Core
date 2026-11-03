@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Terminal title configuration view for customizing the terminal window/tab title.
 //!
 //! This module provides an interactive picker for selecting which items appear
@@ -97,52 +98,90 @@ pub(crate) enum TerminalTitleItem {
 }
 
 impl TerminalTitleItem {
-    pub(crate) fn description(self) -> &'static str {
+    fn display_name(self) -> String {
         match self {
-            TerminalTitleItem::AppName => "Codex app name",
-            TerminalTitleItem::Project => "Project name (falls back to current directory name)",
-            TerminalTitleItem::CurrentDir => "Current working directory",
-            TerminalTitleItem::Spinner => {
-                "Spinner while working, action-required message while blocked"
+            Self::AppName => crate::i18n::message("status-title-name-app-name", &[]),
+            Self::Project => crate::i18n::message("status-title-name-project-name", &[]),
+            Self::CurrentDir => crate::i18n::message("status-title-name-current-dir", &[]),
+            Self::Spinner => crate::i18n::message("status-title-name-activity", &[]),
+            Self::Status => crate::i18n::message("status-title-name-run-state", &[]),
+            Self::ThreadName => crate::i18n::message("status-title-name-thread-name", &[]),
+            Self::Thread => crate::i18n::message("status-title-name-thread-title", &[]),
+            Self::GitBranch => crate::i18n::message("status-title-name-git-branch", &[]),
+            Self::ContextRemaining => {
+                crate::i18n::message("status-title-name-context-remaining", &[])
             }
-            TerminalTitleItem::Status => {
-                "Compact session run-state text (Ready, Working, Thinking)"
+            Self::ContextUsed => crate::i18n::message("status-title-name-context-used", &[]),
+            Self::FiveHourLimit => crate::i18n::message("status-title-name-five-hour-limit", &[]),
+            Self::WeeklyLimit => crate::i18n::message("status-title-name-weekly-limit", &[]),
+            Self::CodexVersion => crate::i18n::message("status-title-name-codex-version", &[]),
+            Self::UsedTokens => crate::i18n::message("status-title-name-used-tokens", &[]),
+            Self::TotalInputTokens => {
+                crate::i18n::message("status-title-name-total-input-tokens", &[])
             }
-            TerminalTitleItem::ThreadName => "Current thread name (omitted when unnamed)",
-            TerminalTitleItem::Thread => "Current thread title, or thread identifier when unnamed",
-            TerminalTitleItem::GitBranch => "Current Git branch (omitted when unavailable)",
-            TerminalTitleItem::ContextRemaining => {
-                "Percentage of context window remaining (omitted when unknown)"
+            Self::TotalOutputTokens => {
+                crate::i18n::message("status-title-name-total-output-tokens", &[])
             }
-            TerminalTitleItem::ContextUsed => {
-                "Percentage of context window used (omitted when unknown)"
+            Self::ThreadCredits => crate::i18n::message("status-title-name-thread-credits", &[]),
+            Self::EstimatedThreadCost => {
+                crate::i18n::message("status-title-name-estimated-thread-cost", &[])
             }
-            TerminalTitleItem::FiveHourLimit => {
-                "Remaining usage on the primary usage limit (omitted when unavailable)"
+            Self::SessionId => crate::i18n::message("status-title-name-thread-id", &[]),
+            Self::FastMode => crate::i18n::message("status-title-name-fast-mode", &[]),
+            Self::Daybreak => crate::i18n::message("status-title-name-daybreak", &[]),
+            Self::Model => crate::i18n::message("status-title-name-model", &[]),
+            Self::ModelWithReasoning => {
+                crate::i18n::message("status-title-name-model-with-reasoning", &[])
             }
-            TerminalTitleItem::WeeklyLimit => {
-                "Remaining usage on the secondary usage limit (omitted when unavailable)"
+            Self::Reasoning => crate::i18n::message("status-title-name-reasoning", &[]),
+            Self::TaskProgress => crate::i18n::message("status-title-name-task-progress", &[]),
+        }
+    }
+
+    pub(crate) fn description(self) -> String {
+        match self {
+            Self::AppName => crate::i18n::message("status-title-description-app-name", &[]),
+            Self::Project => crate::i18n::message("status-title-description-project-name", &[]),
+            Self::CurrentDir => crate::i18n::message("status-title-description-current-dir", &[]),
+            Self::Spinner => crate::i18n::message("status-title-description-activity", &[]),
+            Self::Status => crate::i18n::message("status-title-description-run-state", &[]),
+            Self::ThreadName => crate::i18n::message("status-title-description-thread-name", &[]),
+            Self::Thread => crate::i18n::message("status-title-description-thread-title", &[]),
+            Self::GitBranch => crate::i18n::message("status-title-description-git-branch", &[]),
+            Self::ContextRemaining => {
+                crate::i18n::message("status-title-description-context-remaining", &[])
             }
-            TerminalTitleItem::CodexVersion => "Codex application version",
-            TerminalTitleItem::UsedTokens => "Total tokens used in session (omitted when zero)",
-            TerminalTitleItem::TotalInputTokens => "Total input tokens used in session",
-            TerminalTitleItem::TotalOutputTokens => "Total output tokens used in session",
-            TerminalTitleItem::ThreadCredits => {
-                "Estimated current-thread credits (Enterprise workspaces only; omitted when unavailable)"
+            Self::ContextUsed => crate::i18n::message("status-title-description-context-used", &[]),
+            Self::FiveHourLimit => {
+                crate::i18n::message("status-title-description-five-hour-limit", &[])
             }
-            TerminalTitleItem::EstimatedThreadCost => {
-                "Estimated current-thread cost (Enterprise workspaces only; omitted when unavailable)"
+            Self::WeeklyLimit => crate::i18n::message("status-title-description-weekly-limit", &[]),
+            Self::CodexVersion => {
+                crate::i18n::message("status-title-description-codex-version", &[])
             }
-            TerminalTitleItem::SessionId => {
-                "Current thread identifier (omitted until thread starts)"
+            Self::UsedTokens => crate::i18n::message("status-title-description-used-tokens", &[]),
+            Self::TotalInputTokens => {
+                crate::i18n::message("status-title-description-total-input-tokens", &[])
             }
-            TerminalTitleItem::FastMode => "Effective processing tier for the current model",
-            TerminalTitleItem::Daybreak => "Whether Daybreak is enabled for this thread",
-            TerminalTitleItem::Model => "Current model name",
-            TerminalTitleItem::ModelWithReasoning => "Current model name with reasoning level",
-            TerminalTitleItem::Reasoning => "Current reasoning level",
-            TerminalTitleItem::TaskProgress => {
-                "Latest task progress from update_plan (omitted until available)"
+            Self::TotalOutputTokens => {
+                crate::i18n::message("status-title-description-total-output-tokens", &[])
+            }
+            Self::ThreadCredits => {
+                crate::i18n::message("status-title-description-thread-credits", &[])
+            }
+            Self::EstimatedThreadCost => {
+                crate::i18n::message("status-title-description-estimated-thread-cost", &[])
+            }
+            Self::SessionId => crate::i18n::message("status-title-description-thread-id", &[]),
+            Self::FastMode => crate::i18n::message("status-title-description-fast-mode", &[]),
+            Self::Daybreak => crate::i18n::message("status-title-description-daybreak", &[]),
+            Self::Model => crate::i18n::message("status-title-description-model", &[]),
+            Self::ModelWithReasoning => {
+                crate::i18n::message("status-title-description-model-with-reasoning", &[])
+            }
+            Self::Reasoning => crate::i18n::message("status-title-description-reasoning", &[]),
+            Self::TaskProgress => {
+                crate::i18n::message("status-title-description-task-progress", &[])
             }
         }
     }
@@ -297,8 +336,11 @@ impl TerminalTitleSetupView {
 
         Self {
             picker: MultiSelectPicker::builder(
-                "Configure Terminal Title".to_string(),
-                Some("Select which items to display in the terminal title.".to_string()),
+                crate::i18n::message("status-title-configure", &[]),
+                Some(crate::i18n::message(
+                    "status-title-configure-description",
+                    &[],
+                )),
                 app_event_tx,
             )
             .list_keymap(list_keymap)
@@ -342,7 +384,7 @@ impl TerminalTitleSetupView {
         enabled: bool,
         preview_data: &StatusSurfacePreviewData,
     ) -> MultiSelectItem {
-        let default_name = item.to_string();
+        let default_name = item.display_name();
         let default_description = item.description();
         let (name, description) = match item.preview_item() {
             Some(
@@ -350,9 +392,9 @@ impl TerminalTitleSetupView {
                 | StatusSurfacePreviewItem::WeeklyLimit),
             ) => (
                 preview_data.rate_limit_item_name(preview_item, &default_name),
-                preview_data.rate_limit_item_description(preview_item, default_description),
+                preview_data.rate_limit_item_description(preview_item, &default_description),
             ),
-            _ => (default_name, default_description.to_string()),
+            _ => (default_name, default_description),
         };
 
         MultiSelectItem {
@@ -622,5 +664,85 @@ mod tests {
                 TerminalTitleItem::FastMode,
             ])
         );
+    }
+
+    #[test]
+    fn localized_title_setup_preserves_config_ids_and_preview_values() {
+        use crate::i18n::{Locale, with_locale};
+        for (locale, heading, item_name, prefix) in [
+            (
+                Locale::English,
+                "Configure Terminal Title",
+                "thread-title",
+                "[ ! ] Action Required",
+            ),
+            (
+                Locale::Korean,
+                "터미널 제목 설정",
+                "대화 제목",
+                "[ ! ] 조치 필요",
+            ),
+        ] {
+            with_locale(locale, || {
+                let title = "사용자🧪{name}제목";
+                let preview_data = StatusSurfacePreviewData::from_iter([(
+                    StatusSurfacePreviewItem::ThreadTitle,
+                    title,
+                )]);
+                let item = TerminalTitleSetupView::title_select_item(
+                    TerminalTitleItem::Thread,
+                    true,
+                    &preview_data,
+                );
+                assert_eq!(item.id, "thread-title");
+                assert_eq!(item.name, item_name);
+                for title_item in TerminalTitleItem::iter() {
+                    let selectable =
+                        TerminalTitleSetupView::title_select_item(title_item, false, &preview_data);
+                    assert_eq!(selectable.id.parse::<TerminalTitleItem>(), Ok(title_item));
+                    assert!(!selectable.name.is_empty());
+                    assert!(!selectable.description.unwrap().is_empty());
+                }
+                let selected = ["thread-title".to_string(), "activity".to_string()];
+                let preview = preview_line_for_title_items(
+                    &[TerminalTitleItem::Thread, TerminalTitleItem::Spinner],
+                    &preview_data,
+                )
+                .unwrap();
+                assert_eq!(preview.to_string(), format!("{prefix} | {title}"));
+                let normal =
+                    preview_line_for_title_items(&[TerminalTitleItem::Thread], &preview_data)
+                        .unwrap();
+                assert_eq!(normal.to_string(), title);
+                for width in [40, 60, 80, 120] {
+                    let (tx_raw, mut rx) = unbounded_channel::<AppEvent>();
+                    let mut view = TerminalTitleSetupView::new(
+                        Some(&selected),
+                        preview_data.clone(),
+                        AppEventSender::new(tx_raw),
+                        crate::keymap::RuntimeKeymap::defaults().list,
+                    );
+                    let rendered = render_lines(&view, width);
+                    let compact: String =
+                        rendered.chars().filter(|ch| !ch.is_whitespace()).collect();
+                    let expected: String =
+                        heading.chars().filter(|ch| !ch.is_whitespace()).collect();
+                    assert!(
+                        compact.contains(&expected),
+                        "{locale:?}/{width}: {rendered}"
+                    );
+                    view.handle_key_event(crossterm::event::KeyCode::Enter.into());
+                    let confirmed =
+                        std::iter::from_fn(|| rx.try_recv().ok()).find_map(|event| match event {
+                            AppEvent::TerminalTitleSetup { items } => Some(items),
+                            _ => None,
+                        });
+                    assert_eq!(
+                        confirmed,
+                        Some(vec![TerminalTitleItem::Thread, TerminalTitleItem::Spinner])
+                    );
+                }
+            });
+        }
     }
 }

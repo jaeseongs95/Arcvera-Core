@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use super::*;
 use pretty_assertions::assert_eq;
 
@@ -67,13 +68,17 @@ fn render_visible_at(state: &BedrockState, area: Rect) -> String {
     state.render(area, &mut buffer, /*error*/ None);
     let mut rows = (area.top()..area.bottom())
         .map(|row| {
-            (area.left()..area.right())
-                .map(|column| {
-                    crate::terminal_hyperlinks::strip_osc8(buffer[(column, row)].symbol())
-                })
-                .collect::<String>()
-                .trim_end()
-                .to_string()
+            let mut visible = String::new();
+            let mut column = area.left();
+            while column < area.right() {
+                let symbol = crate::terminal_hyperlinks::strip_osc8(buffer[(column, row)].symbol());
+                // Wide glyphs own the following terminal cell; do not append that cell's filler.
+                column +=
+                    u16::try_from(unicode_width::UnicodeWidthStr::width(symbol.as_str()).max(1))
+                        .unwrap_or(1);
+                visible.push_str(&symbol);
+            }
+            visible.trim_end().to_string()
         })
         .collect::<Vec<_>>();
     while rows.last().is_some_and(String::is_empty) {
@@ -545,5 +550,227 @@ fn credential_entries_share_region_and_keep_aws_secrets_hidden() {
             &access_keys.view,
             BedrockView::RegionEntry { value, .. } if value == "us-west-1"
         ));
+    }
+}
+
+#[test]
+fn localized_bedrock_views_preserve_credentials_choices_and_cell_widths() {
+    use crate::i18n::Locale;
+    let profile = "prod/한글-e\u{301}{ $profile }";
+    let region = "us-test-1";
+    for (
+        locale,
+        title,
+        checking,
+        configuring,
+        choose,
+        profile_label,
+        region_label,
+        access_label,
+        api_label,
+        environment,
+        other_method,
+    ) in [
+        (
+            Locale::English,
+            "Set up Amazon Bedrock",
+            "Checking for existing AWS credentials...",
+            "Setting up Amazon Bedrock...",
+            "Choose how you authenticate with AWS.",
+            "AWS profile: ",
+            "AWS Region: ",
+            "AWS access key ID",
+            "Bedrock API key: ",
+            "Configure AWS credentials in your environment, then restart Codex.",
+            "Choose another sign-in method",
+        ),
+        (
+            Locale::Korean,
+            "Amazon Bedrock 설정",
+            "기존 AWS 자격 증명 확인 중...",
+            "Amazon Bedrock 설정 중...",
+            "AWS 인증 방법을 선택하세요.",
+            "AWS 프로필: ",
+            "AWS 리전: ",
+            "AWS 액세스 키 ID",
+            "Bedrock API 키: ",
+            "환경에 AWS 자격 증명을 구성한 후 Codex를 다시 시작하세요.",
+            "다른 로그인 방법 선택",
+        ),
+    ] {
+        crate::i18n::with_locale(locale, || {
+            let mut state = BedrockState::discovering(RequestId::Integer(91));
+            let visible = render_visible(&state);
+            assert!(visible.contains(title));
+            assert!(visible.contains(checking));
+            state.view = BedrockView::Configuring(RequestId::Integer(92));
+            assert!(render_visible(&state).contains(configuring));
+            state.view = BedrockView::Methods(BedrockMethodList::All);
+            assert!(render_visible_at(&state, Rect::new(0, 0, 110, 40)).contains(choose));
+            assert_eq!(
+                state.methods(),
+                vec![
+                    BedrockMethod::ManualProfile,
+                    BedrockMethod::AccessKeys,
+                    BedrockMethod::EnvironmentInstructions,
+                    BedrockMethod::ApiKey
+                ]
+            );
+
+            state.view = BedrockView::ProfileEntry(profile.to_string());
+            assert!(render_visible(&state).contains(&format!("{profile_label}{profile}")));
+            state.view = BedrockView::RegionEntry {
+                credential: BedrockCredential::Profile(profile.to_string()),
+                value: region.to_string(),
+            };
+            assert!(render_visible(&state).contains(&format!("{region_label}{region}")));
+            let Some(BedrockAction::Configure(
+                BedrockCredential::Profile(actual_profile),
+                actual_region,
+            )) = state.confirm_input()
+            else {
+                panic!("configure profile")
+            };
+            assert_eq!(actual_profile, profile);
+            assert_eq!(actual_region, region);
+
+            let values = [
+                "AKIA-OPAQUE".to_string(),
+                "secret/opaque-z".to_string(),
+                "session/opaque-y".to_string(),
+            ];
+            state.view = BedrockView::AccessKeyEntry {
+                values: values.clone(),
+                selected_field: 1,
+            };
+            let visible = render_visible(&state);
+            assert!(visible.contains(&format!("{access_label}: {}", values[0])));
+            assert!(visible.contains(&format!("{}z", "•".repeat(values[1].chars().count() - 1))));
+            assert!(!visible.contains(&values[1]));
+            assert!(!visible.contains(&values[2]));
+            let BedrockView::AccessKeyEntry {
+                values: retained, ..
+            } = &state.view
+            else {
+                panic!("access keys")
+            };
+            assert_eq!(retained, &values);
+            state.view = BedrockView::ApiKeyEntry("opaque/api-key-z".to_string());
+            assert!(render_visible(&state).contains(&format!("{api_label}{}z", "•".repeat(15))));
+            state.view = BedrockView::EnvironmentInstructions;
+            let visible = render_visible_at(&state, Rect::new(0, 0, 110, 40));
+            assert!(visible.contains(environment));
+            assert!(visible.contains(other_method));
+            assert!(visible.contains("https://learn.chatgpt.com/docs/amazon-bedrock"));
+
+            state.profiles = vec![BedrockAwsProfile {
+                name: profile.to_string(),
+                region: Some(region.to_string()),
+            }];
+            state.view = BedrockView::Methods(BedrockMethodList::Detected);
+            assert!(render_visible_at(&state, Rect::new(0, 0, 110, 40)).contains(profile));
+            assert_eq!(
+                state.methods(),
+                vec![BedrockMethod::Profile(0), BedrockMethod::OtherMethods]
+            );
+            for width in [18, 24, 72] {
+                let visible = render_visible_at(&state, Rect::new(0, 0, width, 24));
+                assert!(
+                    visible
+                        .lines()
+                        .all(|line| unicode_width::UnicodeWidthStr::width(line)
+                            <= usize::from(width))
+                );
+            }
+            let Some(BedrockAction::Configure(
+                BedrockCredential::Profile(actual_profile),
+                actual_region,
+            )) = state.select_method(BedrockMethod::Profile(0))
+            else {
+                panic!("selected profile")
+            };
+            assert_eq!(actual_profile, profile);
+            assert_eq!(actual_region, region);
+        });
+    }
+}
+
+#[test]
+fn localized_govcloud_guidance_keeps_link_scroll_and_acknowledgement() {
+    use crate::i18n::Locale;
+    for (locale, title, acknowledge, disclosure_end) in [
+        (
+            Locale::English,
+            "Using Codex with AWS GovCloud",
+            "Acknowledge",
+            "proceeding.",
+        ),
+        (
+            Locale::Korean,
+            "AWS GovCloud에서 Codex 사용",
+            "확인",
+            "확인하세요.",
+        ),
+    ] {
+        crate::i18n::with_locale(locale, || {
+            let state = BedrockState::guidance();
+            assert!(render_visible_at(&state, Rect::new(0, 0, 110, 24)).contains(title));
+            for width in [18, 24, 72] {
+                let mut state = BedrockState::guidance();
+                let area = Rect::new(0, 0, width, 6);
+                let mut seen = String::new();
+                let mut link_seen = false;
+                for _ in 0..100 {
+                    let mut buffer = Buffer::empty(area);
+                    state.render(area, &mut buffer, None);
+                    link_seen |= buffer
+                        .content
+                        .iter()
+                        .any(|cell| cell.symbol().contains(GOV_CLOUD_GUIDANCE_URL));
+                    let visible = render_visible_at(&state, area);
+                    assert!(
+                        visible
+                            .lines()
+                            .all(|line| unicode_width::UnicodeWidthStr::width(line)
+                                <= usize::from(width))
+                    );
+                    assert!(visible.contains(acknowledge));
+                    seen.push_str(&visible);
+                    assert!(!state.handle_guidance_key_event(&KeyEvent::new(
+                        KeyCode::Down,
+                        KeyModifiers::NONE
+                    )));
+                }
+                assert!(seen.contains(disclosure_end));
+                assert!(link_seen);
+                assert!(
+                    state.handle_guidance_key_event(&KeyEvent::new(
+                        KeyCode::Enter,
+                        KeyModifiers::NONE
+                    ))
+                );
+            }
+            let error = "opaque://backend/{ $error }/한글-e\u{301}";
+            for (id, prefix) in [
+                (
+                    "dialogs-bedrock-discovery-error",
+                    if locale == Locale::English {
+                        "Unable to check AWS credentials: "
+                    } else {
+                        "AWS 자격 증명을 확인할 수 없습니다: "
+                    },
+                ),
+                (
+                    "dialogs-bedrock-setup-error",
+                    if locale == Locale::English {
+                        "Unable to set up Amazon Bedrock: "
+                    } else {
+                        "Amazon Bedrock을 설정할 수 없습니다: "
+                    },
+                ),
+            ] {
+                assert_eq!(message(id, &[("error", error)]), format!("{prefix}{error}"));
+            }
+        });
     }
 }

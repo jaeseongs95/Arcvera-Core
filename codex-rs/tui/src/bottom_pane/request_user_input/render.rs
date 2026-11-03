@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Stylize;
@@ -118,12 +119,15 @@ impl Renderable for RequestUserInputOverlay {
 impl RequestUserInputOverlay {
     fn unanswered_confirmation_data(&self) -> UnansweredConfirmationData {
         let unanswered = self.unanswered_question_count();
-        let subtitle = format!(
-            "{unanswered} unanswered question{}",
-            if unanswered == 1 { "" } else { "s" }
+        let subtitle = crate::i18n::message_with_count(
+            "dialogs-unanswered-question-count",
+            &[],
+            unanswered as i64,
         );
         UnansweredConfirmationData {
-            title_line: Line::from(super::UNANSWERED_CONFIRM_TITLE.bold()),
+            title_line: Line::from(
+                crate::i18n::message(super::UNANSWERED_CONFIRM_TITLE, &[]).bold(),
+            ),
             subtitle_line: Line::from(subtitle.dim()),
             hint_line: standard_popup_hint_line(),
             rows: self.unanswered_confirmation_rows(),
@@ -222,7 +226,7 @@ impl RequestUserInputOverlay {
             &layout.rows,
             &layout.state,
             layout.rows.len().max(1),
-            "No choices",
+            &crate::i18n::message("dialogs-no-choices", &[]),
         );
 
         cursor_y = cursor_y.saturating_add(rows_height);
@@ -304,7 +308,7 @@ impl RequestUserInputOverlay {
                     &option_rows,
                     &options_state,
                     option_rows.len().max(1),
-                    "No options",
+                    &crate::i18n::message("dialogs-no-options", &[]),
                 );
             }
         }
@@ -332,7 +336,16 @@ impl RequestUserInputOverlay {
         let option_tip = if options_hidden {
             let selected = self.selected_option_index().unwrap_or(0).saturating_add(1);
             let total = self.options_len();
-            Some(Line::from(format!("option {selected}/{total}").dim()))
+            Some(Line::from(
+                crate::i18n::message(
+                    "dialogs-option-progress",
+                    &[
+                        ("selected", &selected.to_string()),
+                        ("total", &total.to_string()),
+                    ],
+                )
+                .dim(),
+            ))
         } else {
             None
         };

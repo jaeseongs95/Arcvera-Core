@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
@@ -209,6 +209,12 @@ impl InitializeRequestProcessor {
 
         let user_agent = get_codex_user_agent();
         let response = InitializeResponse {
+            opendiy_capabilities: Some(codex_app_server_protocol::OpenDiyCapabilities {
+                passive_subscription: true,
+                user_turn_start_if_idle: true,
+                compact_start_if_idle: true,
+                history_summary: true,
+            }),
             supports_subagent_management: true,
             supports_expected_turn_interrupt: Some(true),
             user_agent,

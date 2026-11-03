@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Passive shortcut hints arranged in responsive columns above the composer.
 
 use super::selection_popup_common::menu_surface_inset;
@@ -154,7 +155,7 @@ fn render_clipped(mut lines: Vec<Line<'static>>, area: Rect, buf: &mut Buffer) {
     let height = usize::from(area.height);
     if lines.len() > height {
         lines.truncate(height);
-        lines[height - 1] = "… resize to see all".dim().into();
+        lines[height - 1] = crate::i18n::message("dialogs-resize-all", &[]).dim().into();
     }
     Paragraph::new(lines).render(area, buf);
 }

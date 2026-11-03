@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! TUI-only out-of-process reconnection. Each attempt initializes a fresh client and rejoins existing
 //! threads using ordinary resume/history semantics. Confirmed submissions are reconciled before
 //! unsent queues resume; uncertain submissions and old async completions remain quarantined.
@@ -273,7 +273,9 @@ impl App {
                         .is_some())
             {
                 if let Ok(mut state) = self.agents_overview.view_state.lock() {
-                    state.connection_notice = Some("Reconnecting — agent list is stale");
+                    state.connection_notice = Some(crate::i18n::static_message(
+                        "picker-center-notice-reconnecting",
+                    ));
                 }
                 ReconnectPresentation::Overview
             } else {

@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Keeps the server version notice and local maintenance guidance in the overview.
 
 use super::*;
@@ -60,8 +61,14 @@ impl App {
                     ServerVersionNoticeKind::Older => "<",
                     ServerVersionNoticeKind::Different => "≠",
                 };
-            Some(format!(
-                "Service v{server} {comparison} Codex CLI v{client_version}{guidance}"
+            Some(crate::i18n::message(
+                "picker-center-service-version",
+                &[
+                    ("server", server),
+                    ("comparison", comparison),
+                    ("client", client_version),
+                    ("guidance", guidance),
+                ],
             ))
         });
     }

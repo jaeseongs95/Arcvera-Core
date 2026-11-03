@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Daemon-wide overview of recent and locally retained sessions and their subagents.
 //! Tasks owned by another app server open as frozen, read-only history snapshots.
 //! Only the immediate attachment of a dashboard-created task is treated as fresh.
@@ -158,9 +159,9 @@ impl App {
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             state.loading = false;
             state.connection_notice = Some(if self.reconnect.failed {
-                "Reconnect failed — agent list is stale; relaunch to retry"
+                crate::i18n::static_message("picker-center-notice-failed")
             } else {
-                "Reconnecting — agent list is stale"
+                crate::i18n::static_message("picker-center-notice-reconnecting")
             });
         } else {
             self.refresh_agents_overview_threads(app_server);

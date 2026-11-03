@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use strum::IntoEnumIterator;
 use strum_macros::AsRefStr;
 use strum_macros::EnumIter;
@@ -99,11 +99,14 @@ pub enum SlashCommand {
 impl SlashCommand {
     /// User-visible description shown in the popup.
     pub fn description(self) -> &'static str {
+        if self == SlashCommand::Cron {
+            return crate::i18n::static_message("cron-description");
+        }
         crate::i18n::text(match self {
             SlashCommand::Context => {
                 "show or set this chat's context window: /context [tokens|reset]"
             }
-            SlashCommand::Cron => "CLI 실행 중에만 대화별 프롬프트 예약 실행",
+            SlashCommand::Cron => "schedule per-chat prompts while this CLI is running",
             SlashCommand::Config => "configure Codex preferences",
             SlashCommand::Feedback => "send logs to maintainers",
             SlashCommand::New => "start a new chat during a conversation",
@@ -377,6 +380,25 @@ mod tests {
         assert!(SlashCommand::Language.available_during_task());
         assert!(SlashCommand::Language.available_when_thread_unavailable());
         assert!(SlashCommand::Language.available_in_side_conversation());
+    }
+
+    #[test]
+    fn cron_description_follows_ui_language_without_changing_command_token() {
+        for (locale, expected) in [
+            (
+                crate::i18n::Locale::English,
+                "schedule per-chat prompts while this CLI is running",
+            ),
+            (
+                crate::i18n::Locale::Korean,
+                "CLI 실행 중에만 대화별 프롬프트 예약 실행",
+            ),
+        ] {
+            crate::i18n::with_locale(locale, || {
+                assert_eq!(SlashCommand::Cron.description(), expected);
+                assert_eq!(SlashCommand::Cron.command(), "cron");
+            });
+        }
     }
 
     #[test]

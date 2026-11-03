@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use super::BreakdownDimension;
 use super::format_credit_micros;
 use super::format_model_display_name;
@@ -67,4 +68,56 @@ fn thread_usage_model_names_match_desktop_display_names() {
     assert_eq!(format_model_display_name("gpt-5-mini"), "GPT-5 Mini");
     assert_eq!(format_model_display_name("gpt-5.6-sol"), "GPT-5.6 Sol");
     assert_eq!(format_model_display_name("examplemodel"), "examplemodel");
+}
+
+#[test]
+fn localized_thread_breakdown_keeps_unknown_server_values_opaque() {
+    use crate::i18n::{Locale, with_locale};
+    let group = ThreadUsageBreakdownGroup {
+        model: Some("서버모델🧪{name}".to_string()),
+        reasoning_effort: Some("high".to_string()),
+        speed: Some("fast".to_string()),
+        estimated_usage_credits_micros: 1_000_000,
+        net_new_input_tokens: None,
+        cached_input_tokens: None,
+        input_tokens: None,
+        output_tokens: None,
+        total_tokens: None,
+    };
+    let groups = [
+        group.clone(),
+        ThreadUsageBreakdownGroup {
+            reasoning_effort: Some("High".to_string()),
+            speed: Some("Fast mode".to_string()),
+            ..group
+        },
+    ];
+    for (locale, reasoning, speed) in [
+        (
+            Locale::English,
+            "High 50%, High 50%",
+            "Fast mode 50%, Fast mode 50%",
+        ),
+        (
+            Locale::Korean,
+            "High 50%, 높음 50%",
+            "Fast mode 50%, 빠른 모드 50%",
+        ),
+    ] {
+        with_locale(locale, || {
+            // A server's literal "High"/"Fast mode" is distinct from the typed built-in value.
+            assert_eq!(
+                grouped_usage(&groups, BreakdownDimension::Reasoning).as_deref(),
+                Some(reasoning)
+            );
+            assert_eq!(
+                grouped_usage(&groups, BreakdownDimension::Speed).as_deref(),
+                Some(speed)
+            );
+            assert_eq!(
+                grouped_usage(&groups, BreakdownDimension::Model).as_deref(),
+                Some("서버모델🧪{name} 100%")
+            );
+        });
+    }
 }

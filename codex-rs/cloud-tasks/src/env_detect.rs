@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use codex_git_utils::SanitizedGitUrl;
 use codex_http_client::RouteAwareClientPool;
 use http::StatusCode;
@@ -100,7 +100,7 @@ async fn autodetect_environment_id_with_origins(
             label: env.label.as_deref().map(str::to_owned),
         });
     }
-    anyhow::bail!("no environments available")
+    anyhow::bail!("{}", codex_tui::i18n::message("cloud-env-none", &[]))
 }
 
 fn pick_environment_row(
@@ -152,17 +152,28 @@ async fn get_json<T: serde::de::DeserializeOwned>(
     crate::append_error_log(format!("env: status={status} content-type={ct}"));
     if !status.is_success() {
         anyhow::bail!(
-            "{}: HTTP {status}; content-type={ct}",
-            codex_tui::i18n::text("Environment lookup failed")
+            "{}",
+            codex_tui::i18n::message(
+                "cloud-env-http-error",
+                &[
+                    ("status", &status.to_string()),
+                    ("content_type", ct.as_str())
+                ]
+            )
         );
     }
     let parsed = serde_json::from_str::<T>(&body).map_err(|e| {
         anyhow::anyhow!(
-            "{}: {:?} at line {}, column {}; content-type={ct}",
-            codex_tui::i18n::text("Invalid environment response"),
-            e.classify(),
-            e.line(),
-            e.column()
+            "{}",
+            codex_tui::i18n::message(
+                "cloud-env-decode-error",
+                &[
+                    ("category", &format!("{:?}", e.classify())),
+                    ("line", &e.line().to_string()),
+                    ("column", &e.column().to_string()),
+                    ("content_type", ct.as_str())
+                ]
+            )
         )
     })?;
     Ok(parsed)
@@ -314,6 +325,72 @@ pub async fn list_all_environments(
     headers: &HeaderMap,
 ) -> anyhow::Result<Vec<crate::app::EnvironmentRow>> {
     list_environments_with_origins(http, base_url, headers, &[]).await
+}
+
+/// Resolve an explicit CLI target using the complete accessible environment list.
+pub async fn resolve_environment_id(
+    http: &RouteAwareClientPool,
+    base_url: &str,
+    headers: &HeaderMap,
+    requested: &str,
+) -> anyhow::Result<String> {
+    resolve_environment_id_with_http(http, base_url, headers, requested).await
+}
+
+async fn resolve_environment_id_with_http(
+    http: &impl EnvironmentHttp,
+    base_url: &str,
+    headers: &HeaderMap,
+    requested: &str,
+) -> anyhow::Result<String> {
+    let trimmed = requested.trim();
+    if trimmed.is_empty() {
+        return Err(anyhow::anyhow!(
+            "{}",
+            codex_tui::i18n::message("cloud-env-id-empty", &[])
+        ));
+    }
+    // Explicit CLI targets require a complete list: TUI discovery may return partial
+    // by-repository results when the global request fails.
+    let environments = list_environments_with_origins(http, base_url, headers, &[]).await?;
+    if environments.is_empty() {
+        return Err(anyhow::anyhow!(
+            "{}",
+            codex_tui::i18n::message("cloud-env-none-workspace", &[])
+        ));
+    }
+
+    if let Some(row) = environments.iter().find(|row| row.id == trimmed) {
+        return Ok(row.id.clone());
+    }
+
+    let label_matches = environments
+        .iter()
+        .filter(|row| {
+            row.label
+                .as_deref()
+                .map(|label| label.eq_ignore_ascii_case(trimmed))
+                .unwrap_or(false)
+        })
+        .collect::<Vec<_>>();
+    match label_matches.as_slice() {
+        [] => Err(anyhow::anyhow!(
+            "{}",
+            codex_tui::i18n::message("cloud-env-not-found", &[("trimmed", trimmed)])
+        )),
+        [single] => Ok(single.id.clone()),
+        [first, rest @ ..] => {
+            let first_id = &first.id;
+            if rest.iter().all(|row| row.id == *first_id) {
+                Ok(first_id.clone())
+            } else {
+                Err(anyhow::anyhow!(
+                    "{}",
+                    codex_tui::i18n::message("cloud-env-ambiguous", &[("trimmed", trimmed)])
+                ))
+            }
+        }
+    }
 }
 
 async fn list_environments_with_origins(

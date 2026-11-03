@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Transcript/history cells for the Codex TUI.
 //!
 //! A `HistoryCell` is the unit of display in the conversation UI, representing both committed
@@ -108,6 +108,7 @@ mod approvals;
 mod async_questions;
 mod async_replies;
 mod base;
+mod cron;
 mod dynamic;
 mod exec;
 mod hook_cell;
@@ -129,6 +130,7 @@ pub(crate) use activity_details::ActivityDetails;
 pub(crate) use activity_preview::ActivityDisclosure;
 pub(crate) use approvals::*;
 pub(crate) use base::*;
+pub(crate) use cron::CronJobHistoryCell;
 pub(crate) use dynamic::DynamicToolCallCell;
 pub(crate) use exec::*;
 pub(crate) use hook_cell::HookCell;

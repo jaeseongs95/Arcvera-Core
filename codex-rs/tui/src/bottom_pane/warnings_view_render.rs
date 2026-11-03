@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Show one complete diagnostic with bounded scrolling and the viewer's own footer.
 
 use super::*;
@@ -34,19 +35,21 @@ impl Renderable for WarningsView {
         let footer = footer.inner(Margin::new(/*horizontal*/ 2, /*vertical*/ 0));
         let entry = self.entries.get(self.current);
         let title = match entry {
-            Some(entry) => format!(
-                "Warnings · {} of {} · {}",
-                self.current + 1,
-                self.entries.len(),
-                entry.source
+            Some(entry) => crate::i18n::message(
+                "dialogs-warnings-progress",
+                &[
+                    ("current", &(self.current + 1).to_string()),
+                    ("total", &self.entries.len().to_string()),
+                    ("source", entry.source.as_str()),
+                ],
             ),
-            None => "Warnings".to_string(),
+            None => crate::i18n::message("dialogs-warnings", &[]),
         };
         Line::from(title.bold()).render(header, buf);
-        let details = entry.map_or("No warnings", |entry| entry.details.as_str());
-        let restart_hint = (self.daemon_restart_hint_at == Some(self.current)).then_some(
-            "\nThese warnings may reflect settings from when the background server started. If you’ve already fixed them, use /daemon to restart it.",
-        );
+        let empty_details = crate::i18n::message("dialogs-no-warnings", &[]);
+        let details = entry.map_or(empty_details.as_str(), |entry| entry.details.as_str());
+        let restart_hint = (self.daemon_restart_hint_at == Some(self.current))
+            .then(|| crate::i18n::message("dialogs-warnings-restart", &[]));
         if body.width > 0
             && body.height > 0
             && let Some(visited) = self.visited.get(self.current)
@@ -55,7 +58,7 @@ impl Renderable for WarningsView {
         }
         let lines = details
             .lines()
-            .chain(restart_hint.into_iter().flat_map(str::lines))
+            .chain(restart_hint.as_deref().into_iter().flat_map(str::lines))
             .map(|text| {
                 crate::terminal_hyperlinks::annotate_web_urls_in_line(text.to_owned().into())
             })
@@ -93,21 +96,30 @@ impl Renderable for WarningsView {
             .join("/");
         let mut items = Vec::new();
         for (hint, label) in [
-            (Some("k".to_string()), "keep & next"),
+            (
+                Some("k".to_string()),
+                crate::i18n::message("dialogs-warning-keep-next", &[]),
+            ),
             (
                 Some(
                     hint(KeymapContext::List, "cancel")
                         .unwrap_or_else(|| key_hint::ctrl(KeyCode::Char('c')).into())
                         .display_label(),
                 ),
-                "dismiss & close",
+                crate::i18n::message("dialogs-warning-dismiss-close", &[]),
             ),
             (
-                hint(KeymapContext::Global, "copy")
-                    .map(crate::key_hint::ShortcutHint::display_label),
-                "copy",
+                hint(
+                    KeymapContext::Global,
+                    crate::i18n::message("dialogs-copy", &[]),
+                )
+                .map(crate::key_hint::ShortcutHint::display_label),
+                crate::i18n::message("dialogs-copy", &[]),
             ),
-            ((!navigation.is_empty()).then_some(navigation), "warning"),
+            (
+                (!navigation.is_empty()).then_some(navigation),
+                crate::i18n::message("dialogs-warning", &[]),
+            ),
             (
                 crate::footer_hint::scroll_keys(
                     offset,
@@ -115,7 +127,7 @@ impl Renderable for WarningsView {
                     list("move_up"),
                     list("move_down"),
                 ),
-                "scroll",
+                crate::i18n::message("dialogs-scroll", &[]),
             ),
         ] {
             if let Some(hint) = hint {

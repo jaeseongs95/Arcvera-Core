@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Exit output distinguishes a disconnected client from a stopped embedded server.
 //! Persisted sessions offer a direct UUID command and an optional named picker hint.
 
@@ -57,8 +58,13 @@ impl App {
                 .agents
                 .primary_hint("stop", &self.keymap.agents.stop)
                 .map_or_else(
-                    || "use the configured stop shortcut".to_string(),
-                    |key| format!("press {}", key.display_label()),
+                    || crate::i18n::static_message("controls-exit-stop-shortcut").to_string(),
+                    |key| {
+                        crate::i18n::message(
+                            "controls-exit-press-key",
+                            &[("value", key.display_label().as_str())],
+                        )
+                    },
                 );
             Some(DisconnectInfo { command, stop_hint })
         });
@@ -94,17 +100,19 @@ impl AppExitInfo {
             let turn_interrupted = matches!(self.exit_reason, ExitReason::TurnInterrupted);
             let message = match self.exit_reason {
                 ExitReason::UserRequested | ExitReason::Archived(_) | ExitReason::ThreadRemoved => {
-                    "Disconnected from this task. Any running work continues."
+                    crate::i18n::static_message("controls-exit-disconnected")
                 }
-                ExitReason::Fatal(_) => "Disconnected from this task. Work may still be running.",
+                ExitReason::Fatal(_) => {
+                    crate::i18n::static_message("controls-exit-disconnected-fatal")
+                }
                 ExitReason::TurnInterrupted => {
-                    "Disconnected from this task. The current turn was stopped."
+                    crate::i18n::static_message("controls-exit-disconnected-stopped")
                 }
             };
             lines.push(message.to_string());
             let mut resume_command = disconnect.command.clone();
             resume_command.extend(["resume".to_string(), thread_id.to_string()]);
-            lines.push("To reconnect, run:".to_string());
+            lines.push(crate::i18n::static_message("controls-exit-reconnect").to_string());
             lines.push(format!(
                 "  {}",
                 color_command(escape_command(&resume_command)),
@@ -112,44 +120,100 @@ impl AppExitInfo {
             if !turn_interrupted {
                 let mut agents_command = disconnect.command;
                 agents_command.push("agents".to_string());
-                lines.push(format!(
-                    "Stop the current turn: run {}, select this task, and {}.",
-                    color_command(escape_command(&agents_command)),
-                    disconnect.stop_hint,
+                lines.push(crate::i18n::message(
+                    "controls-exit-stop-turn",
+                    &[
+                        (
+                            "command",
+                            color_command(escape_command(&agents_command)).as_str(),
+                        ),
+                        ("hint", disconnect.stop_hint.as_str()),
+                    ],
                 ));
             }
             if !self.token_usage.is_zero() {
-                let usage = self.token_usage.to_string();
-                lines.push(if turn_interrupted {
-                    usage
-                } else {
-                    usage.replacen("Token usage:", "Token usage so far:", /*count*/ 1)
-                });
+                lines.push(self.token_usage.ui_summary(!turn_interrupted));
             }
             return lines;
         }
 
         if !self.token_usage.is_zero() {
-            lines.push(self.token_usage.to_string());
+            lines.push(self.token_usage.ui_summary(false));
         }
         if let ExitReason::Archived(thread_id) = self.exit_reason {
-            lines.push(format!("Session archived: {thread_id}"));
+            lines.push(crate::i18n::message(
+                "controls-exit-archived",
+                &[("value", thread_id.to_string().as_str())],
+            ));
         } else if let Some(thread) = self.resume_hint {
-            lines.push("To continue this session, run:".to_string());
+            lines.push(crate::i18n::static_message("controls-exit-continue").to_string());
             lines.push(format!(
                 "  {}",
                 color_command(format!("codex resume {}", thread.thread_id)),
             ));
             if let Some(thread_name) = thread.thread_name.filter(|name| !name.is_empty()) {
-                lines.push(format!(
-                    "Or run {} and select {}.",
-                    color_command("codex resume".to_string()),
-                    color_command(thread_name),
+                lines.push(crate::i18n::message(
+                    "controls-exit-select",
+                    &[
+                        (
+                            "command",
+                            color_command("codex resume".to_string()).as_str(),
+                        ),
+                        ("value", color_command(thread_name).as_str()),
+                    ],
                 ));
             }
         } else if let Some(thread_id) = self.thread_id {
-            lines.push(format!("Session ID: {thread_id}"));
+            lines.push(crate::i18n::message(
+                "controls-exit-session-id",
+                &[("value", thread_id.to_string().as_str())],
+            ));
         }
         lines
+    }
+}
+
+#[cfg(test)]
+mod localization_tests {
+    use super::*;
+
+    #[test]
+    fn exit_summary_localizes_guidance_preserving_commands_and_user_title() {
+        let thread_id = ThreadId::new();
+        let name = "Original English { $value } 한국어 /goal";
+        for (locale, heading, named_hint) in [
+            (
+                crate::i18n::Locale::English,
+                "To continue this session, run:",
+                format!("Or run codex resume and select {name}."),
+            ),
+            (
+                crate::i18n::Locale::Korean,
+                "이 세션을 계속하려면 다음을 실행하세요:",
+                format!("또는 codex resume 명령을 실행하고 {name} 항목을 선택하세요."),
+            ),
+        ] {
+            crate::i18n::with_locale(locale, || {
+                let info = AppExitInfo {
+                    token_usage: Default::default(),
+                    thread_id: Some(thread_id),
+                    resume_hint: Some(ResumableThread {
+                        thread_id,
+                        thread_name: Some(name.to_string()),
+                    }),
+                    disconnect_info: None,
+                    update_action: None,
+                    exit_reason: ExitReason::UserRequested,
+                };
+                assert_eq!(
+                    info.format_exit_messages(false),
+                    vec![
+                        heading.to_string(),
+                        format!("  codex resume {thread_id}"),
+                        named_hint,
+                    ]
+                );
+            });
+        }
     }
 }

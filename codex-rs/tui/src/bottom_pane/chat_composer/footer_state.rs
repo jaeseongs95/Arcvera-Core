@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Footer and status-row presentation state for the chat composer.
 //! Owners schedule flash expiry redraws; replacing a draft clears its flash.
 //! One resolved layout supplies the status, input, popup, and hint rectangles to each consumer.
@@ -324,7 +325,9 @@ impl super::ChatComposer {
                 shortcuts.push_span(" · ".set_style(secondary_text_style()));
             }
             shortcuts.extend(key.spans());
-            shortcuts.push_span(" shortcuts".set_style(secondary_text_style()));
+            shortcuts.push_span(
+                crate::i18n::message("dialogs-shortcuts", &[]).set_style(secondary_text_style()),
+            );
             if line.width() + shortcuts.width() <= usize::from(hint_area.width) {
                 line.extend(shortcuts.spans);
             }

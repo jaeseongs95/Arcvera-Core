@@ -1,4 +1,4 @@
-# Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.
+# Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 [package]
 name = "codex-cli"
 version.workspace = true
@@ -35,7 +35,7 @@ workspace = true
 codex-utils-process = { workspace = true }
 anyhow = { workspace = true }
 chrono = { workspace = true }
-clap = { workspace = true, features = ["derive", "env"] }
+clap = { workspace = true, features = ["derive", "env", "string"] }
 clap_complete = { workspace = true }
 codex-app-server = { workspace = true }
 codex-app-server-client = { workspace = true }

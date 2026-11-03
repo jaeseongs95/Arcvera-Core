@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 #[cfg(test)]
 use std::path::Path;
 use std::path::PathBuf;
@@ -480,7 +480,44 @@ macro_rules! client_response_payload_from_impl {
 #[cfg(test)]
 mod desktop_api_protocol_tests {
     use super::*;
+    use crate::experimental_api::ExperimentalApi;
     use serde_json::json;
+
+    #[test]
+    fn desktop_extension_methods_only_gate_experimental_turn_fields() {
+        for (method, params) in [
+            (
+                "thread/subscribePassive",
+                json!({"threadId":"loaded-thread"}),
+            ),
+            (
+                "thread/compact/startIfIdle",
+                json!({"threadId":"loaded-thread"}),
+            ),
+            (
+                "turn/startUserIfIdle",
+                json!({"threadId":"loaded-thread","input":[]}),
+            ),
+        ] {
+            let request: ClientRequest = serde_json::from_value(json!({
+                "id":1,"method":method,"params":params
+            }))
+            .unwrap();
+            assert_eq!(request.experimental_reason(), None, "{method}");
+        }
+
+        // The user-if-idle method retains the standard turn input's field gates.
+        // Supporting passive observation does not require opting into these fields.
+        for field in ["additionalContext", "responsesapiClientMetadata"] {
+            let mut params = json!({"threadId":"loaded-thread","input":[]});
+            params[field] = json!({});
+            let request: ClientRequest = serde_json::from_value(json!({
+                "id":2,"method":"turn/startUserIfIdle","params":params
+            }))
+            .unwrap();
+            assert!(request.experimental_reason().is_some(), "{field}");
+        }
+    }
 
     #[test]
     fn passive_subscription_rejects_resume_options_and_preserves_thread_scope() {

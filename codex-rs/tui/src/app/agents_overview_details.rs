@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Bounded overview previews from existing reads and already-delivered events.
 //! Observing activity never attaches to a thread or fetches additional history.
 //! Message previews retain Markdown until the details panel's width is known.
@@ -178,26 +179,47 @@ impl App {
                 .or(source.name.as_deref())
                 .unwrap_or(&source.id);
             lines.push(Line::default());
-            lines.push(vec!["Agent: ".dim(), preview_text(name).into()].into());
+            lines.push(
+                vec![
+                    crate::i18n::static_message("picker-center-agent-label").dim(),
+                    preview_text(name).into(),
+                ]
+                .into(),
+            );
         }
         if AgentsOverviewGroup::for_thread(source) == AgentsOverviewGroup::NeedsYou {
             if !is_child {
-                lines.extend([Line::default(), "Needs attention".red().into()]);
+                lines.extend([
+                    Line::default(),
+                    crate::i18n::static_message("picker-center-needs-attention")
+                        .red()
+                        .into(),
+                ]);
             }
             if let Some(request) = self.agents_overview_request_preview(thread_id) {
                 lines.push(request.into());
             }
-            lines.push("Open task to review.".dim().into());
+            lines.push(
+                crate::i18n::static_message("picker-center-open-to-review")
+                    .dim()
+                    .into(),
+            );
             match &source.status {
                 ThreadStatus::Active { active_flags } => {
                     if active_flags.contains(&ThreadActiveFlag::WaitingOnApproval) {
-                        lines.push("Waiting for approval.".into());
+                        lines.push(
+                            crate::i18n::static_message("picker-center-waiting-approval").into(),
+                        );
                     }
                     if active_flags.contains(&ThreadActiveFlag::WaitingOnUserInput) {
-                        lines.push("Waiting for your response.".into());
+                        lines.push(
+                            crate::i18n::static_message("picker-center-waiting-response").into(),
+                        );
                     }
                 }
-                ThreadStatus::SystemError => lines.push("Task encountered an error.".into()),
+                ThreadStatus::SystemError => {
+                    lines.push(crate::i18n::static_message("picker-center-task-error").into())
+                }
                 ThreadStatus::NotLoaded | ThreadStatus::Idle => {}
             }
         }
@@ -212,7 +234,12 @@ impl App {
             if !is_child {
                 lines.push(Line::default());
             }
-            lines.extend(["Latest activity".dim().into(), header.clone().into()]);
+            lines.extend([
+                crate::i18n::static_message("picker-center-latest-activity")
+                    .dim()
+                    .into(),
+                header.clone().into(),
+            ]);
         }
         let last_message = activity
             .and_then(|activity| activity.last_message.as_ref())
