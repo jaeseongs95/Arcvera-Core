@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "sourceCommit": "0bb394e4412d6ea687d9c27b7a4d3c77f32b3435",
+  "sourceCommit": "284253eff61a6a0e2976d2f9eee5f9a841aad8d5",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -19978,10 +19978,10 @@
     {
       "path": "codex-rs/cli/src/localization.rs",
       "gitMode": "100644",
-      "gitBlob": "a90520791749dafc0634a53ac32fb62e303469c1",
-      "sourceSha256": "3a4dcb0569b4b3ca4b7825c6ffc65ba459fb2548be630c5eb20bd0d72d97a125",
-      "publishedSha256": "48e874a5d21a20ea8322d5d588183e795cf681885f0c261e800b4e26c539ba17",
-      "bytes": 122972,
+      "gitBlob": "feae01a3c972152477c5576b3e67af34762968a5",
+      "sourceSha256": "48c12447024fece0c863fed314d707191ed844decb403e20c0275d21ca536a78",
+      "publishedSha256": "51d9f8ef4a9fa1dcec4098eb2289c94ccd5b8fc0bbd9c9ffe358df9c1e1dc611",
+      "bytes": 122895,
       "modified": true,
       "noticeOnly": true
     },
