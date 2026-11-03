@@ -201,6 +201,8 @@ async fn delete_threads_owned(
         return Ok(());
     }
 
+    #[cfg(feature = "test-support")]
+    let loaded_cleanup_id = reference_deletion.as_ref().map(|_| thread_ids[0]);
     let mut lock_thread_ids = thread_ids.clone();
     lock_thread_ids.sort_unstable_by_key(ToString::to_string);
     lock_thread_ids.dedup();
@@ -224,6 +226,8 @@ async fn delete_threads_owned(
         &mut writer_guards,
         || {},
         &reference_deletion,
+        #[cfg(feature = "test-support")]
+        loaded_cleanup_id,
     )
     .await
 }
@@ -234,10 +238,17 @@ pub(super) async fn delete_threads_under_writer_locks(
     writer_guards: &mut Vec<super::WriterLockGuard>,
     before_mutation: impl FnOnce(),
     _reference_deletion: &std::fs::File,
+    #[cfg(feature = "test-support")] loaded_cleanup_id: Option<ThreadId>,
 ) -> ThreadStoreResult<()> {
     let thread_rollouts = prepare_thread_deletions(store, &thread_ids).await?;
     #[cfg(feature = "test-support")]
     store.wait_for_delete_barriers_for_test(&thread_ids).await;
+    #[cfg(feature = "test-support")]
+    if let Some(id) = loaded_cleanup_id
+        && let Some(hooks) = &store.loaded_cleanup_delete_hooks_for_test
+    {
+        (hooks.before)(id).await?;
+    }
     // No host cleanup, history, rollout or DB deletion has started before this boundary.
     // A caller may release an uncommitted admission on an earlier error, regardless of
     // its error variant. Every error after this callback remains potentially partial.
@@ -252,6 +263,12 @@ pub(super) async fn delete_threads_under_writer_locks(
         }
     }
     delete_state_rows(store, &thread_ids).await?;
+    #[cfg(feature = "test-support")]
+    if let Some(id) = loaded_cleanup_id
+        && let Some(hooks) = &store.loaded_cleanup_delete_hooks_for_test
+    {
+        (hooks.after)(id).await?;
+    }
     Ok(())
 }
 

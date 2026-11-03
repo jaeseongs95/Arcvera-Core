@@ -162,6 +162,8 @@ pub struct LocalThreadStore {
     thread_history_db: Arc<OnceCell<sqlx::SqlitePool>>,
     thread_data_cleanup: Option<Arc<ThreadDataCleanup>>,
     #[cfg(feature = "test-support")]
+    loaded_cleanup_delete_hooks_for_test: Option<Arc<LoadedCleanupDeleteHooksForTest>>,
+    #[cfg(feature = "test-support")]
     delete_barriers_for_test: Arc<Mutex<HashMap<ThreadId, DeleteBarrierForTest>>>,
     #[cfg(test)]
     startup_migration_retry_gate: Option<Arc<StartupMigrationRetryGate>>,
@@ -172,6 +174,16 @@ type DeleteBarrierForTest = (
     tokio::sync::oneshot::Sender<()>,
     tokio::sync::oneshot::Receiver<()>,
 );
+
+#[cfg(feature = "test-support")]
+type LoadedCleanupDeleteHookForTest =
+    dyn Fn(ThreadId) -> ThreadStoreFuture<'static, ()> + Send + Sync;
+
+#[cfg(feature = "test-support")]
+struct LoadedCleanupDeleteHooksForTest {
+    before: Arc<LoadedCleanupDeleteHookForTest>,
+    after: Arc<LoadedCleanupDeleteHookForTest>,
+}
 
 type ThreadDataCleanup = dyn Fn(Vec<ThreadId>) -> ThreadStoreFuture<'static, ()> + Send + Sync;
 
@@ -298,10 +310,28 @@ impl LocalThreadStore {
             thread_history_db: Arc::new(OnceCell::new()),
             thread_data_cleanup: None,
             #[cfg(feature = "test-support")]
+            loaded_cleanup_delete_hooks_for_test: None,
+            #[cfg(feature = "test-support")]
             delete_barriers_for_test: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(test)]
             startup_migration_retry_gate: None,
         }
+    }
+
+    /// Injects faults only at an exact loaded guard's real pre/post deletion boundary.
+    /// Both callbacks run while its File, writer and lifecycle leases remain owned.
+    #[cfg(feature = "test-support")]
+    pub fn with_loaded_cleanup_delete_hooks_for_test(
+        mut self,
+        before: impl Fn(ThreadId) -> ThreadStoreFuture<'static, ()> + Send + Sync + 'static,
+        after: impl Fn(ThreadId) -> ThreadStoreFuture<'static, ()> + Send + Sync + 'static,
+    ) -> Self {
+        self.loaded_cleanup_delete_hooks_for_test =
+            Some(Arc::new(LoadedCleanupDeleteHooksForTest {
+                before: Arc::new(before),
+                after: Arc::new(after),
+            }));
+        self
     }
 
     /// Installs a one-use barrier on this store instance, after real deletion checks.

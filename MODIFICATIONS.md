@@ -1,12 +1,12 @@
 # R36 개발 후보
 
-고정 소스는 `4be3702c1ed7854f3c25ade8d76f9e4024687628`입니다. 공식 안정판 조회 기준은 0.166.0이며, 새 안정판이 나오면 최종 제품 빌드 전에 기반을 갱신하고 기존 패치와 대조합니다. R34 발행본과 R35 원본은 보존합니다.
+고정 소스는 `284253eff61a6a0e2976d2f9eee5f9a841aad8d5`입니다. PR30은 사용자가 병합했으며 후속 변경은 PR31에서 검토합니다. 제품 빌드·동결·main 병합·릴리스·설치는 하지 않습니다.
 
-서브에이전트 기본 요약 1행·펼침 최대 3행과 내부 스크롤, 읽기 전용 `codex ci status/list/watch`, fast/ultrafast 전파 시험, 내용 없는 압축 phase 계측을 포함합니다. 과거 세션 정리 결과는 보존 사유를 구분합니다.
+1992480a의 thread-store 293개·Core cleanup 36개가 통과했습니다. 이후 변경은 CLI의 한 시험에 한정되며 제품·비CLI 소스는 동일합니다. 기존 34개 정리 시험을 유지하고 실제 Local owner의 삭제 전후 잠금·취소·실패 2개를 추가했습니다. 제품 cold/unloaded 정리는 참조 참여자를 입증할 수 없어 `reference_participants_unverified`로 보존하며 운영 지원은 미완입니다.
 
-같은 버전의 여러 저장소가 분기 참조를 준비하는 동안 원본을 삭제할 수 있었던 실제 RED를 확인해 기존 OS 잠금과 recorder 수명으로 보호를 보강했습니다. 구버전 프로세스의 참여는 입증할 수 없으므로 제품의 unloaded cold preview/confirm은 `reference_participants_unverified`로 기본 보존합니다. 운영 cold 삭제 지원은 미완이며, 기존 loaded 삭제의 구버전 혼합 위험이 해결됐다고 주장하지 않습니다.
+현재 후보 CLI 시험은 localization 15개, root parser 1개, CI 8개, 최초 설치 parser 1개가 통과했습니다. CI의 subprocess timeout 검사용 child fixture 1개는 직접 실행 시 ignored이며 통과로 계산하지 않습니다. 해당 fixture는 timeout 상위 시험에서 별도 프로세스로 실행합니다. 실제 GitHub 네트워크·인증 검증은 이 단위 시험 범위에 없습니다. 기존 한국어 전역 선언의 영문 도움말 기대값을 명시하고 Clap 상속 전에 설정해 나머지 출력의 완전 일치를 검사합니다. 선행 후보에서 발견한 실제 cleanup long_about 연결 누락과 마침표 매핑도 보완했습니다.
 
-이전 후보 a666c9bb는 protocol 333개 통과·1개 무시, rollout 162개 통과, Core 정리 32개 통과였으며 full store 290개 통과·2개 실패였습니다. 5aba5801e에서 loaded 참조 경합과 revert projection 누락의 실제 assertion RED를 확인한 뒤 close 전 참조 예약 유지와 projection 선행 준비를 반영했습니다. 두 RED 시험 본문은 유지했습니다. 첨부 시험은 실제 삭제 owner 대기열 등록을 기다리며, 새 projection 실패 시 current path·원본 보존과 재시도·삭제 회귀도 추가했습니다. 85b5bc610의 새 회귀는 동적 SQL의 SqlSafeStr 컴파일 오류로 미실행됐고 현 후보는 고정 SQL로 수정했습니다. 수정 후 full store/Core 정리→CLI/CI→fast 전파를 고정 소스에서 순차 실행하며 전체 수용 검증과 최종 새 독립감사는 미완료입니다. 실제 생성 JSON/TS와 precomputed exports는 소스에 반영했으나 현재 후보 전체의 시험 통과를 뜻하지 않습니다. 기존 R34 Cloud 조회 종료 0·작업 1건은 R36 실행 검증이나 원격 작업 제출 성공이 아닙니다. 제품 빌드·main 병합·릴리스·설치는 수행하지 않습니다.
+서브에이전트 제한 높이 표시·Cloud/읽기 전용 CI 관측·fast 전파·내용 없는 compact 계측을 포함합니다. 나머지 후보 검증과 fresh 독립감사는 진행 중이며 전체 완료를 주장하지 않습니다. R34 발행본·R35 원본·공유 daemon·사용자 데이터를 보존합니다. 소스 9454개/공식 대비 변경 717개를 내보내며 원시 로그·실행 파일·인증은 게시하지 않습니다.
 
 ## 이전 후보 기록
 
