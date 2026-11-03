@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Materializes and installs foreground or prepared V2 compaction through a shared path.
 //! A rejected or still-over-budget prepared result may fall back to one foreground request.
 //! Prepared prefixes are validated by the history replacement primitive before mutation.
@@ -173,6 +174,8 @@ async fn build_and_install_compaction(
         };
         (attempt, compaction_turn_context, None)
     };
+    let installation_timer =
+        crate::compact::CompactionPhaseTimer::new(sess, turn_context, "install_history");
     let RemoteCompactV2Attempt {
         input_goal_ids,
         trace_input_history,
@@ -252,6 +255,7 @@ async fn build_and_install_compaction(
         )
         .await
     };
+    installation_timer.finish();
     if !installed {
         return Ok(false);
     }
@@ -274,10 +278,13 @@ async fn build_and_install_compaction(
             replacement_history: &replacement_history,
         });
     }
+    let completion_timer =
+        crate::compact::CompactionPhaseTimer::new(sess, turn_context, "publish_compaction");
     sess.recompute_token_usage(&replacement_step_context.turn)
         .await;
     sess.emit_turn_item_completed(compaction_turn_context, compaction_item)
         .await;
+    completion_timer.finish();
     Ok(true)
 }
 

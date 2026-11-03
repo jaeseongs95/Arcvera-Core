@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Shared state and startup bindings for one local agent tree.
 //! Registry identity is allocation identity; cloning this handle preserves ownership checks.
 
@@ -246,6 +246,10 @@ impl LocalAgentRuntime {
         self.registry.release_spawned_thread(id);
         self.residency.remove(id);
         self.mailboxes.remove(id);
+    }
+
+    pub(crate) fn has_pending_cleanup_mail(&self, id: ThreadId) -> bool {
+        self.mailboxes.has_pending(id)
     }
 
     pub(super) fn new(

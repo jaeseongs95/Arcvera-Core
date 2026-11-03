@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! The bottom pane is the interactive footer of the chat UI.
 //!
 //! The pane owns the [`ChatComposer`] (editable prompt input) and a stack of transient
@@ -95,6 +95,8 @@ mod status_line_setup;
 mod status_line_style;
 mod subagent_status;
 pub(crate) use subagent_status::SubagentState;
+pub(crate) use subagent_status::SubagentStatusEntry;
+use subagent_status::SubagentStatusPanel;
 pub(crate) use subagent_status::SubagentStatusSummary;
 mod status_surface_preview;
 mod title_setup;
@@ -340,7 +342,7 @@ pub(crate) struct BottomPane {
     pending_input_preview: PendingInputPreview,
     /// Inactive threads with pending approval requests.
     pending_thread_approvals: PendingThreadApprovals,
-    subagent_status: SubagentStatusSummary,
+    subagent_status: SubagentStatusPanel,
     context_window_percent: Option<i64>,
     context_window_used_tokens: Option<i64>,
     keymap: RuntimeKeymap,
@@ -427,7 +429,7 @@ impl BottomPane {
             unified_exec_footer: UnifiedExecFooter::new(),
             pending_input_preview: PendingInputPreview::new(),
             pending_thread_approvals: PendingThreadApprovals::new(),
-            subagent_status: SubagentStatusSummary::default(),
+            subagent_status: SubagentStatusPanel::default(),
             esc_backtrack_hint: false,
             animations_enabled,
             effects,
@@ -978,6 +980,13 @@ impl BottomPane {
             InputResult::None
         } else {
             if self.handle_inline_banner_key(key_event) {
+                return InputResult::None;
+            }
+            if !self.composer.popup_active() && self.subagent_status.handle_key(key_event) {
+                self.request_redraw();
+                if self.subagent_status.needs_tick() {
+                    self.request_redraw_in(Duration::from_secs(1));
+                }
                 return InputResult::None;
             }
             // Allow the configured interrupt while a task is running, even when its
@@ -2007,10 +2016,20 @@ impl BottomPane {
             self.composer.end_mouse_drag();
             return false;
         }
+        if !self.composer.popup_active() && self.subagent_status.contains_mouse(event) {
+            return true;
+        }
         self.composer.prepare_mouse(event)
     }
 
     pub(crate) fn handle_composer_mouse(&mut self, event: crossterm::event::MouseEvent) -> bool {
+        if self.no_modal_or_popup_active() && self.subagent_status.handle_mouse(event) {
+            self.request_redraw();
+            if self.subagent_status.needs_tick() {
+                self.request_redraw_in(Duration::from_secs(1));
+            }
+            return true;
+        }
         self.composer.handle_mouse(event)
     }
 
@@ -2456,9 +2475,15 @@ impl BottomPane {
                 flex.push(/*flex*/ 0, RenderableItem::Borrowed(banner));
             }
             if !self.subagent_status.is_empty() {
+                if self.subagent_status.needs_tick() {
+                    self.request_redraw_in(Duration::from_secs(1));
+                }
                 flex.push(
                     /*flex*/ 0,
-                    RenderableItem::Borrowed(&self.subagent_status),
+                    RenderableItem::Owned(Box::new(
+                        self.subagent_status
+                            .view(options.max_height.is_none_or(|height| height >= 12)),
+                    )),
                 );
             }
             if let Some(status) = self.status_widget() {
@@ -2627,8 +2652,7 @@ impl BottomPane {
     /// This keeps the footer plumbing cheap during thread transitions where `App` may recompute
     /// the label several times while the visible thread settles.
     pub(crate) fn set_subagent_status(&mut self, summary: SubagentStatusSummary) {
-        if self.subagent_status != summary {
-            self.subagent_status = summary;
+        if self.subagent_status.update(summary) {
             self.request_redraw();
         }
     }

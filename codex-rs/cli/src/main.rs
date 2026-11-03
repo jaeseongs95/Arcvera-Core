@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 use clap::Args;
 use clap::CommandFactory;
 use clap::Parser;
@@ -54,6 +54,7 @@ static ALLOCATOR: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod app_cmd;
+mod ci;
 mod cleanup_agents;
 mod config_override_args;
 mod daemon_install;
@@ -190,6 +191,9 @@ enum Subcommand {
 
     /// Diagnose local Codex installation, config, auth, and runtime health.
     Doctor(DoctorCommand),
+
+    /// Observe GitHub Actions runs without changing remote state
+    Ci(ci::CiCommand),
 
     /// Run commands within a Codex-provided sandbox.
     Sandbox(SandboxCommand),
@@ -1888,6 +1892,14 @@ async fn cli_main(
             )
             .await?;
         }
+        Some(Subcommand::Ci(command)) => {
+            reject_remote_mode_for_subcommand(
+                root_remote.as_deref(),
+                root_remote_auth_token_env.as_deref(),
+                "ci",
+            )?;
+            ci::run(command).await?;
+        }
         Some(Subcommand::Cloud(mut cloud_cli)) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
@@ -2539,6 +2551,7 @@ fn unsupported_subcommand_name_for_strict_config(
         Some(Subcommand::Completion(_)) => Some("completion"),
         Some(Subcommand::Update(_)) => Some("update"),
         Some(Subcommand::Cloud(_)) => Some("cloud"),
+        Some(Subcommand::Ci(_)) => Some("ci"),
         Some(Subcommand::Sandbox(_)) => Some("sandbox"),
         Some(Subcommand::Debug(_)) => Some("debug"),
         Some(Subcommand::Execpolicy(_)) => Some("execpolicy"),

@@ -1,4 +1,4 @@
-# Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+# Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 [workspace]
 members = [
     "aws-auth",

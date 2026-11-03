@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Thread routing, buffering, and app-server operation submission for the TUI app.
 //!
 //! This module manages active thread channels, routes server requests and notifications into those
@@ -1162,6 +1162,10 @@ impl App {
                         .unwrap_or(fallback),
                 };
                 self.agent_navigation.set_cached_status(thread_id, state);
+                let (task, started_at, duration_ms) =
+                    super::agent_status_feed::footer_detail(&store);
+                self.agent_navigation
+                    .set_footer_detail(thread_id, task, started_at, duration_ms);
             }
             if !displayed && store.has_pending_thread_approvals() {
                 pending_thread_ids.push(thread_id);

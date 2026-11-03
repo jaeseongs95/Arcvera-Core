@@ -1,6 +1,51 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 use super::*;
 use codex_app_server_protocol::CompletedChildCleanupResult;
+
+#[test]
+fn cleanup_summary_counts_preservation_reasons_and_accepts_older_responses() {
+    let preview = ThreadCleanupCompletedResponse {
+        results: [
+            "writer_owned",
+            "writer_owned",
+            "terminal_turn_unverified",
+            "",
+        ]
+        .into_iter()
+        .map(|reason| CompletedChildCleanupResult {
+            thread_id: "child".into(),
+            outcome: "preserved".into(),
+            reason: reason.into(),
+            snapshot: None,
+        })
+        .collect(),
+    };
+    for locale in [Locale::English, Locale::Korean] {
+        let mut output = Vec::new();
+        write_cleanup_reasons(&preview, locale, &mut output).unwrap();
+        let output = String::from_utf8(output).unwrap();
+        assert_eq!(output.lines().count(), 3);
+        assert!(
+            output
+                .lines()
+                .any(|line| line.contains("writer_owned") && line.contains('2'))
+        );
+        assert!(
+            output
+                .lines()
+                .any(|line| line.contains("terminal_turn_unverified") && line.contains('1'))
+        );
+        assert!(
+            output
+                .lines()
+                .any(|line| line.contains("preserved / preserved") && line.contains('1'))
+        );
+    }
+    let older: CompletedChildCleanupResult =
+        serde_json::from_str(r#"{"threadId":"child","outcome":"preserved","snapshot":null}"#)
+            .unwrap();
+    assert!(older.reason.is_empty());
+}
 
 #[test]
 fn cleanup_confirmation_uses_selected_language_and_requires_the_displayed_token() {
@@ -54,11 +99,13 @@ fn cleanup_selection_and_partial_failure_preserve_guards_in_both_languages() {
     let deleted = CompletedChildCleanupResult {
         thread_id: snapshot.thread_id.clone(),
         outcome: "deleted".into(),
+        reason: "deleted".into(),
         snapshot: Some(snapshot.clone()),
     };
     let preserved = CompletedChildCleanupResult {
         thread_id: "parent".into(),
         outcome: "preserved".into(),
+        reason: "ownership_unverified".into(),
         snapshot: None,
     };
     let preview = ThreadCleanupCompletedResponse {

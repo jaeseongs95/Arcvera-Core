@@ -1,4 +1,4 @@
-<!-- Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md. -->
+<!-- Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md. -->
 # R36 설계와 개발 범위
 
 R36은 R35 후보 `2e9f6050aac19bb230dfcff10138d255edc613f7`에서 분리한 개발판이다. 이 문서의 수용 기준은 구현·시험 완료를 뜻하지 않는다. R34 설치·릴리스와 기존 R35 작업 사본, 사용자 데이터, 공유 daemon은 변경하지 않는다.

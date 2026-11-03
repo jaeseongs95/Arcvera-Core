@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Builds and sends foreground and speculative remote V2 compaction attempts.
 
 use crate::context::UserGoalUpdate;
@@ -76,6 +77,8 @@ pub(super) async fn run_remote_compact_v2_attempt(
     input: RemoteCompactV2AttemptInput<'_>,
 ) -> CodexResult<RemoteCompactV2Attempt> {
     let turn_context = &step_context.turn;
+    let preparation_timer =
+        crate::compact::CompactionPhaseTimer::new(sess, turn_context, "prepare_request");
     let mut owned_client_session = None;
     let (
         model_info,
@@ -207,6 +210,7 @@ pub(super) async fn run_remote_compact_v2_attempt(
         "input": &prompt.input,
         "parallel_tool_calls": prompt.parallel_tool_calls,
     }));
+    preparation_timer.finish();
     let compaction_output_result = run_remote_compaction_request_v2(
         sess,
         step_context,
@@ -249,6 +253,8 @@ pub(crate) async fn capture_background_input(
     auth_owner_generation: Option<u64>,
     window: (String, u64, uuid::Uuid),
 ) -> BackgroundCompactionInput {
+    let preparation_timer =
+        crate::compact::CompactionPhaseTimer::new(sess, &step_context.turn, "capture_background");
     let base_instructions = if step_context.settings.model_info.use_responses_lite
         && snapshot
             .raw_items()
@@ -281,6 +287,7 @@ pub(crate) async fn capture_background_input(
     sess.services
         .executed_tool_calls
         .attach_to_compaction_prompt(&mut input);
+    preparation_timer.finish();
     BackgroundCompactionInput {
         prefix,
         turn_state,
@@ -299,6 +306,11 @@ pub(crate) async fn run_background_compaction(
     mut prepared_input: BackgroundCompactionInput,
     shutdown_cancellation: &CancellationToken,
 ) -> CodexResult<BackgroundCompactionCandidate> {
+    let image_timer = crate::compact::CompactionPhaseTimer::new(
+        sess,
+        &step_context.turn,
+        "prepare_background_images",
+    );
     tokio::select! {
         _ = shutdown_cancellation.cancelled() => return Err(CodexErr::TurnAborted),
         () = replace_unresolvable_image_files(
@@ -306,6 +318,7 @@ pub(crate) async fn run_background_compaction(
             sess.services.image_store.as_ref(),
         ) => {},
     }
+    image_timer.finish();
     let prefix = prepared_input.prefix;
     let metadata = CompactionTurnMetadata::new(
         CompactionTrigger::Auto,

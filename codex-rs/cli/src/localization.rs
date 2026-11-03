@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Localize Clap presentation while preserving argument IDs, names, values and parsers.
 
 use clap::Command;
@@ -86,9 +86,7 @@ fn localize_built_help(mut command: Command, locale: Locale) -> Command {
         }
         let heading = localize_metadata(
             locale,
-            command
-                .get_subcommand_help_heading()
-                .unwrap_or("Commands"),
+            command.get_subcommand_help_heading().unwrap_or("Commands"),
         );
         let usage_heading = message_for(locale, "cli-usage-heading", &[]);
         command = command
@@ -253,6 +251,19 @@ fn localize_metadata(locale: Locale, original: &str) -> String {
 
 fn help_message_id(original: &str) -> Option<&'static str> {
     match original {
+        "Observe GitHub Actions runs without changing remote state" => Some("ci-help"),
+        "Repository in [HOST/]OWNER/REPO format (defaults to the current repository)" => {
+            Some("ci-help-repo")
+        }
+        "Query CI for the current HEAD or --commit once" => Some("ci-help-status"),
+        "Query recent CI runs once" => Some("ci-help-list"),
+        "Watch one run until completion or timeout without rerunning it" => Some("ci-help-watch"),
+        "Maximum observation time in seconds" => Some("ci-help-timeout"),
+        "Observation interval in seconds" => Some("ci-help-interval"),
+        "Print each observation as one JSON line" => Some("ci-help-json-lines"),
+        "Full commit SHA (defaults to local HEAD for status)" => Some("ci-help-commit"),
+        "Additionally filter by branch" => Some("ci-help-branch"),
+        "Maximum runs to return (does not enumerate required checks)" => Some("ci-help-limit"),
         "Workspace path to open in the Desktop app" => {
             Some("cli-help-app-cmd-workspace-path-to-open-in-the-desktop-app")
         }

@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R30 (2026-10-31); see docs/r30-final-boundary-validation-20261031.ko.md.
 mod archive_thread;
 mod create_thread;
@@ -25,7 +25,12 @@ mod thread_history_materialization;
 mod thread_rollout_resolver;
 mod thread_sections;
 mod unarchive_thread;
+mod unloaded_cleanup;
 mod update_thread_metadata;
+
+pub use unloaded_cleanup::UnloadedThreadCleanupGuard;
+pub use unloaded_cleanup::UnloadedThreadCleanupPreview;
+pub use unloaded_cleanup::UnloadedThreadCleanupSnapshot;
 
 #[cfg(test)]
 #[path = "compression_writer_tests.rs"]

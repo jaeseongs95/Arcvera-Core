@@ -9,9 +9,9 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED="9f084b6361bd5bdcef4d34852d2f956d72c5a1f0"
-PREVIOUS_PUBLIC='9b78872af2f26e681228e46484cce7342a8c2761'
-PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md','docs/native-cli-r35.ko.md','docs/native-cli-r36.ko.md']
+PATCHED='d5ca137a5273e8a4759c6e28b0c3ff16336254d1'
+PREVIOUS_PUBLIC='7796fc0ca4a5cb36dc9fcb4b3995a0b493d3442c'
+PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md','docs/native-cli-r35.ko.md','docs/native-cli-r36.ko.md','docs/r36-cleanup.ko.md','docs/r36-cloud-ci.ko.md','docs/r36-fast-compaction.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
 PATCH_PATH='upstream/official-0.166.0.patch'
@@ -288,6 +288,52 @@ NOTICE_OVERRIDES.update({path: ('R35', '2026-11-03') for path in (
 )})
 ATTR_BEGIN=b'# BEGIN OpenDIY pinned source attributes\n'
 ATTR_END=b'# END OpenDIY pinned source attributes\n'
+NOTICE_OVERRIDES.update({path: ('R36', '2026-11-03') for path in (
+    'codex-rs/Cargo.lock',
+    'codex-rs/Cargo.toml',
+    'codex-rs/app-server-protocol/src/protocol/v2/thread.rs',
+    'codex-rs/app-server/src/request_processors/thread_delete.rs',
+    'codex-rs/cli/src/ci.rs',
+    'codex-rs/cli/src/cleanup_agents.rs',
+    'codex-rs/cli/src/localization.rs',
+    'codex-rs/cli/src/main.rs',
+    'codex-rs/core/src/agent/control/mailbox.rs',
+    'codex-rs/core/src/agent/control/runtime.rs',
+    'codex-rs/core/src/compact.rs',
+    'codex-rs/core/src/compact_remote_v2.rs',
+    'codex-rs/core/src/compact_remote_v2_attempt.rs',
+    'codex-rs/core/src/compact_remote_v2_installation.rs',
+    'codex-rs/core/src/compact_tests.rs',
+    'codex-rs/core/src/tasks/compact.rs',
+    'codex-rs/core/src/tasks/mod.rs',
+    'codex-rs/core/src/thread_manager/cleanup.rs',
+    'codex-rs/core/src/thread_manager/cleanup_tests.rs',
+    'codex-rs/core/src/thread_manager/cleanup_unloaded_tests.rs',
+    'codex-rs/core/tests/suite/subagent_service_tier.rs',
+    'codex-rs/thread-store/src/lib.rs',
+    'codex-rs/thread-store/src/local/delete_thread.rs',
+    'codex-rs/thread-store/src/local/mod.rs',
+    'codex-rs/thread-store/src/local/unloaded_cleanup.rs',
+    'codex-rs/tui/locales/en/r36-agents.ftl',
+    'codex-rs/tui/locales/en/r36-ci.ftl',
+    'codex-rs/tui/locales/en/r36-cleanup.ftl',
+    'codex-rs/tui/locales/ko/r36-agents.ftl',
+    'codex-rs/tui/locales/ko/r36-ci.ftl',
+    'codex-rs/tui/locales/ko/r36-cleanup.ftl',
+    'codex-rs/tui/src/app/agent_navigation.rs',
+    'codex-rs/tui/src/app/agent_status_feed.rs',
+    'codex-rs/tui/src/app/subagent_status_tests.rs',
+    'codex-rs/tui/src/app/thread_routing.rs',
+    'codex-rs/tui/src/bottom_pane/mod.rs',
+    'codex-rs/tui/src/bottom_pane/subagent_status.rs',
+    'codex-rs/tui/src/cleanup_agents_command.rs',
+    'codex-rs/tui/src/cleanup_agents_command_tests.rs',
+    'codex-rs/tui/src/i18n/catalog.rs',
+    'docs/native-cli-r36.ko.md',
+    'docs/r36-cleanup.ko.md',
+    'docs/r36-cloud-ci.ko.md',
+    'docs/r36-fast-compaction.ko.md',
+)})
 WINDOWS_INPUTS_PATH='upstream/windows-prompt-inputs.json'
 WINDOWS_INPUTS={p['path']:p for p in json.loads((Path(__file__).resolve().parents[2]/WINDOWS_INPUTS_PATH).read_bytes())['files']}
 

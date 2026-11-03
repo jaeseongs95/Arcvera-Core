@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Multi-agent picker navigation and labeling state for the TUI app.
 //!
 //! This module exists to keep the pure parts of multi-agent navigation out of [`crate::app::App`].
@@ -21,6 +21,7 @@
 //! updated or marked closed.
 
 use crate::bottom_pane::SubagentState;
+use crate::bottom_pane::SubagentStatusEntry;
 use crate::bottom_pane::SubagentStatusSummary;
 use crate::multi_agents::AgentPickerThreadEntry;
 use crate::multi_agents::SubAgentActivityDisplay;
@@ -31,7 +32,16 @@ use codex_protocol::ThreadId;
 use ratatui::text::Span;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::time::Instant;
 use uuid::Uuid;
+
+#[derive(Debug, Default)]
+struct AgentFooterDetail {
+    task: Option<String>,
+    started_at: Option<i64>,
+    duration_ms: Option<i64>,
+    finished_at: Option<Instant>,
+}
 
 /// Small state container for multi-agent picker ordering and labeling.
 ///
@@ -48,6 +58,7 @@ pub(crate) struct AgentNavigationState {
     threads: HashMap<ThreadId, AgentPickerThreadEntry>,
     status_root: Option<ThreadId>,
     statuses: HashMap<ThreadId, SubagentState>,
+    footer_details: HashMap<ThreadId, AgentFooterDetail>,
     /// Stable first-seen traversal order for picker rows and keyboard cycling.
     order: Vec<ThreadId>,
     /// Threads with observed terminal liveness that must not be revived by delayed activity.
@@ -105,7 +116,30 @@ impl AgentNavigationState {
 
     pub(crate) fn set_cached_status(&mut self, thread_id: ThreadId, status: SubagentState) {
         if self.threads.contains_key(&thread_id) {
+            if self.statuses.get(&thread_id) != Some(&status) {
+                let detail = self.footer_details.entry(thread_id).or_default();
+                detail.finished_at = matches!(
+                    status,
+                    SubagentState::Completed | SubagentState::Stopped | SubagentState::Closed
+                )
+                .then(Instant::now);
+            }
             self.statuses.insert(thread_id, status);
+        }
+    }
+
+    pub(super) fn set_footer_detail(
+        &mut self,
+        thread_id: ThreadId,
+        task: Option<String>,
+        started_at: Option<i64>,
+        duration_ms: Option<i64>,
+    ) {
+        if self.threads.contains_key(&thread_id) {
+            let detail = self.footer_details.entry(thread_id).or_default();
+            detail.task = task;
+            detail.started_at = started_at;
+            detail.duration_ms = duration_ms;
         }
     }
 
@@ -118,6 +152,7 @@ impl AgentNavigationState {
         if root.is_none() || self.status_root != root {
             return summary;
         }
+        summary.root = root;
         for (thread_id, entry) in self.visible_threads() {
             if Some(thread_id) == root || exclude(thread_id) {
                 continue;
@@ -131,7 +166,21 @@ impl AgentNavigationState {
             } else {
                 SubagentState::Idle
             };
-            summary.add(state);
+            let detail = self.footer_details.get(&thread_id);
+            summary.add_entry(SubagentStatusEntry {
+                name: entry.agent_path.clone().unwrap_or_else(|| {
+                    format_agent_picker_item_name(
+                        entry.agent_nickname.as_deref(),
+                        entry.agent_role.as_deref(),
+                        false,
+                    )
+                }),
+                state,
+                task: detail.and_then(|detail| detail.task.clone()),
+                started_at: detail.and_then(|detail| detail.started_at),
+                duration_ms: detail.and_then(|detail| detail.duration_ms),
+                finished_at: detail.and_then(|detail| detail.finished_at),
+            });
         }
         summary
     }
@@ -279,6 +328,7 @@ impl AgentNavigationState {
         }
         self.stopped_threads.remove(&thread_id);
         self.statuses.remove(&thread_id);
+        self.footer_details.remove(&thread_id);
         self.set_running(thread_id, /*is_running*/ true);
     }
 
@@ -301,6 +351,9 @@ impl AgentNavigationState {
         };
         if stale {
             self.statuses.remove(&thread_id);
+            if is_running {
+                self.footer_details.remove(&thread_id);
+            }
         }
     }
 
@@ -338,6 +391,7 @@ impl AgentNavigationState {
         self.threads.clear();
         self.status_root = None;
         self.statuses.clear();
+        self.footer_details.clear();
         self.order.clear();
         self.stopped_threads.clear();
         self.parent_owned_threads.clear();
@@ -353,6 +407,7 @@ impl AgentNavigationState {
     pub(crate) fn remove(&mut self, thread_id: ThreadId) {
         self.threads.remove(&thread_id);
         self.statuses.remove(&thread_id);
+        self.footer_details.remove(&thread_id);
         self.order.retain(|candidate| *candidate != thread_id);
         self.stopped_threads.remove(&thread_id);
         self.parent_owned_threads.remove(&thread_id);
@@ -551,7 +606,10 @@ mod tests {
         state.set_cached_status(child, SubagentState::NeedsApproval);
         let mut expected = SubagentStatusSummary::default();
         expected.add(SubagentState::NeedsApproval);
-        assert_eq!(state.status_summary(Some(root), |id| id == side), expected);
+        assert_eq!(
+            state.status_summary(Some(root), |id| id == side).counts(),
+            expected.counts()
+        );
         assert!(
             state
                 .status_summary(Some(ThreadId::new()), |_| false)
@@ -560,7 +618,10 @@ mod tests {
         state.mark_running(child);
         let mut running = SubagentStatusSummary::default();
         running.add(SubagentState::Running);
-        assert_eq!(state.status_summary(Some(root), |id| id == side), running);
+        assert_eq!(
+            state.status_summary(Some(root), |id| id == side).counts(),
+            running.counts()
+        );
         state.set_picker_thread_visibility(child, AgentPickerThreadVisibility::Hidden);
         assert!(state.status_summary(Some(root), |id| id == side).is_empty());
         state.remove(child);

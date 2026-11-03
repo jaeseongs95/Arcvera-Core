@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 use super::ActivePermissionProfile;
 use super::ApprovalsReviewer;
 use super::AskForApproval;
@@ -840,6 +840,9 @@ pub struct CompletedChildSnapshot {
 pub struct CompletedChildCleanupResult {
     pub thread_id: String,
     pub outcome: String,
+    /// Stable eligibility or preservation code; older servers may omit it.
+    #[serde(default)]
+    pub reason: String,
     pub snapshot: Option<CompletedChildSnapshot>,
 }
 
