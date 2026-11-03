@@ -125,6 +125,19 @@ impl Config {
                 }),
         );
         let mut config = self.clone();
+        if matches!(scope, RuntimeConfigRefresh::User) {
+            // Existing turn contexts retain their Arc snapshot. Future work and
+            // explicit memory RPCs must observe the same layered opt-in as new threads.
+            config
+                .features
+                .set_enabled(
+                    Feature::MemoryTool,
+                    incoming.features.enabled(Feature::MemoryTool),
+                )
+                .map_err(std::io::Error::other)?;
+            config.memories.use_memories = incoming.memories.use_memories;
+            config.memories.generate_memories = incoming.memories.generate_memories;
+        }
         if !matches!(scope, RuntimeConfigRefresh::UserFiles) {
             config.runtime_feature_defaults = incoming.runtime_feature_defaults.clone();
             config.mcp_optional_startup_grace = incoming.mcp_optional_startup_grace;

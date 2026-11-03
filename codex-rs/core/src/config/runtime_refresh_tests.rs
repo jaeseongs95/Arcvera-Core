@@ -19,6 +19,40 @@ async fn base_config() -> (tempfile::TempDir, Config) {
     (home, config)
 }
 
+#[tokio::test]
+async fn memory_refresh_preserves_active_snapshot_and_explicit_session_off() {
+    let (_home, base) = base_config().await;
+    let off = "[features]\nmemories = false\n[memories]\nuse_memories = false\ngenerate_memories = false\n";
+    let on =
+        "[features]\nmemories = true\n[memories]\nuse_memories = true\ngenerate_memories = true\n";
+    let current = layered_config(&base, off, "", "", "").await;
+    let active = std::sync::Arc::new(current.clone());
+    let incoming = layered_config(&base, on, "", "", "").await;
+    let refreshed = current
+        .resolve_runtime_refresh(&incoming, RuntimeConfigRefresh::User)
+        .unwrap();
+    assert!(refreshed.features.enabled(Feature::MemoryTool));
+    assert!(refreshed.memories.use_memories);
+    assert!(refreshed.memories.generate_memories);
+    assert!(!active.features.enabled(Feature::MemoryTool));
+    assert!(!active.memories.use_memories);
+    assert!(!active.memories.generate_memories);
+
+    let pinned = layered_config(&base, on, "", "", off).await;
+    let denied = current
+        .resolve_runtime_refresh(&pinned, RuntimeConfigRefresh::User)
+        .unwrap();
+    assert!(!denied.features.enabled(Feature::MemoryTool));
+    assert!(!denied.memories.use_memories);
+    assert!(!denied.memories.generate_memories);
+    let disabled = refreshed
+        .resolve_runtime_refresh(&current, RuntimeConfigRefresh::User)
+        .unwrap();
+    assert!(!disabled.features.enabled(Feature::MemoryTool));
+    assert!(!disabled.memories.use_memories);
+    assert!(!disabled.memories.generate_memories);
+}
+
 async fn layered_config(
     base: &Config,
     user: &str,

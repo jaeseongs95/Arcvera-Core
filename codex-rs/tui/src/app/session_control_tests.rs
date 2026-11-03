@@ -205,16 +205,36 @@ async fn control_server(
     tokio::sync::mpsc::UnboundedReceiver<(String, Value)>,
     tokio::task::JoinHandle<color_eyre::Result<()>>,
 )> {
+    let (server, requests, worker, _) = control_server_with_notifications(response).await?;
+    Ok((server, requests, worker))
+}
+
+async fn control_server_with_notifications(
+    response: Value,
+) -> color_eyre::Result<(
+    AppServerSession,
+    tokio::sync::mpsc::UnboundedReceiver<(String, Value)>,
+    tokio::task::JoinHandle<color_eyre::Result<()>>,
+    tokio::sync::mpsc::UnboundedSender<Value>,
+)> {
     use codex_app_server_protocol::JSONRPCMessage;
     use futures::{SinkExt, StreamExt};
     use tokio_tungstenite::tungstenite::Message;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let endpoint = crate::resolve_remote_addr(&format!("ws://{}", listener.local_addr()?))?;
     let (observed, requests) = tokio::sync::mpsc::unbounded_channel();
+    let (notifications_tx, mut notifications_rx) = tokio::sync::mpsc::unbounded_channel::<Value>();
     let worker = tokio::spawn(async move {
         let (stream, _) = listener.accept().await?;
         let mut socket = tokio_tungstenite::accept_async(stream).await?;
-        while let Some(frame) = socket.next().await {
+        loop {
+            let frame = tokio::select! {
+                frame = socket.next() => match frame { Some(frame) => frame, None => break },
+                Some(notification) = notifications_rx.recv() => {
+                    socket.send(Message::Text(notification.to_string().into())).await?;
+                    continue;
+                }
+            };
             let Message::Text(text) = frame? else {
                 continue;
             };
@@ -240,7 +260,73 @@ async fn control_server(
         crate::connect_remote_app_server(endpoint).await?,
         crate::app_server_session::ThreadParamsMode::Remote,
     );
-    Ok((server, requests, worker))
+    Ok((server, requests, worker, notifications_tx))
+}
+
+#[tokio::test]
+async fn natural_compact_waits_for_original_turn_and_uses_one_idle_admission()
+-> color_eyre::Result<()> {
+    for outcome in ["started", "skippedBusy", "notStarted"] {
+        let (mut app, mut events, _) = crate::app::tests::make_test_app_with_channels().await;
+        let thread = ThreadId::new();
+        let (mut server, mut requests, worker, notifications) = control_server_with_notifications(
+            json!({"status":outcome,"reason":"fixture rejection","turn":{"id":"compact-turn","items":[],"status":"inProgress","error":null}}),
+        )
+        .await?;
+        app.active_thread_id = Some(thread);
+        app.ensure_thread_channel(thread)
+            .store
+            .lock()
+            .await
+            .set_active_turn_id("control-turn".into());
+        let (call, reply) = request(&server, thread, "compact", json!({"action":"compact"}));
+        app.handle_session_control_tool_call(&mut server, call)
+            .await;
+        let response = reply.await?;
+        assert!(response.success);
+        let codex_app_server_protocol::DynamicToolCallOutputContentItem::InputText { text } =
+            &response.content_items[0]
+        else {
+            panic!("pending response text")
+        };
+        assert_eq!(serde_json::from_str::<Value>(text)?["status"], "pending");
+        while events.try_recv().is_ok() {}
+        assert!(
+            requests.try_recv().is_err(),
+            "tool acceptance must not interrupt its own turn"
+        );
+        for (turn, matches_origin) in [
+            ("other-turn", false),
+            ("control-turn", true),
+            ("control-turn", false),
+        ] {
+            notifications.send(json!({"method":"turn/completed","params":{"threadId":thread.to_string(),"turn":{"id":turn,"items":[],"status":"completed","error":null}}}))?;
+            tokio::time::timeout(std::time::Duration::from_secs(5), server.next_event())
+                .await?
+                .expect("completed notification");
+            if matches_origin {
+                let (method, params) = next_request(&mut requests).await;
+                assert_eq!(method, "thread/compact/startIfIdle");
+                assert_eq!(params, json!({"threadId":thread.to_string()}));
+                let notice = tokio::time::timeout(std::time::Duration::from_secs(5), events.recv())
+                    .await?
+                    .expect("admission notice");
+                assert!(matches!(
+                    notice,
+                    crate::app_event::AppEvent::InsertHistoryCell(_)
+                ));
+            } else {
+                assert!(requests.try_recv().is_err());
+            }
+        }
+        assert!(
+            requests.try_recv().is_err(),
+            "no automatic retry or user turn"
+        );
+        server.shutdown().await?;
+        worker.await??;
+    }
+    Ok(())
 }
 
 async fn next_request(
@@ -250,6 +336,163 @@ async fn next_request(
         .await
         .expect("제어 요청 관측 시간초과")
         .expect("제어 요청 관측 채널 종료")
+}
+
+#[tokio::test]
+async fn natural_compact_does_not_run_after_interruption_or_runtime_replacement()
+-> color_eyre::Result<()> {
+    for status in ["failed", "interrupted", "stale-runtime"] {
+        let (app, _events, _) = crate::app::tests::make_test_app_with_channels().await;
+        let thread = ThreadId::new();
+        let (mut server, mut requests, worker, notifications) =
+            control_server_with_notifications(json!({"status":"skippedBusy"})).await?;
+        server.compact_after_turn(thread, "control-turn".into(), app.app_event_tx.clone())?;
+        assert!(
+            server
+                .compact_after_turn(thread, "control-turn".into(), app.app_event_tx.clone())
+                .is_err()
+        );
+        if status == "stale-runtime" {
+            server.invalidate_runtime_tool_registration().await;
+        }
+        let completion_status = if status == "stale-runtime" {
+            "completed"
+        } else {
+            status
+        };
+        notifications.send(json!({"method":"turn/completed","params":{"threadId":thread.to_string(),"turn":{"id":"control-turn","items":[],"status":completion_status,"error":null}}}))?;
+        tokio::time::timeout(std::time::Duration::from_secs(5), server.next_event())
+            .await?
+            .expect("terminal notification");
+        assert!(
+            requests.try_recv().is_err(),
+            "failed, interrupted, or replaced turns must not start compaction"
+        );
+        server.shutdown().await?;
+        worker.await??;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn explicit_memory_enable_confirms_runtime_and_preserves_partial_off()
+-> color_eyre::Result<()> {
+    let (mut app, _events, _) = crate::app::tests::make_test_app_with_channels().await;
+    let home = tempfile::tempdir()?;
+    app.config.codex_home = home.path().to_path_buf().abs();
+    app.config.sqlite = codex_state::SqliteConfig::new_for_testing(home.path().abs());
+    app.config.features.disable(Feature::MemoryTool)?;
+    app.config.memories.scope = codex_config::types::MemoryScope::Global;
+    app.config.memories.use_memories = false;
+    app.config.memories.generate_memories = false;
+    let file = home.path().join("config.toml");
+    let original = "[features]\nmemories = false\n[memories]\nscope = 'global'\nuse_memories = false\ngenerate_memories = false\n";
+    std::fs::write(&file, original)?;
+    let mut server = crate::start_embedded_app_server_for_picker(&app.config).await?;
+    let started = server.start_thread(&app.config).await?;
+    let thread = started.session.thread_id;
+    server.thread_inject_items(thread, vec![serde_json::from_value(json!({"type":"message","role":"assistant","content":[{"type":"output_text","text":"isolated activation fixture"}]}))?]).await?;
+    assert!(
+        app.session_control_command(
+            &mut server,
+            thread,
+            Command::MemoryNote {
+                note: "must not enable".into()
+            }
+        )
+        .await
+        .is_err()
+    );
+    assert_eq!(std::fs::read(&file)?, original.as_bytes());
+    let enabled = app
+        .session_control_command(&mut server, thread, Command::MemoryEnable { enabled: true })
+        .await;
+    assert!(enabled.is_ok(), "{enabled:?}");
+    let state = server.memory_read(thread).await?;
+    assert_eq!(state.use_memories, Some(true));
+    assert_eq!(state.generate_memories, Some(true));
+    assert_ne!(state.status.as_deref(), Some("disabled"));
+    assert!(
+        app.chat_widget
+            .config_ref()
+            .features
+            .enabled(Feature::MemoryTool)
+    );
+    assert!(
+        app.session_control_command(
+            &mut server,
+            thread,
+            Command::MemoryNote {
+                note: "explicitly retained note".into()
+            }
+        )
+        .await
+        .is_ok()
+    );
+    let root = std::path::PathBuf::from(state.root.expect("isolated memory root"));
+    assert!(root.starts_with(home.path()));
+    assert_eq!(
+        std::fs::read_dir(root.join("extensions/ad_hoc/notes"))?.count(),
+        1
+    );
+    assert!(
+        !root.join("memory_summary.md").exists(),
+        "activation and note acceptance do not claim summary generation"
+    );
+    server
+        .thread_memory_mode_set(
+            thread,
+            codex_app_server_protocol::ThreadMemoryMode::Disabled,
+        )
+        .await?;
+    assert!(
+        app.config.memories.generate_memories,
+        "global generation remains enabled"
+    );
+    let reading = app
+        .session_control_command(&mut server, thread, Command::MemoryRead { enabled: true })
+        .await;
+    assert!(reading.is_ok(), "{reading:?}");
+    assert_eq!(
+        server.memory_read(thread).await?.generate_memories,
+        Some(false),
+        "reading changes preserve the thread's explicit generation opt-out"
+    );
+    for command in [
+        Command::MemoryGenerate { enabled: false },
+        Command::MemoryRead { enabled: true },
+    ] {
+        let result = app
+            .session_control_command(&mut server, thread, command)
+            .await;
+        assert!(result.is_ok(), "{result:?}");
+    }
+    let state = server.memory_read(thread).await?;
+    assert_eq!(state.use_memories, Some(true));
+    assert_eq!(state.generate_memories, Some(false));
+    assert!(!app.config.memories.generate_memories);
+    let disabled = app
+        .session_control_command(
+            &mut server,
+            thread,
+            Command::MemoryEnable { enabled: false },
+        )
+        .await;
+    assert!(disabled.is_ok(), "{disabled:?}");
+    let saved = std::fs::read(&file)?;
+    assert!(
+        server
+            .memory_note_add(thread, "must stay off".into())
+            .await
+            .is_err()
+    );
+    assert_eq!(std::fs::read(&file)?, saved);
+    assert_eq!(
+        server.memory_read(thread).await?.status.as_deref(),
+        Some("disabled")
+    );
+    server.shutdown().await?;
+    Ok(())
 }
 
 #[tokio::test]
