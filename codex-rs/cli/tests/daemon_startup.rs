@@ -209,7 +209,10 @@ async fn daemon_startup(command: &str) -> Result<()> {
             if command == "discovered" {
                 "tui.status_line=[\"model\",\"thread-id\",\"thread-name\"]\nfeatures.daemon_auto_start=false".to_string()
             } else if let Some(server) = &model_server {
-                format!("model_providers.openai.base_url = \"{}\"", server.uri())
+                format!(
+                    "model_provider = \"r34-test\"\nmodel_providers.r34-test.name = \"R34 test provider\"\nmodel_providers.r34-test.base_url = \"{}\"\nmodel_providers.r34-test.wire_api = \"responses\"\nmodel_providers.r34-test.requires_openai_auth = false",
+                    server.uri()
+                )
             } else {
                 String::new()
             },
