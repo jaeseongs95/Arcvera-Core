@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.
 //! Bounded app-server transcript loading for resume, fork, and transcript views.
 
 use codex_app_server_protocol::ThreadItem;
@@ -1026,6 +1026,12 @@ impl AppServerSession {
             {
                 break;
             }
+            if state.next_item_cursor.is_none() {
+                break;
+            }
+            if budget.rows.is_none() {
+                continue;
+            }
             if let Some((config, local_settings)) = config.zip(local_settings) {
                 rendered_rows = rendered_history_rows(
                     thread_id,
@@ -1038,9 +1044,6 @@ impl AppServerSession {
                 );
             } else {
                 rendered_rows = rendered_rows.saturating_add(items.len());
-            }
-            if state.next_item_cursor.is_none() {
-                break;
             }
         }
         if config.is_some() {

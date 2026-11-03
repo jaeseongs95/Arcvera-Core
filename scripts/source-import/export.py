@@ -9,8 +9,8 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='bd2ed8ec7854d64905caa67d0f77758e758a930c'
-PREVIOUS_PUBLIC='cccc67a3d2ca8150de9bb8f55b7f95f893336fb2'
+PATCHED='6f810eee6e36146972d76521aa0b6c3ba8628617'
+PREVIOUS_PUBLIC='b771c2d9192d31648cebe6b1ad400f1987a1f973'
 PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
@@ -75,6 +75,18 @@ NOTICE_OVERRIDES={path:('R33','2026-11-02') for path in (
 NOTICE_OVERRIDES.update({path: ('R33', '2026-11-03') for path in (
     'tools/windows-cli/update.ps1',
     'tools/windows-cli/test_update.ps1',
+    'tools/windows-cli/test_update_output.py',
+)})
+NOTICE_OVERRIDES.update({path: ('R34', '2026-11-03') for path in (
+    'codex-rs/Cargo.toml', 'codex-rs/Cargo.lock',
+    'codex-rs/cli/Cargo.toml', 'codex-rs/cli/tests/daemon_startup.rs',
+    'codex-rs/cli/src/main.rs', 'codex-rs/tui/src/main.rs',
+    'codex-rs/tui/src/lib.rs', 'codex-rs/tui/src/lib_tests.rs',
+    'codex-rs/tui/src/tui.rs', 'codex-rs/tui/src/tui_panic_tests.rs',
+    'codex-rs/tui/src/app_server_session/history.rs',
+    'codex-rs/tui/src/chatwidget.rs', 'codex-rs/tui/src/keymap.rs',
+    'codex-rs/tui/src/app/tests/startup_defaults_tests.rs',
+    'tools/windows-cli/update.ps1', 'tools/windows-cli/test_update.ps1',
     'tools/windows-cli/test_update_output.py',
 )})
 ATTR_BEGIN=b'# BEGIN OpenDIY pinned source attributes\n'

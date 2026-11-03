@@ -1,4 +1,4 @@
-# Modified for OpenDIY Codex R33 (2026-11-03); see MODIFICATIONS.md.
+# Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.
 [CmdletBinding()]
 param(
     [ValidateSet('Update', 'Check', 'Status', 'Enable', 'Disable')][string]$Action = 'Update',

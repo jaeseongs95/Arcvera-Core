@@ -11,13 +11,15 @@ An unofficial Windows edition of Codex CLI and Rust App Server, with changes to 
 | Channel | Official base | Status |
 | --- | --- | --- |
 | **R33 published package** | 0.166.0 | `0.166.0+native-r33.20261102`; Windows CLI, standalone App Server, and portable package |
-| **R33 updater fix candidate** | 0.166.0 | Output encoding and task-owner fixes; source and isolated tests reviewed, unreleased |
+| **R34 development candidate** | 0.166.0 + selected upstream changes | Startup/updater fixes, history rendering and keymap cache improvements; build and release verification pending |
 | **R32** | 0.166.0 | Previous published package; retain existing installations for recovery |
 | **R31** | 0.166.0 | Separate release cancelled; changes integrated into R32 |
 
 **R33 automatic updates have known Windows defects.** Output containing Korean paths can fail during hidden execution, and the updater can mistake an equivalent user name for a task-owner conflict. Current source `bd2ed8ec7854d64905caa67d0f77758e758a930c` contains fixes for these defects. Isolated tests fail with the original helper and pass with the candidate; a fresh source review also passed. These results do not mean the fixes are in the published R33 binaries or installed package. Real task execution and follow-up packaging and deployment remain unverified. See the [fix and validation scope](docs/r33-updater-postinstall-fix.ko.md).
 
 The published R33 CLI and server were built from `36ae395a552fd55962e19409cbf29b1fdf03b0ec`. All five public assets were anonymously downloaded and hash-checked; Windows installation, shortcut selection, and joint tests with OpenDIY Desktop 1.0.2 were checked. The automatic-update post-install audit failed on the two defects above. Earlier failures and remaining limitations are retained in the [validation record](docs/r33-development-verification.ko.md). [Source provenance](SOURCE_BASELINE.json) identifies the unreleased fix candidate.
+
+R34 also addresses a startup failure when a mismatched background server initializes an error report before the TUI report hook. The fix is in the development source; final interactive regression, packaging and independent audit are pending. See [R34 scope](docs/r34-startup-updater.ko.md).
 
 ## Features
 

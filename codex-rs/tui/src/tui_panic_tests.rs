@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.
 //! Exercise caught-panic recovery through a real terminal and the production panic hook.
 
 use std::fs::File;
@@ -81,10 +82,20 @@ fn caught_panic_rehides_cursor_before_repainting_and_restores_its_shape() {
         .expect("wait for caught panic child");
     let output = reader.join().expect("read caught panic terminal output");
     let output = String::from_utf8_lossy(&output);
+    let stderr = String::from_utf8_lossy(&child.stderr);
     assert!(
         child.status.success(),
         "child stderr: {}\nterminal: {output}",
         String::from_utf8_lossy(&child.stderr)
+    );
+
+    // Each real panic reaches tracing and the previous rich handler once,
+    // even after repeated terminal setup in the same process.
+    assert_eq!(stderr.matches("panic: panicked at").count(), 2, "{stderr}");
+    assert_eq!(
+        stderr.matches("The application panicked").count(),
+        2,
+        "{stderr}"
     );
 
     let (_, output) = output.split_once(BEFORE_PANIC).expect("before panic");
@@ -142,8 +153,21 @@ async fn caught_panic_pty_child() {
     if std::env::var_os("CODEX_TUI_CAUGHT_PANIC_PTY_CHILD").is_none() {
         return;
     }
+    crate::initialize_error_reporting().expect("initialize rich error reporting");
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::fmt()
+            .with_writer(std::io::stderr)
+            .with_ansi(false)
+            .without_time()
+            .with_target(false)
+            .finish(),
+    )
+    .expect("capture panic tracing");
     super::set_modes().expect("set terminal modes");
-    super::set_panic_hook();
+    for _ in 0..3 {
+        super::set_panic_hook();
+        crate::initialize_error_reporting().expect("startup recovery keeps the panic chain");
+    }
     let mut tui = super::test_support::make_test_tui().expect("create TUI");
     tui.terminal.set_viewport_area(Rect::new(
         /*x*/ 0, /*y*/ 0, /*width*/ 12, /*height*/ 2,

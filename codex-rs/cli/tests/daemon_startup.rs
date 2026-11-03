@@ -1,8 +1,11 @@
+// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.
 //! Exercises daemon startup and excluded resume/fork pickers with Cargo's CLI executable.
 
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
+use futures::SinkExt;
+use futures::StreamExt;
 use std::collections::VecDeque;
 use std::fs;
 use std::process::Command;
@@ -48,6 +51,16 @@ async fn incompatible_daemon_can_cancel() -> Result<()> {
 #[cfg(unix)]
 async fn incompatible_daemon_can_run_embedded() -> Result<()> {
     daemon_startup("mismatch-embedded").await
+}
+
+#[tokio::test]
+async fn version_mismatched_explicit_local_daemon_can_run_embedded_and_quit() -> Result<()> {
+    #[cfg(windows)]
+    if codex_app_server_daemon::is_elevated()? {
+        eprintln!("requires a non-elevated Windows runner for local-daemon peer verification");
+        return Ok(());
+    }
+    daemon_startup("version-mismatch-embedded").await
 }
 
 #[tokio::test]
@@ -153,6 +166,13 @@ async fn bedrock_onboarding_leaves_a_running_daemon_untouched() -> Result<()> {
 }
 
 async fn daemon_startup(command: &str) -> Result<()> {
+    let version_mismatch = command == "version-mismatch-embedded";
+    // All provider traffic in the version fixture stays local; no turn is submitted.
+    let model_server = if version_mismatch {
+        Some(wiremock::MockServer::start().await)
+    } else {
+        None
+    };
     #[cfg(windows)]
     let elevated = codex_app_server_daemon::is_elevated()?;
     #[cfg(not(windows))]
@@ -188,9 +208,11 @@ async fn daemon_startup(command: &str) -> Result<()> {
          notice.model_migrations.\"gpt-5.6-terra\" = \"gpt-6-sol\"\n\
          [projects.{}]\ntrust_level = \"{}\"\n",
             if command == "discovered" {
-                "tui.status_line=[\"model\",\"thread-id\",\"thread-name\"]\nfeatures.daemon_auto_start=false"
+                "tui.status_line=[\"model\",\"thread-id\",\"thread-name\"]\nfeatures.daemon_auto_start=false".to_string()
+            } else if let Some(server) = &model_server {
+                format!("model_providers.openai.base_url = \"{}\"", server.uri())
             } else {
-                ""
+                String::new()
             },
             serde_json::to_string(&workspace_path)?,
             if command.starts_with("agents-untrusted") {
@@ -230,6 +252,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
         home.path().display().to_string(),
     );
     env.insert("TERM".into(), "xterm-256color".into());
+    if version_mismatch {
+        env.insert("CODEX_UI_LANGUAGE".into(), "en".into());
+    }
     let mut args = vec!["--no-alt-screen".to_string()];
     let mut steps: VecDeque<(&str, &[u8])> = VecDeque::new();
     if matches!(
@@ -266,6 +291,55 @@ async fn daemon_startup(command: &str) -> Result<()> {
                 },
             )?;
         }
+    }
+    let mut fake_daemon = tokio::task::JoinSet::new();
+    if version_mismatch {
+        let socket = codex_app_server_client::app_server_control_socket_path(home.path())?;
+        let (mut listener, guard) =
+            codex_app_server_transport::bind_private_daemon_socket(socket.as_path()).await?;
+        let fake_home = home.path().to_path_buf();
+        fake_daemon.spawn(async move {
+            let _guard = guard;
+            let stream = listener.accept().await?;
+            let mut websocket = tokio_tungstenite::accept_async(stream).await?;
+            let initialize = websocket
+                .next()
+                .await
+                .context("missing initialize request")??;
+            let request: serde_json::Value = serde_json::from_str(initialize.to_text()?)?;
+            ensure!(request["method"] == "initialize", "{request}");
+            // Same upstream version, different build metadata: exercise the full-version guard.
+            let response = serde_json::json!({
+                "id": request["id"],
+                "result": {
+                    "userAgent": "codex_cli_rs/0.166.0+native-r28.test",
+                    "codexHome": fake_home,
+                },
+            });
+            websocket
+                .send(tokio_tungstenite::tungstenite::Message::Text(
+                    response.to_string().into(),
+                ))
+                .await?;
+            let initialized = websocket
+                .next()
+                .await
+                .context("missing initialized notification")??;
+            let notification: serde_json::Value = serde_json::from_str(initialized.to_text()?)?;
+            ensure!(notification["method"] == "initialized", "{notification}");
+            while let Some(message) = websocket.next().await {
+                match message? {
+                    tokio_tungstenite::tungstenite::Message::Close(_) => break,
+                    message => {
+                        anyhow::bail!("version guard sent a request after initialize: {message:?}")
+                    }
+                }
+            }
+            Ok::<_, anyhow::Error>(())
+        });
+        // This explicit default socket is classified as LocalDaemon, with recovery
+        // choices enabled rather than the implicit connection's automatic fallback.
+        args.extend(["--remote".into(), "unix://".into()]);
     }
     let pid_file = home.path().join("app-server-daemon/daemon.pid");
     let result = async {
@@ -329,6 +403,13 @@ async fn daemon_startup(command: &str) -> Result<()> {
         } else if command == "restrictive-job" {
             steps.push_back(("GPT-5.6-Terra", b"\x14"));
             "Runningwithoutthesharedbackgroundserver:thisWindowslauncher"
+        } else if version_mismatch {
+            steps.push_back((
+                "Backgroundserverversion0.166.0+native-r28.testdoesnotmatchthisCLI",
+                b"1",
+            ));
+            steps.push_back(("GPT-5.6-Terra", b"/status\r"));
+            "Model:"
         } else if mismatch {
             args.extend(if disabling && !persisted {
                 ["--disable".into(), "auth_elicitation".into()]
@@ -415,6 +496,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
         let writer = session.writer_sender();
         let mut stdout = spawned.stdout_rx;
         let mut output = String::new();
+        let mut all_output = String::new();
         let mut initial_agents_screen = String::new();
         let mut screen = vt100::Parser::new(
             /*rows*/ 40, /*cols*/ 120, /*scrollback_len*/ 0,
@@ -431,6 +513,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
         let result = tokio::time::timeout(timeout, async {
             while let Some(bytes) = stdout.recv().await {
                 output.push_str(&String::from_utf8_lossy(&bytes));
+                if version_mismatch {
+                    all_output.push_str(&String::from_utf8_lossy(&bytes));
+                }
                 screen.process(&bytes);
                 for (query, reply) in &mut queries {
                     if !query.is_empty() && output.contains(*query) {
@@ -456,6 +541,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
                 if let Some((ready, input)) = steps.front()
                     && text.contains(ready)
                 {
+                    if version_mismatch && *input == b"1" {
+                        ensure!(text.contains("Runwithoutdaemonthistime"), "{text}");
+                    }
                     if command == "agents-untrusted" && *ready == "Notasksyet" {
                         if !text.contains("enteropennnew") {
                             continue;
@@ -558,6 +646,11 @@ async fn daemon_startup(command: &str) -> Result<()> {
                             insta::assert_snapshot!("restrictive_launcher_warning", warning.trim());
                         }
                     }
+                    if version_mismatch {
+                        ensure!(!text.contains("Server:Localbackgroundserver"), "{text}");
+                        ensure!(!all_output.contains("cannot install provided ErrorHook"), "{all_output}");
+                        writer.send(b"/quit\r".to_vec()).await?;
+                    }
                     return Ok::<_, anyhow::Error>(());
                 }
             }
@@ -567,7 +660,10 @@ async fn daemon_startup(command: &str) -> Result<()> {
             )
         })
         .await;
-        if command == "mismatch-cancel" && matches!(result, Ok(Ok(()))) {
+        if version_mismatch && matches!(result, Ok(Ok(()))) {
+            let status = tokio::time::timeout(Duration::from_secs(10), exit).await??;
+            ensure!(status == 0, "embedded TUI quit failed: {status}");
+        } else if command == "mismatch-cancel" && matches!(result, Ok(Ok(()))) {
             let status = tokio::time::timeout(Duration::from_secs(/*secs*/ 5), exit).await??;
             ensure!(status != 0, "incompatible daemon launch must fail");
         }
@@ -578,18 +674,50 @@ async fn daemon_startup(command: &str) -> Result<()> {
     }
     .await;
     // Always stop the detached daemon, including on timeout or failed assertions.
-    let stopped = Command::new(&codex)
-        .env_clear()
-        .envs(&env)
-        .args(["app-server", "daemon", "stop"])
-        .output()?;
+    let fake_result = if version_mismatch {
+        Some(tokio::time::timeout(Duration::from_secs(5), fake_daemon.join_next()).await)
+    } else {
+        None
+    };
+    let stopped = if version_mismatch {
+        None
+    } else {
+        Some(
+            Command::new(&codex)
+                .env_clear()
+                .envs(&env)
+                .args(["app-server", "daemon", "stop"])
+                .output()?,
+        )
+    };
     let (session, result) = result?;
     session.terminate();
     result??;
-    ensure!(
-        stopped.status.success(),
-        "{}",
-        String::from_utf8_lossy(&stopped.stderr)
-    );
+    if let Some(completed) = fake_result {
+        let server = completed.context("fake daemon did not observe client shutdown")?;
+        let joined = server.context("missing fake daemon task")?;
+        joined.context("fake daemon task panicked")??;
+    }
+    if let Some(stopped) = stopped {
+        ensure!(
+            stopped.status.success(),
+            "{}",
+            String::from_utf8_lossy(&stopped.stderr)
+        );
+    }
+    if let Some(server) = model_server {
+        for request in server
+            .received_requests()
+            .await
+            .context("provider request capture")?
+        {
+            ensure!(
+                !request.url.path().ends_with("/responses")
+                    && !request.url.path().ends_with("/chat/completions"),
+                "unexpected model call: {}",
+                request.url
+            );
+        }
+    }
     Ok(())
 }

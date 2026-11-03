@@ -1,4 +1,4 @@
-# Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
+# Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.
 [package]
 name = "codex-cli"
 version.workspace = true
@@ -138,6 +138,7 @@ app_test_support = { workspace = true }
 assert_cmd = { workspace = true }
 assert_matches = { workspace = true }
 codex-app-server-client = { workspace = true }
+codex-app-server-transport = { workspace = true }
 codex-utils-cargo-bin = { workspace = true }
 codex-utils-pty = { workspace = true }
 core_test_support = { workspace = true }
