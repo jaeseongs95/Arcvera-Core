@@ -2288,8 +2288,7 @@ mod tests {
         let mut original = crate::MultitoolCli::command();
         // This pre-existing declaration is Korean; English mode intentionally
         // translates it. Keep exact equality for every other help fragment.
-        let server = original.find_subcommand_mut("app-server").unwrap();
-        let desktop_control = server
+        let desktop_control = original
             .get_arguments()
             .find(|arg| arg.get_id() == "desktop_cron_control")
             .unwrap();
@@ -2297,7 +2296,7 @@ mod tests {
             desktop_control.get_help().unwrap().to_string(),
             "인증된 로컬 통로로 Desktop이 소유한 예약 제어를 켭니다"
         );
-        *server = server.clone().mut_arg("desktop_cron_control", |arg| {
+        original = original.mut_arg("desktop_cron_control", |arg| {
             arg.help(
                 "Enable Desktop-owned scheduled controls through an authenticated local channel",
             )
