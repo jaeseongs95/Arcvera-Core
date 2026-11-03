@@ -4551,7 +4551,6 @@ mod tests {
                 .await?
         );
         first.shutdown().await?;
-        drop(first);
         let mut second = crate::start_embedded_app_server_for_picker(&config).await?;
         let resumed = second
             .resume_thread(
