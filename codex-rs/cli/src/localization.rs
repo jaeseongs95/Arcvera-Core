@@ -611,7 +611,8 @@ fn help_message_id(original: &str) -> Option<&'static str> {
         "Start the local app server daemon if it is not already running" => {
             Some("cli-help-main-start-the-local-app-server-daemon-if-it")
         }
-        "Install only if no installation, settings, or recovery state exists under the lifecycle lock." => {
+        "Install only if no installation, settings, or recovery state exists under the lifecycle lock"
+        | "Install only if no installation, settings, or recovery state exists under the lifecycle lock." => {
             Some("cli-help-first-installation-only")
         }
         "Use only the selected installation; preserve settings and updater state" => {
@@ -2041,10 +2042,9 @@ mod tests {
                 Command::new("fixture").arg(
                     Arg::new("item")
                         .long("item")
-                        .num_args(1..=2)
-                        .value_delimiter(','),
+                        .action(clap::ArgAction::SetTrue),
                 ),
-                vec!["fixture", "--item", "one,two,three"],
+                vec!["fixture", "--item=one"],
                 ErrorKind::TooManyValues,
                 "예상하지 않은 추가 값",
             ),
@@ -2068,6 +2068,27 @@ mod tests {
             assert_eq!(after.kind(), before.kind());
             assert_eq!(after.exit_code(), before.exit_code());
             assert!(after.to_string().contains(expected), "{after}");
+        }
+        // Clap checks raw argument counts before splitting delimiters. Preserve
+        // that accepted input instead of treating three split values as an error.
+        let delimited = Command::new("fixture").arg(
+            Arg::new("item")
+                .long("item")
+                .num_args(1..=2)
+                .value_delimiter(','),
+        );
+        for command in [delimited.clone(), localize_help(delimited, Locale::Korean)] {
+            let parsed = command
+                .try_get_matches_from(["fixture", "--item", "one,two,three"])
+                .expect("delimiter splitting preserves Clap's accepted values");
+            assert_eq!(
+                parsed
+                    .get_many::<String>("item")
+                    .expect("string values")
+                    .map(String::as_str)
+                    .collect::<Vec<_>>(),
+                ["one", "two", "three"]
+            );
         }
         let invalid_utf8: clap::Error = clap::Error::new(ErrorKind::InvalidUtf8);
         let invalid_utf8 = invalid_utf8.apply::<KoreanErrorFormatter>();
@@ -2265,6 +2286,7 @@ mod tests {
     #[test]
     fn r28_english_help_preserves_new_command_and_flag_descriptions() {
         let mut original = crate::MultitoolCli::command();
+        original.build();
         let mut english = localize_help(crate::MultitoolCli::command(), Locale::English);
         for path in [
             vec!["app-server"],

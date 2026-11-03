@@ -215,6 +215,7 @@ enum Subcommand {
     Queue(QueueCommand),
 
     /// 현재 부모 아래 종료된 서브에이전트를 미리 보거나 확인 후 정리합니다.
+    #[command(long_about = cleanup_agents::LONG_ABOUT)]
     CleanupAgents(cleanup_agents::CleanupAgentsCommand),
 
     /// Archive a saved session by id or session name.
