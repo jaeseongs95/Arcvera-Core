@@ -5,6 +5,65 @@ use crate::history_cell::AgentMarkdownCell;
 use pretty_assertions::assert_eq;
 
 #[test]
+fn cron_prompt_preview_click_and_keyboard_toggle_full_snapshot() {
+    use crate::history_cell::CronJobHistoryCell;
+    use crate::transcript_view::tests::text;
+
+    let prompt = format!("{}PRIVATE_TAIL", "한".repeat(50));
+    let cells: Vec<Arc<dyn HistoryCell>> = vec![
+        Arc::new(CronJobHistoryCell::new("#1 Ready".into(), prompt.clone())),
+        Arc::new(CronJobHistoryCell::new("#2 Ready".into(), "short".into())),
+    ];
+    let area = Rect::new(3, 2, 100, 20);
+    let mut view = TranscriptView::default();
+    let mut buffer = Buffer::empty(area);
+    view.render(area, &mut buffer, &cells);
+    assert!(!text(&buffer).contains("PRIVATE_TAIL"));
+    let control = |view: &TranscriptView| {
+        let (row, visible) = view
+            .visible
+            .iter()
+            .enumerate()
+            .find(|(_, visible)| visible.layout.disclosure_row() == Some(visible.row))
+            .unwrap();
+        (
+            area.x + visible.layout.disclosure_columns().start,
+            area.y + row as u16,
+        )
+    };
+    for expanded in [true, false] {
+        let (column, row) = control(&view);
+        assert!(matches!(
+            view.handle_mouse(
+                mouse(MouseEventKind::Down(MouseButton::Left), column, row),
+                &cells
+            ),
+            Some(ViewAction::Changed)
+        ));
+        view.render(area, &mut buffer, &cells);
+        assert_eq!(text(&buffer).contains("PRIVATE_TAIL"), expanded);
+        view.handle_mouse(
+            mouse(MouseEventKind::Up(MouseButton::Left), column, row),
+            &cells,
+        );
+    }
+    view.handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE), &cells);
+    assert!(view.is_activity_focused());
+    for expanded in [true, false] {
+        view.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE), &cells);
+        view.render(area, &mut buffer, &cells);
+        assert_eq!(text(&buffer).contains("PRIVATE_TAIL"), expanded);
+    }
+    assert!(
+        cells[0]
+            .transcript_lines(1000)
+            .iter()
+            .any(|line| line.to_string().contains(&prompt))
+    );
+    assert_eq!(cells[1].activity_disclosure(100), None);
+}
+
+#[test]
 fn mouse_scroll_speed_scales_rows_and_accumulates_fractional_movement() {
     use crate::history_cell::PlainHistoryCell;
     use crate::transcript_view::tests::text;

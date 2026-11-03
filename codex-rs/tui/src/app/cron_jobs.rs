@@ -210,6 +210,60 @@ fn parse_add(args: &str, now: MonotonicInstant) -> Result<(Schedule, String), St
     Ok((schedule, prompt.to_string()))
 }
 
+fn cron_job_summary(job: &crate::cron::Job<CronTarget>, now: MonotonicInstant) -> String {
+    let state = match &job.phase {
+        Phase::Ready => text("Ready").to_string(),
+        Phase::Pending { .. } => text("Waiting for admission").to_string(),
+        Phase::Running {
+            turn_id,
+            cancelling,
+        } => format!(
+            "{} turn={turn_id}",
+            if *cancelling {
+                text("Cancellation requested; waiting for completion")
+            } else {
+                text("Running")
+            }
+        ),
+        Phase::Finished(reason) => reason.clone(),
+        Phase::BlockedConnection(reason) => {
+            format!(
+                "{} {reason}",
+                text("Connection changed; execution blocked:")
+            )
+        }
+        Phase::BlockedUnsupported(reason) => {
+            format!("{} {reason}", text("Unsupported; execution blocked:"))
+        }
+        Phase::Unknown(reason) => {
+            format!("{} {reason}", text("Outcome unknown; execution stopped:"))
+        }
+    };
+    let schedule = job
+        .interval
+        .map(|interval| format!("every={}s", interval.as_secs()))
+        .unwrap_or_else(|| text("One-shot").into());
+    let next = job
+        .next_due
+        .map(|deadline| format!("{}s", deadline.saturating_duration_since(now).as_secs()))
+        .unwrap_or_else(|| text("No next run").into());
+    format!(
+        "#{} thread={} {} next={} {}{}{} skipped={}",
+        job.id,
+        job.target.thread,
+        schedule,
+        next,
+        state,
+        if job.paused { text(" (paused)") } else { "" },
+        if job.removed {
+            text(" (job removed; run ownership retained)")
+        } else {
+            ""
+        },
+        job.skipped
+    )
+}
+
 impl App {
     pub(super) async fn claim_cli_tool_call(
         &mut self,
@@ -312,6 +366,18 @@ impl App {
         thread: Option<ThreadId>,
         args: String,
     ) {
+        let words: Vec<_> = args.split_whitespace().collect();
+        if matches!(words.as_slice(), [] | ["list"]) && !self.cron.scheduler.jobs.is_empty() {
+            let now = MonotonicInstant::now();
+            for job in &self.cron.scheduler.jobs {
+                self.chat_widget
+                    .add_to_history(crate::history_cell::CronJobHistoryCell::new(
+                        cron_job_summary(job, now),
+                        job.prompt.clone(),
+                    ));
+            }
+            return;
+        }
         let outcome = self.cron_command(app_server, thread, &args).await;
         match outcome {
             Ok(message) => self.chat_widget.add_info_message(message, None),
@@ -361,44 +427,6 @@ impl App {
                                 && Some(job.target.thread) == thread)
                     })
                     .map(|job| {
-                        let state = match &job.phase {
-                            Phase::Ready => text("Ready").to_string(),
-                            Phase::Pending { .. } => text("Waiting for admission").to_string(),
-                            Phase::Running {
-                                turn_id,
-                                cancelling,
-                            } => format!(
-                                "{} turn={turn_id}",
-                                if *cancelling {
-                                    text("Cancellation requested; waiting for completion")
-                                } else {
-                                    text("Running")
-                                }
-                            ),
-                            Phase::Finished(reason) => reason.clone(),
-                            Phase::BlockedConnection(reason) => {
-                                format!(
-                                    "{} {reason}",
-                                    text("Connection changed; execution blocked:")
-                                )
-                            }
-                            Phase::BlockedUnsupported(reason) => {
-                                format!("{} {reason}", text("Unsupported; execution blocked:"))
-                            }
-                            Phase::Unknown(reason) => {
-                                format!("{} {reason}", text("Outcome unknown; execution stopped:"))
-                            }
-                        };
-                        let schedule = job
-                            .interval
-                            .map(|interval| format!("every={}s", interval.as_secs()))
-                            .unwrap_or_else(|| text("One-shot").into());
-                        let next = job
-                            .next_due
-                            .map(|deadline| {
-                                format!("{}s", deadline.saturating_duration_since(now).as_secs())
-                            })
-                            .unwrap_or_else(|| text("No next run").into());
                         let mut prompt = String::new();
                         for ch in serde_json::json!(job.prompt).to_string().chars() {
                             if ch.is_control() {
@@ -407,22 +435,7 @@ impl App {
                                 prompt.push(ch);
                             }
                         }
-                        format!(
-                            "#{} thread={} {} next={} {}{}{} skipped={} prompt={}",
-                            job.id,
-                            job.target.thread,
-                            schedule,
-                            next,
-                            state,
-                            if job.paused { text(" (paused)") } else { "" },
-                            if job.removed {
-                                text(" (job removed; run ownership retained)")
-                            } else {
-                                ""
-                            },
-                            job.skipped,
-                            prompt
-                        )
+                        format!("{} prompt={}", cron_job_summary(job, now), prompt)
                     })
                     .collect::<Vec<_>>()
                     .join("\n"))
@@ -855,6 +868,65 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn cron_list_ui_emits_foldable_snapshots_without_truncating_model_or_schedule()
+    -> color_eyre::Result<()> {
+        let (mut app, mut events, _ops) = crate::app::tests::make_test_app_with_channels().await;
+        let (session, _observed, worker) =
+            super::super::app_server_requests::retained_reply_tests::connection().await?;
+        let thread = ThreadId::new();
+        let prompt = format!("{}FULL_TAIL\n", "한".repeat(50));
+        app.cron
+            .scheduler
+            .add(
+                CronTarget {
+                    backend: session.backend_id(),
+                    epoch: 0,
+                    thread,
+                },
+                prompt.clone(),
+                Schedule::Every(Duration::from_secs(600)),
+                MonotonicInstant::now(),
+            )
+            .unwrap();
+        while events.try_recv().is_ok() {}
+        for command in ["list", ""] {
+            app.handle_cron_command(&session, Some(thread), command.into())
+                .await;
+            let mut snapshots = 0;
+            while let Ok(event) = events.try_recv() {
+                if let AppEvent::InsertHistoryCell(cell) = event
+                    && cell
+                        .as_any()
+                        .is::<crate::history_cell::CronJobHistoryCell>()
+                {
+                    snapshots += 1;
+                    assert!(
+                        !cell
+                            .display_lines(1000)
+                            .iter()
+                            .any(|line| line.to_string().contains("FULL_TAIL"))
+                    );
+                    assert!(
+                        cell.transcript_lines(1000)
+                            .iter()
+                            .any(|line| line.to_string().contains("FULL_TAIL\\n"))
+                    );
+                }
+            }
+            assert_eq!(snapshots, 1);
+        }
+        let model_output = app
+            .cron_command_scoped(&session, Some(thread), "list", true)
+            .await
+            .unwrap();
+        assert!(model_output.contains("FULL_TAIL\\n"));
+        assert_eq!(app.cron.scheduler.jobs[0].prompt, prompt);
+        session.shutdown().await?;
+        worker.await??;
+        Ok(())
+    }
 
     async fn localized_tool_output(
         app: &mut App,
