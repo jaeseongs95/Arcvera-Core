@@ -4527,9 +4527,27 @@ mod tests {
     #[tokio::test]
     async fn cold_resume_restores_saved_tier_and_preserves_global_defaults() -> Result<()> {
         let home = tempfile::tempdir()?;
-        let original = "service_tier = 'flex'\n";
+        // This regression assumes a model that actually supports ultrafast. An
+        // unsupported selected tier is intentionally absent from effective snapshots.
+        let mut catalog = codex_models_manager::bundled_models_response()?;
+        let model = catalog
+            .models
+            .iter_mut()
+            .find(|model| model.slug == "gpt-5.5")
+            .expect("bundled gpt-5.5 fixture");
+        model.service_tiers.push(ModelServiceTier {
+            id: "ultrafast".into(),
+            name: "Ultrafast".into(),
+            description: "Cold-resume regression fixture".into(),
+        });
+        let catalog_file = home.path().join("models.json");
+        std::fs::write(&catalog_file, serde_json::to_vec(&catalog)?)?;
+        let original = format!(
+            "service_tier = 'flex'\nmodel = 'gpt-5.5'\nmodel_catalog_json = {}\n[features]\nultrafast_mode = true\n",
+            toml::Value::String(catalog_file.to_string_lossy().into_owned())
+        );
         let file = home.path().join("config.toml");
-        std::fs::write(&file, original)?;
+        std::fs::write(&file, &original)?;
         let config = ConfigBuilder::default()
             .loader_overrides(codex_config::LoaderOverrides::without_managed_config_for_tests())
             .codex_home(home.path().to_path_buf())
@@ -4549,6 +4567,29 @@ mod tests {
                     ..Default::default()
                 })
                 .await?
+        );
+        let updated = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                let event = first
+                    .next_event()
+                    .await
+                    .expect("live tier-update event stream");
+                if let codex_app_server_client::AppServerEvent::ServerNotification(notification) =
+                    event.event
+                    && let codex_app_server_protocol::ServerNotification::ThreadSettingsUpdated(
+                        notification,
+                    ) = *notification
+                    && notification.thread_id == thread.to_string()
+                {
+                    break notification;
+                }
+            }
+        })
+        .await?;
+        assert_eq!(
+            updated.thread_settings.service_tier.as_deref(),
+            Some("ultrafast"),
+            "the selected tier must be acknowledged before testing cold restoration"
         );
         first.shutdown().await?;
         let mut second = crate::start_embedded_app_server_for_picker(&config).await?;

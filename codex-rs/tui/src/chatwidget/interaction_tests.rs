@@ -8,7 +8,7 @@ async fn image_paste_reservations_match_key_dispatch_and_preserve_copy_override(
         crate::chatwidget::tests::make_chatwidget_manual_with_sender().await;
     chat.bottom_pane
         .set_composer_text("keep this input".into(), Vec::new(), Vec::new());
-    let mut cases = vec![
+    let cases = [
         (
             "alt-v",
             KeyEvent::new(KeyCode::Char('v'), KeyModifiers::ALT),
@@ -21,12 +21,6 @@ async fn image_paste_reservations_match_key_dispatch_and_preserve_copy_override(
             ),
         ),
     ];
-    if cfg!(windows) {
-        cases.push((
-            "shift-insert",
-            KeyEvent::new(KeyCode::Insert, KeyModifiers::SHIFT),
-        ));
-    }
     for (binding, event) in cases {
         let mut keymap = chat.config_ref().tui_keymap.clone();
         keymap.composer.submit = Some(KeybindingsSpec::One(KeybindingSpec(binding.into())));
@@ -39,6 +33,23 @@ async fn image_paste_reservations_match_key_dispatch_and_preserve_copy_override(
             KeyEventAction::PasteImage { text_fallback }
                 if text_fallback == (cfg!(windows) && event.code == KeyCode::Insert)
                     .then_some(KeyCode::Insert)
+        ));
+        chat.handle_key_event(KeyEvent {
+            kind: KeyEventKind::Release,
+            ..event
+        });
+        assert_eq!(chat.bottom_pane.composer_text(), "keep this input");
+    }
+    #[cfg(windows)]
+    {
+        // Legacy Shift+Insert arrives from the terminal even though Insert is
+        // deliberately not accepted by the user keybinding parser.
+        let event = KeyEvent::new(KeyCode::Insert, KeyModifiers::SHIFT);
+        assert!(matches!(
+            chat.handle_key_event(event),
+            KeyEventAction::PasteImage {
+                text_fallback: Some(KeyCode::Insert)
+            }
         ));
         chat.handle_key_event(KeyEvent {
             kind: KeyEventKind::Release,

@@ -1,6 +1,7 @@
 //! Explicit memory management commands; model inference is not needed.
 use super::App;
 use crate::app_server_session::AppServerSession;
+use crate::i18n::message;
 use crate::i18n::text;
 use codex_app_server_protocol::WriteStatus;
 use codex_config::types::MemoryScope;
@@ -43,7 +44,7 @@ impl App {
                             text("Storage:"), response.root.as_deref().unwrap_or("-"),
                             response.summary.as_deref().unwrap_or(text("No stored memory summary is available.")),
                             text("This is the stored summary. Existing chat context is unchanged; new context loads the latest summary.")),
-                            Some(text("/memory enable on|off · /memory edit <correction> · /memory read on|off · /memory generate on|off").to_string()));
+                            Some(message("controls-memory-command-hint", &[])));
                     }
                     Err(error) => self.chat_widget.add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
                 }
@@ -83,7 +84,7 @@ impl App {
                     Err(error) => self.chat_widget.add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
                 }
             }
-            _ => self.chat_widget.add_error_message(text("Usage: /memory view | enable on|off | edit <correction> | read on|off | generate on|off | scope project|global").to_string()),
+            _ => self.chat_widget.add_error_message(message("controls-memory-usage", &[])),
         }
     }
 }

@@ -132,7 +132,11 @@ pub fn update(home: &Path, update: Update) -> io::Result<Status> {
                 .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
         }
     }
-    let mut temporary = tempfile::NamedTempFile::new_in(home)?;
+    // Use an ordinary file so the published settings do not retain Windows'
+    // FILE_ATTRIBUTE_TEMPORARY cache hint.
+    let mut temporary = tempfile::Builder::new().make_in(home, |path| {
+        OpenOptions::new().write(true).create_new(true).open(path)
+    })?;
     temporary.write_all(updated.as_bytes())?;
     match fs::metadata(&target) {
         Ok(metadata) => temporary
@@ -142,7 +146,11 @@ pub fn update(home: &Path, update: Update) -> io::Result<Status> {
         Err(error) => return Err(error),
     }
     temporary.as_file().sync_all()?;
-    temporary.persist(&target).map_err(|error| error.error)?;
+    let temporary = temporary.into_temp_path();
+    // Unlike tempfile::persist's MoveFileExW-only implementation, std rename
+    // supports replacing a Windows file while readers retain the old handle.
+    // TempPath still cleans up the source if publication fails.
+    fs::rename(&temporary, &target)?;
     status(home)
 }
 

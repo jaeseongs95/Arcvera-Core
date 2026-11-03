@@ -25,13 +25,69 @@ fn readers_only_observe_complete_settings_during_atomic_replacement() {
             }
             reads
         });
-        for enabled in [true, false].into_iter().cycle().take(20) {
-            update(home.path(), Update::Logging { enabled }).unwrap();
-        }
+        let writer_result = [true, false]
+            .into_iter()
+            .cycle()
+            .take(20)
+            .try_for_each(|enabled| update(home.path(), Update::Logging { enabled }).map(|_| ()));
+        // Report the writer's original failure without leaving its reader spinning.
         done.store(true, std::sync::atomic::Ordering::Release);
-        assert!(reader.join().unwrap() > 0);
+        let reader_result = reader.join();
+        writer_result.expect("settings publication must succeed with concurrent readers");
+        assert!(reader_result.unwrap() > 0);
     });
     assert_eq!(fs::read_dir(home.path()).unwrap().count(), 2);
+}
+
+#[test]
+fn open_reader_retains_old_settings_while_new_readers_see_replacement() {
+    use std::io::Read;
+
+    let home = tempfile::tempdir().unwrap();
+    let logging = home.path().join("cli-logging.toml");
+    update(home.path(), Update::Logging { enabled: false }).unwrap();
+    let original = fs::read_to_string(&logging).unwrap();
+    let mut old_reader = fs::File::open(&logging).unwrap();
+
+    update(home.path(), Update::Logging { enabled: true }).unwrap();
+    assert!(status(home.path()).unwrap().saved_logging.enabled);
+    assert_eq!(
+        fs::read_to_string(&logging).unwrap(),
+        original.replace("false", "true")
+    );
+    let mut old_contents = String::new();
+    old_reader.read_to_string(&mut old_contents).unwrap();
+    assert_eq!(old_contents, original);
+    drop(old_reader);
+    assert_eq!(fs::read_dir(home.path()).unwrap().count(), 2);
+}
+
+#[cfg(windows)]
+#[test]
+fn reader_without_delete_sharing_rejects_publication_and_preserves_settings() {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    let home = tempfile::tempdir().unwrap();
+    let logging = home.path().join("cli-logging.toml");
+    update(home.path(), Update::Logging { enabled: false }).unwrap();
+    let original = fs::read(&logging).unwrap();
+    // FILE_SHARE_READ | FILE_SHARE_WRITE deliberately excludes FILE_SHARE_DELETE.
+    let reader = OpenOptions::new()
+        .read(true)
+        .share_mode(0x1 | 0x2)
+        .open(&logging)
+        .unwrap();
+    let error = update(home.path(), Update::Logging { enabled: true }).unwrap_err();
+    assert!(matches!(error.raw_os_error(), Some(5 | 32)), "{error}");
+    assert_eq!(fs::read(&logging).unwrap(), original);
+    assert_eq!(fs::read_dir(home.path()).unwrap().count(), 2);
+    drop(reader);
+    assert!(
+        update(home.path(), Update::Logging { enabled: true })
+            .unwrap()
+            .saved_logging
+            .enabled
+    );
 }
 
 #[test]
