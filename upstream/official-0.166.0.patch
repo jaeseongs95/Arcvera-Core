@@ -73960,7 +73960,7 @@ index 8a9166365..911a5a28e 100644
          .replace_rollout_path_if_current(
              thread_id,
 diff --git a/codex-rs/thread-store/src/local/revert_thread_tests.rs b/codex-rs/thread-store/src/local/revert_thread_tests.rs
-index 564c990ae..311b06900 100644
+index 564c990ae..895814b11 100644
 --- a/codex-rs/thread-store/src/local/revert_thread_tests.rs
 +++ b/codex-rs/thread-store/src/local/revert_thread_tests.rs
 @@ -106,6 +106,7 @@ async fn revert_keeps_thread_id_and_hides_suffix_across_repeated_reverts() {
@@ -74012,7 +74012,7 @@ index 564c990ae..311b06900 100644
      let recovered = codex_rollout::read_session_meta_line(&stored.rollout_path)
          .await
          .expect("read recovered creator metadata")
-@@ -183,6 +194,186 @@ async fn revert_keeps_thread_id_and_hides_suffix_across_repeated_reverts() {
+@@ -183,6 +194,187 @@ async fn revert_keeps_thread_id_and_hides_suffix_across_repeated_reverts() {
      }
  }
  
@@ -74075,12 +74075,13 @@ index 564c990ae..311b06900 100644
 +    let pool = store.thread_history_db().await.expect("history database");
 +    // Use the existing SQLite surface, without a production hook. The original
 +    // rollout ID remains writable; only the new replacement checkpoint is rejected.
-+    sqlx::query(&format!(
++    sqlx::query(
 +        "CREATE TRIGGER reject_replacement_projection
 +         BEFORE INSERT ON thread_history_projection_state
-+         WHEN NEW.thread_id != '{thread_id}'
-+         BEGIN SELECT RAISE(ABORT, 'r36 replacement projection rejected'); END"
-+    ))
++         WHEN NOT EXISTS (SELECT 1 FROM thread_history_projection_state
++                          WHERE thread_id = NEW.thread_id)
++         BEGIN SELECT RAISE(ABORT, 'r36 replacement projection rejected'); END",
++    )
 +    .execute(pool)
 +    .await
 +    .expect("install replacement-only projection failure");
@@ -74199,7 +74200,7 @@ index 564c990ae..311b06900 100644
  #[tokio::test]
  async fn revert_preserves_resolved_multi_agent_version_in_session_metadata() {
      let home = TempDir::new().expect("temp dir");
-@@ -302,6 +493,24 @@ async fn create_paginated_thread(store: &LocalThreadStore, thread_id: ThreadId)
+@@ -302,6 +494,24 @@ async fn create_paginated_thread(store: &LocalThreadStore, thread_id: ThreadId)
          .expect("create paginated thread");
  }
  

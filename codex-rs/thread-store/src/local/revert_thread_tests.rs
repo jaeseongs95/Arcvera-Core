@@ -254,12 +254,13 @@ async fn revert_projection_failure_preserves_current_history_and_allows_retry_an
     let pool = store.thread_history_db().await.expect("history database");
     // Use the existing SQLite surface, without a production hook. The original
     // rollout ID remains writable; only the new replacement checkpoint is rejected.
-    sqlx::query(&format!(
+    sqlx::query(
         "CREATE TRIGGER reject_replacement_projection
          BEFORE INSERT ON thread_history_projection_state
-         WHEN NEW.thread_id != '{thread_id}'
-         BEGIN SELECT RAISE(ABORT, 'r36 replacement projection rejected'); END"
-    ))
+         WHEN NOT EXISTS (SELECT 1 FROM thread_history_projection_state
+                          WHERE thread_id = NEW.thread_id)
+         BEGIN SELECT RAISE(ABORT, 'r36 replacement projection rejected'); END",
+    )
     .execute(pool)
     .await
     .expect("install replacement-only projection failure");
