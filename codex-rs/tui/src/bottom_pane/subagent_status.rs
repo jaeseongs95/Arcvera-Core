@@ -581,6 +581,63 @@ mod tests {
     }
 
     #[test]
+    fn running_agent_footer_elapsed_advances_with_real_time() {
+        let started_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let mut summary = summary_with_agents(1, ThreadId::new());
+        summary.entries[0].started_at = Some(i64::try_from(started_at).unwrap());
+        let mut panel = SubagentStatusPanel::default();
+        panel.update(summary.clone());
+        assert!(!panel.needs_tick());
+        assert!(panel.handle_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT)));
+        assert!(panel.needs_tick());
+
+        let mut elapsed = Vec::new();
+        for sample in 0..2 {
+            if sample > 0 {
+                std::thread::sleep(Duration::from_millis(1_100));
+            }
+            let before = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                - started_at;
+            let (height, text) = render_panel(&panel, 100, true);
+            let after = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                - started_at;
+            assert_eq!(height, 2);
+            assert!(text.contains("worker-000"));
+            assert!(text.contains("Checking focused tests"));
+            let seconds: u64 = text
+                .rsplit(" · ")
+                .next()
+                .unwrap()
+                .split_whitespace()
+                .map(|part| {
+                    let (value, unit) = part.split_at(part.len() - 1);
+                    value.parse::<u64>().unwrap()
+                        * match unit {
+                            "h" => 3_600,
+                            "m" => 60,
+                            "s" => 1,
+                            _ => panic!("unexpected elapsed unit: {unit}"),
+                        }
+                })
+                .sum();
+            assert!((before..=after).contains(&seconds));
+            elapsed.push(seconds);
+            assert!(panel.needs_tick());
+        }
+        assert!(elapsed[1] > elapsed[0]);
+        assert_eq!(panel.summary, summary);
+    }
+
+    #[test]
     fn subagent_status_row_bounds_width_and_keeps_command_hint() {
         let mut summary = SubagentStatusSummary::default();
         for state in [
