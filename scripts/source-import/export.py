@@ -9,8 +9,8 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='8a3b7d35a83467504c59448087f27c7a5c0e0e9b'
-PREVIOUS_PUBLIC='8c0d816ec3c9256a02334c81a5e965b977ac187a'
+PATCHED='202768e4752f9884fb67d17679162cf7a6cb31e8'
+PREVIOUS_PUBLIC='58f27ade078e05bdf0a9adb20081185084ad3f47'
 PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md','docs/native-cli-r35.ko.md','docs/native-cli-r36.ko.md','docs/r36-cleanup.ko.md','docs/r36-cloud-ci.ko.md','docs/r36-fast-compaction.ko.md','docs/r37-agent-selection-cases.ko.md','docs/r37-cold-cleanup-cases.ko.md','docs/r37-config-cases.ko.md','docs/r37-daemon-cases.ko.md','docs/r37-memory-cases.ko.md','docs/r37-memory-transport-cases.ko.md','docs/r37-plugin-cache-cases.ko.md','docs/r37-replay-compact-cases.ko.md','sdk/python/src/openai_codex/generated/v2_all.py']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
