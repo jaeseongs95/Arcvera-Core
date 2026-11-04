@@ -48,6 +48,9 @@ fn cron_prompt_preview_click_and_keyboard_toggle_full_snapshot() {
             &cells,
         );
     }
+    assert!(view.is_activity_focused());
+    view.handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE), &cells);
+    assert!(!view.is_activity_focused());
     view.handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE), &cells);
     assert!(view.is_activity_focused());
     for expanded in [true, false] {

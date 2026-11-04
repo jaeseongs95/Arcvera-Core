@@ -101983,10 +101983,10 @@ index 4c455ed8c..e741da615 100644
                  SlashCommand::Status,
 diff --git a/codex-rs/tui/src/bottom_pane/subagent_status.rs b/codex-rs/tui/src/bottom_pane/subagent_status.rs
 new file mode 100644
-index 000000000..c8b04339f
+index 000000000..82352d754
 --- /dev/null
 +++ b/codex-rs/tui/src/bottom_pane/subagent_status.rs
-@@ -0,0 +1,617 @@
+@@ -0,0 +1,674 @@
 +//! Root-scoped, event-driven agent footer. Expanded details never exceed three rows.
 +//! Only cached UI metadata is rendered; this surface never reads backend state.
 +
@@ -102567,6 +102567,63 @@ index 000000000..c8b04339f
 +        panel.update(summary);
 +        assert_eq!(render_panel(&panel, 80, true).0, 0);
 +        assert!(!panel.needs_tick());
++    }
++
++    #[test]
++    fn running_agent_footer_elapsed_advances_with_real_time() {
++        let started_at = SystemTime::now()
++            .duration_since(UNIX_EPOCH)
++            .unwrap()
++            .as_secs();
++        let mut summary = summary_with_agents(1, ThreadId::new());
++        summary.entries[0].started_at = Some(i64::try_from(started_at).unwrap());
++        let mut panel = SubagentStatusPanel::default();
++        panel.update(summary.clone());
++        assert!(!panel.needs_tick());
++        assert!(panel.handle_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT)));
++        assert!(panel.needs_tick());
++
++        let mut elapsed = Vec::new();
++        for sample in 0..2 {
++            if sample > 0 {
++                std::thread::sleep(Duration::from_millis(1_100));
++            }
++            let before = SystemTime::now()
++                .duration_since(UNIX_EPOCH)
++                .unwrap()
++                .as_secs()
++                - started_at;
++            let (height, text) = render_panel(&panel, 100, true);
++            let after = SystemTime::now()
++                .duration_since(UNIX_EPOCH)
++                .unwrap()
++                .as_secs()
++                - started_at;
++            assert_eq!(height, 2);
++            assert!(text.contains("worker-000"));
++            assert!(text.contains("Checking focused tests"));
++            let seconds: u64 = text
++                .rsplit(" · ")
++                .next()
++                .unwrap()
++                .split_whitespace()
++                .map(|part| {
++                    let (value, unit) = part.split_at(part.len() - 1);
++                    value.parse::<u64>().unwrap()
++                        * match unit {
++                            "h" => 3_600,
++                            "m" => 60,
++                            "s" => 1,
++                            _ => panic!("unexpected elapsed unit: {unit}"),
++                        }
++                })
++                .sum();
++            assert!((before..=after).contains(&seconds));
++            elapsed.push(seconds);
++            assert!(panel.needs_tick());
++        }
++        assert!(elapsed[1] > elapsed[0]);
++        assert_eq!(panel.summary, summary);
 +    }
 +
 +    #[test]
@@ -118103,10 +118160,10 @@ index 309403b83..ca5ea284e 100644
  fn selection_at_bottom_restores_footer_without_resuming_following() {
      let cells: Vec<Arc<dyn HistoryCell>> = vec![Arc::new(PlainHistoryCell::new(vec![
 diff --git a/codex-rs/tui/src/transcript_view/input_tests.rs b/codex-rs/tui/src/transcript_view/input_tests.rs
-index 829240298..3e5be5138 100644
+index 829240298..43f06121b 100644
 --- a/codex-rs/tui/src/transcript_view/input_tests.rs
 +++ b/codex-rs/tui/src/transcript_view/input_tests.rs
-@@ -4,6 +4,65 @@ use super::*;
+@@ -4,6 +4,68 @@ use super::*;
  use crate::history_cell::AgentMarkdownCell;
  use pretty_assertions::assert_eq;
  
@@ -118153,6 +118210,9 @@ index 829240298..3e5be5138 100644
 +            &cells,
 +        );
 +    }
++    assert!(view.is_activity_focused());
++    view.handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE), &cells);
++    assert!(!view.is_activity_focused());
 +    view.handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE), &cells);
 +    assert!(view.is_activity_focused());
 +    for expanded in [true, false] {
