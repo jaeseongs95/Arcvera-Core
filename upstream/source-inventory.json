@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "sourceCommit": "eef1403ad0574129457beab02fcc84ae79025a41",
+  "sourceCommit": "964223ea5917e9cd3de1c7afb7b63965574d2555",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -19398,10 +19398,10 @@
     {
       "path": "codex-rs/cli/src/ci.rs",
       "gitMode": "100644",
-      "gitBlob": "d50757bcc399e6908446b07131e59e434de777c2",
-      "sourceSha256": "a37552b647af90836201cf2b263b71cecb60ebdb25d6605875d588f37340befb",
-      "publishedSha256": "f9ad106876b2f78fd4e9cf3001f4f75c90e74ca104890c5a1a4cc5b8f07530f6",
-      "bytes": 17131,
+      "gitBlob": "5c13bb4a33029dcf79f9585b928d81940c36277a",
+      "sourceSha256": "5a5fd0ea85985077f6a2b1ebd65d49c68c8d2b5d799f660d19dad7035f4e03a5",
+      "publishedSha256": "ec7912995ca43f9acc53daec1ad70c110eabedea2a178248fe4b2b9162d5fb26",
+      "bytes": 22568,
       "modified": true,
       "noticeOnly": true
     },
@@ -61538,10 +61538,10 @@
     {
       "path": "codex-rs/tui/locales/en/r36-ci.ftl",
       "gitMode": "100644",
-      "gitBlob": "223cfe072391dc5e0abac7671bf31552b1fa1c42",
-      "sourceSha256": "2e4171c4dc68a4b384ba48ff18bdcc220d1e715360de0a8c13572db0927f714e",
-      "publishedSha256": "2e4171c4dc68a4b384ba48ff18bdcc220d1e715360de0a8c13572db0927f714e",
-      "bytes": 2204,
+      "gitBlob": "a4132806e56e4ac99bf63710929e16321721d137",
+      "sourceSha256": "95ff65387d02f619a541b0ad83390bdf340afc752326d53cc9197e72e315c86c",
+      "publishedSha256": "95ff65387d02f619a541b0ad83390bdf340afc752326d53cc9197e72e315c86c",
+      "bytes": 2354,
       "modified": true,
       "noticeOnly": false
     },
@@ -61648,10 +61648,10 @@
     {
       "path": "codex-rs/tui/locales/ko/r36-ci.ftl",
       "gitMode": "100644",
-      "gitBlob": "9dbadba4bd4e661cd9b5ab1566a4248b30651749",
-      "sourceSha256": "ef10a4a8bf5a54c548f5bc4e471b8908b0ff8eb63083b7097bddb0801ce5be80",
-      "publishedSha256": "ef10a4a8bf5a54c548f5bc4e471b8908b0ff8eb63083b7097bddb0801ce5be80",
-      "bytes": 2731,
+      "gitBlob": "6950f85cd78e87d89310f869091d0ec53201d55e",
+      "sourceSha256": "5e40538d2843204c66e94e7ea6354f847c535e5effc43bc65c55c05516478a5b",
+      "publishedSha256": "5e40538d2843204c66e94e7ea6354f847c535e5effc43bc65c55c05516478a5b",
+      "bytes": 2922,
       "modified": true,
       "noticeOnly": false
     },
