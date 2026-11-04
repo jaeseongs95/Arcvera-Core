@@ -62,12 +62,17 @@ Updater commands run in PowerShell: `codex update --check`, `--status`, `--enabl
 
 [OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop) owns the desktop UI and multi-session workflows. This repository owns the CLI, App Server, and their package. The projects coordinate protocol and release compatibility.
 
+**Minimum for OpenDIY extensions in Desktop 1.1.0: OpenDIY CLI R36 and App Server R36.** The current trial version is `0.166.0+native-r36.20261103`; the complete package from the same release is recommended. Versions before R36, including R28, are outside the supported range. Official Codex CLI 0.166.0 has bounded basic-function compatibility only; OpenDIY extensions are not guaranteed.
+
+Existing servers, stored data, and in-progress work are preserved without automatic replacement. This preservation policy is separate from the supported-version range. The isolated tests below record verification history; R28 preservation checks do not establish official R28 support.
+
 | CLI/server | Desktop | Verification scope |
 | --- | --- | --- |
 | R33 | 1.0.2 | Historical bounded joint tests; see the R33 release record. |
 | R34 | Release-specific tested candidate | Startup, isolated engine/catalog, and restoration checks; see the R34 release record. |
-| R36 trial CLI/server | 1.1.0 candidate `23eba648` | Actual GUI input, HTTP/SSE, same-backend completion, normal exit, and restart/restore passed. OS Korean IME/copy checks and final-release binary joint tests remain pending. |
-| R36 trial CLI/isolated R28 server | Same 1.1.0 candidate | Conversation completion and normal exit passed. Unsupported server features are hidden; this does not test replacing the operational shared daemon. |
+| R36 trial CLI/server | 1.1.0 candidate `5eda4e5` | Isolated GUI input, Korean IME/paste, HTTP/SSE, same-backend completion, normal exit, and restart/restore checks passed. Final-release binary joint tests remain pending. |
+| Official Codex CLI 0.166.0 | Same 1.1.0 candidate | Six isolated basic-function checks passed. OpenDIY extensions are not guaranteed. |
+| R36 trial CLI/isolated R28 server | Same 1.1.0 candidate | Seven isolated preservation checks passed. Historical test coverage only; R28 is outside the supported range. |
 
 A connection, initialize response, or build-string match alone is not proof of full compatibility. Actual mobile connection, sustained workloads, and live cache effects need separate evidence. File creation does not prove cloud upload, and display-history limits are not total process-memory caps.
 
