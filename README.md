@@ -4,28 +4,28 @@
 
 An unofficial Windows edition of Codex CLI and Rust App Server. It repairs confirmed defects and reuses upstream functionality rather than duplicating it.
 
-[Download R34](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.166.0-r34.20261103) · [Build from source](docs/source-import.md) · [Validation](docs/TESTING.md) · [Changes](MODIFICATIONS.md)
+[Download R36](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.166.0-r36.20261103) · [Build from source](docs/source-import.md) · [Validation](docs/TESTING.md) · [Changes](MODIFICATIONS.md)
 
 ## Release status
 
 | Version | Official base | State |
 | --- | --- | --- |
-| R37 | 0.166.0 + selected upstream changes | Development source candidate pinned to `89139fd7386eaebd9d0cff6ffccb8dc93c2859ea`. Public checkout build/runtime checks, final release, publication, and installation remain pending. |
-| R36 | 0.166.0 + selected upstream changes | Candidate integrating R35 changes. Joint testing uses dev-small binaries; final release build, publication, and installation remain pending. |
+| R37 | 0.166.0 + selected upstream changes | Development source candidate pinned to `89139fd7386eaebd9d0cff6ffccb8dc93c2859ea`. Development verification uses dev-small binaries; joint testing, acceptance, independent audit, final release, publication, and installation remain incomplete. The public checkout has not been built or run. |
+| R36 | 0.166.0 + selected upstream changes | Published stable Windows release integrating R35 changes. Frozen after publication. |
 | R35 | 0.166.0 | Integrated into R36 without a separate release. |
 | R34 | 0.166.0 + selected upstream changes | Published Windows CLI, standalone App Server, and full package. Frozen after publication. |
 | R33 | 0.166.0 | Historical package; Windows updater defects were repaired in R34. |
 | R32 | 0.166.0 | Historical package. |
 | R31 | 0.166.0 | No separate release; integrated into R32. |
 
-The published executable release is R34 (`v0.166.0-r34.20261103`). A merged R37 or R36 source PR or successful dev-small build does not mean final binaries are published or installed. The [R35 guide](docs/native-cli-r35.ko.md) describes the memory, language, and update changes now integrated into R36.
+The current published executable release is [R36 (`v0.166.0-r36.20261103`)](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.166.0-r36.20261103). A merged R37 source PR or successful dev-small build does not mean its final binaries are published or installed. Publication does not establish which version is installed on this PC. The [R35 guide](docs/native-cli-r35.ko.md) describes the memory, language, and update changes now integrated into R36.
 
 ## Features
 
 - Cancellation propagation, bounded capacity retries, and owned-child process cleanup.
 - Per-conversation context/tier controls, memory activation/corrections, subagent display, and confirmed cleanup.
 - CLI-lifetime scheduling: busy conversations skip an occurrence; schedules disappear when the CLI exits.
-- R36 candidate: one-line subagent summary with at most three expanded rows, distinct Cloud discovery errors, read-only `codex ci` observation, and fast propagation/compaction phase diagnostics.
+- R36: one-line subagent summary with at most three expanded rows, distinct Cloud discovery errors, read-only `codex ci` observation, and fast propagation/compaction phase diagnostics.
 - Bounded display history independent of model context, and globally selected English/Korean UI.
 - Optional asynchronous diagnostics published as completed immutable batch files.
 - A package launcher/updater that retains previous packages and does not automatically replace an active shared daemon.
@@ -63,7 +63,7 @@ Updater commands run in PowerShell: `codex update --check`, `--status`, `--enabl
 
 [OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop) owns the desktop UI and multi-session workflows. This repository owns the CLI, App Server, and their package. The projects coordinate protocol and release compatibility.
 
-**Minimum for OpenDIY extensions in Desktop 1.1.0: OpenDIY CLI R36 and App Server R36.** The current trial version is `0.166.0+native-r36.20261103`; the complete package from the same release is recommended. Versions before R36, including R28, are outside the supported range. Official Codex CLI 0.166.0 has bounded basic-function compatibility only; OpenDIY extensions are not guaranteed.
+**Minimum for OpenDIY extensions in Desktop 1.1.0: OpenDIY CLI R36 and App Server R36.** The published R36 version is `0.166.0+native-r36.20261103`; the complete package from the same release is recommended. Versions before R36, including R28, are outside the supported range. Official Codex CLI 0.166.0 has bounded basic-function compatibility only; OpenDIY extensions are not guaranteed.
 
 Existing servers, stored data, and in-progress work are preserved without automatic replacement. This preservation policy is separate from the supported-version range. The isolated tests below record verification history; R28 preservation checks do not establish official R28 support.
 
@@ -71,7 +71,7 @@ Existing servers, stored data, and in-progress work are preserved without automa
 | --- | --- | --- |
 | R33 | 1.0.2 | Historical bounded joint tests; see the R33 release record. |
 | R34 | Release-specific tested candidate | Startup, isolated engine/catalog, and restoration checks; see the R34 release record. |
-| R36 trial CLI/server | 1.1.0 candidate `5eda4e5` | Isolated GUI input, Korean IME/paste, HTTP/SSE, same-backend completion, normal exit, and restart/restore checks passed. Final-release binary joint tests remain pending. |
+| R36 trial CLI/server | 1.1.0 candidate `5eda4e5` | Isolated GUI input, Korean IME/paste, HTTP/SSE, same-backend completion, normal exit, and restart/restore checks passed. These results apply to the trial binaries named in this row. |
 | Official Codex CLI 0.166.0 | Same 1.1.0 candidate | Six isolated basic-function checks passed. OpenDIY extensions are not guaranteed. |
 | R36 trial CLI/isolated R28 server | Same 1.1.0 candidate | Seven isolated preservation checks passed. Historical test coverage only; R28 is outside the supported range. |
 
