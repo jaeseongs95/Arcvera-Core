@@ -75,6 +75,53 @@ struct CiRun {
 }
 
 pub(crate) async fn run(command: CiCommand) -> anyhow::Result<()> {
+    observe_until_cancelled(observe(command), cancellation_signal()).await
+}
+
+async fn observe_until_cancelled(
+    observation: impl std::future::Future<Output = anyhow::Result<()>>,
+    cancellation: impl std::future::Future<Output = anyhow::Result<()>>,
+) -> anyhow::Result<()> {
+    tokio::select! {
+        // Register listeners before starting git/gh, and drop the observation
+        // (including its kill_on_drop child) when cancellation wins.
+        biased;
+        result = cancellation => {
+            result?;
+            anyhow::bail!("{}", message("ci-cancelled", &[]));
+        }
+        result = observation => result,
+    }
+}
+
+async fn cancellation_signal() -> anyhow::Result<()> {
+    #[cfg(windows)]
+    {
+        // CtrlBreak otherwise invokes Windows' abrupt default termination,
+        // which cannot run the active query child's Rust drop handler.
+        let mut ctrl_c = tokio::signal::windows::ctrl_c()
+            .context(message("ci-signal-failed", &[("signal", "Ctrl+C")]))?;
+        let mut ctrl_break = tokio::signal::windows::ctrl_break()
+            .context(message("ci-signal-failed", &[("signal", "Ctrl+Break")]))?;
+        tokio::select! {
+            signal = ctrl_c.recv() => {
+                signal.context(message("ci-signal-failed", &[("signal", "Ctrl+C")]))?;
+            }
+            signal = ctrl_break.recv() => {
+                signal.context(message("ci-signal-failed", &[("signal", "Ctrl+Break")]))?;
+            }
+        }
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        tokio::signal::ctrl_c()
+            .await
+            .context(message("ci-signal-failed", &[("signal", "Ctrl+C")]))
+    }
+}
+
+async fn observe(command: CiCommand) -> anyhow::Result<()> {
     let repo = command.repo.as_deref();
     match command.command {
         CiAction::Status(mut options) => {
@@ -412,6 +459,80 @@ mod tests {
         )));
     }
 
+    #[tokio::test]
+    async fn cancellation_before_query_does_not_start_observation() {
+        let queried = std::cell::Cell::new(false);
+        let observation = async {
+            queried.set(true);
+            Ok(())
+        };
+        let error = observe_until_cancelled(observation, async { Ok(()) })
+            .await
+            .unwrap_err();
+        assert_eq!(error.to_string(), message("ci-cancelled", &[]));
+        assert!(!queried.get(), "query started after cancellation was ready");
+    }
+
+    #[tokio::test]
+    async fn cancellation_preserves_observation_success_and_errors() {
+        observe_until_cancelled(async { Ok(()) }, std::future::pending())
+            .await
+            .unwrap();
+        let error = observe_until_cancelled(
+            async { anyhow::bail!("synthetic query failure") },
+            std::future::pending(),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.to_string(), "synthetic query failure");
+    }
+
+    #[tokio::test]
+    async fn cancellation_listener_failure_is_not_user_cancellation() {
+        let error = observe_until_cancelled(std::future::pending(), async {
+            Err(anyhow::anyhow!("synthetic listener failure"))
+        })
+        .await
+        .unwrap_err();
+        assert_eq!(error.to_string(), "synthetic listener failure");
+        assert_ne!(error.to_string(), message("ci-cancelled", &[]));
+    }
+
+    // Exercise the same drop boundary as run(), with a real owned child. OS
+    // signal delivery is covered separately in an isolated CLI process group.
+    #[tokio::test]
+    async fn cancellation_during_query_terminates_its_child() {
+        let directory = tempfile::tempdir().unwrap();
+        let marker = directory.path().join("child-outlived-cancellation");
+        let mut command = Command::from(background_command(std::env::current_exe().unwrap()));
+        command
+            .args(["--ignored", "--exact", "ci::tests::timeout_child_fixture"])
+            .env("CODEX_R36_CI_TIMEOUT_MARKER", &marker)
+            .stdin(Stdio::null())
+            .kill_on_drop(true);
+        let observation = async {
+            query_output("fixture", command, COMMAND_TIMEOUT).await?;
+            Ok(())
+        };
+        let cancellation = async {
+            while !marker.with_extension("started").exists() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            Ok(())
+        };
+        let error = tokio::time::timeout(
+            Duration::from_secs(5),
+            observe_until_cancelled(observation, cancellation),
+        )
+        .await
+        .expect("query cancellation did not complete")
+        .unwrap_err();
+        assert_eq!(error.to_string(), message("ci-cancelled", &[]));
+        assert!(marker.with_extension("started").exists());
+        tokio::time::sleep(Duration::from_millis(2200)).await;
+        assert!(!marker.exists(), "child continued after cancellation");
+    }
+
     // The child is this test executable, so this checks cancellation on either
     // supported host without depending on a shell, gh installation, or account.
     #[tokio::test]
@@ -492,6 +613,22 @@ mod tests {
             );
             assert!(result.contains(expected), "{result}");
             assert!(result.contains("synthetic-gh-id"), "{result}");
+            for (key, expected) in match locale {
+                Locale::English => [
+                    ("ci-cancelled", "observation cancelled"),
+                    ("ci-signal-failed", "Cannot listen for"),
+                ],
+                Locale::Korean => [
+                    ("ci-cancelled", "관측을 취소했습니다"),
+                    ("ci-signal-failed", "신호를 수신할 수 없습니다"),
+                ],
+            } {
+                let result = message_for(locale, key, &[("signal", "Ctrl+Break")]);
+                assert!(result.contains(expected), "{result}");
+                if key == "ci-signal-failed" {
+                    assert!(result.contains("Ctrl+Break"), "{result}");
+                }
+            }
         }
     }
 }
