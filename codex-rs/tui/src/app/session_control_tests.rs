@@ -236,6 +236,352 @@ async fn native_control_handlers_keep_memory_corrections_and_thread_settings_sco
     Ok(())
 }
 
+#[test]
+fn memory_note_live_call_replay_preserves_independent_requests_in_real_storage()
+-> color_eyre::Result<()> {
+    const SELECTOR: &str = "app::session_control::tests::memory_note_live_call_replay_preserves_independent_requests_in_real_storage";
+    const CHILD: &str = "CODEX_T10_MEMORY_CHILD";
+    const FIXTURE_HOME: &str = "CODEX_T10_MEMORY_HOME";
+    const TOKEN: &str = "CODEX_T10_MEMORY_TOKEN";
+    const OWNER: &str = "t10-process-fixture.owner";
+    const PROOF: &str = "t10-process-fixture.result.json";
+    const CONFIGURATION: &[u8] = b"[features]\nmemories = true\n[memories]\nscope = 'global'\nuse_memories = false\ngenerate_memories = false\n";
+
+    if std::env::var_os(CHILD).is_none() {
+        let home = tempfile::Builder::new()
+            .prefix("codex-t10-memory-")
+            .tempdir()?;
+        let body_result: color_eyre::Result<()> = (|| {
+            let token = uuid::Uuid::new_v4().to_string();
+            std::fs::write(
+                home.path().join(OWNER),
+                format!("T10 process fixture v1\n{token}\n"),
+            )?;
+            std::fs::write(home.path().join("config.toml"), CONFIGURATION)?;
+            let mut command = std::process::Command::new(std::env::current_exe()?);
+            command
+                .args(["--exact", SELECTOR, "--nocapture", "--test-threads=1"])
+                .env(CHILD, "child-v1")
+                .env(FIXTURE_HOME, home.path())
+                .env(TOKEN, token)
+                .env("CODEX_HOME", home.path())
+                .env("HOME", home.path());
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+            }
+            let output = command.output()?;
+            for (stream, bytes) in [("stdout", &output.stdout), ("stderr", &output.stderr)] {
+                for line in String::from_utf8_lossy(bytes).lines() {
+                    eprintln!(
+                        "T10 child {stream}: {}",
+                        line.replace("test result:", "child libtest result:")
+                    );
+                }
+            }
+            color_eyre::eyre::ensure!(
+                output.status.success(),
+                "T10 child exited abnormally: {}\nstdout:\n{}\nstderr:\n{}",
+                output.status,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let proof: Value = serde_json::from_slice(&std::fs::read(home.path().join(PROOF))?)?;
+            let relative_root: std::path::PathBuf =
+                serde_json::from_value(proof["memoryRoot"].clone())?;
+            color_eyre::eyre::ensure!(
+                !relative_root.as_os_str().is_empty()
+                    && relative_root
+                        .components()
+                        .all(|component| matches!(component, std::path::Component::Normal(_))),
+                "invalid fixture memory root"
+            );
+            let root = home.path().join(relative_root);
+            let canonical_home = home.path().canonicalize()?;
+            let canonical_root = root.canonicalize()?;
+            color_eyre::eyre::ensure!(
+                canonical_root != canonical_home && canonical_root.starts_with(&canonical_home),
+                "fixture memory root escaped its home"
+            );
+            let notes = std::fs::read_dir(root.join("extensions/ad_hoc/notes"))?
+                .map(|entry| {
+                    let path = entry?.path();
+                    let bytes = std::fs::read(&path)?;
+                    Ok((path, bytes))
+                })
+                .collect::<std::io::Result<std::collections::BTreeMap<_, _>>>()?;
+            color_eyre::eyre::ensure!(
+                notes.len() == 3,
+                "parent observed {} notes instead of 3",
+                notes.len()
+            );
+            color_eyre::eyre::ensure!(
+                notes
+                    .values()
+                    .filter(|note| note.as_slice()
+                        == b"T10 synthetic note A: preserve independent requests.")
+                    .count()
+                    == 2,
+                "parent must observe two separate A files"
+            );
+            color_eyre::eyre::ensure!(
+                notes
+                    .values()
+                    .filter(|note| note.as_slice()
+                        == b"T10 synthetic note B: preserve the later correction.")
+                    .count()
+                    == 1,
+                "parent must observe one B file"
+            );
+            color_eyre::eyre::ensure!(
+                std::fs::read(home.path().join("config.toml"))? == CONFIGURATION,
+                "parent observed changed configuration"
+            );
+            color_eyre::eyre::ensure!(
+                !root.join("memory_summary.md").exists(),
+                "note receipt must not create a summary"
+            );
+            color_eyre::eyre::ensure!(
+                proof["useMemories"] == false && proof["generateMemories"] == false,
+                "read/generate flags changed"
+            );
+            let responses: Vec<DynamicToolCallResponse> =
+                serde_json::from_value(proof["responses"].clone())?;
+            color_eyre::eyre::ensure!(
+                responses.len() == 4 && proof["responses"][0] == proof["responses"][1],
+                "replay receipts differ"
+            );
+            for response in &responses {
+                color_eyre::eyre::ensure!(response.success, "child returned failed note receipt");
+                let [
+                    codex_app_server_protocol::DynamicToolCallOutputContentItem::InputText { text },
+                ] = response.content_items.as_slice()
+                else {
+                    color_eyre::eyre::bail!("expected actual note receipt text");
+                };
+                let payload: Value = serde_json::from_str(text)?;
+                color_eyre::eyre::ensure!(
+                    payload["result"]["pendingConsolidation"] == true
+                        && payload["result"]["scope"] == "global"
+                        && payload["result"]["root"]
+                            .as_str()
+                            .is_some_and(|receipt_root| {
+                                std::path::Path::new(receipt_root) == root.as_path()
+                            }),
+                    "parent observed invalid note receipt"
+                );
+            }
+            let conflict: DynamicToolCallResponse =
+                serde_json::from_value(proof["conflict"].clone())?;
+            color_eyre::eyre::ensure!(!conflict.success, "conflicting call was accepted");
+            Ok(())
+        })();
+        let cleanup_result = home.close().map_err(color_eyre::eyre::Report::from);
+        let failures = [
+            ("parent/child verification", body_result),
+            ("TempDir close", cleanup_result),
+        ]
+        .into_iter()
+        .filter_map(|(phase, result)| result.err().map(|error| format!("{phase}: {error:#}")))
+        .collect::<Vec<_>>();
+        if !failures.is_empty() {
+            color_eyre::eyre::bail!("{}", failures.join("\n"));
+        }
+        return Ok(());
+    }
+
+    color_eyre::eyre::ensure!(
+        matches!(std::env::var(CHILD).as_deref(), Ok("child-v1")),
+        "invalid child fixture mode"
+    );
+    let token = std::env::var(TOKEN)?;
+    uuid::Uuid::parse_str(&token)?;
+    let home_path = std::path::PathBuf::from(
+        std::env::var_os(FIXTURE_HOME)
+            .ok_or_else(|| color_eyre::eyre::eyre!("missing child fixture home"))?,
+    );
+    let temporary_base = std::env::temp_dir();
+    color_eyre::eyre::ensure!(
+        home_path.parent() == Some(temporary_base.as_path())
+            && home_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("codex-t10-memory-")),
+        "child home is outside the parent temporary fixture boundary"
+    );
+    color_eyre::eyre::ensure!(
+        home_path.canonicalize()?.parent() == Some(temporary_base.canonicalize()?.as_path()),
+        "redirected child fixture home"
+    );
+    color_eyre::eyre::ensure!(
+        std::env::var_os("CODEX_HOME").as_deref() == Some(home_path.as_os_str()),
+        "child CODEX_HOME does not match the fixture"
+    );
+    color_eyre::eyre::ensure!(
+        std::fs::symlink_metadata(home_path.join(OWNER))?.is_file(),
+        "invalid fixture owner marker"
+    );
+    color_eyre::eyre::ensure!(
+        std::fs::read(home_path.join(OWNER))?
+            == format!("T10 process fixture v1\n{token}\n").as_bytes(),
+        "fixture owner marker mismatch"
+    );
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let body_result = runtime.block_on(async {
+        let (mut app, _events, _) = crate::app::tests::make_test_app_with_channels().await;
+        app.config.codex_home = home_path.as_path().abs();
+        app.config.sqlite = codex_state::SqliteConfig::new_for_testing(home_path.as_path().abs());
+        app.config.cwd = home_path.as_path().abs();
+        app.config.features.enable(Feature::MemoryTool)?;
+        app.config.memories.scope = codex_config::types::MemoryScope::Global;
+        app.config.memories.project = None;
+        app.config.memories.use_memories = false;
+        app.config.memories.generate_memories = false;
+        let configuration = b"[features]\nmemories = true\n[memories]\nscope = 'global'\nuse_memories = false\ngenerate_memories = false\n";
+        assert_eq!(std::fs::read(home_path.join("config.toml"))?, configuration);
+        // Retain the same DB owner passed to the server so cleanup can await pool closure.
+        let state_db =
+            crate::init_state_db_for_app_server_target(&app.config, &crate::AppServerTarget::Embedded)
+                .await?
+                .expect("embedded fixture state database");
+        let mut server = Box::pin(crate::start_app_server_for_picker(
+            BackendId::new(),
+            &app.config,
+            &crate::AppServerTarget::Embedded,
+            Vec::new(),
+            codex_config::LoaderOverrides::without_managed_config_for_tests(),
+            Some(Arc::clone(&state_db)),
+            Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
+        ))
+        .await?;
+        let started = server.start_thread(&app.config).await?;
+        let thread = started.session.thread_id;
+        app.enqueue_primary_thread_session(started.session, started.turns)
+            .await?;
+        server.thread_inject_items(thread, vec![serde_json::from_value(json!({"type":"message","role":"assistant","content":[{"type":"output_text","text":"synthetic T10 control fixture"}]}))?]).await?;
+        // Only the client-side caller fixture is active; no model turn is started.
+        app.active_thread_id = Some(thread);
+        app.ensure_thread_channel(thread)
+            .store
+            .lock()
+            .await
+            .set_active_turn_id("control-turn".into());
+        let before = server.memory_read(thread).await?;
+        let root = std::path::PathBuf::from(before.root.expect("actual memory root"));
+        assert!(root.starts_with(home_path.as_path()));
+        let notes_dir = root.join("extensions/ad_hoc/notes");
+        assert!(!notes_dir.exists());
+        let read_notes =
+            || -> std::io::Result<std::collections::BTreeMap<std::path::PathBuf, Vec<u8>>> {
+                std::fs::read_dir(&notes_dir)?
+                    .map(|entry| {
+                        let path = entry?.path();
+                        let bytes = std::fs::read(&path)?;
+                        Ok((path, bytes))
+                    })
+                    .collect()
+            };
+        let original = "T10 synthetic note A: preserve independent requests.";
+        let different = "T10 synthetic note B: preserve the later correction.";
+        let mut prior_notes = std::collections::BTreeMap::new();
+        let mut responses = Vec::new();
+        for (call_id, note, expected_count) in [
+            ("note-original", original, 1),
+            ("note-original", original, 1),
+            ("note-same-body-new", original, 2),
+            ("note-different-body-new", different, 3),
+        ] {
+            // Each delivery owns a fresh Request/claim/reply, including the replay.
+            let (call, response) = request(
+                &server,
+                thread,
+                call_id,
+                json!({"action":"memory_note","note":note}),
+            );
+            app.handle_session_control_tool_call(&mut server, call)
+                .await;
+            let response = response.await?;
+            assert!(response.success, "{response:?}");
+            let [codex_app_server_protocol::DynamicToolCallOutputContentItem::InputText { text }] =
+                response.content_items.as_slice()
+            else {
+                panic!("expected actual memory note receipt");
+            };
+            let payload: Value = serde_json::from_str(text)?;
+            assert_eq!(payload["result"]["pendingConsolidation"], true);
+            assert_eq!(payload["result"]["scope"], "global");
+            assert_eq!(payload["result"]["root"].as_str(), root.to_str());
+            responses.push(serde_json::to_value(&response)?);
+            let notes = read_notes()?;
+            assert_eq!(notes.len(), expected_count);
+            for (path, bytes) in &prior_notes {
+                assert_eq!(notes.get(path), Some(bytes), "an existing note changed");
+            }
+            assert_eq!(
+                notes
+                    .values()
+                    .filter(|bytes| bytes.as_slice() == original.as_bytes())
+                    .count(),
+                expected_count.min(2)
+            );
+            assert_eq!(
+                notes
+                    .values()
+                    .filter(|bytes| bytes.as_slice() == different.as_bytes())
+                    .count(),
+                usize::from(expected_count == 3)
+            );
+            prior_notes = notes;
+        }
+        assert_eq!(
+            responses[0], responses[1],
+            "replay must retain the original receipt"
+        );
+        let (conflicting_call, response) = request(
+            &server,
+            thread,
+            "note-original",
+            json!({"action":"memory_note","note":"T10 conflicting payload must not be saved."}),
+        );
+        app.handle_session_control_tool_call(&mut server, conflicting_call)
+            .await;
+        let conflict = response.await?;
+        assert!(
+            !conflict.success,
+            "same call with different arguments must fail"
+        );
+        assert_eq!(read_notes()?, prior_notes);
+        let after = server.memory_read(thread).await?;
+        assert_eq!(after.use_memories, Some(false));
+        assert_eq!(after.generate_memories, Some(false));
+        assert_eq!(
+            std::fs::read(home_path.as_path().join("config.toml"))?,
+            configuration
+        );
+        assert!(!root.join("memory_summary.md").exists());
+        app.cron.stop();
+        server.shutdown().await?;
+        drop(app);
+        // Close the retained state DB owner before the child process exits.
+        state_db.close().await;
+        drop(state_db);
+        let proof = json!({
+            "memoryRoot": root.strip_prefix(&home_path)?,
+            "responses": responses,
+            "conflict": conflict,
+            "useMemories": after.use_memories,
+            "generateMemories": after.generate_memories,
+        });
+        std::fs::write(home_path.join(PROOF), serde_json::to_vec(&proof)?)?;
+        Ok(())
+    });
+    drop(runtime);
+    body_result
+}
+
 async fn control_server(
     response: Value,
 ) -> color_eyre::Result<(
