@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use super::*;
 use crate::ServerNotification;
 use codex_protocol::approvals::ElicitationRequest as CoreElicitationRequest;
@@ -508,14 +508,16 @@ fn initialize_extension_capabilities_are_independent_and_fail_closed() {
     assert!(!caps.user_turn_start_if_idle);
     assert!(!caps.compact_start_if_idle);
     assert!(!caps.history_summary);
+    assert!(!caps.memory_note_scope);
 
     // Mixed support must never be inferred from another flag or server version.
-    for mask in 0..16 {
+    for mask in 0..32 {
         let caps = crate::OpenDiyCapabilities {
             passive_subscription: mask & 1 != 0,
             user_turn_start_if_idle: mask & 2 != 0,
             compact_start_if_idle: mask & 4 != 0,
             history_summary: mask & 8 != 0,
+            memory_note_scope: mask & 16 != 0,
         };
         response.opendiy_capabilities = Some(caps.clone());
         let value = serde_json::to_value(&response).unwrap();
@@ -526,6 +528,7 @@ fn initialize_extension_capabilities_are_independent_and_fail_closed() {
                 "userTurnStartIfIdle": mask & 2 != 0,
                 "compactStartIfIdle": mask & 4 != 0,
                 "historySummary": mask & 8 != 0,
+                "memoryNoteScope": mask & 16 != 0,
             })
         );
         assert_eq!(

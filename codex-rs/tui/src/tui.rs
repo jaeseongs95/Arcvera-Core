@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use std::fmt;
 use std::future::Future;
 use std::io;
@@ -313,7 +313,8 @@ pub fn set_modes() -> Result<()> {
     // Some terminals (notably legacy Windows consoles) do not support
     // keyboard enhancement flags. Attempt to enable them, but continue
     // gracefully if unsupported.
-    keyboard_modes::enable_keyboard_enhancement(&mut stdout());
+    ALTERNATE_SCREEN
+        .note_main_input_policy(keyboard_modes::enable_keyboard_enhancement(&mut stdout()));
 
     #[cfg(not(windows))]
     let _ = execute!(stdout(), EnableFocusChange);
@@ -914,19 +915,16 @@ impl Tui {
     }
 
     /// Retain the mouse capture policy across temporary editor, suspend and panic handoffs.
-    /// Actual terminal capture is tracked by AlternateScreen so partial writes remain cleanable.
+    /// Actual terminal capture on either screen is tracked by AlternateScreen, so partial writes
+    /// and inline capture remain cleanable through the same editor/suspend/exit restoration.
     pub(crate) fn set_mouse_capture(&mut self, mouse_capture: MouseCapture) -> Result<()> {
-        if self.alt_screen_enabled && self.is_alt_screen_active() {
-            self.mouse_capture.apply(
-                &ALTERNATE_SCREEN,
-                self.terminal.backend_mut(),
-                mouse_capture,
-                self.owned_screen,
-            )
-        } else {
-            self.mouse_capture = mouse_capture;
-            Ok(())
-        }
+        let owned = self.is_owned_screen();
+        self.mouse_capture.apply(
+            &ALTERNATE_SCREEN,
+            self.terminal.backend_mut(),
+            mouse_capture,
+            owned,
+        )
     }
 
     pub fn set_notification_settings(
@@ -984,7 +982,7 @@ impl Tui {
         set_modes()?;
         self._stderr_guard.recover_after_caught_panic()?;
         self.terminal.invalidate_cursor_state();
-        if self.is_owned_screen() || self.mouse_capture != MouseCapture::Inherit {
+        if self.is_owned_screen() || self.is_alt_screen_active() {
             let saved = self.alt_saved_viewport;
             self.alt_screen_active
                 .store(/*val*/ false, Ordering::Relaxed);
@@ -995,6 +993,8 @@ impl Tui {
             self.terminal.hide_cursor()?;
             self.enter_alt_screen()?;
             self.alt_saved_viewport = saved.or(self.alt_saved_viewport);
+        } else {
+            self.set_mouse_capture(self.mouse_capture)?;
         }
         self.terminal.invalidate_viewport();
         self.frame_requester().schedule_frame();
@@ -1097,6 +1097,8 @@ impl Tui {
 
         if was_alt_screen {
             let _ = self.enter_alt_screen();
+        } else if let Err(error) = self.set_mouse_capture(self.mouse_capture) {
+            tracing::warn!(%error, "failed to restore inline terminal mouse capture after external program");
         }
 
         crate::terminal_program_status::invalidate_terminal_program_status();

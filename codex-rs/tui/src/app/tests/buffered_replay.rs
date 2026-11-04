@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Real buffered notifications must use finalized rendering without losing live stream tails.
 
 use super::*;
@@ -705,6 +705,118 @@ async fn snapshot_and_buffered_replay_render_same_message_ids_once() {
 #[tokio::test]
 async fn snapshot_and_buffered_replay_preserve_same_text_with_distinct_message_ids() {
     assert_eq!(replay_message_counts("different-turn").await, (2, 2, 2));
+}
+
+#[tokio::test]
+async fn buffered_replay_renders_repeated_completed_message_ids_once() {
+    let (mut app, mut events, _ops) = make_test_app_with_channels().await;
+    let thread_id = ThreadId::new();
+    let turn = replay_message_turn("reconnected-turn");
+    let mut store = ThreadEventStore::new_with_session(
+        32,
+        test_thread_session(thread_id, app.config.cwd.to_path_buf()),
+        Vec::new(),
+    );
+    for _ in 0..2 {
+        for item in &turn.items {
+            store.push_notification(ServerNotification::ItemCompleted(
+                ItemCompletedNotification::new(
+                    thread_id.to_string(),
+                    turn.id.clone(),
+                    item.payload.clone(),
+                    None,
+                    8_000,
+                ),
+            ));
+        }
+    }
+    store.push_notification(ServerNotification::TurnCompleted(
+        TurnCompletedNotification {
+            thread_id: thread_id.to_string(),
+            turn,
+        },
+    ));
+    app.replay_thread_snapshot(store.snapshot(), false);
+    let text = std::iter::from_fn(|| events.try_recv().ok())
+        .filter_map(|event| match event {
+            AppEvent::InsertHistoryCell(cell) => {
+                Some(lines_to_single_string(&cell.transcript_lines(100)))
+            }
+            _ => None,
+        })
+        .collect::<String>();
+    assert_eq!(text.matches("Synthetic replay question").count(), 1);
+    assert_eq!(text.matches("Synthetic replay answer").count(), 1);
+    assert!(!app.chat_widget.is_task_running_for_test());
+}
+
+#[tokio::test]
+async fn active_snapshot_and_buffered_completed_commentary_render_once() {
+    let (mut app, mut events, _ops) = make_test_app_with_channels().await;
+    let thread_id = ThreadId::new();
+    let mut turn = replay_message_turn("active-turn");
+    turn.status = TurnStatus::InProgress;
+    for item in &mut turn.items {
+        item.completed_at_ms = Some(8_000);
+        if let ThreadItemPayload::AgentMessage { phase, .. } = &mut item.payload {
+            *phase = Some(codex_protocol::models::MessagePhase::Commentary);
+        }
+    }
+    let mut store = ThreadEventStore::new_with_session(
+        32,
+        test_thread_session(thread_id, app.config.cwd.to_path_buf()),
+        vec![turn.clone()],
+    );
+    for item in &turn.items {
+        store.push_notification(ServerNotification::ItemCompleted(
+            ItemCompletedNotification::new(
+                thread_id.to_string(),
+                turn.id.clone(),
+                item.payload.clone(),
+                None,
+                8_000,
+            ),
+        ));
+    }
+    app.replay_thread_snapshot(store.snapshot(), false);
+    let text = std::iter::from_fn(|| events.try_recv().ok())
+        .filter_map(|event| match event {
+            AppEvent::InsertHistoryCell(cell) => {
+                Some(lines_to_single_string(&cell.transcript_lines(100)))
+            }
+            _ => None,
+        })
+        .collect::<String>();
+    assert_eq!(text.matches("Synthetic replay question").count(), 1);
+    assert_eq!(text.matches("Synthetic replay answer").count(), 1);
+    assert!(app.chat_widget.is_task_running_for_test());
+}
+
+#[test]
+fn repeated_completion_filter_preserves_changed_payloads_and_identity_boundaries() {
+    let turn = replay_message_turn("turn");
+    let user = turn.items[0].payload.clone();
+    let mut changed = user.clone();
+    if let ThreadItemPayload::UserMessage { content, .. } = &mut changed {
+        *content = vec![AppServerUserInput::Text {
+            text: "Corrected question must survive".into(),
+            text_elements: Vec::new(),
+        }];
+    }
+    let notification = |thread: &str, turn: &str, payload| {
+        ThreadBufferedEvent::Notification(Box::new(ServerNotification::ItemCompleted(
+            ItemCompletedNotification::new(thread.into(), turn.into(), payload, None, 8_000),
+        )))
+    };
+    let mut events = vec![
+        notification("thread", "turn", user.clone()),
+        notification("thread", "turn", changed),
+        notification("thread", "other-turn", user.clone()),
+        notification("other-thread", "turn", user),
+    ];
+    let before = format!("{events:?}");
+    replay_filter::omit_repeated_completed_messages(&mut events);
+    assert_eq!(format!("{events:?}"), before);
 }
 
 #[tokio::test]

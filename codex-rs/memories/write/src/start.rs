@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use crate::ensure_layout;
 use crate::extensions::seed_extension_instructions;
 use crate::guard;
@@ -17,6 +17,94 @@ use codex_protocol::models::PermissionProfile;
 use codex_protocol::protocol::SessionSource;
 use std::sync::Arc;
 use tracing::warn;
+
+/// Observe the loaded thread's selected job; this is not a per-note application receipt.
+pub async fn memory_consolidation_status(
+    thread: &CodexThread,
+    config: &Config,
+) -> anyhow::Result<Option<codex_state::MemoryConsolidationStatus>> {
+    let snapshot = thread.config_snapshot().await;
+    anyhow::ensure!(
+        config.memory_environment_supported(snapshot.environment_selections()),
+        "memory consolidation status is unavailable for this environment"
+    );
+    let root = config
+        .memories
+        .memory_root(&config.codex_home)
+        .ok_or_else(|| anyhow::anyhow!("project memory identity is unavailable"))?;
+    codex_config::memory_scope::validate_scoped_memory_root(root.as_path())?;
+    let db = thread
+        .state_db()
+        .ok_or_else(|| anyhow::anyhow!("memory state database is unavailable"))?;
+    let store = match config.memories.scope {
+        codex_config::types::MemoryScope::Project => {
+            let project = config
+                .memories
+                .project
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("project memory identity is unavailable"))?;
+            db.memories_for_project(config.memories.version, &project.key)
+                .await?
+        }
+        codex_config::types::MemoryScope::Global => {
+            db.memories_for_version(config.memories.version).await?
+        }
+    };
+    store.consolidation_status().await
+}
+
+/// Admit an explicitly requested consolidation using only the selected phase-2 workspace.
+/// This does not extract other conversations or enable memory generation.
+#[allow(clippy::too_many_arguments)]
+pub async fn consolidate_memories(
+    thread_manager: Arc<ThreadManager>,
+    auth_manager: Arc<AuthManager>,
+    thread_id: ThreadId,
+    thread: Arc<CodexThread>,
+    config: Arc<Config>,
+    parent_permission_profile: PermissionProfile,
+    source: &SessionSource,
+    retry: bool,
+) -> anyhow::Result<crate::MemoryConsolidationStartOutcome> {
+    use crate::MemoryConsolidationStartOutcome as Outcome;
+    if config.ephemeral || source.is_non_root_agent() {
+        return Ok(Outcome::new("blocked", Some("ineligible_session")));
+    }
+    if !config.features.enabled(Feature::MemoryTool) {
+        return Ok(Outcome::new("blocked", Some("memory_disabled")));
+    }
+    let Some(root) = config.memories.memory_root(&config.codex_home) else {
+        return Ok(Outcome::new("blocked", Some("root_unavailable")));
+    };
+    let snapshot = thread.config_snapshot().await;
+    if !config.memory_environment_supported(snapshot.environment_selections()) {
+        return Ok(Outcome::new("blocked", Some("unsupported_environment")));
+    }
+    codex_config::memory_scope::validate_scoped_memory_root(root.as_path())?;
+    let context = Arc::new(MemoryStartupContext::new(
+        thread_manager,
+        Arc::clone(&auth_manager),
+        thread_id,
+        thread,
+        config.as_ref(),
+        source.clone(),
+    ));
+    if !context.generation_enabled().await {
+        return Ok(Outcome::new("blocked", Some("generation_disabled")));
+    }
+    if context.memory_store().await.is_none() {
+        return Ok(Outcome::new("blocked", Some("state_unavailable")));
+    }
+    if !guard::rate_limits_ok(&auth_manager, &config).await {
+        return Ok(Outcome::new("blocked", Some("rate_limit")));
+    }
+    // The lock is a sibling of the root, including on the first scoped run.
+    if let Some(parent) = root.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+    codex_config::memory_scope::validate_scoped_memory_root(root.as_path())?;
+    Ok(phase2::run_with_retry(context, config, parent_permission_profile, retry).await)
+}
 
 /// Starts the asynchronous startup memory pipeline for an eligible root session.
 ///

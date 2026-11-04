@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use anyhow::Result;
 use app_test_support::MockResponsesConfig;
 use app_test_support::TestAppServer;
@@ -72,6 +72,7 @@ async fn initialize_uses_client_info_name_as_originator() -> Result<()> {
             user_turn_start_if_idle: true,
             compact_start_if_idle: true,
             history_summary: true,
+            memory_note_scope: true,
         })
     );
     assert!(supports_subagent_management);
@@ -198,6 +199,7 @@ async fn initialize_respects_originator_override_env_var() -> Result<()> {
             user_turn_start_if_idle: true,
             compact_start_if_idle: true,
             history_summary: true,
+            memory_note_scope: true,
         })
     );
     assert!(supports_subagent_management);

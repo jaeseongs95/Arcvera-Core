@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Restore terminal modes and screen placement across suspend/resume.
 
 use std::io::Result;
@@ -191,6 +192,7 @@ impl PreparedResumeAction {
         match self {
             PreparedResumeAction::RealignViewport(area) => {
                 terminal.set_viewport_area(area);
+                super::ALTERNATE_SCREEN.configure_input(terminal.backend_mut(), capture_mouse)?;
             }
             PreparedResumeAction::RestoreAltScreen => {
                 super::ALTERNATE_SCREEN.enter(terminal.backend_mut(), capture_mouse)?;

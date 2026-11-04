@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Local controls use the originating model call and the existing confirmed APIs.
 use super::App;
 use crate::app_server_session::AppServerSession;
@@ -124,16 +124,38 @@ impl App {
                 self.set_memory_control(app_server, thread, Some(enabled), enabled, enabled, true)
                     .await
             }
+            Command::MemoryConsolidate { retry } => {
+                let result =
+                    app_server
+                        .memory_consolidate(thread, retry)
+                        .await
+                        .map_err(|error| {
+                            crate::i18n::message(
+                                "controls-memory-consolidation-failed",
+                                &[("error", &format!("{error:#}"))],
+                            )
+                        })?;
+                Ok(
+                    json!({"result":result,"message":crate::i18n::message("controls-memory-consolidation-admitted", &[])}),
+                )
+            }
             command @ (Command::MemoryNote { .. } | Command::MemoryForget { .. }) => {
-                let note = match command {
-                    Command::MemoryForget { note } => {
-                        format!("Explicit user forget request: {note}")
+                let (note, scope) = match command {
+                    Command::MemoryForget { note, scope } => {
+                        (format!("Explicit user forget request: {note}"), scope)
                     }
-                    Command::MemoryNote { note } => note,
+                    Command::MemoryNote { note, scope } => (note, scope),
                     _ => unreachable!(),
                 };
                 let response = app_server
-                    .memory_note_add(thread, note)
+                    .memory_note_add_scoped(
+                        thread,
+                        note,
+                        scope.map(|scope| match scope {
+                            Scope::Project => codex_app_server_protocol::MemoryNoteScope::Project,
+                            Scope::Global => codex_app_server_protocol::MemoryNoteScope::Global,
+                        }),
+                    )
                     .await
                     .map_err(|error| format!("메모리 정정 저장 실패: {error:#}"))?;
                 Ok(
@@ -361,13 +383,34 @@ impl App {
                 &[("error", &error.to_string())],
             )
         })?;
+        let write_home = home.clone();
+        tokio::task::spawn_blocking(move || {
+            codex_config::ui_language::write_user_ui_language(write_home.as_path(), language)
+        })
+        .await
+        .map_err(|error| {
+            crate::i18n::message(
+                "language-save-write-failed",
+                &[("error", &error.to_string())],
+            )
+        })?
+        .map_err(|error| {
+            crate::i18n::message(
+                "language-save-write-failed",
+                &[("error", &error.to_string())],
+            )
+        })?;
+        // Migrate only on an explicit language change, after the new preference is durable.
+        // Clear the extension key without changing unrelated shared configuration.
         super::ConfigEditsBuilder::new(home.as_path())
-            .set_ui_language(language)
+            .with_edits([crate::legacy_core::config::edit::ConfigEdit::ClearPath {
+                segments: vec!["ui_language".into()],
+            }])
             .apply()
             .await
             .map_err(|error| {
                 crate::i18n::message(
-                    "language-save-write-failed",
+                    "language-save-legacy-cleanup-failed",
                     &[("error", &error.to_string())],
                 )
             })?;

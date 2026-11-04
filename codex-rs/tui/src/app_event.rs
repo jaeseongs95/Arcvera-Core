@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Application-level events used to coordinate UI actions.
 //!
 //! `AppEvent` is the internal message bus between UI components and the top-level `App` loop.
@@ -436,6 +436,11 @@ pub(crate) enum AppEvent {
     },
     /// Switch the active thread to the selected agent.
     SelectAgentThread(ThreadId),
+    /// Select a painted footer row only while its originating root still owns it.
+    SelectFooterAgent {
+        root_thread_id: ThreadId,
+        thread_id: ThreadId,
+    },
 
     /// Fork the current thread into a transient side conversation.
     StartSide {

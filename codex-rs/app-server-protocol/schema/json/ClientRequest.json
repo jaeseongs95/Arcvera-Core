@@ -2328,6 +2328,13 @@
       ],
       "type": "object"
     },
+    "MemoryNoteScope": {
+      "enum": [
+        "project",
+        "global"
+      ],
+      "type": "string"
+    },
     "MergeStrategy": {
       "enum": [
         "replace",

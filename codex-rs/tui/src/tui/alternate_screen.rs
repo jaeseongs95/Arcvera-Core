@@ -1,9 +1,11 @@
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Pair alternate-screen transitions with that screen's independent keyboard-mode stack.
 //!
 //! Push only on entry and pop before leaving or yielding input to an editor. The main screen
 //! keeps its own TUI mode until the handoff returns to it. Transcript surfaces retain pointer
 //! reporting across overlays and disable it before yielding. Promoting an overlay must not push
 //! another keyboard frame. Refresh tmux's input policy on entry for mouse-capture requests.
+//! Mouse reporting is also tracked on the inline screen so handoff and exit use the same cleanup.
 
 use std::io::Result;
 use std::io::Write;
@@ -85,6 +87,14 @@ impl AlternateScreen {
         self.active.load(Ordering::Relaxed)
     }
 
+    pub(super) fn note_main_input_policy(&self, policy: tmux::MouseCapture) {
+        self.mouse_capture_disabled.store(
+            policy == tmux::MouseCapture::DisabledByTmux,
+            Ordering::Relaxed,
+        );
+        self.input_configured.store(false, Ordering::Relaxed);
+    }
+
     pub(super) fn enter(&self, writer: &mut impl Write, capture_mouse: bool) -> Result<()> {
         queue!(writer, EnterAlternateScreen)?;
         // Stdout retains queued bytes on a flush error; cleanup must follow that pending entry.
@@ -122,7 +132,11 @@ impl AlternateScreen {
             })
         } else {
             let mouse_result = self.disable_mouse(writer);
-            let scroll_result = execute!(writer, EnableAlternateScroll);
+            let scroll_result = if self.is_active() {
+                execute!(writer, EnableAlternateScroll)
+            } else {
+                execute!(writer, DisableAlternateScroll)
+            };
             mouse_result.and(scroll_result)
         };
         if result.is_ok() {
@@ -206,11 +220,12 @@ impl AlternateScreen {
         writer: &mut impl Write,
         keyboard_restore: KeyboardRestore,
     ) -> Result<()> {
+        self.input_configured.store(false, Ordering::Relaxed);
         let screen_result = if self.active.load(Ordering::Relaxed) {
             self.leave(writer)
         } else {
             // A failed mouse cleanup can outlive a successful return to the main screen.
-            self.disable_mouse(writer)
+            self.release_input(writer)
         };
         if self.active.load(Ordering::Relaxed) {
             // Leave failed: another pop here would still target the alternate stack.

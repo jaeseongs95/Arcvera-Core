@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 /*
 This module implements the remote app-server client transport.
 
@@ -160,6 +160,7 @@ struct RemoteServerMetadata {
     platform_family: Option<String>,
     platform_os: Option<String>,
     supports_expected_turn_interrupt: Option<bool>,
+    supports_memory_note_scope: bool,
 }
 
 pub struct RemoteAppServerClient {
@@ -246,6 +247,10 @@ impl RemoteAppServerClient {
         } else {
             self.metadata.supports_expected_turn_interrupt
         }
+    }
+
+    pub fn supports_memory_note_scope(&self) -> bool {
+        !self.command_tx.is_closed() && self.metadata.supports_memory_note_scope
     }
 
     async fn connect_with_stream<S>(
@@ -891,6 +896,10 @@ where
                     })?;
                     match message {
                         JSONRPCMessage::Response(response) if response.id == initialize_request_id => {
+                            metadata.supports_memory_note_scope = response.result
+                                .get("opendiyCapabilities")
+                                .and_then(|capabilities| capabilities.get("memoryNoteScope"))
+                                .and_then(serde_json::Value::as_bool) == Some(true);
                             metadata.supports_expected_turn_interrupt = match response
                                 .result
                                 .get("supportsExpectedTurnInterrupt")

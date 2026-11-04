@@ -10,6 +10,7 @@ An unofficial Windows edition of Codex CLI and Rust App Server. It repairs confi
 
 | Version | Official base | State |
 | --- | --- | --- |
+| R37 | 0.166.0 + selected upstream changes | Development source candidate pinned to `89139fd7386eaebd9d0cff6ffccb8dc93c2859ea`. Public checkout build/runtime checks, final release, publication, and installation remain pending. |
 | R36 | 0.166.0 + selected upstream changes | Candidate integrating R35 changes. Joint testing uses dev-small binaries; final release build, publication, and installation remain pending. |
 | R35 | 0.166.0 | Integrated into R36 without a separate release. |
 | R34 | 0.166.0 + selected upstream changes | Published Windows CLI, standalone App Server, and full package. Frozen after publication. |
@@ -17,7 +18,7 @@ An unofficial Windows edition of Codex CLI and Rust App Server. It repairs confi
 | R32 | 0.166.0 | Historical package. |
 | R31 | 0.166.0 | No separate release; integrated into R32. |
 
-The published executable release is R34 (`v0.166.0-r34.20261103`). A merged R36 source PR or successful dev-small build does not mean final binaries are published or installed. The [R35 guide](docs/native-cli-r35.ko.md) describes the memory, language, and update changes now integrated into R36.
+The published executable release is R34 (`v0.166.0-r34.20261103`). A merged R37 or R36 source PR or successful dev-small build does not mean final binaries are published or installed. The [R35 guide](docs/native-cli-r35.ko.md) describes the memory, language, and update changes now integrated into R36.
 
 ## Features
 
