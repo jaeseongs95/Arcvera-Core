@@ -511,6 +511,7 @@ fn json_response(body: &str) -> EnvironmentResponse {
 
 mod r36_native_http {
     use super::*;
+    use pretty_assertions::assert_eq;
     use std::net::TcpListener;
     use std::net::TcpStream;
     use std::thread::JoinHandle;
