@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "sourceCommit": "964223ea5917e9cd3de1c7afb7b63965574d2555",
+  "sourceCommit": "3e3a4323802fbaa0cfcc578f7c0f018256202dde",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -21158,10 +21158,10 @@
     {
       "path": "codex-rs/cloud-tasks/src/env_detect_tests.rs",
       "gitMode": "100644",
-      "gitBlob": "db18521a963eb93ca74a3e1ec080a86f17453e86",
-      "sourceSha256": "60d316176bb53a65b5335f261d4c249e80496a8e3706d1c0f78f7a0b9ae7f930",
-      "publishedSha256": "954590e085e366b73cad67f736291058cee9cbcae55d20ca807e631f06c0990a",
-      "bytes": 16562,
+      "gitBlob": "00f3580904466ba79d88a3bd3990fe6403da6e12",
+      "sourceSha256": "30a02af5fd20ea3ce3bb4af5d6a3209c239b7a8a224643fe46e5eb9cef62a087",
+      "publishedSha256": "0d7f62b1acbc2ecd22154d6bd7111a954d760ab899a136ef7b0264df8e680234",
+      "bytes": 29263,
       "modified": true,
       "noticeOnly": true
     },
@@ -60568,10 +60568,10 @@
     {
       "path": "codex-rs/thread-store/src/local/thread_history/read_tests.rs",
       "gitMode": "100644",
-      "gitBlob": "97b38f7afac9a9a5604eb015da7dddea675775d4",
-      "sourceSha256": "81e23599c9f2f572f6e100afb08b2a061ec6e54db0ba14fee3a6696981ee8656",
-      "publishedSha256": "c12526e260b94c943a9c0b5367125167fef7aeb2b136aebc340385f689008d8c",
-      "bytes": 73610,
+      "gitBlob": "5be45f7457171981399f6c8e87685720b223c26a",
+      "sourceSha256": "d9206ea0a22c90df6de3791f26dcdbbd19d63de20d07fbf6ab57aecac7f1323e",
+      "publishedSha256": "b45becefbb4afe8e0ca0fac996f4256d16e3e064aed6245351a855db0c0e5fb4",
+      "bytes": 77182,
       "modified": true,
       "noticeOnly": true
     },

@@ -9,8 +9,8 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='964223ea5917e9cd3de1c7afb7b63965574d2555'
-PREVIOUS_PUBLIC='1039f1389d6b36de2b4abcb213df871e262df832'
+PATCHED='3e3a4323802fbaa0cfcc578f7c0f018256202dde'
+PREVIOUS_PUBLIC='e44ac48851e4acf02b49149b4defcdba7750ea98'
 PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md','docs/native-cli-r35.ko.md','docs/native-cli-r36.ko.md','docs/r36-cleanup.ko.md','docs/r36-cloud-ci.ko.md','docs/r36-fast-compaction.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'

@@ -44043,7 +44043,7 @@ index 31fbc99e2..0cc9032c6 100644
      http: &impl EnvironmentHttp,
      base_url: &str,
 diff --git a/codex-rs/cloud-tasks/src/env_detect_tests.rs b/codex-rs/cloud-tasks/src/env_detect_tests.rs
-index 3299ff87f..db18521a9 100644
+index 3299ff87f..00f358090 100644
 --- a/codex-rs/cloud-tasks/src/env_detect_tests.rs
 +++ b/codex-rs/cloud-tasks/src/env_detect_tests.rs
 @@ -301,6 +301,157 @@ async fn list_requests_exact_repository_and_global_endpoints_and_merges_results(
@@ -44204,6 +44204,312 @@ index 3299ff87f..db18521a9 100644
  struct FakeHttp {
      responses: HashMap<String, EnvironmentResponse>,
      requests: Mutex<Vec<RecordedRequest>>,
+@@ -357,3 +508,305 @@ fn json_response(body: &str) -> EnvironmentResponse {
+         body: body.to_string(),
+     }
+ }
++
++mod r36_native_http {
++    use super::*;
++    use std::net::TcpListener;
++    use std::net::TcpStream;
++    use std::thread::JoinHandle;
++
++    const DEADLINE: Duration = Duration::from_secs(5);
++    const PRIVATE_BODY: &str = "synthetic-private-body-must-not-appear";
++
++    fn pool() -> RouteAwareClientPool {
++        // The external test process must use a minimal environment without
++        // proxy/CA/auth variables; NO_PROXY=127.0.0.1,localhost.
++        RouteAwareClientPool::new_without_redirects_or_request_logging(
++            HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
++            ClientRouteClass::Api,
++        )
++    }
++
++    fn headers() -> HeaderMap {
++        HeaderMap::from_iter([(
++            AUTHORIZATION,
++            HeaderValue::from_static("Bearer r36-self-created-synthetic-only"),
++        )])
++    }
++
++    fn accept(listener: &TcpListener) -> TcpStream {
++        let deadline = Instant::now() + DEADLINE;
++        loop {
++            match listener.accept() {
++                Ok((stream, peer)) => {
++                    assert!(peer.ip().is_loopback());
++                    stream
++                        .set_nonblocking(false)
++                        .expect("blocking fixture stream");
++                    stream
++                        .set_read_timeout(Some(DEADLINE))
++                        .expect("read deadline");
++                    stream
++                        .set_write_timeout(Some(DEADLINE))
++                        .expect("write deadline");
++                    return stream;
++                }
++                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
++                    assert!(Instant::now() < deadline, "no actual HTTP connection");
++                    std::thread::sleep(Duration::from_millis(1));
++                }
++                Err(error) => panic!("fixture accept failed: {error}"),
++            }
++        }
++    }
++
++    fn read_request(stream: &mut TcpStream) -> String {
++        let mut request = Vec::new();
++        let mut buffer = [0_u8; 1024];
++        while !request.windows(4).any(|part| part == b"\r\n\r\n") {
++            let count = stream.read(&mut buffer).expect("read actual HTTP request");
++            assert!(count > 0, "client closed before complete HTTP request");
++            request.extend_from_slice(&buffer[..count]);
++            assert!(
++                request.len() <= 32_768,
++                "unexpected oversized fixture request"
++            );
++        }
++        let request = String::from_utf8(request).expect("ASCII fixture request");
++        assert!(
++            request
++                .to_ascii_lowercase()
++                .contains("authorization: bearer r36-self-created-synthetic-only\r\n")
++        );
++        request
++    }
++
++    fn listener() -> (TcpListener, String) {
++        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("own loopback listener");
++        let address = listener.local_addr().expect("own listener address");
++        listener
++            .set_nonblocking(true)
++            .expect("nonblocking fixture listener");
++        (listener, format!("http://{address}/backend-api"))
++    }
++
++    fn fixture(responses: Vec<(u16, &'static str)>) -> (String, JoinHandle<Vec<String>>) {
++        let (listener, base) = listener();
++        let task = std::thread::spawn(move || {
++            responses.into_iter().map(|(status, body)| {
++                let mut stream = accept(&listener);
++                let request = read_request(&mut stream);
++                write!(stream,
++                    "HTTP/1.1 {status} Fixture\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
++                    body.len()).expect("write exact fixture response");
++                request.lines().next().expect("HTTP request line").to_string()
++            }).collect()
++        });
++        (base, task)
++    }
++
++    fn assert_global_request(task: JoinHandle<Vec<String>>) {
++        assert_eq!(
++            task.join().expect("fixture thread completed"),
++            vec!["GET /backend-api/wham/environments HTTP/1.1"]
++        );
++    }
++
++    #[tokio::test]
++    async fn actual_http_normal_and_empty_are_distinct() {
++        for (body, expected) in [
++            (
++                r#"[{"id":"env-native","label":"Native","is_pinned":true}]"#,
++                1,
++            ),
++            ("[]", 0),
++        ] {
++            let (base, server) = fixture(vec![(200, body)]);
++            let rows =
++                tokio::time::timeout(DEADLINE, list_all_environments(&pool(), &base, &headers()))
++                    .await
++                    .expect("request deadline")
++                    .expect("valid HTTP 200 response");
++            assert_eq!(rows.len(), expected);
++            if expected == 1 {
++                assert_eq!(rows[0].id, "env-native");
++                assert_eq!(rows[0].label.as_deref(), Some("Native"));
++                assert!(rows[0].is_pinned);
++            }
++            assert_global_request(server);
++            println!("r36-native-http normal-empty rows={expected} requests=1");
++        }
++    }
++
++    #[tokio::test]
++    async fn actual_http_401_403_500_are_errors_not_empty_success() {
++        for status in [401, 403, 500] {
++            let (base, server) = fixture(vec![(status, PRIVATE_BODY)]);
++            let error =
++                tokio::time::timeout(DEADLINE, list_all_environments(&pool(), &base, &headers()))
++                    .await
++                    .expect("request deadline")
++                    .expect_err("HTTP error must propagate");
++            let text = error.to_string();
++            assert!(text.contains(&status.to_string()), "status missing: {text}");
++            assert!(!text.contains(PRIVATE_BODY));
++            assert_global_request(server);
++            println!("r36-native-http status={status} error=true bodyRedacted=true requests=1");
++        }
++    }
++
++    #[tokio::test]
++    async fn actual_http_malformed_200_is_decode_error() {
++        let (base, server) = fixture(vec![(200, r#"[{"id":"synthetic-private-id","label":42}]"#)]);
++        let error =
++            tokio::time::timeout(DEADLINE, list_all_environments(&pool(), &base, &headers()))
++                .await
++                .expect("request deadline")
++                .expect_err("invalid schema must fail");
++        let text = error.to_string();
++        assert!(text.contains("Invalid environment response"), "{text}");
++        assert!(!text.contains("synthetic-private-id"));
++        assert_global_request(server);
++        println!("r36-native-http malformed200 decodeError=true bodyRedacted=true requests=1");
++    }
++
++    #[tokio::test]
++    async fn actual_http_partial_tui_and_strict_explicit_resolution_are_distinct() {
++        for status in [401, 403, 500] {
++            let (base, server) = fixture(vec![
++                (200, r#"[{"id":"env-repo","label":"Repository"}]"#),
++                (status, PRIVATE_BODY),
++            ]);
++            let rows = tokio::time::timeout(
++                DEADLINE,
++                list_environments_with_origins(
++                    &pool(),
++                    &base,
++                    &headers(),
++                    &[
++                        SanitizedGitUrl::try_from("https://github.com/openai/codex.git")
++                            .expect("synthetic git origin only"),
++                    ],
++                ),
++            )
++            .await
++            .expect("request deadline")
++            .expect("documented TUI partial fallback");
++            assert_eq!(rows.len(), 1);
++            assert_eq!(rows[0].id, "env-repo");
++            assert_eq!(
++                server.join().expect("fixture thread completed"),
++                vec![
++                    "GET /backend-api/wham/environments/by-repo/github/openai/codex HTTP/1.1",
++                    "GET /backend-api/wham/environments HTTP/1.1",
++                ]
++            );
++            // Same production transport and global status, but explicit CLI
++            // resolver must not use the partial repository result as completeness.
++            let (base, server) = fixture(vec![(status, PRIVATE_BODY)]);
++            let error = tokio::time::timeout(
++                DEADLINE,
++                resolve_environment_id_with_http(&pool(), &base, &headers(), "Repository"),
++            )
++            .await
++            .expect("request deadline")
++            .expect_err("global failure must propagate");
++            let text = error.to_string();
++            assert!(text.contains(&status.to_string()), "{text}");
++            assert!(!text.contains("not found"));
++            assert!(!text.contains(PRIVATE_BODY));
++            assert_global_request(server);
++            println!(
++                "r36-native-http partial status={status} tuiRows=1 explicitError=true requests=2+1"
++            );
++        }
++    }
++
++    #[tokio::test]
++    async fn actual_http_closed_loopback_port_is_connect_error() {
++        let (listener, base) = listener();
++        // This is our own freshly released endpoint, never an operational port.
++        // External rebind between drop and connect is a fixture/environment failure.
++        drop(listener);
++        let error =
++            tokio::time::timeout(DEADLINE, list_all_environments(&pool(), &base, &headers()))
++                .await
++                .expect("connect must finish before deadline")
++                .expect_err("closed loopback port must not become an empty list");
++        let transport = error
++            .downcast_ref::<codex_http_client::RouteAwareRequestError>()
++            .expect("connection failure must retain typed transport cause");
++        assert!(
++            transport.is_connect(),
++            "unexpected transport category: {transport}"
++        );
++        println!("r36-native-http closed-port connectError=true emptySuccess=false");
++    }
++
++    #[tokio::test]
++    async fn actual_http_dropped_request_closes_incomplete_body_connection() {
++        let (listener, base) = listener();
++        let (headers_sent, ready) = tokio::sync::oneshot::channel();
++        let server = std::thread::spawn(move || {
++            let mut stream = accept(&listener);
++            let request = read_request(&mut stream);
++            // Deliberately incomplete body leaves the real production get future pending.
++            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 100\r\nConnection: keep-alive\r\n\r\n")
++                .expect("write response headers");
++            stream.flush().expect("flush response headers");
++            headers_sent
++                .send(())
++                .expect("report actual response has started");
++            let mut next = [0_u8; 1];
++            match stream.read(&mut next) {
++                Ok(0) => {}
++                Err(error)
++                    if matches!(
++                        error.kind(),
++                        io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
++                    ) => {}
++                other => panic!("request drop must close peer before deadline: {other:?}"),
++            }
++            request
++                .lines()
++                .next()
++                .expect("HTTP request line")
++                .to_string()
++        });
++        // Keep the original client pool alive: dropping the whole pool must not
++        // be what makes the incomplete in-flight socket disappear.
++        let http = pool();
++        let request_http = http.clone();
++        let request_headers = headers();
++        let request = tokio::spawn(async move {
++            list_all_environments(&request_http, &base, &request_headers).await
++        });
++        tokio::time::timeout(DEADLINE, ready)
++            .await
++            .expect("server must observe actual HTTP request")
++            .expect("server readiness");
++        assert!(
++            !request.is_finished(),
++            "incomplete body must remain pending"
++        );
++        request.abort();
++        let cancelled = tokio::time::timeout(DEADLINE, request)
++            .await
++            .expect("request abort deadline")
++            .expect_err("aborted request must not return a list");
++        assert!(cancelled.is_cancelled());
++        let observed = tokio::time::timeout(
++            DEADLINE + Duration::from_secs(1),
++            tokio::task::spawn_blocking(move || server.join()),
++        )
++        .await
++        .expect("peer close observation deadline")
++        .expect("blocking observer task")
++        .expect("peer must close before read deadline");
++        assert_eq!(observed, "GET /backend-api/wham/environments HTTP/1.1");
++        drop(http);
++        println!(
++            "r36-native-http cancel requests=1 joinCancelled=true peerClosed=true poolAliveAtClose=true"
++        );
++    }
++}
 diff --git a/codex-rs/cloud-tasks/src/lib.rs b/codex-rs/cloud-tasks/src/lib.rs
 index b0975fe92..5bff1477d 100644
 --- a/codex-rs/cloud-tasks/src/lib.rs
@@ -75030,10 +75336,18 @@ index e2afaa642..c7260c95e 100644
      row: sqlx::sqlite::SqliteRow,
  ) -> ThreadStoreResult<StoredThreadItemRow> {
 diff --git a/codex-rs/thread-store/src/local/thread_history/read_tests.rs b/codex-rs/thread-store/src/local/thread_history/read_tests.rs
-index b974327dc..97b38f7af 100644
+index b974327dc..5be45f745 100644
 --- a/codex-rs/thread-store/src/local/thread_history/read_tests.rs
 +++ b/codex-rs/thread-store/src/local/thread_history/read_tests.rs
-@@ -334,6 +334,508 @@ async fn item_anchors_page_exclusively_while_the_turn_grows() {
+@@ -19,6 +19,7 @@ use codex_protocol::realtime::RealtimeTranscriptRole;
+ use codex_rollout::RolloutItem;
+ use codex_rollout::RolloutLine;
+ use pretty_assertions::assert_eq;
++use sqlx::Connection;
+ use tempfile::TempDir;
+ 
+ use super::*;
+@@ -334,6 +335,601 @@ async fn item_anchors_page_exclusively_while_the_turn_grows() {
      }
  }
  
@@ -75257,14 +75571,38 @@ index b974327dc..97b38f7af 100644
 +        .unwrap();
 +    let single = sqlx::sqlite::SqlitePoolOptions::new()
 +        .max_connections(1)
++        .acquire_timeout(Duration::from_millis(50))
 +        .connect_lazy_with((*db.connect_options()).clone());
-+    super::super::segment_paging::page_item_rows(
++    let held = single.acquire().await.unwrap();
++    let error = tokio::time::timeout(
++        Duration::from_secs(2),
++        super::super::segment_paging::page_item_rows(
++            &single,
++            &lineage,
++            &item_params(thread_id, Some("turn"), None, 1, SortDirection::Asc),
++        ),
++    )
++    .await
++    .expect("pool acquisition has a bounded deadline")
++    .err()
++    .expect("the only connection is held");
++    let ThreadStoreError::Internal { message } = error else {
++        panic!("pool timeout must remain a storage failure: {error:?}");
++    };
++    assert_eq!(
++        message,
++        "failed to access thread history: pool timed out while waiting for an open connection"
++    );
++    drop(held);
++    let recovered = super::super::segment_paging::page_item_rows(
 +        &single,
 +        &lineage,
 +        &item_params(thread_id, Some("turn"), None, 1, SortDirection::Asc),
 +    )
 +    .await
-+    .expect("read releases transaction");
++    .expect("read recovers after the held connection is released");
++    assert_eq!(recovered.rows.len(), 1);
++    assert_eq!(recovered.rows[0].item.item_id, "agent-1");
 +    timeout_for_connection(&single).await;
 +    sqlx::query("DELETE FROM thread_history_projection_state WHERE thread_id = ?")
 +        .bind(thread_id.to_string())
@@ -75283,6 +75621,75 @@ index b974327dc..97b38f7af 100644
 +        error,
 +        ThreadStoreError::HistoryProjectionUnavailable
 +    ));
++    timeout_for_connection(&single).await;
++}
++
++#[tokio::test]
++async fn item_page_reports_sqlite_busy_and_recovers_after_writer_releases() {
++    let (home, store, thread_id) = store_with_mode(ThreadHistoryMode::Paginated).await;
++    let db = history_db(&store).await;
++    insert_item(db, thread_id, "turn", "agent-busy", 11).await;
++    let lineage = store
++        .resolve_rollout_lineage_for_history_page(thread_id)
++        .await
++        .unwrap();
++
++    // WAL writers do not block readers. Use a separate fixture copy with an
++    // explicit rollback journal so BEGIN EXCLUSIVE deterministically blocks reads.
++    let copy = home.path().join("exclusive-history.sqlite");
++    sqlx::query("VACUUM INTO ?")
++        .bind(copy.to_str().unwrap())
++        .execute(db)
++        .await
++        .unwrap();
++    let options = (*db.connect_options())
++        .clone()
++        .filename(&copy)
++        .journal_mode(sqlx::sqlite::SqliteJournalMode::Delete)
++        .busy_timeout(Duration::from_millis(50));
++    let single = sqlx::sqlite::SqlitePoolOptions::new()
++        .max_connections(1)
++        .acquire_timeout(Duration::from_secs(1))
++        .connect_with(options.clone())
++        .await
++        .unwrap();
++    let mut writer = sqlx::SqliteConnection::connect_with(&options)
++        .await
++        .unwrap();
++    sqlx::query("BEGIN EXCLUSIVE")
++        .execute(&mut writer)
++        .await
++        .unwrap();
++    let error = tokio::time::timeout(
++        Duration::from_secs(2),
++        super::super::segment_paging::page_item_rows(
++            &single,
++            &lineage,
++            &item_params(thread_id, Some("turn"), None, 1, SortDirection::Asc),
++        ),
++    )
++    .await
++    .expect("SQLite busy wait has a bounded deadline")
++    .err()
++    .expect("exclusive writer blocks the real page read");
++    let ThreadStoreError::Internal { message } = error else {
++        panic!("SQLite busy must remain a storage failure: {error:?}");
++    };
++    assert!(message.starts_with("failed to access thread history: "));
++    assert!(message.contains("(code: 5)"), "{message}");
++    assert!(message.contains("database is locked"), "{message}");
++    assert!(!message.contains("pool timed out"), "{message}");
++
++    sqlx::query("ROLLBACK").execute(&mut writer).await.unwrap();
++    let recovered = super::super::segment_paging::page_item_rows(
++        &single,
++        &lineage,
++        &item_params(thread_id, Some("turn"), None, 1, SortDirection::Asc),
++    )
++    .await
++    .expect("same page recovers after exclusive writer rollback");
++    assert_eq!(recovered.rows.len(), 1);
++    assert_eq!(recovered.rows[0].item.item_id, "agent-busy");
 +    timeout_for_connection(&single).await;
 +}
 +
@@ -75542,7 +75949,7 @@ index b974327dc..97b38f7af 100644
  #[tokio::test]
  async fn item_anchors_require_creation_order_without_an_update_watermark() {
      let (_home, store, thread_id) = store_with_mode(ThreadHistoryMode::Paginated).await;
-@@ -1656,6 +2158,7 @@ async fn insert_turn(
+@@ -1656,6 +2252,7 @@ async fn insert_turn(
      first_user_item_id: Option<&str>,
      final_agent_item_id: Option<&str>,
  ) {
@@ -75550,7 +75957,7 @@ index b974327dc..97b38f7af 100644
      sqlx::query(
          r#"
  INSERT INTO thread_turns (
-@@ -1688,6 +2191,7 @@ async fn insert_item(
+@@ -1688,6 +2285,7 @@ async fn insert_item(
      item_id: &str,
      rollout_ordinal: i64,
  ) {
@@ -75558,7 +75965,7 @@ index b974327dc..97b38f7af 100644
      let (item_type, item_json) = fixture_item(item_id);
      sqlx::query(
          "INSERT INTO thread_items (thread_id, turn_id, item_id, rollout_ordinal, updated_at_ordinal, created_at_ms, item_type, item_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-@@ -1705,6 +2209,13 @@ async fn insert_item(
+@@ -1705,6 +2303,13 @@ async fn insert_item(
      .expect("insert item fixture");
  }
  
