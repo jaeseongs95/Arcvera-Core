@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "sourceCommit": "3e3a4323802fbaa0cfcc578f7c0f018256202dde",
+  "sourceCommit": "1b441423baf713d144647d5be37525f7d9cc03c0",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -21158,10 +21158,10 @@
     {
       "path": "codex-rs/cloud-tasks/src/env_detect_tests.rs",
       "gitMode": "100644",
-      "gitBlob": "00f3580904466ba79d88a3bd3990fe6403da6e12",
-      "sourceSha256": "30a02af5fd20ea3ce3bb4af5d6a3209c239b7a8a224643fe46e5eb9cef62a087",
-      "publishedSha256": "0d7f62b1acbc2ecd22154d6bd7111a954d760ab899a136ef7b0264df8e680234",
-      "bytes": 29263,
+      "gitBlob": "8b487480f0398a88585e47285bbe96f5e9b78145",
+      "sourceSha256": "22bdd5b2b25f35550666fd431f2ccc464ecac40b33b94ce42d4533923d59bdfd",
+      "publishedSha256": "ba65b1fd12ccd555e21de7fb008a70cbe5371a8a4cd3bf4d7ec105c05679cabe",
+      "bytes": 29301,
       "modified": true,
       "noticeOnly": true
     },

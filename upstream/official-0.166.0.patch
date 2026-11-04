@@ -44043,7 +44043,7 @@ index 31fbc99e2..0cc9032c6 100644
      http: &impl EnvironmentHttp,
      base_url: &str,
 diff --git a/codex-rs/cloud-tasks/src/env_detect_tests.rs b/codex-rs/cloud-tasks/src/env_detect_tests.rs
-index 3299ff87f..00f358090 100644
+index 3299ff87f..8b487480f 100644
 --- a/codex-rs/cloud-tasks/src/env_detect_tests.rs
 +++ b/codex-rs/cloud-tasks/src/env_detect_tests.rs
 @@ -301,6 +301,157 @@ async fn list_requests_exact_repository_and_global_endpoints_and_merges_results(
@@ -44204,13 +44204,14 @@ index 3299ff87f..00f358090 100644
  struct FakeHttp {
      responses: HashMap<String, EnvironmentResponse>,
      requests: Mutex<Vec<RecordedRequest>>,
-@@ -357,3 +508,305 @@ fn json_response(body: &str) -> EnvironmentResponse {
+@@ -357,3 +508,306 @@ fn json_response(body: &str) -> EnvironmentResponse {
          body: body.to_string(),
      }
  }
 +
 +mod r36_native_http {
 +    use super::*;
++    use pretty_assertions::assert_eq;
 +    use std::net::TcpListener;
 +    use std::net::TcpStream;
 +    use std::thread::JoinHandle;
