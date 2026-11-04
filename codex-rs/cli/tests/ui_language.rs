@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use codex_config::ui_language::UiLanguage;
-use codex_core::config::edit::ConfigEditsBuilder;
+use codex_config::ui_language::{CLIENT_PREFERENCES_FILE, write_user_ui_language};
 use predicates::prelude::PredicateBooleanExt;
 use predicates::str::contains;
 use tempfile::TempDir;
@@ -44,10 +44,8 @@ fn saved_global_language_controls_help_across_new_processes_and_ignores_project_
         (UiLanguage::Korean, "사용법:"),
         (UiLanguage::English, "Usage:"),
     ] {
-        ConfigEditsBuilder::new(home.path())
-            .set_ui_language(language)
-            .apply_blocking()?;
-        let saved = std::fs::read(home.path().join("config.toml"))?;
+        write_user_ui_language(home.path(), language)?;
+        let saved = std::fs::read(home.path().join(CLIENT_PREFERENCES_FILE))?;
         for _ in 0..2 {
             command(home.path(), project.path())?
                 .assert()
@@ -60,7 +58,10 @@ fn saved_global_language_controls_help_across_new_processes_and_ignores_project_
             .assert()
             .success()
             .stdout(contains(heading));
-        assert_eq!(std::fs::read(home.path().join("config.toml"))?, saved);
+        assert_eq!(
+            std::fs::read(home.path().join(CLIENT_PREFERENCES_FILE))?,
+            saved
+        );
     }
     Ok(())
 }
@@ -69,10 +70,8 @@ fn saved_global_language_controls_help_across_new_processes_and_ignores_project_
 fn language_environment_override_is_explicit_temporary_and_validated() -> Result<()> {
     let home = TempDir::new()?;
     let project = TempDir::new()?;
-    ConfigEditsBuilder::new(home.path())
-        .set_ui_language(UiLanguage::English)
-        .apply_blocking()?;
-    let saved = std::fs::read(home.path().join("config.toml"))?;
+    write_user_ui_language(home.path(), UiLanguage::English)?;
+    let saved = std::fs::read(home.path().join(CLIENT_PREFERENCES_FILE))?;
     command(home.path(), project.path())?
         .env("CODEX_UI_LANGUAGE", "ko")
         .assert()
@@ -87,8 +86,14 @@ fn language_environment_override_is_explicit_temporary_and_validated() -> Result
         .assert()
         .success()
         .stdout(contains("Usage:"));
-    assert_eq!(std::fs::read(home.path().join("config.toml"))?, saved);
-    std::fs::write(home.path().join("config.toml"), "ui_language = 'kr'\n")?;
+    assert_eq!(
+        std::fs::read(home.path().join(CLIENT_PREFERENCES_FILE))?,
+        saved
+    );
+    std::fs::write(
+        home.path().join(CLIENT_PREFERENCES_FILE),
+        "ui_language = 'kr'\n",
+    )?;
     command(home.path(), project.path())?
         .assert()
         .failure()

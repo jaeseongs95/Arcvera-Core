@@ -32,6 +32,23 @@ const FOREGROUND_SOCKET_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const FOREGROUND_SOCKET_CONNECT_RETRY_DELAY: Duration = Duration::from_millis(50);
 const FOREGROUND_APP_SERVER_ABORT_TIMEOUT: Duration = Duration::from_secs(1);
 
+fn automatic_daemon_version_warning(
+    cli_version: &str,
+    server_version: Option<&str>,
+) -> Option<String> {
+    if server_version == Some(cli_version) {
+        return None;
+    }
+    let unknown = codex_tui::i18n::message("status-unknown-version", &[]);
+    Some(codex_tui::i18n::message(
+        "daemon-auto-version-fallback",
+        &[
+            ("server", server_version.unwrap_or(&unknown)),
+            ("client", cli_version),
+        ],
+    ))
+}
+
 #[derive(Debug, Args)]
 pub(crate) struct RemoteControlCommand {
     /// Emit machine-readable JSON.
@@ -93,7 +110,37 @@ pub(crate) async fn run(
             let daemon = match codex_app_server_daemon::start_with_features(&Default::default())
                 .await
             {
-                Ok(daemon) => daemon,
+                Ok(daemon) => {
+                    if let Some(warning) = automatic_daemon_version_warning(
+                        env!("CARGO_PKG_VERSION"),
+                        daemon.app_server_version.as_deref(),
+                    ) {
+                        eprintln!("{warning}");
+                        return run_foreground_remote_control(
+                            command.json,
+                            arg0_paths,
+                            root_config_overrides,
+                        )
+                        .await;
+                    }
+                    daemon
+                }
+                Err(error) if error.is::<codex_app_server_daemon::CliDaemonMismatch>() => {
+                    // Preserve the installed shared daemon selection; run this CLI's server.
+                    let mismatch = error
+                        .downcast_ref::<codex_app_server_daemon::CliDaemonMismatch>()
+                        .expect("matched CLI daemon mismatch");
+                    eprintln!(
+                        "{}",
+                        codex_tui::i18n::daemon_selection_mismatch_warning(mismatch)
+                    );
+                    return run_foreground_remote_control(
+                        command.json,
+                        arg0_paths,
+                        root_config_overrides,
+                    )
+                    .await;
+                }
                 #[cfg(windows)]
                 Err(error) if error.is::<codex_app_server_daemon::DetachedLaunchRestricted>() => {
                     return run_foreground_remote_control(
@@ -643,6 +690,20 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
+
+    #[test]
+    fn automatic_daemon_requires_the_full_known_cli_version() {
+        let cli = "0.166.0+native-r37.20261104";
+        for server in [Some(cli), Some("0.166.0+native-r28.20261029"), None] {
+            let warning = automatic_daemon_version_warning(cli, server);
+            assert_eq!(warning.is_some(), server != Some(cli));
+            if let Some(warning) = warning {
+                assert!(warning.contains(cli));
+                let unknown = codex_tui::i18n::message("status-unknown-version", &[]);
+                assert!(warning.contains(server.unwrap_or(&unknown)));
+            }
+        }
+    }
 
     fn remote_control_status(
         status: RemoteControlConnectionStatus,

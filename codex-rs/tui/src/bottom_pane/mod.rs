@@ -981,11 +981,7 @@ impl BottomPane {
             if self.handle_inline_banner_key(key_event) {
                 return InputResult::None;
             }
-            if !self.composer.popup_active() && self.subagent_status.handle_key(key_event) {
-                self.request_redraw();
-                if self.subagent_status.needs_tick() {
-                    self.request_redraw_in(Duration::from_secs(1));
-                }
+            if self.handle_subagent_selection_key(key_event) {
                 return InputResult::None;
             }
             // Allow the configured interrupt while a task is running, even when its
@@ -2021,8 +2017,26 @@ impl BottomPane {
         self.composer.prepare_mouse(event)
     }
 
+    /// Hover changes only presentation, never composer focus or selection ownership.
+    pub(crate) fn handle_subagent_footer_hover(
+        &mut self,
+        event: crossterm::event::MouseEvent,
+    ) -> bool {
+        let available = self.no_modal_or_popup_active();
+        let changed = if available {
+            self.subagent_status.handle_hover(event)
+        } else {
+            self.subagent_status.clear_hover()
+        };
+        if changed {
+            self.request_redraw();
+        }
+        available && self.subagent_status.contains_mouse(event)
+    }
+
     pub(crate) fn handle_composer_mouse(&mut self, event: crossterm::event::MouseEvent) -> bool {
         if self.no_modal_or_popup_active() && self.subagent_status.handle_mouse(event) {
+            self.submit_subagent_selection();
             self.request_redraw();
             if self.subagent_status.needs_tick() {
                 self.request_redraw_in(Duration::from_secs(1));
@@ -2030,6 +2044,58 @@ impl BottomPane {
             return true;
         }
         self.composer.handle_mouse(event)
+    }
+
+    /// Footer selection has explicit focus; dialogs and composer popups keep precedence.
+    pub(crate) fn handle_subagent_selection_key(&mut self, key: KeyEvent) -> bool {
+        if !self.no_modal_or_popup_active() {
+            return false;
+        }
+        if self.consume_view_transition_key_event(key) {
+            return true;
+        }
+        let focused_escape = self.subagent_status.owns_selection_key(key)
+            && key.code == KeyCode::Esc
+            && key.kind == KeyEventKind::Press;
+        if !self.subagent_status.handle_key(key) {
+            return false;
+        }
+        if focused_escape {
+            self.suppress_current_view_key_until_release(
+                KeyBinding::from_event(key),
+                Instant::now(),
+            );
+        }
+        self.submit_subagent_selection();
+        self.request_redraw();
+        if self.subagent_status.needs_tick() {
+            self.request_redraw_in(Duration::from_secs(1));
+        }
+        true
+    }
+
+    pub(crate) fn subagent_selection_owns_key(&self, key: KeyEvent) -> bool {
+        self.no_modal_or_popup_active() && self.subagent_status.owns_selection_key(key)
+    }
+
+    pub(crate) fn subagent_footer_is_painted(&self) -> bool {
+        self.no_modal_or_popup_active() && self.subagent_status.is_painted()
+    }
+
+    pub(crate) fn subagent_footer_contains_mouse(
+        &self,
+        mouse: crossterm::event::MouseEvent,
+    ) -> bool {
+        self.no_modal_or_popup_active() && self.subagent_status.contains_mouse(mouse)
+    }
+
+    fn submit_subagent_selection(&mut self) {
+        if let Some((root_thread_id, thread_id)) = self.subagent_status.take_selection() {
+            self.app_event_tx.send(AppEvent::SelectFooterAgent {
+                root_thread_id,
+                thread_id,
+            });
+        }
     }
 
     pub(crate) fn show_view(&mut self, view: Box<dyn BottomPaneView>) {
@@ -2448,6 +2514,12 @@ impl BottomPane {
         mut options: ComposerRenderOptions<'a>,
         views: &'a [Box<dyn BottomPaneView>],
     ) -> RenderableItem<'a> {
+        if !self.no_modal_or_popup_active() {
+            self.subagent_status.clear_hover();
+        }
+        if self.warnings_active() || !views.is_empty() {
+            self.subagent_status.clear_painted();
+        }
         if self.warnings_active()
             && let Some(warnings) = &self.warnings_view
         {
@@ -2785,6 +2857,118 @@ mod tests {
             effects: Default::default(),
             skills: Some(Vec::new()),
         })
+    }
+
+    #[test]
+    fn footer_hover_requests_one_frame_per_row_transition_and_preserves_draft() {
+        use crossterm::event::{MouseEvent, MouseEventKind};
+        let (tx, mut events) = unbounded_channel();
+        let mut pane = test_pane(AppEventSender::new(tx));
+        let mut summary = SubagentStatusSummary::default();
+        summary.root = Some(codex_protocol::ThreadId::new());
+        summary.add_entry(SubagentStatusEntry {
+            thread_id: codex_protocol::ThreadId::new(),
+            name: "hover-worker".into(),
+            state: SubagentState::Running,
+            task: None,
+            started_at: None,
+            duration_ms: None,
+            finished_at: None,
+        });
+        pane.set_subagent_status(summary);
+        pane.set_composer_text("hover draft".into(), Vec::new(), Vec::new());
+        let cursor = pane.composer_cursor();
+        let area = Rect::new(7, 11, 120, pane.desired_height(120));
+        let mut buffer = Buffer::empty(area);
+        pane.render(area, &mut buffer);
+        let (frames, mut requests) = FrameRequester::test_channel();
+        pane.frame_requester = frames;
+        let moved = MouseEvent {
+            kind: MouseEventKind::Moved,
+            column: 9,
+            row: 11,
+            modifiers: KeyModifiers::NONE,
+        };
+        assert!(pane.handle_subagent_footer_hover(moved));
+        assert!(requests.try_recv().is_ok());
+        assert!(requests.try_recv().is_err());
+        pane.render(area, &mut buffer);
+        assert!(pane.handle_subagent_footer_hover(MouseEvent {
+            column: 10,
+            ..moved
+        }));
+        assert!(
+            requests.try_recv().is_err(),
+            "same row movement must not request another frame"
+        );
+        assert!(!pane.handle_subagent_footer_hover(MouseEvent { column: 6, ..moved }));
+        assert!(requests.try_recv().is_ok());
+        assert!(!pane.handle_subagent_footer_hover(MouseEvent { column: 5, ..moved }));
+        assert!(requests.try_recv().is_err());
+        assert_eq!(pane.composer_text(), "hover draft");
+        assert_eq!(pane.composer_cursor(), cursor);
+        assert!(!pane.subagent_selection_owns_key(KeyCode::Enter.into()));
+        assert!(
+            events.try_recv().is_err(),
+            "hover must not select or submit"
+        );
+    }
+
+    #[test]
+    fn footer_focus_enter_escape_and_text_keys_preserve_composer_submission_contract() {
+        let (tx, mut rx) = unbounded_channel();
+        let mut pane = test_pane_with_disable_paste_burst(AppEventSender::new(tx), true);
+        let root = codex_protocol::ThreadId::new();
+        let child = codex_protocol::ThreadId::new();
+        let mut summary = SubagentStatusSummary::default();
+        summary.root = Some(root);
+        summary.add_entry(SubagentStatusEntry {
+            thread_id: child,
+            name: "selectable-agent".into(),
+            state: SubagentState::Running,
+            task: None,
+            started_at: None,
+            duration_ms: None,
+            finished_at: None,
+        });
+        pane.set_subagent_status(summary);
+        pane.set_composer_text("saved input".into(), Vec::new(), Vec::new());
+        let cursor = pane.composer_cursor();
+        pane.handle_key_event(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT));
+        let area = Rect::new(3, 7, 120, pane.desired_height(120));
+        let mut buffer = Buffer::empty(area);
+        pane.render(area, &mut buffer);
+        assert!(matches!(
+            pane.handle_key_event(KeyCode::Enter.into()),
+            InputResult::None
+        ));
+        assert_eq!(pane.composer_text(), "saved input");
+        assert_eq!(pane.composer_cursor(), cursor);
+        assert!(
+            matches!(rx.try_recv(), Ok(AppEvent::SelectFooterAgent { root_thread_id, thread_id }) if root_thread_id == root && thread_id == child)
+        );
+        for _ in 0..2 {
+            pane.handle_key_event(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT));
+        }
+        pane.render(area, &mut buffer);
+        assert!(matches!(
+            pane.handle_key_event(KeyCode::Esc.into()),
+            InputResult::None
+        ));
+        assert!(
+            matches!(pane.handle_key_event(KeyCode::Enter.into()), InputResult::Submitted { text, .. } if text == "saved input")
+        );
+        assert!(rx.try_recv().is_err());
+        pane.set_composer_text("edited".into(), Vec::new(), Vec::new());
+        for _ in 0..2 {
+            pane.handle_key_event(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT));
+        }
+        pane.render(area, &mut buffer);
+        pane.handle_key_event(KeyCode::Char('!').into());
+        assert_eq!(pane.composer_text(), "edited!");
+        assert!(
+            matches!(pane.handle_key_event(KeyCode::Enter.into()), InputResult::Submitted { text, .. } if text == "edited!")
+        );
     }
 
     fn exec_request() -> ApprovalRequest {

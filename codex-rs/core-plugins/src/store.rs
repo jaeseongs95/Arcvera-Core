@@ -17,6 +17,7 @@ use sha2::Sha256;
 use std::cmp::Ordering;
 use std::fs;
 use std::io;
+use std::io::Read;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
@@ -324,6 +325,7 @@ impl PluginStore {
             )));
         }
         validate_plugin_version_segment(&plugin_version).map_err(PluginStoreError::Invalid)?;
+        let _installation_lock = self.lock_plugin_installation(&plugin_id)?;
         let installed_path = self.plugin_root(&plugin_id, &plugin_version);
         replace_plugin_root_atomically(
             source_path.as_path(),
@@ -341,7 +343,25 @@ impl PluginStore {
     }
 
     pub fn uninstall(&self, plugin_id: &PluginId) -> Result<(), PluginStoreError> {
+        let _installation_lock = self.lock_plugin_installation(plugin_id)?;
         remove_existing_target(self.plugin_base_root(plugin_id).as_path())
+    }
+
+    fn lock_plugin_installation(&self, plugin_id: &PluginId) -> Result<fs::File, PluginStoreError> {
+        let marketplace_root = self.root.join(&plugin_id.marketplace_name);
+        fs::create_dir_all(marketplace_root.as_path())
+            .map_err(|err| PluginStoreError::io("failed to create plugin cache directory", err))?;
+        // Keep the lock outside the root that activation and uninstall may rename/remove.
+        let lock = fs::File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(marketplace_root.join(format!(".{}.install.lock", plugin_id.plugin_name)))
+            .map_err(|err| PluginStoreError::io("failed to open plugin installation lock", err))?;
+        lock.lock()
+            .map_err(|err| PluginStoreError::io("failed to lock plugin installation", err))?;
+        Ok(lock)
     }
 
     fn remote_plugin_install_metadata_path(&self, plugin_id: &PluginId) -> AbsolutePathBuf {
@@ -646,6 +666,18 @@ fn replace_plugin_root_atomically(
     }
 
     let target_version_root = target_root.join(plugin_version);
+    // A forced marketplace refresh also reinstalls unchanged versions. On Windows,
+    // renaming their ancestor can fail while a plugin child owns a cwd/file handle.
+    // Compare the fully staged tree, not just its manifest/version: same-version
+    // content changes must still take the existing atomic replacement path.
+    if target_version_root.exists()
+        && plugin_trees_equal(&staged_version_root, &target_version_root).map_err(|err| {
+            PluginStoreError::io("failed to compare installed plugin cache entry", err)
+        })?
+    {
+        remove_old_plugin_versions(target_root, plugin_version)?;
+        return Ok(());
+    }
     if target_root.exists() && !target_version_root.exists() {
         fs::rename(&staged_version_root, &target_version_root).map_err(|err| {
             PluginStoreError::io("failed to activate updated plugin cache version", err)
@@ -688,6 +720,59 @@ fn replace_plugin_root_atomically(
     }
 
     Ok(())
+}
+
+fn plugin_trees_equal(staged: &Path, installed: &Path) -> io::Result<bool> {
+    let staged_metadata = fs::symlink_metadata(staged)?;
+    let installed_metadata = match fs::symlink_metadata(installed) {
+        Ok(metadata) => metadata,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(err) => return Err(err),
+    };
+    if staged_metadata.file_type() != installed_metadata.file_type() {
+        return Ok(false);
+    }
+    if staged_metadata.is_dir() {
+        let mut staged_entries = fs::read_dir(staged)?
+            .map(|entry| entry.map(|entry| entry.file_name()))
+            .collect::<io::Result<Vec<_>>>()?;
+        let mut installed_entries = fs::read_dir(installed)?
+            .map(|entry| entry.map(|entry| entry.file_name()))
+            .collect::<io::Result<Vec<_>>>()?;
+        staged_entries.sort_unstable();
+        installed_entries.sort_unstable();
+        if staged_entries != installed_entries {
+            return Ok(false);
+        }
+        for name in staged_entries {
+            if !plugin_trees_equal(&staged.join(&name), &installed.join(&name))? {
+                return Ok(false);
+            }
+        }
+        return Ok(true);
+    }
+    if !staged_metadata.is_file()
+        || staged_metadata.len() != installed_metadata.len()
+        || staged_metadata.permissions() != installed_metadata.permissions()
+    {
+        return Ok(false);
+    }
+    let mut staged_file = fs::File::open(staged)?;
+    let mut installed_file = fs::File::open(installed)?;
+    let mut staged_buffer = [0; 8192];
+    let mut installed_buffer = [0; 8192];
+    // Bound memory independently of plugin payload size. Read the same number
+    // of bytes from both files even when one read returns a short chunk.
+    loop {
+        let staged_count = staged_file.read(&mut staged_buffer)?;
+        if staged_count == 0 {
+            return Ok(installed_file.read(&mut installed_buffer[..1])? == 0);
+        }
+        installed_file.read_exact(&mut installed_buffer[..staged_count])?;
+        if staged_buffer[..staged_count] != installed_buffer[..staged_count] {
+            return Ok(false);
+        }
+    }
 }
 
 fn remove_old_plugin_versions(

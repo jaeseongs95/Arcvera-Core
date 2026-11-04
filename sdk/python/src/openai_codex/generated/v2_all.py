@@ -2746,6 +2746,25 @@ class MemoryCitationEntry(BaseModel):
     path: str
 
 
+class MemoryConsolidationState(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    finished_at: Annotated[int | None, Field(alias="finishedAt")] = None
+    input_watermark: Annotated[int | None, Field(alias="inputWatermark")] = None
+    last_error: Annotated[str | None, Field(alias="lastError")] = None
+    last_success_watermark: Annotated[int | None, Field(alias="lastSuccessWatermark")] = None
+    lease_until: Annotated[int | None, Field(alias="leaseUntil")] = None
+    retry_at: Annotated[int | None, Field(alias="retryAt")] = None
+    started_at: Annotated[int | None, Field(alias="startedAt")] = None
+    status: str
+
+
+class MemoryNoteScope(Enum):
+    project = "project"
+    global_ = "global"
+
+
 class MergeStrategy(Enum):
     replace = "replace"
     upsert = "upsert"
@@ -8499,6 +8518,10 @@ class CompletedChildCleanupResult(BaseModel):
         populate_by_name=True,
     )
     outcome: str
+    reason: Annotated[
+        str | None,
+        Field(description="Stable eligibility or preservation code; older servers may omit it."),
+    ] = ""
     snapshot: CompletedChildSnapshot | None = None
     thread_id: Annotated[str, Field(alias="threadId")]
 

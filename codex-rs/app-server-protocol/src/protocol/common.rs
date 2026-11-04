@@ -483,6 +483,33 @@ mod desktop_api_protocol_tests {
     use serde_json::json;
 
     #[test]
+    fn memory_consolidation_dispatch_is_experimental_and_serialized_by_selected_thread() {
+        let request: ClientRequest = serde_json::from_value(json!({
+            "id":1, "method":"thread/memory/consolidate",
+            "params":{"threadId":"selected-thread"}
+        }))
+        .unwrap();
+        assert_eq!(request.method_name(), "thread/memory/consolidate");
+        assert_eq!(
+            request.experimental_reason(),
+            Some("thread/memory/consolidate")
+        );
+        assert!(matches!(request.serialization_scope(),
+            Some(ClientRequestSerializationScope::Thread { thread_id }) if thread_id == "selected-thread"));
+        let ClientRequest::ThreadMemoryConsolidate { params, .. } = request else {
+            panic!("wire request must reach the consolidation variant")
+        };
+        assert!(!params.retry);
+        let payload: ClientResponsePayload = v2::ThreadMemoryConsolidateResponse {
+            status: "accepted".to_owned(),
+            reason: None,
+        }
+        .into();
+        let (_, result) = payload.into_jsonrpc_parts(RequestId::Integer(1)).unwrap();
+        assert_eq!(result, json!({"status":"accepted","reason":null}));
+    }
+
+    #[test]
     fn desktop_extension_methods_only_gate_experimental_turn_fields() {
         for (method, params) in [
             (
@@ -844,6 +871,12 @@ client_request_definitions! {
         params: v2::ThreadMemoryNoteAddParams,
         serialization: thread_id(params.thread_id),
         response: v2::ThreadMemoryNoteAddResponse,
+    },
+    #[experimental("thread/memory/consolidate")]
+    ThreadMemoryConsolidate => "thread/memory/consolidate" {
+        params: v2::ThreadMemoryConsolidateParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ThreadMemoryConsolidateResponse,
     },
     #[experimental("memory/status")]
     MemoryStatus => "memory/status" {

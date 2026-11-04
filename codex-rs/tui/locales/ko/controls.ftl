@@ -128,6 +128,12 @@ controls-compact-failed = 압축 요청 실패:
 controls-compact-timeout = 시간초과로 압축 결과를 확인하지 못했습니다. 자동으로 다시 요청하지 마세요.
 
 controls-memory-disabled = 메모리가 꺼져 있거나 사용할 수 없습니다. 메모리 활성화를 명시적으로 요청하세요. 읽기 설정만 저장해서는 기능이 켜지지 않으며, 환경·관리 설정이 활성화를 제한할 수 있습니다.
+controls-memory-consolidation-failed = 메모리 통합 요청 실패: { $error }
+controls-memory-consolidation-admitted = 통합 요청의 접수 상태입니다. accepted는 완료가 아닙니다. memory_view에서 실제 작업 상태를 확인하세요. 작업 완료도 특정 노트의 반영을 보장하지 않습니다.
+controls-memory-note-scope-unsupported = 이 서버는 다른 범위를 지정한 메모리 저장을 지원한다고 확인되지 않았습니다. 노트는 저장하지 않았습니다.
+controls-memory-note-scope-unconfirmed = 메모리 저장 응답의 실제 범위를 확인할 수 없습니다. 결과를 조회하고 자동 재전송하지 마세요.
+language-save-legacy-cleanup-failed = 클라이언트 언어 선택은 저장했지만 기존 공용 설정 키 제거에 실패했습니다: { $error }. 자동으로 재전송하지 마세요.
+daemon-auto-version-fallback = 공유 백그라운드 서버 버전 { $server }이(가) 현재 CLI { $client }와 다르거나 확인되지 않았습니다. 공유 서버를 변경하거나 다시 시작하지 않고 현재 CLI의 백엔드로 실행합니다.
 
 controls-memory-overridden = 메모리 설정을 저장했지만 다른 설정이 덮어썼습니다. 현재 실행 환경의 활성화는 확인되지 않았습니다. 자동으로 다시 요청하지 마세요.
 
@@ -151,3 +157,4 @@ diagnostics-cache-wire-requires-response = 캐시 wire 관측에는 응답 관�
 
 controls-memory-command-hint = /memory enable on|off · /memory edit <정정 내용> · /memory read on|off · /memory generate on|off
 controls-memory-usage = 사용법: /memory view | enable on|off | edit <정정 내용> | read on|off | generate on|off | scope project|global
+daemon-auto-selected-mismatch = 선택된 공유 서버 실행 파일 { $managed_path }은(는) 현재 CLI { $cli_path }와 다릅니다. 이번 대화는 현재 CLI에 포함된 서버를 사용하며 공유 설치본은 보존했습니다. 명시적으로 선택을 바꾸려면 `codex app-server daemon update --from-cli --yes --no-force`를 실행하세요.

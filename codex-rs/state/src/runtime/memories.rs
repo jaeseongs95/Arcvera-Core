@@ -1,3 +1,6 @@
+#[cfg(test)]
+#[path = "memory_consolidation_tests.rs"]
+mod consolidation_tests;
 #[path = "memory_readiness.rs"]
 mod readiness;
 
@@ -29,6 +32,20 @@ const PHASE2_INPUT_SELECTION_PAGE_SIZE: usize = 512;
 
 const DEFAULT_RETRY_REMAINING: i64 = 3;
 
+/// Raw persisted phase-2 state. A completed job does not prove that a later note was included.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MemoryConsolidationStatus {
+    pub status: String,
+    pub worker_id: Option<String>,
+    pub started_at: Option<i64>,
+    pub finished_at: Option<i64>,
+    pub lease_until: Option<i64>,
+    pub retry_at: Option<i64>,
+    pub last_error: Option<String>,
+    pub input_watermark: Option<i64>,
+    pub last_success_watermark: Option<i64>,
+}
+
 /// Store for generated memory state and memory extraction/consolidation jobs.
 #[derive(Clone)]
 pub struct MemoryStore {
@@ -38,6 +55,31 @@ pub struct MemoryStore {
 }
 
 impl MemoryStore {
+    /// Observe this store's phase-2 job without creating, claiming or retrying work.
+    pub async fn consolidation_status(&self) -> anyhow::Result<Option<MemoryConsolidationStatus>> {
+        let row = sqlx::query(
+            "SELECT status, worker_id, started_at, finished_at, lease_until, retry_at, last_error, input_watermark, last_success_watermark FROM jobs WHERE kind = ? AND job_key = ?",
+        )
+        .bind(JOB_KIND_MEMORY_CONSOLIDATE_GLOBAL)
+        .bind(MEMORY_CONSOLIDATION_JOB_KEY)
+        .fetch_optional(self.pool.as_ref())
+        .await?;
+        row.map(|row| {
+            Ok(MemoryConsolidationStatus {
+                status: row.try_get("status")?,
+                worker_id: row.try_get("worker_id")?,
+                started_at: row.try_get("started_at")?,
+                finished_at: row.try_get("finished_at")?,
+                lease_until: row.try_get("lease_until")?,
+                retry_at: row.try_get("retry_at")?,
+                last_error: row.try_get("last_error")?,
+                input_watermark: row.try_get("input_watermark")?,
+                last_success_watermark: row.try_get("last_success_watermark")?,
+            })
+        })
+        .transpose()
+    }
+
     pub(crate) fn new(pool: Arc<SqlitePool>, state_pool: Arc<SqlitePool>) -> Self {
         Self {
             pool,
@@ -1139,6 +1181,24 @@ WHERE kind = ? AND job_key = ?
         worker_id: ThreadId,
         lease_seconds: i64,
     ) -> anyhow::Result<Phase2JobClaimOutcome> {
+        self.claim_phase2_job(worker_id, lease_seconds, false).await
+    }
+
+    /// Explicit retry bypasses time-based retry/cooldown gates, never an active lease.
+    pub async fn try_claim_global_phase2_job_for_retry(
+        &self,
+        worker_id: ThreadId,
+        lease_seconds: i64,
+    ) -> anyhow::Result<Phase2JobClaimOutcome> {
+        self.claim_phase2_job(worker_id, lease_seconds, true).await
+    }
+
+    async fn claim_phase2_job(
+        &self,
+        worker_id: ThreadId,
+        lease_seconds: i64,
+        explicit_retry: bool,
+    ) -> anyhow::Result<Phase2JobClaimOutcome> {
         let now = Utc::now().timestamp();
         let lease_until = now.saturating_add(lease_seconds.max(0));
         let cooldown_cutoff = now.saturating_sub(PHASE2_SUCCESS_COOLDOWN_SECONDS);
@@ -1208,7 +1268,7 @@ INSERT INTO jobs (
         let retry_at: Option<i64> = existing_job.try_get("retry_at")?;
         let finished_at: Option<i64> = existing_job.try_get("finished_at")?;
         let last_error: Option<String> = existing_job.try_get("last_error")?;
-        if retry_at.is_some_and(|retry_at| retry_at > now) {
+        if !explicit_retry && retry_at.is_some_and(|retry_at| retry_at > now) {
             tx.commit().await?;
             return Ok(Phase2JobClaimOutcome::SkippedRetryUnavailable);
         }
@@ -1217,7 +1277,8 @@ INSERT INTO jobs (
             tx.commit().await?;
             return Ok(Phase2JobClaimOutcome::SkippedRunning);
         }
-        if last_error.is_none()
+        if !explicit_retry
+            && last_error.is_none()
             && finished_at.is_some_and(|finished_at| finished_at > cooldown_cutoff)
         {
             tx.commit().await?;
@@ -1238,8 +1299,8 @@ SET
     last_error = NULL
 WHERE kind = ? AND job_key = ?
   AND (status != 'running' OR lease_until IS NULL OR lease_until <= ?)
-  AND (retry_at IS NULL OR retry_at <= ?)
-  AND (last_error IS NOT NULL OR finished_at IS NULL OR finished_at <= ?)
+  AND (? OR retry_at IS NULL OR retry_at <= ?)
+  AND (? OR last_error IS NOT NULL OR finished_at IS NULL OR finished_at <= ?)
             "#,
         )
         .bind(worker_id.as_str())
@@ -1249,7 +1310,9 @@ WHERE kind = ? AND job_key = ?
         .bind(JOB_KIND_MEMORY_CONSOLIDATE_GLOBAL)
         .bind(MEMORY_CONSOLIDATION_JOB_KEY)
         .bind(now)
+        .bind(explicit_retry)
         .bind(now)
+        .bind(explicit_retry)
         .bind(cooldown_cutoff)
         .execute(&mut *tx)
         .await?

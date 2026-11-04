@@ -1238,7 +1238,13 @@ impl App {
                         self.app_event_tx.send(AppEvent::LaunchExternalEditor);
                     }
                 }
-                TuiEvent::Mouse(mouse) => self.start_right_click_paste(tui, mouse),
+                TuiEvent::Mouse(mouse) => {
+                    if tui.is_owned_screen()
+                        || !self.chat_widget.handle_subagent_footer_mouse(mouse)
+                    {
+                        self.start_right_click_paste(tui, mouse);
+                    }
+                }
                 TuiEvent::FocusLost => {}
             }
         }

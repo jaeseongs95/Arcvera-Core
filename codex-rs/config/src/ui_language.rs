@@ -1,4 +1,4 @@
-//! Client display preference read only from the base user config, never merged layers.
+//! Client display preferences are separate from the shared official CLI configuration.
 
 use std::io;
 use std::path::Path;
@@ -6,6 +6,8 @@ use std::path::Path;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
+
+pub const CLIENT_PREFERENCES_FILE: &str = "opendiy-client.toml";
 
 #[derive(Serialize, Debug, Default, Copy, Clone, PartialEq, Eq, JsonSchema)]
 pub enum UiLanguage {
@@ -52,26 +54,104 @@ impl<'de> Deserialize<'de> for UiLanguage {
     }
 }
 
-/// Read the local display preference before CLI help or any merged/server config is loaded.
-/// Profiles, projects, named user layers and remote thread settings are intentionally absent.
+/// Prefer the client-only file, retaining read compatibility with old base user settings.
+/// Reading never migrates or rewrites either file. Profiles and projects are not consulted.
 pub fn read_user_ui_language(codex_home: &Path) -> io::Result<UiLanguage> {
     #[derive(Deserialize, Default)]
     struct Preference {
         ui_language: Option<UiLanguage>,
     }
-    let text = match std::fs::read_to_string(codex_home.join(crate::CONFIG_TOML_FILE)) {
-        Ok(text) => text,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(UiLanguage::default()),
-        Err(error) => return Err(error),
+    let read = |file: &str| -> io::Result<Option<UiLanguage>> {
+        let text = match std::fs::read_to_string(codex_home.join(file)) {
+            Ok(text) => text,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let preference: Preference = toml::from_str(&text)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+        Ok(preference.ui_language)
     };
-    let preference: Preference =
-        toml::from_str(&text).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
-    Ok(preference.ui_language.unwrap_or_default())
+    if let Some(language) = read(CLIENT_PREFERENCES_FILE)? {
+        return Ok(language);
+    }
+    Ok(read(crate::CONFIG_TOML_FILE)?.unwrap_or_default())
+}
+
+/// Save only a client preference, preserving the official CLI's config byte-for-byte.
+pub fn write_user_ui_language(codex_home: &Path, language: UiLanguage) -> io::Result<()> {
+    let paths =
+        codex_utils_path::resolve_symlink_write_paths(&codex_home.join(CLIENT_PREFERENCES_FILE))?;
+    let text = match paths.read_path.as_ref().map(std::fs::read_to_string) {
+        Some(Ok(text)) => text,
+        Some(Err(error)) if error.kind() != io::ErrorKind::NotFound => return Err(error),
+        _ => String::new(),
+    };
+    let mut document = text
+        .parse::<toml_edit::DocumentMut>()
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    document["ui_language"] = toml_edit::value(language.as_str());
+    codex_utils_path::write_atomically(&paths.write_path, &document.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dedicated_preference_preserves_shared_config_and_other_client_settings() {
+        let home = tempfile::tempdir().unwrap();
+        let shared = "# Shared with the official CLI\nmodel = 'fixture'\nui_language = 'ko'\n";
+        std::fs::write(home.path().join(crate::CONFIG_TOML_FILE), shared).unwrap();
+        assert_eq!(
+            read_user_ui_language(home.path()).unwrap(),
+            UiLanguage::Korean
+        );
+        std::fs::write(
+            home.path().join(CLIENT_PREFERENCES_FILE),
+            "# Keep client settings\nfuture_preference = true\n",
+        )
+        .unwrap();
+        assert_eq!(
+            read_user_ui_language(home.path()).unwrap(),
+            UiLanguage::Korean
+        );
+        write_user_ui_language(home.path(), UiLanguage::English).unwrap();
+        assert_eq!(
+            read_user_ui_language(home.path()).unwrap(),
+            UiLanguage::English
+        );
+        assert_eq!(
+            std::fs::read_to_string(home.path().join(crate::CONFIG_TOML_FILE)).unwrap(),
+            shared
+        );
+        let saved = std::fs::read_to_string(home.path().join(CLIENT_PREFERENCES_FILE)).unwrap();
+        assert!(saved.contains("# Keep client settings"));
+        assert!(saved.contains("future_preference = true"));
+        assert!(saved.contains("ui_language = \"en\""));
+    }
+
+    #[test]
+    fn fresh_preference_does_not_create_shared_config_and_invalid_sidecar_is_an_error() {
+        let home = tempfile::tempdir().unwrap();
+        write_user_ui_language(home.path(), UiLanguage::Korean).unwrap();
+        assert!(!home.path().join(crate::CONFIG_TOML_FILE).exists());
+        assert_eq!(
+            read_user_ui_language(home.path()).unwrap(),
+            UiLanguage::Korean
+        );
+        std::fs::write(
+            home.path().join(crate::CONFIG_TOML_FILE),
+            "ui_language = 'en'\n",
+        )
+        .unwrap();
+        for contents in ["ui_language = 'kr'\n", "ui_language = 7\n", "[invalid"] {
+            std::fs::write(home.path().join(CLIENT_PREFERENCES_FILE), contents).unwrap();
+            assert_eq!(
+                read_user_ui_language(home.path()).unwrap_err().kind(),
+                io::ErrorKind::InvalidData
+            );
+        }
+    }
 
     #[test]
     fn missing_user_preference_is_english_and_invalid_values_are_rejected() {

@@ -21,6 +21,9 @@ use pretty_assertions::assert_eq;
 use serde_json::json;
 use tempfile::TempDir;
 
+#[path = "memory_consolidate.rs"]
+mod consolidation;
+
 #[tokio::test]
 async fn memory_read_version_selects_only_its_own_context() -> Result<()> {
     for (version, has_v1_workspace, expected, excluded, use_memories) in [

@@ -65,6 +65,9 @@ use tokio::time::Instant;
 #[path = "startup_dual_write_tests.rs"]
 mod dual_write;
 
+#[path = "explicit_consolidation_tests.rs"]
+mod explicit_consolidation;
+
 #[tokio::test]
 async fn memories_startup_creates_memory_root() -> anyhow::Result<()> {
     let server = start_mock_server().await;
@@ -1732,8 +1735,9 @@ async fn project_source_cwd_reclassification_rejects_foreign_history_before_samp
         let mut memories = startup_test_memories_config();
         memories.scope = MemoryScope::Project;
         memories.project = Some(target.clone());
-        let test =
-            build_test_codex_with_memories_config(&server, Arc::clone(&home), memories).await?;
+        let test = memory_test_codex(Arc::clone(&home), memories)
+            .build(&server)
+            .await?;
         let db = init_state_db(&home).await?;
         let source = seed_stage1_candidate(
             &db,

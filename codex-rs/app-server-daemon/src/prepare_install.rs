@@ -167,7 +167,7 @@ async fn prepare_from_package(
             || ["daemon.pid", "daemon.stderr.log", "daemon-updater.pid", "daemon-updater.stderr.log"]
                 .iter().any(|name| !matches!(home.join("app-server-daemon").join(name).symlink_metadata(), Err(error) if error.kind() == std::io::ErrorKind::NotFound))
         {
-            daemon.ensure_managed_codex_bin()?;
+            daemon.ensure_managed_codex_file()?;
             return Ok(true);
         }
     } else {

@@ -493,6 +493,13 @@ fn numeric_field(name: &str) -> bool {
             | "cached_input_tokens"
             | "output_tokens"
             | "total_tokens"
+            | "codex.turn.token_usage.input_tokens"
+            | "codex.turn.token_usage.cached_input_tokens"
+            | "codex.turn.token_usage.cache_write_input_tokens"
+            | "codex.turn.token_usage.non_cached_input_tokens"
+            | "codex.turn.token_usage.output_tokens"
+            | "codex.turn.token_usage.reasoning_output_tokens"
+            | "codex.turn.token_usage.total_tokens"
             | "bytes"
             | "count"
             | "attempt"
@@ -945,6 +952,151 @@ mod tests {
             "secret freeform",
         ] {
             assert!(!text.contains(secret));
+        }
+    }
+
+    #[test]
+    fn turn_usage_span_records_reach_general_batches_with_cache_diagnostics_disabled() {
+        let (sender, receiver) = mpsc::sync_channel(64);
+        let counters = Arc::new(Counters::default());
+        let run = Arc::new(RunContext::new(CacheMode::resolve(
+            true,
+            CacheSettings::default(),
+            false,
+        )));
+        assert!(!run.cache.response_enabled);
+        assert!(!run.cache.wire_enabled);
+        let layer = BatchLayer {
+            sender,
+            counters: counters.clone(),
+            run: run.clone(),
+            settings: Settings {
+                enabled: true,
+                process: false,
+                ..Settings::default()
+            },
+        };
+        let filter = layer.metadata_filter();
+        let subscriber = tracing_subscriber::registry()
+            .with(layer.with_filter(tracing_subscriber::filter::filter_fn(filter)));
+        let thread_id = "00000000-0000-4000-8000-000000000001";
+        let (parent_id, turn_ids) = tracing::subscriber::with_default(subscriber, || {
+            let parent =
+                tracing::info_span!(target: "codex_core::tasks", "session", thread.id = %thread_id);
+            let _parent_scope = parent.enter();
+            let mut turn_ids = Vec::new();
+            let mut turns = Vec::new();
+            for (turn_id, usage) in [("1", None), ("2", Some(0_i64)), ("3", Some(42_i64))] {
+                let turn = tracing::info_span!(target: "codex_core::tasks", "turn",
+                    thread.id = %thread_id, turn.id = %turn_id,
+                    codex.turn.token_usage.input_tokens = tracing::field::Empty,
+                    codex.turn.token_usage.cached_input_tokens = tracing::field::Empty,
+                    codex.turn.token_usage.cache_write_input_tokens = tracing::field::Empty,
+                    codex.turn.token_usage.non_cached_input_tokens = tracing::field::Empty,
+                    codex.turn.token_usage.output_tokens = tracing::field::Empty,
+                    codex.turn.token_usage.reasoning_output_tokens = tracing::field::Empty,
+                    codex.turn.token_usage.total_tokens = tracing::field::Empty,
+                    codex.turn.token_usage.prompt = "PRIVATE_PROMPT",
+                    codex.turn.token_usage.path = "PRIVATE_PATH",
+                    codex.turn.token_usage.secret = tracing::field::Empty,
+                    codex.turn.token_usage.future_tokens = tracing::field::Empty);
+                turn_ids.push(turn.id().unwrap().into_u64());
+                for field in [
+                    "codex.turn.token_usage.input_tokens",
+                    "codex.turn.token_usage.cached_input_tokens",
+                    "codex.turn.token_usage.cache_write_input_tokens",
+                    "codex.turn.token_usage.non_cached_input_tokens",
+                    "codex.turn.token_usage.output_tokens",
+                    "codex.turn.token_usage.reasoning_output_tokens",
+                    "codex.turn.token_usage.total_tokens",
+                ] {
+                    if let Some(value) = usage {
+                        turn.record(field, value);
+                    }
+                    turn.record(field, "PRIVATE_NUMERIC_NAME_STRING");
+                }
+                turn.record("codex.turn.token_usage.prompt", "PRIVATE_RECORDED_PROMPT");
+                turn.record("codex.turn.token_usage.path", "PRIVATE_RECORDED_PATH");
+                turn.record("codex.turn.token_usage.secret", "PRIVATE_SECRET");
+                turn.record("codex.turn.token_usage.future_tokens", 999_i64);
+                let _turn_scope = turn.enter();
+                tracing::info!(target: "codex_core::tasks", input_tokens = 8_u64,
+                    cached_input_tokens = 0_u64, output_tokens = 2_u64, total_tokens = 10_u64);
+                tracing::debug!(target: "codex_api::prompt_cache", input_tokens = 999_u64);
+                tracing::debug!(target: "codex_api::prompt_cache_wire", input_items = 999_u64);
+                drop(_turn_scope);
+                // Keep IDs live until all cases are emitted; registries may reuse closed IDs.
+                turns.push(turn);
+            }
+            (parent.id().unwrap().into_u64(), turn_ids)
+        });
+        let rows = receiver
+            .try_iter()
+            .filter_map(|command| match command {
+                Command::Event(bytes) => Some(serde_json::from_slice::<Value>(&bytes).unwrap()),
+                Command::Shutdown => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 11);
+        assert_eq!(counters.dropped.load(Ordering::Relaxed), 0);
+        for row in &rows {
+            assert_eq!(row["instance_id"], run.instance_id);
+            assert!(!row.to_string().contains("PRIVATE"));
+            assert_eq!(row["target"], "codex_core::tasks");
+        }
+        let parent_open = rows
+            .iter()
+            .find(|row| row["kind"] == "span_open" && row["span"] == parent_id)
+            .unwrap();
+        assert_eq!(parent_open["parent"], Value::Null);
+        assert_eq!(parent_open["fields"], json!({"thread.id": thread_id}));
+        for (index, span_id) in turn_ids.into_iter().enumerate() {
+            let turn_id = (index + 1).to_string();
+            let opened = rows
+                .iter()
+                .find(|row| row["kind"] == "span_open" && row["span"] == span_id)
+                .unwrap();
+            assert_eq!(opened["parent"], parent_id);
+            assert_eq!(opened["name"], "turn");
+            assert_eq!(
+                opened["fields"],
+                json!({"thread.id": thread_id, "turn.id": turn_id})
+            );
+            let closed = rows
+                .iter()
+                .find(|row| row["kind"] == "span_close" && row["span"] == span_id)
+                .unwrap();
+            assert_eq!(closed["name"], "turn");
+            let expected = match index {
+                0 => json!({"thread.id": thread_id, "turn.id": "1"}),
+                1 => json!({"thread.id": thread_id, "turn.id": "2",
+                    "codex.turn.token_usage.input_tokens": 0,
+                    "codex.turn.token_usage.cached_input_tokens": 0,
+                    "codex.turn.token_usage.cache_write_input_tokens": 0,
+                    "codex.turn.token_usage.non_cached_input_tokens": 0,
+                    "codex.turn.token_usage.output_tokens": 0,
+                    "codex.turn.token_usage.reasoning_output_tokens": 0,
+                    "codex.turn.token_usage.total_tokens": 0}),
+                2 => json!({"thread.id": thread_id, "turn.id": "3",
+                    "codex.turn.token_usage.input_tokens": 42,
+                    "codex.turn.token_usage.cached_input_tokens": 42,
+                    "codex.turn.token_usage.cache_write_input_tokens": 42,
+                    "codex.turn.token_usage.non_cached_input_tokens": 42,
+                    "codex.turn.token_usage.output_tokens": 42,
+                    "codex.turn.token_usage.reasoning_output_tokens": 42,
+                    "codex.turn.token_usage.total_tokens": 42}),
+                _ => unreachable!(),
+            };
+            assert_eq!(closed["fields"], expected);
+            let event = rows
+                .iter()
+                .find(|row| row["kind"] == "event" && row["span"] == span_id)
+                .unwrap();
+            assert_eq!(
+                event["fields"],
+                json!({"input_tokens": 8,
+                "cached_input_tokens": 0, "output_tokens": 2, "total_tokens": 10})
+            );
         }
     }
 

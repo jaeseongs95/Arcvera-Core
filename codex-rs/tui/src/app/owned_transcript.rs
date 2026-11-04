@@ -456,6 +456,12 @@ impl App {
             return Ok(false);
         }
         if let TuiEvent::Mouse(mouse) = event {
+            if mouse.kind == crossterm::event::MouseEventKind::Moved
+                && self.chat_widget.handle_subagent_footer_mouse(*mouse)
+            {
+                // Hover must not dismiss transcript search/selection or repaint for every column.
+                return Ok(true);
+            }
             let composer_ready = self.chat_widget.prepare_composer_mouse(*mouse);
             if mouse.kind != crossterm::event::MouseEventKind::Moved {
                 let size = tui.prepare_draw_size()?;
@@ -546,6 +552,13 @@ impl App {
                 .begin_select_mode(&self.transcript_cells);
             tui.frame_requester().schedule_frame();
             return Ok(true);
+        }
+        if let TuiEvent::Key(key) = event
+            && !self.transcript_view.has_active_interaction()
+            && self.chat_widget.subagent_selection_owns_key(*key)
+        {
+            // The focused footer owns navigation before history/backtrack or turn interruption.
+            return Ok(false);
         }
         // Read-only Escape belongs to session navigation, even when the transcript is scrolled.
         // Search and selection still consume Escape first to dismiss their interaction.

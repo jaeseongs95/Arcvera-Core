@@ -45,6 +45,22 @@ struct Counters {
     input: i64,
 }
 
+/// Admission result only; dispatched workers can still fail later.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MemoryConsolidationStartOutcome {
+    pub status: String,
+    pub reason: Option<String>,
+}
+
+impl MemoryConsolidationStartOutcome {
+    pub(crate) fn new(status: &str, reason: Option<&str>) -> Self {
+        Self {
+            status: status.to_owned(),
+            reason: reason.map(str::to_owned),
+        }
+    }
+}
+
 /// Runs memory phase 2 (aka consolidation) in strict order. The method represents the linear
 /// flow of the consolidation phase.
 pub async fn run(
@@ -52,17 +68,26 @@ pub async fn run(
     config: Arc<Config>,
     parent_permission_profile: PermissionProfile,
 ) {
+    let _ = run_with_retry(context, config, parent_permission_profile, false).await;
+}
+
+pub(crate) async fn run_with_retry(
+    context: Arc<MemoryStartupContext>,
+    config: Arc<Config>,
+    parent_permission_profile: PermissionProfile,
+    explicit_retry: bool,
+) -> MemoryConsolidationStartOutcome {
     if !context.generation_enabled().await {
-        return;
+        return MemoryConsolidationStartOutcome::new("blocked", Some("generation_disabled"));
     }
     let phase_two_e2e_timer = context.start_timer(MEMORY_PHASE_TWO_E2E_MS);
 
     let Some(db) = context.memory_store().await else {
         // This should not happen.
-        return;
+        return MemoryConsolidationStartOutcome::new("blocked", Some("state_unavailable"));
     };
     let Some(root) = config.memories.memory_root(&config.codex_home) else {
-        return;
+        return MemoryConsolidationStartOutcome::new("blocked", Some("root_unavailable"));
     };
     let max_raw_memories = config.memories.max_raw_memories_for_consolidation;
     let max_unused_days = config.memories.max_unused_days;
@@ -77,16 +102,16 @@ pub async fn run(
                 "failed_workspace_lock"
             };
             context.counter(MEMORY_PHASE_TWO_JOBS, /*inc*/ 1, &[("status", status)]);
-            return;
+            return MemoryConsolidationStartOutcome::new("blocked", Some(status));
         }
     };
 
     // 1. Claim the global Phase 2 lock before touching the memory workspace.
-    let claim = match job::claim(context.as_ref(), &db).await {
+    let claim = match job::claim(context.as_ref(), &db, explicit_retry).await {
         Ok(claim) => claim,
         Err(e) => {
             context.counter(MEMORY_PHASE_TWO_JOBS, /*inc*/ 1, &[("status", e)]);
-            return;
+            return MemoryConsolidationStartOutcome::new("blocked", Some(e));
         }
     };
 
@@ -94,7 +119,12 @@ pub async fn run(
     if let Err(err) = prepare_memory_workspace(&root).await {
         tracing::error!("failed preparing memory workspace: {err}");
         job::failed(context.as_ref(), &db, &claim, "failed_prepare_workspace").await;
-        return;
+        return MemoryConsolidationStartOutcome::new("failed", Some("failed_prepare_workspace"));
+    }
+    if let Err(err) = crate::extensions::seed_extension_instructions(&root).await {
+        tracing::error!("failed seeding memory extension instructions: {err}");
+        job::failed(context.as_ref(), &db, &claim, "failed_seed_instructions").await;
+        return MemoryConsolidationStartOutcome::new("failed", Some("failed_seed_instructions"));
     }
 
     // 3. Build the locked-down config used by the consolidation agent.
@@ -106,7 +136,7 @@ pub async fn run(
         // If we can't get the config, we can't consolidate.
         tracing::error!("failed to get agent config");
         job::failed(context.as_ref(), &db, &claim, "failed_sandbox_policy").await;
-        return;
+        return MemoryConsolidationStartOutcome::new("failed", Some("failed_sandbox_policy"));
     };
 
     // 4. Load current DB-backed Phase 2 inputs.
@@ -118,7 +148,10 @@ pub async fn run(
         Err(err) => {
             tracing::error!("failed to list stage1 outputs from global: {err}");
             job::failed(context.as_ref(), &db, &claim, "failed_load_stage1_outputs").await;
-            return;
+            return MemoryConsolidationStartOutcome::new(
+                "failed",
+                Some("failed_load_stage1_outputs"),
+            );
         }
     };
     let raw_memory_count = raw_memories.len();
@@ -134,7 +167,10 @@ pub async fn run(
             "failed_sync_workspace_inputs",
         )
         .await;
-        return;
+        return MemoryConsolidationStartOutcome::new(
+            "failed",
+            Some("failed_sync_workspace_inputs"),
+        );
     }
 
     // 6. Use git to decide whether the synced workspace actually changed.
@@ -143,7 +179,7 @@ pub async fn run(
         Err(err) => {
             tracing::error!("failed checking memory workspace changes: {err}");
             job::failed(context.as_ref(), &db, &claim, "failed_workspace_status").await;
-            return;
+            return MemoryConsolidationStartOutcome::new("failed", Some("failed_workspace_status"));
         }
     };
     if !workspace_diff.has_changes()
@@ -165,15 +201,16 @@ pub async fn run(
         {
             drop(phase_two_e2e_timer);
             context.record_storage_size(&root).await;
+            return MemoryConsolidationStartOutcome::new("completed", Some("no_workspace_changes"));
         }
-        return;
+        return MemoryConsolidationStartOutcome::new("failed", Some("failed_record_completion"));
     }
 
     // 7. Persist the diff for the consolidation agent to inspect.
     if let Err(err) = write_workspace_diff(&root, &workspace_diff).await {
         tracing::error!("failed writing memory workspace diff file: {err}");
         job::failed(context.as_ref(), &db, &claim, "failed_workspace_diff_file").await;
-        return;
+        return MemoryConsolidationStartOutcome::new("failed", Some("failed_workspace_diff_file"));
     }
 
     // 8. Spawn the consolidation agent.
@@ -186,7 +223,7 @@ pub async fn run(
         Err(err) => {
             tracing::error!("failed to spawn global memory consolidation agent: {err}");
             job::failed(context.as_ref(), &db, &claim, "failed_spawn_agent").await;
-            return;
+            return MemoryConsolidationStartOutcome::new("failed", Some("failed_spawn_agent"));
         }
     };
 
@@ -208,6 +245,7 @@ pub async fn run(
         input: raw_memory_count as i64,
     };
     emit_metrics(context.as_ref(), counters);
+    MemoryConsolidationStartOutcome::new("accepted", None)
 }
 
 async fn sync_phase2_workspace_inputs(
@@ -233,17 +271,25 @@ mod job {
     pub(super) async fn claim(
         context: &MemoryStartupContext,
         db: &MemoryStore,
+        explicit_retry: bool,
     ) -> Result<Claim, &'static str> {
         if !context.generation_enabled().await {
             return Err("skipped_generation_disabled");
         }
-        let claim = db
-            .try_claim_global_phase2_job(context.thread_id(), crate::stage_two::JOB_LEASE_SECONDS)
+        let claim = if explicit_retry {
+            db.try_claim_global_phase2_job_for_retry(
+                context.thread_id(),
+                crate::stage_two::JOB_LEASE_SECONDS,
+            )
             .await
-            .map_err(|e| {
-                tracing::error!("failed to claim job: {e}");
-                "failed_claim"
-            })?;
+        } else {
+            db.try_claim_global_phase2_job(context.thread_id(), crate::stage_two::JOB_LEASE_SECONDS)
+                .await
+        }
+        .map_err(|e| {
+            tracing::error!("failed to claim job: {e}");
+            "failed_claim"
+        })?;
         let (token, watermark) = match claim {
             codex_state::Phase2JobClaimOutcome::Claimed {
                 ownership_token,

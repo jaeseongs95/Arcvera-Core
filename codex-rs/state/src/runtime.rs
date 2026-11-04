@@ -75,6 +75,7 @@ pub use guardian_feedback::GuardianReviewRecord;
 pub use guardian_feedback::MAX_GUARDIAN_REVIEW_BYTES;
 pub use guardian_feedback::MAX_GUARDIAN_REVIEW_RECORDS;
 pub use guardian_feedback::MAX_GUARDIAN_REVIEW_RECORDS_PER_THREAD;
+pub use memories::MemoryConsolidationStatus;
 pub use memories::MemoryStore;
 pub use queued_items::SqliteQueueStore;
 pub use recovery::backup_runtime_db_for_fresh_start;

@@ -435,6 +435,11 @@ pub(crate) enum AppEvent {
     },
     /// Switch the active thread to the selected agent.
     SelectAgentThread(ThreadId),
+    /// Select a painted footer row only while its originating root still owns it.
+    SelectFooterAgent {
+        root_thread_id: ThreadId,
+        thread_id: ThreadId,
+    },
 
     /// Fork the current thread into a transient side conversation.
     StartSide {

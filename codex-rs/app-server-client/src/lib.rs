@@ -342,6 +342,7 @@ pub struct InProcessAppServerClient {
     command_tx: mpsc::Sender<ClientCommand>,
     event_rx: mpsc::UnboundedReceiver<InProcessServerEvent>,
     supports_expected_turn_interrupt: Option<bool>,
+    supports_memory_note_scope: bool,
     worker_handle: tokio::task::JoinHandle<()>,
 }
 
@@ -373,6 +374,7 @@ impl InProcessAppServerClient {
         let mut handle =
             codex_app_server::in_process::start(args.into_runtime_start_args()).await?;
         let supports_expected_turn_interrupt = handle.supports_expected_turn_interrupt();
+        let supports_memory_note_scope = handle.supports_memory_note_scope();
         let request_sender = handle.sender();
         let (command_tx, mut command_rx) = mpsc::channel::<ClientCommand>(channel_capacity);
         // e9996ec62a preserved transcript events by awaiting a bounded queue, but that can
@@ -480,6 +482,7 @@ impl InProcessAppServerClient {
             command_tx,
             event_rx,
             supports_expected_turn_interrupt,
+            supports_memory_note_scope,
             worker_handle,
         })
     }
@@ -490,6 +493,10 @@ impl InProcessAppServerClient {
         } else {
             self.supports_expected_turn_interrupt
         }
+    }
+
+    pub fn supports_memory_note_scope(&self) -> bool {
+        !self.command_tx.is_closed() && self.supports_memory_note_scope
     }
 
     pub fn request_handle(&self) -> InProcessAppServerRequestHandle {
@@ -603,6 +610,7 @@ impl InProcessAppServerClient {
             command_tx,
             event_rx,
             supports_expected_turn_interrupt: _,
+            supports_memory_note_scope: _,
             worker_handle,
         } = self;
         let mut worker_handle = worker_handle;
@@ -763,6 +771,14 @@ impl AppServerRequestHandle {
 }
 
 impl AppServerClient {
+    /// True only when this connection's initialize response explicitly declares support.
+    pub fn supports_memory_note_scope(&self) -> bool {
+        match self {
+            Self::InProcess(client) => client.supports_memory_note_scope(),
+            Self::Remote(client) => client.supports_memory_note_scope(),
+            Self::Cloud(_) => false,
+        }
+    }
     /// 이 연결의 실제 initialize 응답에서 확인한 정확 턴 취소 지원값입니다.
     pub fn supports_expected_turn_interrupt(&self) -> Option<bool> {
         match self {
@@ -1448,9 +1464,48 @@ mod tests {
             client,
         } = start_test_client(SessionSource::Cli).await;
         assert_eq!(client.supports_expected_turn_interrupt(), Some(true));
+        assert!(client.supports_memory_note_scope());
         let client = AppServerClient::InProcess(client);
         assert_eq!(client.supports_expected_turn_interrupt(), Some(true));
+        assert!(client.supports_memory_note_scope());
         client.shutdown().await.expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn remote_memory_note_scope_capability_requires_literal_initialize_support() {
+        for (metadata, supported) in [
+            (serde_json::json!({}), false),
+            (serde_json::json!({"opendiyCapabilities":{}}), false),
+            (
+                serde_json::json!({"opendiyCapabilities":{"memoryNoteScope":false}}),
+                false,
+            ),
+            (
+                serde_json::json!({"opendiyCapabilities":{"memoryNoteScope":"true"}}),
+                false,
+            ),
+            (
+                serde_json::json!({"opendiyCapabilities":{"memoryNoteScope":1}}),
+                false,
+            ),
+            (
+                serde_json::json!({"opendiyCapabilities":{"memoryNoteScope":true}}),
+                true,
+            ),
+        ] {
+            let websocket_url = start_test_remote_server(move |mut websocket| async move {
+                expect_remote_initialize_with_metadata(&mut websocket, metadata).await;
+                let _ = websocket.next().await;
+            })
+            .await;
+            let client = RemoteAppServerClient::connect(test_remote_connect_args(websocket_url))
+                .await
+                .expect("remote client should connect");
+            assert_eq!(client.supports_memory_note_scope(), supported);
+            let client = AppServerClient::Remote(client);
+            assert_eq!(client.supports_memory_note_scope(), supported);
+            client.shutdown().await.expect("shutdown should complete");
+        }
     }
 
     #[tokio::test]
@@ -2273,6 +2328,7 @@ mod tests {
             command_tx,
             event_rx,
             supports_expected_turn_interrupt: None,
+            supports_memory_note_scope: false,
             worker_handle,
         };
 
@@ -2381,6 +2437,7 @@ mod tests {
             command_tx,
             event_rx,
             supports_expected_turn_interrupt: None,
+            supports_memory_note_scope: false,
             worker_handle,
         };
 

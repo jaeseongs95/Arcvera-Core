@@ -87,6 +87,10 @@ pub struct OpenDiyCapabilities {
     /// Does not imply passive subscription, materialized items, or a summary DTO.
     #[serde(default)]
     pub history_summary: bool,
+    /// `thread/memory/note/add` honors an explicit scope without rebinding the thread.
+    /// Clients must check this before sending a scope different from the pinned namespace.
+    #[serde(default)]
+    pub memory_note_scope: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

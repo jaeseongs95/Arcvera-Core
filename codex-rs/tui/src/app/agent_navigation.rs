@@ -167,6 +167,7 @@ impl AgentNavigationState {
             };
             let detail = self.footer_details.get(&thread_id);
             summary.add_entry(SubagentStatusEntry {
+                thread_id,
                 name: entry.agent_path.clone().unwrap_or_else(|| {
                     format_agent_picker_item_name(
                         entry.agent_nickname.as_deref(),

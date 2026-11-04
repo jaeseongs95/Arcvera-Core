@@ -213,6 +213,7 @@ impl InitializeRequestProcessor {
                 user_turn_start_if_idle: true,
                 compact_start_if_idle: true,
                 history_summary: true,
+                memory_note_scope: true,
             }),
             supports_subagent_management: true,
             supports_expected_turn_interrupt: Some(true),

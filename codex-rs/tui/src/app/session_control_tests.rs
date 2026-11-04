@@ -8,6 +8,32 @@ use std::sync::{Arc, atomic::AtomicU8};
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
+#[tokio::test]
+async fn memory_consolidation_dispatch_is_explicit_and_acceptance_is_not_completion()
+-> color_eyre::Result<()> {
+    let (mut app, _events, _) = crate::app::tests::make_test_app_with_channels().await;
+    let thread = ThreadId::new();
+    let (mut server, mut requests, worker) =
+        control_server(json!({"status":"accepted","reason":"worker_dispatched"})).await?;
+    let result = app
+        .session_control_command(
+            &mut server,
+            thread,
+            session_control::Command::MemoryConsolidate { retry: false },
+        )
+        .await
+        .map_err(|error| color_eyre::eyre::eyre!(error))?;
+    let (method, params) = next_request(&mut requests).await;
+    assert_eq!(method, "thread/memory/consolidate");
+    assert_eq!(params["threadId"], thread.to_string());
+    assert_eq!(params["retry"], false);
+    assert_eq!(result["result"]["status"], "accepted");
+    assert!(!result["message"].as_str().unwrap().contains("통합을 완료"));
+    server.shutdown().await?;
+    worker.await??;
+    Ok(())
+}
+
 fn request(
     session: &AppServerSession,
     thread: ThreadId,
@@ -148,12 +174,15 @@ async fn native_control_handlers_keep_memory_corrections_and_thread_settings_sco
     );
     std::fs::create_dir_all(&root)?;
     std::fs::write(root.join("memory_summary.md"), "기존 메모리 요약\n")?;
+    let configuration_before_notes = std::fs::read(home.path().join("config.toml"))?;
     for command in [
         Command::MemoryNote {
             note: "정정할 내용".into(),
+            scope: None,
         },
         Command::MemoryForget {
             note: "이전 선호".into(),
+            scope: None,
         },
     ] {
         let result = app
@@ -161,6 +190,15 @@ async fn native_control_handlers_keep_memory_corrections_and_thread_settings_sco
             .await;
         assert!(result.is_ok(), "{result:?}");
     }
+    let state_after_notes = server.memory_read(thread).await?;
+    assert_eq!(state_after_notes.use_memories, Some(false));
+    assert_eq!(state_after_notes.generate_memories, Some(false));
+    assert!(!app.config.memories.use_memories);
+    assert!(!app.config.memories.generate_memories);
+    assert_eq!(
+        std::fs::read(home.path().join("config.toml"))?,
+        configuration_before_notes
+    );
     assert_eq!(
         std::fs::read_to_string(root.join("memory_summary.md"))?,
         "기존 메모리 요약\n"
@@ -217,6 +255,18 @@ async fn control_server_with_notifications(
     tokio::task::JoinHandle<color_eyre::Result<()>>,
     tokio::sync::mpsc::UnboundedSender<Value>,
 )> {
+    control_server_with_metadata(response, json!({})).await
+}
+
+async fn control_server_with_metadata(
+    response: Value,
+    initialize_metadata: Value,
+) -> color_eyre::Result<(
+    AppServerSession,
+    tokio::sync::mpsc::UnboundedReceiver<(String, Value)>,
+    tokio::task::JoinHandle<color_eyre::Result<()>>,
+    tokio::sync::mpsc::UnboundedSender<Value>,
+)> {
     use codex_app_server_protocol::JSONRPCMessage;
     use futures::{SinkExt, StreamExt};
     use tokio_tungstenite::tungstenite::Message;
@@ -242,10 +292,19 @@ async fn control_server_with_notifications(
                 continue;
             };
             let result = if request.method == "initialize" {
-                json!({"userAgent":"control-test","codexHome":std::env::temp_dir(),"platformFamily":std::env::consts::FAMILY,"platformOs":std::env::consts::OS})
+                let mut metadata = json!({"userAgent":"control-test/9999","codexHome":std::env::temp_dir(),"platformFamily":std::env::consts::FAMILY,"platformOs":std::env::consts::OS});
+                metadata
+                    .as_object_mut()
+                    .unwrap()
+                    .extend(initialize_metadata.as_object().unwrap().clone());
+                metadata
             } else {
+                let result = response
+                    .get(&request.method)
+                    .cloned()
+                    .unwrap_or_else(|| response.clone());
                 observed.send((request.method, request.params.unwrap_or_default()))?;
-                response.clone()
+                result
             };
             socket
                 .send(Message::Text(
@@ -261,6 +320,190 @@ async fn control_server_with_notifications(
         crate::app_server_session::ThreadParamsMode::Remote,
     );
     Ok((server, requests, worker, notifications_tx))
+}
+
+#[tokio::test]
+async fn memory_note_scope_old_server_rejects_different_target_before_any_write()
+-> color_eyre::Result<()> {
+    for (metadata, pinned_scope) in [
+        (json!({}), Some("global")),
+        (
+            json!({"opendiyCapabilities":{"memoryNoteScope":false}}),
+            Some("global"),
+        ),
+        (
+            json!({"opendiyCapabilities":{"memoryNoteScope":"true"}}),
+            Some("global"),
+        ),
+        (json!({}), None),
+    ] {
+        let (mut app, _events, _) = crate::app::tests::make_test_app_with_channels().await;
+        let thread = ThreadId::new();
+        let mut read_response = json!({"summary":null,"status":"missing"});
+        if let Some(scope) = pinned_scope {
+            read_response["scope"] = json!(scope);
+        }
+        let (mut server, mut requests, worker, _) =
+            control_server_with_metadata(read_response, metadata).await?;
+        let result = app
+            .session_control_command(
+                &mut server,
+                thread,
+                Command::MemoryNote {
+                    note: "README 최신화".into(),
+                    scope: Some(crate::session_control::Scope::Project),
+                },
+            )
+            .await;
+        assert!(result.is_err());
+        assert_eq!(next_request(&mut requests).await.0, "thread/memory/read");
+        assert!(
+            requests.try_recv().is_err(),
+            "unsupported scoped note must send zero writes"
+        );
+        server.shutdown().await?;
+        worker.await??;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn memory_note_scope_same_legacy_namespace_omits_scope_and_new_support_forwards_target()
+-> color_eyre::Result<()> {
+    for scoped in [false, true] {
+        let (mut app, _events, _) = crate::app::tests::make_test_app_with_channels().await;
+        let thread = ThreadId::new();
+        let target = if scoped { "project" } else { "global" };
+        let metadata = if scoped {
+            json!({"opendiyCapabilities":{"memoryNoteScope":true}})
+        } else {
+            json!({})
+        };
+        let (mut server, mut requests, worker, _) = control_server_with_metadata(json!({
+            "thread/memory/read":{"summary":null,"status":"missing","scope":"global"},
+            "thread/memory/note/add":{"pendingConsolidation":true,"scope":target,"root":"fixture-only"}
+        }),metadata).await?;
+        let result = app
+            .session_control_command(
+                &mut server,
+                thread,
+                Command::MemoryNote {
+                    note: "explicit note".into(),
+                    scope: Some(if scoped {
+                        crate::session_control::Scope::Project
+                    } else {
+                        crate::session_control::Scope::Global
+                    }),
+                },
+            )
+            .await
+            .map_err(|error| color_eyre::eyre::eyre!(error))?;
+        assert_eq!(next_request(&mut requests).await.0, "thread/memory/read");
+        let (method, params) = next_request(&mut requests).await;
+        assert_eq!(method, "thread/memory/note/add");
+        if scoped {
+            assert_eq!(params["scope"], "project");
+        } else {
+            assert!(params.get("scope").is_none());
+        }
+        assert_eq!(result["result"]["scope"], target);
+        assert_eq!(result["result"]["pendingConsolidation"], true);
+        assert!(requests.try_recv().is_err());
+        server.shutdown().await?;
+        worker.await??;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn memory_note_scope_control_forwards_project_without_rebinding_global_thread()
+-> color_eyre::Result<()> {
+    let (mut app, _events, _) = crate::app::tests::make_test_app_with_channels().await;
+    let home = tempfile::tempdir()?;
+    let project = tempfile::tempdir()?;
+    app.config.codex_home = home.path().abs();
+    app.config.sqlite = codex_state::SqliteConfig::new_for_testing(home.path().abs());
+    app.config.cwd = project.path().abs();
+    app.config.active_project.trust_level = Some(codex_protocol::config_types::TrustLevel::Trusted);
+    app.config.features.enable(Feature::MemoryTool)?;
+    app.config.memories.scope = codex_config::types::MemoryScope::Global;
+    app.config.memories.project = None;
+    app.config.memories.use_memories = false;
+    app.config.memories.generate_memories = false;
+    let configuration =
+        b"[features]\nmemories = true\n[memories]\nscope = 'global'\nuse_memories = false\ngenerate_memories = false\n";
+    std::fs::write(home.path().join("config.toml"), configuration)?;
+    let mut server = crate::start_embedded_app_server_for_picker(&app.config).await?;
+    let started = server.start_thread(&app.config).await?;
+    let thread = started.session.thread_id;
+    let before = server.memory_read(thread).await?;
+    assert_eq!(before.scope.as_deref(), Some("global"));
+    let command = session_control::from_command(
+        &session_control::command(json!({
+            "action":"memory_note","note":"README 최신화를 잊지 않는다","scope":"project"
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let response = app
+        .session_control_command(&mut server, thread, command)
+        .await
+        .map_err(|error| color_eyre::eyre::eyre!(error))?;
+    assert_eq!(response["result"]["scope"], "project");
+    assert_eq!(response["result"]["pendingConsolidation"], true);
+    let target =
+        std::path::PathBuf::from(response["result"]["root"].as_str().expect("actual target"));
+    assert!(target.starts_with(home.path().join("project_memories")));
+    assert_ne!(
+        Some(target.to_string_lossy().as_ref()),
+        before.root.as_deref()
+    );
+    let notes = std::fs::read_dir(target.join("extensions/ad_hoc/notes"))?
+        .map(|entry| std::fs::read_to_string(entry.unwrap().path()).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(notes, vec!["README 최신화를 잊지 않는다"]);
+    let after = server.memory_read(thread).await?;
+    assert_eq!(after.scope.as_deref(), Some("global"));
+    assert_eq!(after.root, before.root);
+    assert_eq!(after.use_memories, Some(false));
+    assert_eq!(after.generate_memories, Some(false));
+    assert!(!app.config.memories.use_memories);
+    assert!(!app.config.memories.generate_memories);
+    assert_eq!(
+        app.config.memories.scope,
+        codex_config::types::MemoryScope::Global
+    );
+    assert_eq!(
+        std::fs::read(home.path().join("config.toml"))?,
+        configuration
+    );
+    assert!(
+        !std::path::PathBuf::from(after.root.unwrap())
+            .join("extensions/ad_hoc/notes")
+            .exists()
+    );
+    server.shutdown().await?;
+    Ok(())
+}
+
+#[test]
+fn memory_note_scope_errors_have_english_and_korean_catalog_messages() {
+    use crate::i18n::{Locale, message_for};
+    for (key, english, korean) in [
+        (
+            "controls-memory-note-scope-unsupported",
+            "This server has not declared support for saving a memory note to a different scope. The note was not saved.",
+            "이 서버는 다른 범위를 지정한 메모리 저장을 지원한다고 확인되지 않았습니다. 노트는 저장하지 않았습니다.",
+        ),
+        (
+            "controls-memory-note-scope-unconfirmed",
+            "The actual scope of the saved memory note could not be verified. Check the result and do not resend automatically.",
+            "메모리 저장 응답의 실제 범위를 확인할 수 없습니다. 결과를 조회하고 자동 재전송하지 마세요.",
+        ),
+    ] {
+        assert_eq!(message_for(Locale::English, key, &[]), english);
+        assert_eq!(message_for(Locale::Korean, key, &[]), korean);
+    }
 }
 
 #[tokio::test]
@@ -397,7 +640,8 @@ async fn explicit_memory_enable_confirms_runtime_and_preserves_partial_off()
             &mut server,
             thread,
             Command::MemoryNote {
-                note: "must not enable".into()
+                note: "must not enable".into(),
+                scope: None,
             }
         )
         .await
@@ -423,7 +667,8 @@ async fn explicit_memory_enable_confirms_runtime_and_preserves_partial_off()
             &mut server,
             thread,
             Command::MemoryNote {
-                note: "explicitly retained note".into()
+                note: "explicitly retained note".into(),
+                scope: None,
             }
         )
         .await

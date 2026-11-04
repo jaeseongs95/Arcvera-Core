@@ -16,6 +16,62 @@ struct KeyboardScreens {
 }
 
 #[test]
+fn inline_mouse_capture_reapplies_after_restore_and_honors_main_tmux_policy() {
+    let screen = AlternateScreen::default();
+    let mut output = Vec::new();
+    let mut input = MouseCapture::Inherit;
+    let mut terminal = vt100::Parser::new(24, 80, 0);
+    for disabled in [false, true, false] {
+        screen.note_main_input_policy(if disabled {
+            tmux::MouseCapture::DisabledByTmux
+        } else {
+            tmux::MouseCapture::Enabled
+        });
+        input
+            .apply(&screen, &mut output, MouseCapture::Enabled, false)
+            .unwrap();
+        terminal.process(&std::mem::take(&mut output));
+        assert!(!terminal.screen().alternate_screen());
+        assert_eq!(
+            terminal.screen().mouse_protocol_mode(),
+            if disabled {
+                vt100::MouseProtocolMode::None
+            } else {
+                vt100::MouseProtocolMode::AnyMotion
+            }
+        );
+        screen
+            .restore(&mut output, KeyboardRestore::PopStack)
+            .unwrap();
+        terminal.process(&std::mem::take(&mut output));
+        assert_eq!(
+            terminal.screen().mouse_protocol_mode(),
+            vt100::MouseProtocolMode::None
+        );
+        input
+            .apply(&screen, &mut output, MouseCapture::Enabled, false)
+            .unwrap();
+        terminal.process(&std::mem::take(&mut output));
+        assert_eq!(
+            terminal.screen().mouse_protocol_mode(),
+            if disabled {
+                vt100::MouseProtocolMode::None
+            } else {
+                vt100::MouseProtocolMode::AnyMotion
+            }
+        );
+        input
+            .apply(&screen, &mut output, MouseCapture::Inherit, false)
+            .unwrap();
+        terminal.process(&std::mem::take(&mut output));
+        assert_eq!(
+            terminal.screen().mouse_protocol_mode(),
+            vt100::MouseProtocolMode::None
+        );
+    }
+}
+
+#[test]
 fn refreshed_mouse_policy_applies_to_fullscreen_and_overlays() {
     for owned in [false, true] {
         let screen = AlternateScreen::default();

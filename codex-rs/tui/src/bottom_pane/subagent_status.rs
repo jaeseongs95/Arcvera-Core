@@ -15,7 +15,7 @@ use ratatui::style::Stylize;
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 use ratatui::widgets::Widget;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const FINISHED_REVEAL: Duration = Duration::from_secs(5);
@@ -23,6 +23,7 @@ const MAX_AGENT_ROWS: usize = 3;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SubagentStatusEntry {
+    pub(crate) thread_id: ThreadId,
     pub(crate) name: String,
     pub(crate) state: SubagentState,
     pub(crate) task: Option<String>,
@@ -103,6 +104,12 @@ impl SubagentStatusSummary {
         self.counts.iter().all(|count| *count == 0)
     }
 
+    pub(crate) fn contains_visible_thread(&self, thread_id: ThreadId) -> bool {
+        self.entries
+            .iter()
+            .any(|entry| entry.thread_id == thread_id && entry.visible())
+    }
+
     fn line(&self, width: u16) -> Line<'static> {
         let states = [
             SubagentState::NeedsApproval,
@@ -151,16 +158,89 @@ impl Renderable for SubagentStatusSummary {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SubagentHover {
+    Summary,
+    Agent(ThreadId),
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct SubagentStatusPanel {
     summary: SubagentStatusSummary,
     expanded: bool,
     offset: usize,
+    focused: Cell<bool>,
+    selected: Option<ThreadId>,
+    selection: Option<(ThreadId, ThreadId)>,
+    painted_rows: RefCell<Vec<ThreadId>>,
+    hovered: Cell<Option<SubagentHover>>,
     // Last painted geometry is used only for hit-testing. Hidden surfaces reject mouse events.
     area: Cell<Rect>,
 }
 
 impl SubagentStatusPanel {
+    pub(crate) fn is_painted(&self) -> bool {
+        !self.is_empty() && !self.area.get().is_empty()
+    }
+
+    pub(crate) fn owns_selection_key(&self, key: KeyEvent) -> bool {
+        self.focused.get()
+            && self.expanded
+            && !self.is_empty()
+            && key.modifiers == KeyModifiers::NONE
+            && matches!(
+                key.code,
+                KeyCode::Up | KeyCode::Down | KeyCode::Enter | KeyCode::Esc
+            )
+    }
+
+    pub(crate) fn clear_painted(&self) {
+        self.area.set(Rect::default());
+        self.painted_rows.borrow_mut().clear();
+        self.clear_hover();
+    }
+
+    pub(crate) fn clear_hover(&self) -> bool {
+        self.hovered.replace(None).is_some()
+    }
+
+    /// Only a change of actionable row needs a repaint; moving within it is a no-op.
+    pub(crate) fn handle_hover(&self, event: MouseEvent) -> bool {
+        if event.kind != MouseEventKind::Moved {
+            return false;
+        }
+        let area = self.area.get();
+        let next = if !self.contains_mouse(event) {
+            None
+        } else if event.row == area.y {
+            Some(SubagentHover::Summary)
+        } else {
+            self.painted_rows
+                .borrow()
+                .get(usize::from(event.row - area.y - 1))
+                .copied()
+                .filter(|id| self.summary.contains_visible_thread(*id))
+                .map(SubagentHover::Agent)
+        };
+        self.hovered.replace(next) != next
+    }
+
+    pub(crate) fn take_selection(&mut self) -> Option<(ThreadId, ThreadId)> {
+        self.selection.take()
+    }
+
+    fn select(&mut self, thread_id: ThreadId) {
+        if self.summary.contains_visible_thread(thread_id)
+            && self.painted_rows.borrow().contains(&thread_id)
+            && let Some(root) = self.summary.root
+        {
+            self.selection = Some((root, thread_id));
+            // Keep Enter owned until the thread switch replaces the pane (or the user exits).
+            // A held key cannot submit the draft while selection is queued asynchronously.
+            self.focused.set(true);
+            self.selected = None;
+        }
+    }
     pub(crate) fn is_empty(&self) -> bool {
         self.summary.is_empty()
             || (!self.summary.entries.is_empty()
@@ -186,10 +266,20 @@ impl SubagentStatusPanel {
         if self.summary == summary {
             return false;
         }
+        self.clear_painted();
+        self.selection = None;
         if self.summary.root != summary.root {
             self.expanded = false;
             self.offset = 0;
             self.area.set(Rect::default());
+            self.focused.set(false);
+            self.selected = None;
+        }
+        if self
+            .selected
+            .is_some_and(|id| !summary.contains_visible_thread(id))
+        {
+            self.selected = None;
         }
         if [
             SubagentState::NeedsApproval,
@@ -205,6 +295,19 @@ impl SubagentStatusPanel {
         self.offset = self
             .offset
             .min(self.entries().len().saturating_sub(MAX_AGENT_ROWS));
+        if self.focused.get()
+            && let Some(index) = self.selected.and_then(|id| {
+                self.entries()
+                    .iter()
+                    .position(|entry| entry.thread_id == id)
+            })
+        {
+            if index < self.offset {
+                self.offset = index;
+            } else if index >= self.offset + MAX_AGENT_ROWS {
+                self.offset = index + 1 - MAX_AGENT_ROWS;
+            }
+        }
         true
     }
 
@@ -236,6 +339,22 @@ impl SubagentStatusPanel {
         } else {
             self.offset.saturating_sub(1)
         };
+        if self.focused.get() {
+            self.selected = self.entries().get(self.offset).map(|entry| entry.thread_id);
+        }
+        self.painted_rows.borrow_mut().clear();
+        self.clear_hover();
+    }
+
+    fn toggle(&mut self) {
+        self.expanded = !self.expanded;
+        self.focused.set(self.expanded);
+        self.selected = self
+            .expanded
+            .then(|| self.entries().get(self.offset).map(|entry| entry.thread_id))
+            .flatten();
+        self.painted_rows.borrow_mut().clear();
+        self.clear_hover();
     }
 
     pub(crate) fn handle_key(&mut self, key: KeyEvent) -> bool {
@@ -248,7 +367,7 @@ impl SubagentStatusPanel {
                 && key.code == KeyCode::Char('S')
         {
             if key.kind == KeyEventKind::Press {
-                self.expanded = !self.expanded;
+                self.toggle();
             }
             return true;
         }
@@ -259,11 +378,64 @@ impl SubagentStatusPanel {
             self.scroll(key.code == KeyCode::PageDown);
             return true;
         }
+        if self.expanded && self.focused.get() && key.modifiers == KeyModifiers::NONE {
+            match key.code {
+                KeyCode::Esc => {
+                    self.focused.set(false);
+                    return true;
+                }
+                KeyCode::Enter => {
+                    if key.kind == KeyEventKind::Press
+                        && let Some(id) = self.selected
+                    {
+                        self.select(id);
+                    }
+                    return true;
+                }
+                KeyCode::Up | KeyCode::Down => {
+                    let entries = self.entries();
+                    let index = self
+                        .selected
+                        .and_then(|id| entries.iter().position(|entry| entry.thread_id == id));
+                    let next = match (key.code, index) {
+                        (KeyCode::Up, Some(index)) => index.saturating_sub(1),
+                        (KeyCode::Down, Some(index)) => {
+                            index.saturating_add(1).min(entries.len().saturating_sub(1))
+                        }
+                        _ => 0,
+                    };
+                    self.selected = entries.get(next).map(|entry| entry.thread_id);
+                    if next < self.offset {
+                        self.offset = next;
+                    } else if next >= self.offset + MAX_AGENT_ROWS {
+                        self.offset = next + 1 - MAX_AGENT_ROWS;
+                    }
+                    self.painted_rows.borrow_mut().clear();
+                    self.clear_hover();
+                    return true;
+                }
+                _ => self.focused.set(false),
+            }
+        }
+        // Modified editing keys and global shortcuts keep their normal owner. Returning to
+        // the composer must also remove the footer's Enter ownership.
+        self.focused.set(false);
         false
     }
 
     pub(crate) fn contains_mouse(&self, event: MouseEvent) -> bool {
-        !self.is_empty() && self.area.get().contains((event.column, event.row).into())
+        let area = self.area.get();
+        !self.is_empty()
+            && area.contains((event.column, event.row).into())
+            && (!matches!(
+                event.kind,
+                MouseEventKind::Down(MouseButton::Left) | MouseEventKind::Moved
+            ) || event.row == area.y
+                || self
+                    .painted_rows
+                    .borrow()
+                    .get(usize::from(event.row - area.y - 1))
+                    .is_some())
     }
 
     pub(crate) fn handle_mouse(&mut self, event: MouseEvent) -> bool {
@@ -272,7 +444,15 @@ impl SubagentStatusPanel {
         }
         match event.kind {
             MouseEventKind::Down(MouseButton::Left) if event.row == self.area.get().y => {
-                self.expanded = !self.expanded
+                self.toggle();
+            }
+            MouseEventKind::Down(MouseButton::Left) => {
+                let index = usize::from(event.row - self.area.get().y - 1);
+                let target = self.painted_rows.borrow().get(index).copied();
+                let Some(target) = target else {
+                    return false;
+                };
+                self.select(target);
             }
             MouseEventKind::ScrollDown if self.expanded => self.scroll(true),
             MouseEventKind::ScrollUp if self.expanded => self.scroll(false),
@@ -307,19 +487,45 @@ impl Renderable for SubagentStatusView<'_> {
     }
 
     fn render(&self, area: Rect, buf: &mut Buffer) {
-        self.panel.area.set(area);
         if area.is_empty() || self.panel.is_empty() {
+            self.panel.clear_painted();
+            self.panel.focused.set(false);
             return;
         }
         let entries = self.panel.entries();
+        let show_details = self.allow_expanded
+            && self.panel.expanded
+            && area.width >= 48
+            && usize::from(area.height) > entries.len().min(MAX_AGENT_ROWS);
+        if !show_details {
+            self.panel.focused.set(false);
+        }
         let offset = self
             .panel
             .offset
             .min(entries.len().saturating_sub(MAX_AGENT_ROWS));
+        let painted_rows: Vec<_> = if show_details {
+            entries
+                .iter()
+                .skip(offset)
+                .take(MAX_AGENT_ROWS)
+                .map(|entry| entry.thread_id)
+                .collect()
+        } else {
+            Vec::new()
+        };
+        if self.panel.area.get() != area || *self.panel.painted_rows.borrow() != painted_rows {
+            self.panel.clear_hover();
+        }
+        self.panel.area.set(area);
+        *self.panel.painted_rows.borrow_mut() = painted_rows;
+        let hovered = self.panel.hovered.get();
         let summary = self.panel.visible_summary();
         let mut line = summary.line(area.width);
+        let click_hint = format!(" · {}", message("r37-agents-click", &[]));
+        let mut hint = click_hint.clone();
         if area.width >= 40 {
-            let mut hint = format!(
+            let keyboard_hint = format!(
                 " · {}",
                 message(
                     if self.panel.expanded {
@@ -327,27 +533,73 @@ impl Renderable for SubagentStatusView<'_> {
                     } else {
                         "r36-agents-expand"
                     },
-                    &[]
+                    &[],
                 )
             );
+            hint = keyboard_hint.clone();
+            if hovered == Some(SubagentHover::Summary) {
+                hint = format!(
+                    " · {}",
+                    message(
+                        if self.panel.expanded {
+                            "r37-agents-click-collapse"
+                        } else {
+                            "r37-agents-click-expand"
+                        },
+                        &[],
+                    )
+                );
+                if Line::from(format!("{hint}{keyboard_hint}")).width() + 14
+                    < usize::from(area.width)
+                {
+                    hint.push_str(&keyboard_hint);
+                }
+            } else {
+                if show_details && self.panel.focused.get() {
+                    let selection = format!(" · {}", message("r37-agents-select", &[]));
+                    if Line::from(format!("{hint}{selection}")).width() + 14
+                        < usize::from(area.width)
+                    {
+                        hint.push_str(&selection);
+                    }
+                }
+                if Line::from(format!("{hint}{click_hint}")).width() + 14 < usize::from(area.width)
+                {
+                    hint.push_str(&click_hint);
+                }
+            }
             if self.panel.expanded && entries.len() > MAX_AGENT_ROWS {
-                hint.push_str(&format!(" [{}/{}]", offset + 1, entries.len()));
+                let position = format!(" [{}/{}]", offset + 1, entries.len());
+                if Line::from(format!("{hint}{position}")).width() + 14 < usize::from(area.width) {
+                    hint.push_str(&position);
+                }
                 let scroll = format!(" · {}", message("r36-agents-scroll", &[]));
                 if Line::from(format!("{hint}{scroll}")).width() + 28 < usize::from(area.width) {
                     hint.push_str(&scroll);
                 }
             }
-            let hint_width = Line::from(hint.as_str()).width();
-            if hint_width + 14 < usize::from(area.width) {
-                line = summary.line(area.width.saturating_sub(hint_width as u16));
-                line.push_span(hint.dim());
-            }
+        }
+        let hint_width = Line::from(hint.as_str()).width();
+        if hint_width + 14 < usize::from(area.width) {
+            line = summary.line(area.width.saturating_sub(hint_width as u16));
+            line.push_span(hint.dim());
+        }
+        if hovered == Some(SubagentHover::Summary) {
+            line = line.reversed().underlined();
         }
         let mut lines = vec![line];
-        if self.allow_expanded && self.panel.expanded && area.width >= 48 {
-            for entry in entries.iter().skip(offset).take(MAX_AGENT_ROWS) {
+        if show_details {
+            for entry in entries
+                .iter()
+                .skip(offset)
+                .take(MAX_AGENT_ROWS.min(usize::from(area.height - 1)))
+            {
                 let name = crate::text_formatting::truncate_text(&entry.name, 24);
-                let mut detail = format!("  {name} · {}", text(entry.state.label()));
+                let selected =
+                    self.panel.focused.get() && self.panel.selected == Some(entry.thread_id);
+                let hovered = hovered == Some(SubagentHover::Agent(entry.thread_id));
+                let marker = if selected { "›" } else { " " };
+                let mut detail = format!("{marker} {name} · {}", text(entry.state.label()));
                 detail.push_str(&format!(
                     " · {}",
                     entry
@@ -370,20 +622,34 @@ impl Renderable for SubagentStatusView<'_> {
                             .as_secs()
                             .checked_sub(started)
                     });
-                let suffix = elapsed
-                    .map(|seconds| {
-                        format!(
-                            " · {}",
-                            crate::status_indicator_widget::fmt_elapsed_compact(seconds)
-                        )
-                    })
-                    .unwrap_or_default();
+                let mut suffix = if hovered {
+                    format!(" · {}", message("r37-agents-click-open", &[]))
+                } else {
+                    String::new()
+                };
+                suffix.push_str(
+                    &elapsed
+                        .map(|seconds| {
+                            format!(
+                                " · {}",
+                                crate::status_indicator_widget::fmt_elapsed_compact(seconds)
+                            )
+                        })
+                        .unwrap_or_default(),
+                );
+                let suffix_width = Line::from(suffix.as_str()).width();
                 let mut line = truncate_line_with_ellipsis_if_overflow(
                     Line::from(detail.dim()),
-                    usize::from(area.width).saturating_sub(suffix.len()),
+                    usize::from(area.width).saturating_sub(suffix_width),
                 );
                 line.push_span(suffix.dim());
-                lines.push(line);
+                lines.push(if hovered {
+                    line.reversed().underlined()
+                } else if selected {
+                    line.reversed()
+                } else {
+                    line
+                });
             }
         }
         Paragraph::new(lines).render(area, buf);
@@ -401,6 +667,7 @@ mod tests {
         };
         for index in 0..count {
             summary.add_entry(SubagentStatusEntry {
+                thread_id: ThreadId::new(),
                 name: format!("worker-{index:03}"),
                 state: SubagentState::Running,
                 task: Some("Checking focused tests".to_string()),
@@ -426,6 +693,319 @@ mod tests {
             height,
             buffer.content().iter().map(|cell| cell.symbol()).collect(),
         )
+    }
+
+    fn render_panel_at(panel: &SubagentStatusPanel, area: Rect) -> String {
+        let mut buffer = Buffer::empty(area);
+        panel.view(true).render(area, &mut buffer);
+        buffer.content().iter().map(|cell| cell.symbol()).collect()
+    }
+
+    fn click(column: u16, row: u16) -> MouseEvent {
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        }
+    }
+
+    // Skip the padding cells occupied by wide glyphs when reading a painted row.
+    fn hover_row_text(buffer: &Buffer, row: u16) -> String {
+        let area = buffer.area();
+        let mut column = area.x;
+        let mut text = String::new();
+        while column < area.right() {
+            let symbol = buffer[(column, row)].symbol();
+            text.push_str(symbol);
+            column += Line::from(symbol).width().max(1) as u16;
+        }
+        text
+    }
+
+    #[test]
+    fn footer_hover_reveals_localized_actions_without_selecting_or_repeated_changes() {
+        use ratatui::style::Modifier;
+        // Real frames reset their back buffer in Terminal::swap_buffers before rendering.
+        for (locale, click_hint, expand_hint, collapse_hint, open_hint) in [
+            (
+                crate::i18n::Locale::English,
+                "click",
+                "click expand",
+                "click collapse",
+                "click open chat",
+            ),
+            (
+                crate::i18n::Locale::Korean,
+                "클릭",
+                "클릭 펼치기",
+                "클릭 접기",
+                "클릭 대화 이동",
+            ),
+        ] {
+            crate::i18n::with_locale(locale, || {
+                let root = ThreadId::new();
+                let summary = summary_with_agents(15, root);
+                let child = summary.entries[0].thread_id;
+                let mut panel = SubagentStatusPanel::default();
+                panel.update(summary);
+                let area = Rect::new(7, 11, 120, 1);
+                let mut buffer = Buffer::empty(area);
+                buffer.reset();
+                panel.view(true).render(area, &mut buffer);
+                let text = hover_row_text(&buffer, 11);
+                assert!(text.contains(click_hint));
+                let moved = MouseEvent {
+                    kind: MouseEventKind::Moved,
+                    ..click(9, 11)
+                };
+                assert!(panel.handle_hover(moved));
+                assert!(!panel.handle_hover(MouseEvent {
+                    column: 10,
+                    ..moved
+                }));
+                buffer.reset();
+                panel.view(true).render(area, &mut buffer);
+                assert!(buffer[(7, 11)].modifier.contains(Modifier::REVERSED));
+                let text = hover_row_text(&buffer, 11);
+                assert!(text.contains(expand_hint));
+                assert_eq!(panel.take_selection(), None);
+                assert!(!panel.owns_selection_key(KeyCode::Enter.into()));
+                assert!(panel.handle_mouse(click(9, 11)));
+                assert!(panel.handle_key(KeyCode::Esc.into()));
+                let area = Rect { height: 4, ..area };
+                let mut buffer = Buffer::empty(area);
+                buffer.reset();
+                panel.view(true).render(area, &mut buffer);
+                assert!(panel.handle_hover(moved));
+                buffer.reset();
+                panel.view(true).render(area, &mut buffer);
+                assert!(hover_row_text(&buffer, 11).contains(collapse_hint));
+                let moved = MouseEvent { row: 12, ..moved };
+                assert!(panel.handle_hover(moved));
+                assert!(!panel.handle_hover(MouseEvent {
+                    column: 10,
+                    ..moved
+                }));
+                buffer.reset();
+                panel.view(true).render(area, &mut buffer);
+                let row = hover_row_text(&buffer, 12);
+                assert!(row.contains(open_hint), "{row}");
+                assert!(
+                    buffer[(7, 12)]
+                        .modifier
+                        .contains(Modifier::REVERSED | Modifier::UNDERLINED)
+                );
+                assert_eq!(panel.take_selection(), None);
+                assert!(!panel.owns_selection_key(KeyCode::Enter.into()));
+                assert!(panel.handle_hover(MouseEvent { column: 6, ..moved }));
+                assert!(!panel.handle_hover(MouseEvent { column: 5, ..moved }));
+                buffer.reset();
+                panel.view(true).render(area, &mut buffer);
+                assert!(!buffer[(7, 12)].modifier.contains(Modifier::REVERSED));
+                assert!(panel.handle_mouse(click(9, 12)));
+                assert_eq!(panel.take_selection(), Some((root, child)));
+            });
+        }
+    }
+
+    #[test]
+    fn footer_hover_invalidates_scroll_reorder_resize_removed_and_root_rows() {
+        let mut summary = summary_with_agents(15, ThreadId::new());
+        let mut panel = SubagentStatusPanel::default();
+        panel.update(summary.clone());
+        panel.handle_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT));
+        let area = Rect::new(7, 11, 120, 4);
+        let moved = MouseEvent {
+            kind: MouseEventKind::Moved,
+            ..click(9, 12)
+        };
+        render_panel_at(&panel, area);
+        assert!(panel.handle_hover(moved));
+        assert!(panel.hovered.get().is_some());
+        panel.scroll(true);
+        assert!(panel.hovered.get().is_none());
+        assert!(
+            !panel.handle_hover(moved),
+            "unpainted scrolled rows cannot be hovered"
+        );
+        render_panel_at(&panel, area);
+        assert!(panel.handle_hover(moved));
+        summary.entries[14].state = SubagentState::NeedsInput;
+        panel.update(summary.clone());
+        assert!(panel.hovered.get().is_none());
+        assert!(!panel.handle_hover(moved));
+        render_panel_at(&panel, area);
+        assert!(panel.handle_hover(moved));
+        render_panel_at(
+            &panel,
+            Rect {
+                width: 47,
+                height: 1,
+                ..area
+            },
+        );
+        assert!(panel.hovered.get().is_none());
+        assert!(!panel.handle_hover(moved));
+        render_panel_at(&panel, area);
+        assert!(panel.handle_hover(moved));
+        let hovered = panel.painted_rows.borrow()[0];
+        summary.entries.retain(|entry| entry.thread_id != hovered);
+        panel.update(summary);
+        assert!(panel.hovered.get().is_none());
+        assert!(!panel.handle_hover(moved));
+        render_panel_at(&panel, area);
+        assert!(panel.handle_hover(moved));
+        panel.update(summary_with_agents(15, ThreadId::new()));
+        assert!(panel.hovered.get().is_none());
+        assert!(!panel.handle_hover(moved));
+        panel.clear_painted();
+        assert!(!panel.handle_hover(MouseEvent { row: 11, ..moved }));
+    }
+
+    #[test]
+    fn footer_hover_discoverability_keeps_narrow_width_and_three_detail_rows() {
+        for locale in [crate::i18n::Locale::English, crate::i18n::Locale::Korean] {
+            crate::i18n::with_locale(locale, || {
+                for width in [0, 1, 14, 24, 47, 80, 120] {
+                    let mut panel = SubagentStatusPanel::default();
+                    panel.update(summary_with_agents(15, ThreadId::new()));
+                    let height = panel.view(true).desired_height(width);
+                    let area = Rect::new(0, 0, width, height);
+                    let mut buffer = Buffer::empty(area);
+                    panel.view(true).render(area, &mut buffer);
+                    let text = if height > 0 {
+                        hover_row_text(&buffer, 0)
+                    } else {
+                        String::new()
+                    };
+                    assert_eq!(height, u16::from(width > 0));
+                    if width >= 24 {
+                        let click = if locale == crate::i18n::Locale::English {
+                            "click"
+                        } else {
+                            "클릭"
+                        };
+                        assert!(text.contains(click), "{width}: {text}");
+                        assert!(text.contains("/subagents"), "{width}: {text}");
+                    }
+                    panel.handle_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT));
+                    let height = panel.view(true).desired_height(width);
+                    assert_eq!(height, if width >= 48 { 4 } else { u16::from(width > 0) });
+                    let area = Rect::new(7, 11, width, height);
+                    let mut buffer = Buffer::empty(Rect::new(0, 0, 140, 20));
+                    buffer[(area.right(), 11)].set_symbol("#");
+                    panel.view(true).render(area, &mut buffer);
+                    panel.handle_hover(MouseEvent {
+                        kind: MouseEventKind::Moved,
+                        ..click(7, 11)
+                    });
+                    panel.view(true).render(area, &mut buffer);
+                    assert_eq!(buffer[(area.right(), 11)].symbol(), "#");
+                    assert!(panel.painted_rows.borrow().len() <= MAX_AGENT_ROWS);
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn footer_click_selects_painted_ids_after_priority_sort_and_scroll_at_terminal_offset() {
+        let root = ThreadId::new();
+        let mut summary = summary_with_agents(15, root);
+        let attention = summary.entries[14].thread_id;
+        let failed = summary.entries[13].thread_id;
+        let first_running = summary.entries[0].thread_id;
+        summary.entries[14].state = SubagentState::NeedsInput;
+        summary.entries[13].state = SubagentState::Failed;
+        let mut panel = SubagentStatusPanel::default();
+        panel.update(summary);
+        panel.handle_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT));
+        let area = Rect::new(7, 11, 120, 4);
+        let text = render_panel_at(&panel, area);
+        assert!(text.find("worker-014").unwrap() < text.find("worker-013").unwrap());
+        assert!(panel.handle_mouse(click(9, 12)));
+        assert_eq!(panel.take_selection(), Some((root, attention)));
+        assert!(panel.handle_mouse(click(9, 13)));
+        assert_eq!(panel.take_selection(), Some((root, failed)));
+        assert!(!panel.handle_mouse(click(6, 13)));
+        assert!(panel.handle_mouse(MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            ..click(9, 13)
+        }));
+        assert!(
+            !panel.handle_mouse(click(9, 13)),
+            "scroll invalidates old row mapping before repaint"
+        );
+        render_panel_at(&panel, area);
+        assert!(panel.handle_mouse(click(9, 13)));
+        assert_eq!(panel.take_selection(), Some((root, first_running)));
+    }
+
+    #[test]
+    fn footer_keyboard_focus_preserves_identity_across_reorder_and_rejects_removed_hidden_rows() {
+        let root = ThreadId::new();
+        let mut summary = summary_with_agents(15, root);
+        let selected = summary.entries[1].thread_id;
+        let mut panel = SubagentStatusPanel::default();
+        panel.update(summary.clone());
+        panel.handle_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT));
+        render_panel(&panel, 120, true);
+        assert!(panel.handle_key(KeyCode::Down.into()));
+        summary.entries[1].state = SubagentState::NeedsApproval;
+        panel.update(summary.clone());
+        assert!(
+            !panel.handle_mouse(click(0, 1)),
+            "metadata updates invalidate the old painted rows"
+        );
+        render_panel(&panel, 120, true);
+        assert!(panel.handle_key(KeyCode::Enter.into()));
+        assert_eq!(panel.take_selection(), Some((root, selected)));
+        panel.focused.set(true);
+        summary.entries.retain(|entry| entry.thread_id != selected);
+        panel.update(summary);
+        render_panel(&panel, 120, true);
+        assert!(panel.handle_key(KeyCode::Enter.into()));
+        assert_eq!(
+            panel.take_selection(),
+            None,
+            "removal must not select the replacement row"
+        );
+        render_panel(&panel, 47, true);
+        assert!(!panel.handle_mouse(click(0, 1)));
+        assert!(
+            !panel.handle_key(KeyCode::Enter.into()),
+            "hidden details release keyboard focus"
+        );
+        panel.focused.set(true);
+        render_panel_at(&panel, Rect::new(0, 0, 120, 2));
+        assert!(!panel.owns_selection_key(KeyCode::Enter.into()));
+        assert!(
+            !panel.handle_mouse(click(0, 1)),
+            "a clipped footer never leaves selectable hidden rows"
+        );
+        panel.update(summary_with_agents(15, ThreadId::new()));
+        assert!(!panel.handle_mouse(click(0, 1)));
+        assert_eq!(panel.take_selection(), None);
+    }
+
+    #[test]
+    fn footer_focused_hints_keep_collapse_and_selection_before_optional_scroll_in_both_languages() {
+        for locale in [crate::i18n::Locale::English, crate::i18n::Locale::Korean] {
+            crate::i18n::with_locale(locale, || {
+                let mut panel = SubagentStatusPanel::default();
+                panel.update(summary_with_agents(15, ThreadId::new()));
+                panel.handle_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT));
+                for width in [80, 100, 120] {
+                    let (height, text) = render_panel(&panel, width, true);
+                    assert_eq!(height, 4);
+                    assert!(text.contains("alt+s"), "{width}: {text}");
+                    assert!(
+                        text.contains("enter") && text.contains("esc"),
+                        "{width}: {text}"
+                    );
+                }
+            });
+        }
     }
 
     #[test]
@@ -485,6 +1065,7 @@ mod tests {
             ),
         ] {
             summary.add_entry(SubagentStatusEntry {
+                thread_id: ThreadId::new(),
                 name: name.to_string(),
                 state,
                 task: None,
@@ -547,7 +1128,9 @@ mod tests {
         render_panel(&panel, 100, true);
         assert!(panel.handle_mouse(mouse(MouseEventKind::ScrollDown, 5, 2)));
         assert_eq!(panel.offset, 1);
-        assert!(!panel.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 5, 2)));
+        render_panel(&panel, 100, true);
+        assert!(panel.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 5, 2)));
+        assert!(panel.take_selection().is_some());
         assert!(panel.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 5, 0)));
         assert!(!panel.expanded);
     }
@@ -560,6 +1143,7 @@ mod tests {
             ..Default::default()
         };
         summary.add_entry(SubagentStatusEntry {
+            thread_id: ThreadId::new(),
             name: "finished-agent".to_string(),
             state: SubagentState::Completed,
             task: Some("Done".to_string()),

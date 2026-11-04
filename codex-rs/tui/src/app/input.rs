@@ -410,6 +410,13 @@ impl App {
         if self.chat_widget.fork_in_progress {
             return;
         }
+        if self.chat_widget.subagent_selection_owns_key(key_event) {
+            let action = self
+                .chat_widget
+                .handle_key_event_with_activation_key(key_event, activation_key);
+            self.handle_clipboard_key_action(tui, action);
+            return;
+        }
         if self.chat_widget.is_external_writer_view()
             && self.overlay.is_none()
             && self.chat_widget.no_modal_or_popup_active()

@@ -1,7 +1,7 @@
 //! UI-only language selection. Never apply this dictionary to prompts, tool arguments,
 //! slash command tokens, paths, or text supplied by the user or a server.
 //!
-//! `CODEX_UI_LANGUAGE=ko|en` overrides the saved base user `ui_language`; default is English.
+//! `CODEX_UI_LANGUAGE=ko|en` overrides the client preference (with legacy base fallback).
 //! Before startup initialization, library callers retain the original English strings.
 
 use std::io;
@@ -16,6 +16,19 @@ pub use catalog::message_for;
 pub use catalog::message_with_count;
 pub use catalog::message_with_count_for;
 pub use catalog::static_message;
+
+/// Explain an automatic fallback without discarding either executable path.
+pub fn daemon_selection_mismatch_warning(
+    mismatch: &codex_app_server_daemon::CliDaemonMismatch,
+) -> String {
+    message(
+        "daemon-auto-selected-mismatch",
+        &[
+            ("cli_path", &mismatch.cli_path.display().to_string()),
+            ("managed_path", &mismatch.managed_path.display().to_string()),
+        ],
+    )
+}
 
 static LOCALE: OnceLock<Locale> = OnceLock::new();
 
@@ -96,8 +109,35 @@ mod tests {
     use super::*;
 
     #[test]
+    fn daemon_selection_mismatch_warning_preserves_paths_and_guidance_in_both_languages() {
+        let mismatch = codex_app_server_daemon::CliDaemonMismatch {
+            cli_path: r"D:\CLI 실행\R37 build\codex.exe".into(),
+            managed_path: r"D:\공유 서버\old package\bin\codex.exe".into(),
+        };
+        for (locale, selected, client, preserved) in [
+            (
+                Locale::English,
+                r"selected shared server executable D:\공유 서버\old package\bin\codex.exe",
+                r"differs from this CLI D:\CLI 실행\R37 build\codex.exe",
+                "the shared installation was preserved",
+            ),
+            (
+                Locale::Korean,
+                r"선택된 공유 서버 실행 파일 D:\공유 서버\old package\bin\codex.exe",
+                r"현재 CLI D:\CLI 실행\R37 build\codex.exe와 다릅니다",
+                "공유 설치본은 보존했습니다",
+            ),
+        ] {
+            let warning = with_locale(locale, || daemon_selection_mismatch_warning(&mismatch));
+            assert!(warning.contains(selected), "{warning}");
+            assert!(warning.contains(client), "{warning}");
+            assert!(warning.contains(preserved), "{warning}");
+            assert!(warning.contains("codex app-server daemon update --from-cli --yes --no-force"));
+        }
+    }
+
+    #[test]
     fn saved_language_controls_ui_and_environment_override_never_writes_configuration() {
-        use crate::legacy_core::config::edit::ConfigEditsBuilder;
         use codex_config::ui_language::UiLanguage;
         let home = tempfile::tempdir().unwrap();
         assert_eq!(
@@ -108,10 +148,7 @@ mod tests {
             (UiLanguage::Korean, Locale::Korean, "작업 중"),
             (UiLanguage::English, Locale::English, "Working"),
         ] {
-            ConfigEditsBuilder::new(home.path())
-                .set_ui_language(saved)
-                .apply_blocking()
-                .unwrap();
+            codex_config::ui_language::write_user_ui_language(home.path(), saved).unwrap();
             assert_eq!(
                 locale_from_user_settings(home.path(), None).unwrap(),
                 expected
@@ -123,7 +160,9 @@ mod tests {
                 ),
                 rendered
             );
-            let path = home.path().join("config.toml");
+            let path = home
+                .path()
+                .join(codex_config::ui_language::CLIENT_PREFERENCES_FILE);
             let bytes = std::fs::read(&path).unwrap();
             assert_eq!(
                 locale_from_user_settings(home.path(), Some("en")).unwrap(),

@@ -290,6 +290,7 @@ impl InProcessClientSender {
 pub struct InProcessClientHandle {
     client: InProcessClientSender,
     supports_expected_turn_interrupt: Option<bool>,
+    supports_memory_note_scope: bool,
     event_rx: mpsc::Receiver<InProcessServerEvent>,
     runtime_handle: tokio::task::JoinHandle<()>,
     #[cfg(test)]
@@ -297,6 +298,9 @@ pub struct InProcessClientHandle {
 }
 
 impl InProcessClientHandle {
+    pub fn supports_memory_note_scope(&self) -> bool {
+        self.supports_memory_note_scope
+    }
     /// Capability observed in this runtime's successful initialize handshake.
     pub fn supports_expected_turn_interrupt(&self) -> Option<bool> {
         self.supports_expected_turn_interrupt
@@ -420,6 +424,9 @@ pub async fn start(mut args: InProcessStartArgs) -> IoResult<InProcessClientHand
         }
     };
     client.supports_expected_turn_interrupt = initialize_response.supports_expected_turn_interrupt;
+    client.supports_memory_note_scope = initialize_response
+        .opendiy_capabilities
+        .is_some_and(|capabilities| capabilities.memory_note_scope);
     client.notify(ClientNotification::Initialized)?;
 
     Ok(client)
@@ -862,6 +869,7 @@ async fn start_uninitialized(mut args: InProcessStartArgs) -> IoResult<InProcess
     Ok(InProcessClientHandle {
         client: InProcessClientSender { client_tx },
         supports_expected_turn_interrupt: None,
+        supports_memory_note_scope: false,
         event_rx,
         runtime_handle,
         #[cfg(test)]
@@ -964,6 +972,7 @@ mod tests {
     async fn in_process_start_initializes_and_handles_typed_v2_request() {
         let client = start_test_client(SessionSource::Cli).await;
         assert_eq!(client.supports_expected_turn_interrupt(), Some(true));
+        assert!(client.supports_memory_note_scope());
         let response = client
             .request(ClientRequest::ConfigRequirementsRead {
                 request_id: RequestId::Integer(1),
@@ -1124,6 +1133,7 @@ mod tests {
         let client = InProcessClientHandle {
             client: InProcessClientSender { client_tx },
             supports_expected_turn_interrupt: None,
+            supports_memory_note_scope: false,
             event_rx,
             runtime_handle,
             _test_codex_home: None,

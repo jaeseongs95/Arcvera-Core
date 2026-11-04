@@ -146,6 +146,7 @@ impl App {
                 event,
                 AppEvent::OpenAgentPicker
                     | AppEvent::SelectAgentThread(_)
+                    | AppEvent::SelectFooterAgent { .. }
                     | AppEvent::StartSide { .. }
                     | AppEvent::ForkCurrentSession { .. }
                     | AppEvent::StartManagedWorktree {
@@ -3186,6 +3187,14 @@ impl App {
             AppEvent::SelectAgentThread(thread_id) => {
                 self.select_agent_thread(tui, app_server, thread_id)
                     .await?;
+            }
+            AppEvent::SelectFooterAgent { root_thread_id, thread_id } => {
+                if self.primary_thread_id == Some(root_thread_id)
+                    && self.agent_navigation.status_summary(Some(root_thread_id), |id| self.side_threads.contains_key(&id)).contains_visible_thread(thread_id)
+                {
+                    self.select_agent_thread(tui, app_server, thread_id).await?;
+                    self.chat_widget.guard_footer_selection_enter();
+                }
             }
             AppEvent::StartSide {
                 parent_thread_id,
