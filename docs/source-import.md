@@ -1,3 +1,13 @@
+# R37 공개 소스 pin 후속 동기화
+
+고정 소스는 `8a3b7d35a83467504c59448087f27c7a5c0e0e9b`, 이전 공개 export 기준은 `8c0d816ec3c9256a02334c81a5e965b977ac187a`입니다. 이전 제품 후보 `89139fd7386eaebd9d0cff6ffccb8dc93c2859ea`에서 달라진 파일은 `codex-rs/cli/tests/ui_language.rs` 1개이며 제품 동작 변경은 없습니다. 기본값 false의 disable 키 제거 계약에 맞춰 오래된 시험 assertion을 바로잡았습니다. 이 공개 작업에서는 Cargo·컴파일·실행·설치를 수행하지 않습니다.
+
+R36 정식 발행·동결과 R37 개발 후보 상태를 유지합니다. 공동시험·수용·전체 독립감사·최종 릴리스는 미완료입니다. 기존 운영 관측 문서 제외, 합성 사례 문서 8개와 단일 Python 생성 wire API, 공식 patch·inventory·프롬프트 38개 계약을 유지합니다. 이번 공개 소스 검증의 명령·원시 출력·종료 코드는 별도 외부 기록 `public-source-verification-02`에 보존하며 아래 이전 후보의 검사 결과와 구분합니다.
+
+이번 pin의 공개 소스 검사: 표준 export·verify·test_verify·읽기 전용 9,475개 output 바이트 재현 비교·scoped diff-check는 각각 exit 0입니다. 회귀 시험은 19 PASS·이 Windows 호스트의 실제 symlink 생성 권한 skip 1이며 skip을 PASS로 세지 않습니다. 전체 diff-check는 provenance patch context/CRLF 판정으로 exit 2였고 원시 출력을 별도 보존했습니다. 공개 checkout 빌드·실행은 NOT_RUN입니다.
+
+## 이전 89139fd 공개 소스 기록
+
 # R37 공개 소스 개발 후보
 
 고정 제품 소스는 `89139fd7386eaebd9d0cff6ffccb8dc93c2859ea`, 이전 공개 기준은 `f04304b239491311e310ca86a2a812d138002917`입니다. 공식 0.166.0 기반과 기존 R36 변경을 유지하며 메모리 상태·동시 요청, daemon 실행, 서브에이전트 선택·화면 재생, 설정, 플러그인 캐시의 후속 변경을 포함합니다. 소스 전달용 개발 후보이며 최종 릴리스·설치 완료를 뜻하지 않습니다.

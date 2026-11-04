@@ -232,7 +232,7 @@ class VerifierChecks(unittest.TestCase):
         self.assertTrue(expected_docs.issubset(EXPORT.PREFIXES))
         self.assertNotIn('docs/r37-cache-observation-status.ko.md',EXPORT.PREFIXES)
         self.assertIn('sdk/python/src/openai_codex/generated/v2_all.py',EXPORT.PREFIXES)
-        self.assertEqual(EXPORT.PATCHED,'89139fd7386eaebd9d0cff6ffccb8dc93c2859ea')
+        self.assertEqual(EXPORT.PATCHED,'8a3b7d35a83467504c59448087f27c7a5c0e0e9b')
         self.assertEqual(EXPORT.notice('codex-rs/core-plugins/src/store.rs'),b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n')
         self.assertEqual(EXPORT.notice('sdk/python/src/openai_codex/generated/v2_all.py'),b'# Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n')
 

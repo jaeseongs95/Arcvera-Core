@@ -2,11 +2,11 @@
   "schema": 2,
   "upstream": "https://github.com/openai/codex",
   "officialVersion": "0.166.0",
-  "previousPublicCommit": "f04304b239491311e310ca86a2a812d138002917",
+  "previousPublicCommit": "8c0d816ec3c9256a02334c81a5e965b977ac187a",
   "officialCommit": "6ff1e1ca3b30fc8b914720681fcf5fe62e95f856",
-  "patchedCommit": "89139fd7386eaebd9d0cff6ffccb8dc93c2859ea",
+  "patchedCommit": "8a3b7d35a83467504c59448087f27c7a5c0e0e9b",
   "officialTree": "03f3b46689faf274f126dc78508ed238564da8ba",
-  "patchedTree": "cacc96f2cd0f6c21d987613767175e9a674996cb",
+  "patchedTree": "582184236972d5e4f64777348c30e5c8fed6661f",
   "selectedPrefixes": [
     "codex-rs",
     "third_party",
@@ -33,12 +33,12 @@
     "sdk/python/src/openai_codex/generated/v2_all.py"
   ],
   "patchPath": "upstream/official-0.166.0.patch",
-  "patchSha256": "ac7af58e16d4afad621e1e82ed1da2c56ee630ac824d634fdd63080997b7cd31",
-  "sourceInventorySha256": "5b6430565d200a9015333174961969e12e4516d75b0c95451fe38a88cde82d9a",
+  "patchSha256": "dd559db7b4cd840631a2fda415a8a903e0e10bb5327fb57a11630e17ee4e1940",
+  "sourceInventorySha256": "088655ea38864757318dd7a151b24e33f21544053ea35fd978a7a9092342f672",
   "windowsPromptInputsPath": "upstream/windows-prompt-inputs.json",
-  "windowsPromptInputsSha256": "7dbd6b062270fc1217c89f11950ae1fad9824af04ef804b576af822af7076b26",
+  "windowsPromptInputsSha256": "b454ff818a883136279c99473af33f9e001758872be91e186a508bea9dcc4d34",
   "sourceFileCount": 9470,
-  "publishedBytes": 94839029,
+  "publishedBytes": 94840075,
   "modifiedNoticeDate": "2026-11-01",
   "modifiedNoticeLabel": "R32",
   "modifiedFiles": [
@@ -1708,10 +1708,10 @@
     {
       "path": "codex-rs/cli/tests/ui_language.rs",
       "gitMode": "100644",
-      "gitBlob": "43cab880554fd0a0c6aaf193dc1e637f149d9cca",
-      "sourceSha256": "e702edf8f74b8e7b9c0b37d6260e771719462aa80a33b3f6d7bf68e8cf7f81c5",
-      "publishedSha256": "b68e820387c69c9129946a7d81dff091fdd4c6351b612c407158db1d72a685da",
-      "bytes": 10521,
+      "gitBlob": "2caace768219d90f50c3bb22cee92069c32aa078",
+      "sourceSha256": "a4f86053b0eb2d800f993f214fbb4a4cc7968d7f153c4e36aa3b41d1feb3bfae",
+      "publishedSha256": "6c62bb445802b2a35cb77f7ac032b64e50fa71e1e96201b3e4a77de2928c1aba",
+      "bytes": 11567,
       "modified": true,
       "noticeOnly": true
     },
@@ -7499,8 +7499,8 @@
   "preservedRepositoryDocuments": {
     "LICENSE": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc",
     "NOTICE": "56e8f508896d981a2c375183d4c4d92d390cc7b4541247932c615b8a4af8b67d",
-    "README.md": "22038c0dbad691c97cf527a9ecd7facdeb71a7917648f12a7a2cc03361170ec2",
-    "README.ko.md": "b795fd0b235f2c04dbbb19b5975671de4ec21f2ade73b92f83b6f5283ad8106c"
+    "README.md": "fede073bbdfc36eefb19f0f818a15053b4286c882a3734f56173b0b16154a818",
+    "README.ko.md": "a925cb87068ddea0a57c8e779321d9b8f37df661876974bedcc465618d5e75f1"
   },
   "limitations": [
     "This public export has not been built or run as a fresh public checkout.",
