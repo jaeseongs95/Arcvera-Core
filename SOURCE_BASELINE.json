@@ -2,11 +2,11 @@
   "schema": 2,
   "upstream": "https://github.com/openai/codex",
   "officialVersion": "0.166.0",
-  "previousPublicCommit": "0b24d5840e30cb9d2a6833d7ba34e153d52e231a",
+  "previousPublicCommit": "acb07520cd08c5ccfa928e7bca4222440ef3b96a",
   "officialCommit": "6ff1e1ca3b30fc8b914720681fcf5fe62e95f856",
-  "patchedCommit": "eef1403ad0574129457beab02fcc84ae79025a41",
+  "patchedCommit": "1b441423baf713d144647d5be37525f7d9cc03c0",
   "officialTree": "03f3b46689faf274f126dc78508ed238564da8ba",
-  "patchedTree": "1302483f3f26948068038237cbd4d75147c87872",
+  "patchedTree": "bda03d28bf9664d857211c64bacd70bfcdea133c",
   "selectedPrefixes": [
     "codex-rs",
     "third_party",
@@ -24,12 +24,12 @@
     "docs/r36-fast-compaction.ko.md"
   ],
   "patchPath": "upstream/official-0.166.0.patch",
-  "patchSha256": "06aaed099341d041483328e51ad0c2f1a52b4229ab5526573c2b86aac9653e94",
-  "sourceInventorySha256": "2b6f19aeaf43592d9ad2e4b1fb485203f5d7ea0fdd3e94408325f26c7f879566",
+  "patchSha256": "6e14f61bb6afdc1be127667b16a4c614391c20f59ded8557616c02be2574fbda",
+  "sourceInventorySha256": "0ff85927711647c3f35114c3d13f339b4e84de61c3d589372e4c51c6ac1ddc3a",
   "windowsPromptInputsPath": "upstream/windows-prompt-inputs.json",
-  "windowsPromptInputsSha256": "0d516dcba9b4de5e1e4d766debc735872a8bfca9ca4665f7de6313990ca75267",
+  "windowsPromptInputsSha256": "73b2cecbd81c5757111dae33f710cbda5c19a7141336a06bc0ec5763dd2617c9",
   "sourceFileCount": 9454,
-  "publishedBytes": 94064249,
+  "publishedBytes": 94086338,
   "modifiedNoticeDate": "2026-11-01",
   "modifiedNoticeLabel": "R32",
   "modifiedFiles": [
@@ -1519,10 +1519,10 @@
     {
       "path": "codex-rs/cli/src/ci.rs",
       "gitMode": "100644",
-      "gitBlob": "d50757bcc399e6908446b07131e59e434de777c2",
-      "sourceSha256": "a37552b647af90836201cf2b263b71cecb60ebdb25d6605875d588f37340befb",
-      "publishedSha256": "f9ad106876b2f78fd4e9cf3001f4f75c90e74ca104890c5a1a4cc5b8f07530f6",
-      "bytes": 17131,
+      "gitBlob": "5c13bb4a33029dcf79f9585b928d81940c36277a",
+      "sourceSha256": "5a5fd0ea85985077f6a2b1ebd65d49c68c8d2b5d799f660d19dad7035f4e03a5",
+      "publishedSha256": "ec7912995ca43f9acc53daec1ad70c110eabedea2a178248fe4b2b9162d5fb26",
+      "bytes": 22568,
       "modified": true,
       "noticeOnly": true
     },
@@ -1689,10 +1689,10 @@
     {
       "path": "codex-rs/cloud-tasks/src/env_detect_tests.rs",
       "gitMode": "100644",
-      "gitBlob": "db18521a963eb93ca74a3e1ec080a86f17453e86",
-      "sourceSha256": "60d316176bb53a65b5335f261d4c249e80496a8e3706d1c0f78f7a0b9ae7f930",
-      "publishedSha256": "954590e085e366b73cad67f736291058cee9cbcae55d20ca807e631f06c0990a",
-      "bytes": 16562,
+      "gitBlob": "8b487480f0398a88585e47285bbe96f5e9b78145",
+      "sourceSha256": "22bdd5b2b25f35550666fd431f2ccc464ecac40b33b94ce42d4533923d59bdfd",
+      "publishedSha256": "ba65b1fd12ccd555e21de7fb008a70cbe5371a8a4cd3bf4d7ec105c05679cabe",
+      "bytes": 29301,
       "modified": true,
       "noticeOnly": true
     },
@@ -3709,10 +3709,10 @@
     {
       "path": "codex-rs/thread-store/src/local/thread_history/read_tests.rs",
       "gitMode": "100644",
-      "gitBlob": "97b38f7afac9a9a5604eb015da7dddea675775d4",
-      "sourceSha256": "81e23599c9f2f572f6e100afb08b2a061ec6e54db0ba14fee3a6696981ee8656",
-      "publishedSha256": "c12526e260b94c943a9c0b5367125167fef7aeb2b136aebc340385f689008d8c",
-      "bytes": 73610,
+      "gitBlob": "5be45f7457171981399f6c8e87685720b223c26a",
+      "sourceSha256": "d9206ea0a22c90df6de3791f26dcdbbd19d63de20d07fbf6ab57aecac7f1323e",
+      "publishedSha256": "b45becefbb4afe8e0ca0fac996f4256d16e3e064aed6245351a855db0c0e5fb4",
+      "bytes": 77182,
       "modified": true,
       "noticeOnly": true
     },
@@ -3859,10 +3859,10 @@
     {
       "path": "codex-rs/tui/locales/en/r36-ci.ftl",
       "gitMode": "100644",
-      "gitBlob": "223cfe072391dc5e0abac7671bf31552b1fa1c42",
-      "sourceSha256": "2e4171c4dc68a4b384ba48ff18bdcc220d1e715360de0a8c13572db0927f714e",
-      "publishedSha256": "2e4171c4dc68a4b384ba48ff18bdcc220d1e715360de0a8c13572db0927f714e",
-      "bytes": 2204,
+      "gitBlob": "a4132806e56e4ac99bf63710929e16321721d137",
+      "sourceSha256": "95ff65387d02f619a541b0ad83390bdf340afc752326d53cc9197e72e315c86c",
+      "publishedSha256": "95ff65387d02f619a541b0ad83390bdf340afc752326d53cc9197e72e315c86c",
+      "bytes": 2354,
       "modified": true,
       "noticeOnly": false
     },
@@ -3969,10 +3969,10 @@
     {
       "path": "codex-rs/tui/locales/ko/r36-ci.ftl",
       "gitMode": "100644",
-      "gitBlob": "9dbadba4bd4e661cd9b5ab1566a4248b30651749",
-      "sourceSha256": "ef10a4a8bf5a54c548f5bc4e471b8908b0ff8eb63083b7097bddb0801ce5be80",
-      "publishedSha256": "ef10a4a8bf5a54c548f5bc4e471b8908b0ff8eb63083b7097bddb0801ce5be80",
-      "bytes": 2731,
+      "gitBlob": "6950f85cd78e87d89310f869091d0ec53201d55e",
+      "sourceSha256": "5e40538d2843204c66e94e7ea6354f847c535e5effc43bc65c55c05516478a5b",
+      "publishedSha256": "5e40538d2843204c66e94e7ea6354f847c535e5effc43bc65c55c05516478a5b",
+      "bytes": 2922,
       "modified": true,
       "noticeOnly": false
     },
@@ -7210,8 +7210,8 @@
   "preservedRepositoryDocuments": {
     "LICENSE": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc",
     "NOTICE": "56e8f508896d981a2c375183d4c4d92d390cc7b4541247932c615b8a4af8b67d",
-    "README.md": "255c09c4613c96016b483a5d10632d8faf454906c9e1923ebdac64a70b7529f7",
-    "README.ko.md": "6315f999f3b778ae22f125fe73415614083e3ee9123ccd34ceec722d07bf2885"
+    "README.md": "48c51c769f678688a9c06b049eee8883685cca4214ae8ac36446c360fc3b0d13",
+    "README.ko.md": "ef8ba40651dc82ebbd902c8d27c8b40e9ad2b3c1999795692bbb97837cf4d56b"
   },
   "limitations": [
     "This public export has not been built or run as a fresh public checkout.",

@@ -20,6 +20,7 @@ use codex_protocol::realtime::RealtimeTranscriptRole;
 use codex_rollout::RolloutItem;
 use codex_rollout::RolloutLine;
 use pretty_assertions::assert_eq;
+use sqlx::Connection;
 use tempfile::TempDir;
 
 use super::*;
@@ -555,14 +556,38 @@ async fn large_utf8_item_is_read_intact_as_a_single_page() {
         .unwrap();
     let single = sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(1)
+        .acquire_timeout(Duration::from_millis(50))
         .connect_lazy_with((*db.connect_options()).clone());
-    super::super::segment_paging::page_item_rows(
+    let held = single.acquire().await.unwrap();
+    let error = tokio::time::timeout(
+        Duration::from_secs(2),
+        super::super::segment_paging::page_item_rows(
+            &single,
+            &lineage,
+            &item_params(thread_id, Some("turn"), None, 1, SortDirection::Asc),
+        ),
+    )
+    .await
+    .expect("pool acquisition has a bounded deadline")
+    .err()
+    .expect("the only connection is held");
+    let ThreadStoreError::Internal { message } = error else {
+        panic!("pool timeout must remain a storage failure: {error:?}");
+    };
+    assert_eq!(
+        message,
+        "failed to access thread history: pool timed out while waiting for an open connection"
+    );
+    drop(held);
+    let recovered = super::super::segment_paging::page_item_rows(
         &single,
         &lineage,
         &item_params(thread_id, Some("turn"), None, 1, SortDirection::Asc),
     )
     .await
-    .expect("read releases transaction");
+    .expect("read recovers after the held connection is released");
+    assert_eq!(recovered.rows.len(), 1);
+    assert_eq!(recovered.rows[0].item.item_id, "agent-1");
     timeout_for_connection(&single).await;
     sqlx::query("DELETE FROM thread_history_projection_state WHERE thread_id = ?")
         .bind(thread_id.to_string())
@@ -581,6 +606,75 @@ async fn large_utf8_item_is_read_intact_as_a_single_page() {
         error,
         ThreadStoreError::HistoryProjectionUnavailable
     ));
+    timeout_for_connection(&single).await;
+}
+
+#[tokio::test]
+async fn item_page_reports_sqlite_busy_and_recovers_after_writer_releases() {
+    let (home, store, thread_id) = store_with_mode(ThreadHistoryMode::Paginated).await;
+    let db = history_db(&store).await;
+    insert_item(db, thread_id, "turn", "agent-busy", 11).await;
+    let lineage = store
+        .resolve_rollout_lineage_for_history_page(thread_id)
+        .await
+        .unwrap();
+
+    // WAL writers do not block readers. Use a separate fixture copy with an
+    // explicit rollback journal so BEGIN EXCLUSIVE deterministically blocks reads.
+    let copy = home.path().join("exclusive-history.sqlite");
+    sqlx::query("VACUUM INTO ?")
+        .bind(copy.to_str().unwrap())
+        .execute(db)
+        .await
+        .unwrap();
+    let options = (*db.connect_options())
+        .clone()
+        .filename(&copy)
+        .journal_mode(sqlx::sqlite::SqliteJournalMode::Delete)
+        .busy_timeout(Duration::from_millis(50));
+    let single = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(Duration::from_secs(1))
+        .connect_with(options.clone())
+        .await
+        .unwrap();
+    let mut writer = sqlx::SqliteConnection::connect_with(&options)
+        .await
+        .unwrap();
+    sqlx::query("BEGIN EXCLUSIVE")
+        .execute(&mut writer)
+        .await
+        .unwrap();
+    let error = tokio::time::timeout(
+        Duration::from_secs(2),
+        super::super::segment_paging::page_item_rows(
+            &single,
+            &lineage,
+            &item_params(thread_id, Some("turn"), None, 1, SortDirection::Asc),
+        ),
+    )
+    .await
+    .expect("SQLite busy wait has a bounded deadline")
+    .err()
+    .expect("exclusive writer blocks the real page read");
+    let ThreadStoreError::Internal { message } = error else {
+        panic!("SQLite busy must remain a storage failure: {error:?}");
+    };
+    assert!(message.starts_with("failed to access thread history: "));
+    assert!(message.contains("(code: 5)"), "{message}");
+    assert!(message.contains("database is locked"), "{message}");
+    assert!(!message.contains("pool timed out"), "{message}");
+
+    sqlx::query("ROLLBACK").execute(&mut writer).await.unwrap();
+    let recovered = super::super::segment_paging::page_item_rows(
+        &single,
+        &lineage,
+        &item_params(thread_id, Some("turn"), None, 1, SortDirection::Asc),
+    )
+    .await
+    .expect("same page recovers after exclusive writer rollback");
+    assert_eq!(recovered.rows.len(), 1);
+    assert_eq!(recovered.rows[0].item.item_id, "agent-busy");
     timeout_for_connection(&single).await;
 }
 
