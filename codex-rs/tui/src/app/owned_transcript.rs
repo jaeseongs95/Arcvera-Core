@@ -632,26 +632,32 @@ impl App {
             })
         ) && self.enter_returns_to_latest()
             && self.transcript_view.can_return_to_latest();
+        // Voice conflict checks scan the keymap. Resolve contexts only for matching shortcuts,
+        // once per event, so ordinary paste keys and releases do not repeat that scan.
+        let mut shortcut_contexts = None;
         if let TuiEvent::Key(key) = event
+            && key.kind != KeyEventKind::Release
             && !self.transcript_view.has_active_interaction()
             && keymap_action_ids().any(|action| {
                 action.context != KeymapContext::Pager
                     && !matches!(action.action, "find_transcript" | "focus_activity")
-                    && self.active_keymap_contexts().contains_action(action)
                     && !(empty_enter_returns_to_latest
                         && action.context == KeymapContext::Composer
                         && action.action == "submit")
-                    && ((key.modifiers.is_empty()
-                        && matches!(key.code, KeyCode::PageUp | KeyCode::PageDown))
-                        || crate::transcript_view::JumpTarget::from_key(*key).is_some()
-                        || configured_binding_for_action(&self.local_settings.tui.keymap, action)
-                            .is_some_and(std::option::Option::is_some))
                     && bindings_for_action(
                         &self.keymap,
                         action.context.config_name(),
                         action.action,
                     )
                     .is_some_and(|bindings| bindings.is_pressed(*key))
+                    && ((key.modifiers.is_empty()
+                        && matches!(key.code, KeyCode::PageUp | KeyCode::PageDown))
+                        || crate::transcript_view::JumpTarget::from_key(*key).is_some()
+                        || configured_binding_for_action(&self.local_settings.tui.keymap, action)
+                            .is_some_and(std::option::Option::is_some))
+                    && shortcut_contexts
+                        .get_or_insert_with(|| self.active_keymap_contexts())
+                        .contains_action(action)
             })
         {
             return Ok(false);

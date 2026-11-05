@@ -93051,7 +93051,7 @@ index 3521543cd..01bf660e0 100644
 +    Ok(())
 +}
 diff --git a/codex-rs/tui/src/app/owned_transcript.rs b/codex-rs/tui/src/app/owned_transcript.rs
-index 312185ebd..7c777737e 100644
+index 312185ebd..b97bab995 100644
 --- a/codex-rs/tui/src/app/owned_transcript.rs
 +++ b/codex-rs/tui/src/app/owned_transcript.rs
 @@ -456,6 +456,12 @@ impl App {
@@ -93081,7 +93081,46 @@ index 312185ebd..7c777737e 100644
          // Read-only Escape belongs to session navigation, even when the transcript is scrolled.
          // Search and selection still consume Escape first to dismiss their interaction.
          if let TuiEvent::Key(key) = event
-@@ -766,7 +779,30 @@ impl App {
+@@ -618,26 +631,32 @@ impl App {
+             })
+         ) && self.enter_returns_to_latest()
+             && self.transcript_view.can_return_to_latest();
++        // Voice conflict checks scan the keymap. Resolve contexts only for matching shortcuts,
++        // once per event, so ordinary paste keys and releases do not repeat that scan.
++        let mut shortcut_contexts = None;
+         if let TuiEvent::Key(key) = event
++            && key.kind != KeyEventKind::Release
+             && !self.transcript_view.has_active_interaction()
+             && keymap_action_ids().any(|action| {
+                 action.context != KeymapContext::Pager
+                     && !matches!(action.action, "find_transcript" | "focus_activity")
+-                    && self.active_keymap_contexts().contains_action(action)
+                     && !(empty_enter_returns_to_latest
+                         && action.context == KeymapContext::Composer
+                         && action.action == "submit")
+-                    && ((key.modifiers.is_empty()
+-                        && matches!(key.code, KeyCode::PageUp | KeyCode::PageDown))
+-                        || crate::transcript_view::JumpTarget::from_key(*key).is_some()
+-                        || configured_binding_for_action(&self.local_settings.tui.keymap, action)
+-                            .is_some_and(std::option::Option::is_some))
+                     && bindings_for_action(
+                         &self.keymap,
+                         action.context.config_name(),
+                         action.action,
+                     )
+                     .is_some_and(|bindings| bindings.is_pressed(*key))
++                    && ((key.modifiers.is_empty()
++                        && matches!(key.code, KeyCode::PageUp | KeyCode::PageDown))
++                        || crate::transcript_view::JumpTarget::from_key(*key).is_some()
++                        || configured_binding_for_action(&self.local_settings.tui.keymap, action)
++                            .is_some_and(std::option::Option::is_some))
++                    && shortcut_contexts
++                        .get_or_insert_with(|| self.active_keymap_contexts())
++                        .contains_action(action)
+             })
+         {
+             return Ok(false);
+@@ -766,7 +785,30 @@ impl App {
          tui: &mut tui::Tui,
          app_server: &mut AppServerSession,
      ) {
@@ -95235,7 +95274,7 @@ index 4a9461199..ae796e6e1 100644
                  Codex exits to update in this terminal. Relaunch it afterward.
  
 diff --git a/codex-rs/tui/src/app/snapshots/codex_tui__app__owned_transcript__empty_state_animation_tests__fresh_thread_header.snap b/codex-rs/tui/src/app/snapshots/codex_tui__app__owned_transcript__empty_state_animation_tests__fresh_thread_header.snap
-index 789d6e4bd..dca92f1ae 100644
+index 789d6e4bd..43ca4dbf5 100644
 --- a/codex-rs/tui/src/app/snapshots/codex_tui__app__owned_transcript__empty_state_animation_tests__fresh_thread_header.snap
 +++ b/codex-rs/tui/src/app/snapshots/codex_tui__app__owned_transcript__empty_state_animation_tests__fresh_thread_header.snap
 @@ -1,10 +1,11 @@
@@ -95247,7 +95286,7 @@ index 789d6e4bd..dca92f1ae 100644
  enabled:
  
 -  >_ OpenAI Codex (v0.0.0)
-+  >_ OpenAI Codex (v0.165.0+native-r30.20261030)
++  >_ OpenAI Codex (v0.166.0+native-r37.20261104)
       /tmp/project
  
  
@@ -95256,7 +95295,7 @@ index 789d6e4bd..dca92f1ae 100644
  disabled:
  
 -  >_ OpenAI Codex (v0.0.0)
-+  >_ OpenAI Codex (v0.165.0+native-r30.20261030)
++  >_ OpenAI Codex (v0.166.0+native-r37.20261104)
       /tmp/project
  
  

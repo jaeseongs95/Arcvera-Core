@@ -2,11 +2,11 @@
   "schema": 2,
   "upstream": "https://github.com/openai/codex",
   "officialVersion": "0.166.0",
-  "previousPublicCommit": "58f27ade078e05bdf0a9adb20081185084ad3f47",
+  "previousPublicCommit": "503929629651a6b91f20261af4e3f2d874b2fa3f",
   "officialCommit": "6ff1e1ca3b30fc8b914720681fcf5fe62e95f856",
-  "patchedCommit": "202768e4752f9884fb67d17679162cf7a6cb31e8",
+  "patchedCommit": "2289ae3aa847cd64e7e987f56180160ce67a8694",
   "officialTree": "03f3b46689faf274f126dc78508ed238564da8ba",
-  "patchedTree": "ec55d15829f96dd78e898c9ea48de20ec8dc1898",
+  "patchedTree": "dde51804a871392e066b064c4d438d30ddcbb611",
   "selectedPrefixes": [
     "codex-rs",
     "third_party",
@@ -33,12 +33,12 @@
     "sdk/python/src/openai_codex/generated/v2_all.py"
   ],
   "patchPath": "upstream/official-0.166.0.patch",
-  "patchSha256": "655f49098f31cc9a2bcf8e70ecc112e35c646e048e75d8b85d7049d5b4647cf0",
-  "sourceInventorySha256": "05d248c7774491ca79f32cfb64d3aeaf8401a3ae0d5b52a84ec30737fe17b329",
+  "patchSha256": "b215db93451be06107b547806714d59b9e6ea0f2f79dd524564070e1fc306a6a",
+  "sourceInventorySha256": "c772cddf467c8899f087599996638c8a8867c8697dacb77ee62bec46fa9925ca",
   "windowsPromptInputsPath": "upstream/windows-prompt-inputs.json",
-  "windowsPromptInputsSha256": "8dd363d8a0243901fca46e2777a2c2a5ee7b4adc29d7ac9790e464768f9b0f0d",
+  "windowsPromptInputsSha256": "8cd860fdbb40008731b78507c87ac98bd6390125377b5554ba8b723409eea740",
   "sourceFileCount": 9470,
-  "publishedBytes": 94855895,
+  "publishedBytes": 94856261,
   "modifiedNoticeDate": "2026-11-01",
   "modifiedNoticeLabel": "R32",
   "modifiedFiles": [
@@ -4468,10 +4468,10 @@
     {
       "path": "codex-rs/tui/src/app/owned_transcript.rs",
       "gitMode": "100644",
-      "gitBlob": "7c777737e956842815205ce2c93fceae0ac46fa6",
-      "sourceSha256": "44ae6f9b123e4856756c18e33c3d11c381cb95bb4ad396b4b4df54d13c307fd4",
-      "publishedSha256": "e743ccc197ddc1523cca34e656764ee9bae59acf8088758d14ce12d34ce1db87",
-      "bytes": 37007,
+      "gitBlob": "b97bab9950e5c176337b8f4a50add8f18491cab8",
+      "sourceSha256": "ed307f87b6e3517f9c1ed796e2c4e3621525d0286560884c30ae1e8d7d7de656",
+      "publishedSha256": "74f9156d53297fe9813bd7e625dbc30613e2c925b755578d38e807d2e5523d05",
+      "bytes": 37373,
       "modified": true,
       "noticeOnly": true
     },
@@ -4578,9 +4578,9 @@
     {
       "path": "codex-rs/tui/src/app/snapshots/codex_tui__app__owned_transcript__empty_state_animation_tests__fresh_thread_header.snap",
       "gitMode": "100644",
-      "gitBlob": "dca92f1aed0ee1ee91d93cf67a3eebb44f74b6ad",
-      "sourceSha256": "f841da9a566a273c8af25f904cfb68d6217faf537c07d7d1a465114b6d4302c5",
-      "publishedSha256": "f841da9a566a273c8af25f904cfb68d6217faf537c07d7d1a465114b6d4302c5",
+      "gitBlob": "43ca4dbf50cfdd2e5534ca90786e125a0e03044d",
+      "sourceSha256": "bc5c0a164102107866e730d591d1f3f46d170a14b124274f1f99fca7f3d614cf",
+      "publishedSha256": "bc5c0a164102107866e730d591d1f3f46d170a14b124274f1f99fca7f3d614cf",
       "bytes": 2780,
       "modified": true,
       "noticeOnly": false
@@ -7499,8 +7499,8 @@
   "preservedRepositoryDocuments": {
     "LICENSE": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc",
     "NOTICE": "56e8f508896d981a2c375183d4c4d92d390cc7b4541247932c615b8a4af8b67d",
-    "README.md": "bee7518a09cd1022c40f7292bfc9d519b2e7814bae897dfef5b497a1e3722a5f",
-    "README.ko.md": "86dc74daa78a4c7da2c9cdece72c7d608cedbcf1defdc2e593783d475de957bd"
+    "README.md": "f0c6915e20264bd369dabe67e6b1517da21e25f15aedfbcdb52a3e54ab183ccf",
+    "README.ko.md": "badb0d56ef3f103527465b495f4c77833bb3bf84595fedc7ccd2aa67d8635bf0"
   },
   "limitations": [
     "This public export has not been built or run as a fresh public checkout.",

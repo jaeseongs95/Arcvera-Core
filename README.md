@@ -10,7 +10,7 @@ An unofficial Windows edition of Codex CLI and Rust App Server. It repairs confi
 
 | Version | Official base | State |
 | --- | --- | --- |
-| R37 | 0.166.0 + selected upstream changes | Development source candidate pinned to `202768e4752f9884fb67d17679162cf7a6cb31e8`. Product dev-small binaries were built from `8a3b7d35a83467504c59448087f27c7a5c0e0e9b`; the later commit adds tests only and is not their build source. Joint testing, acceptance, independent audit, final release, publication, and installation remain incomplete. The public checkout has not been built or run. |
+| R37 | 0.166.0 + selected upstream changes | Development source pinned to `2289ae3aa847cd64e7e987f56180160ce67a8694`. The earlier dev-small baseline is `8a3b7d35a83467504c59448087f27c7a5c0e0e9b`; a separate diagnostic build includes the input-dispatch fix and passed 81 semantic regressions plus one English Desktop submission/save/restart-restore case. Remaining joint cases, full acceptance, fresh audit, final release and installation are incomplete. The public checkout has not been built or run. |
 | R36 | 0.166.0 + selected upstream changes | Published stable Windows release integrating R35 changes. Frozen after publication. |
 | R35 | 0.166.0 | Integrated into R36 without a separate release. |
 | R34 | 0.166.0 + selected upstream changes | Published Windows CLI, standalone App Server, and full package. Frozen after publication. |
