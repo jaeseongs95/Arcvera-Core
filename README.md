@@ -4,13 +4,13 @@
 
 An unofficial Windows edition of Codex CLI and Rust App Server. It repairs confirmed defects and reuses upstream functionality rather than duplicating it.
 
-[Download R36](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.166.0-r36.20261103) · [Build from source](docs/source-import.md) · [Validation](docs/TESTING.md) · [Changes](MODIFICATIONS.md)
+[Download latest release](https://github.com/jaeseongs95/opendiy-codex/releases/latest) · [Build from source](docs/source-import.md) · [Validation](docs/TESTING.md) · [Changes](MODIFICATIONS.md)
 
 ## Release status
 
 | Version | Official base | State |
 | --- | --- | --- |
-| R37 | 0.166.0 + selected upstream changes | Development source pinned to `2289ae3aa847cd64e7e987f56180160ce67a8694`. The earlier dev-small baseline is `8a3b7d35a83467504c59448087f27c7a5c0e0e9b`; separate test and diagnostic builds with the input-dispatch fix passed 81 semantic regressions and four Desktop submission/save/restart-restore scenarios: one submission and two independent submissions with the same body, each in English and Korean UI. The conditional busy-close scenario has no supported action in the tested Desktop candidate and remains unexecuted. Full acceptance, fresh audit, final release and installation are incomplete. The public checkout has not been built or run. |
+| R37 | 0.166.0 + selected upstream changes | Source pinned to `2289ae3aa847cd64e7e987f56180160ce67a8694`: daemon version selection guards, scoped memory writes and consolidation, shared language preferences, plugin cache handling, replay filtering, selectable subagent footer and input-dispatch fixes. Development tests include 81 input regressions and four Desktop submission/save/restart-restore scenarios in English and Korean UI. Managed Windows memory policy and the unsupported busy connection-close scenario remain outside that verified scope. Tagged release notes report final package verification; a source checkout or development test is not an installed release. |
 | R36 | 0.166.0 + selected upstream changes | Published stable Windows release integrating R35 changes. Frozen after publication. |
 | R35 | 0.166.0 | Integrated into R36 without a separate release. |
 | R34 | 0.166.0 + selected upstream changes | Published Windows CLI, standalone App Server, and full package. Frozen after publication. |
@@ -18,7 +18,7 @@ An unofficial Windows edition of Codex CLI and Rust App Server. It repairs confi
 | R32 | 0.166.0 | Historical package. |
 | R31 | 0.166.0 | No separate release; integrated into R32. |
 
-The current published executable release is [R36 (`v0.166.0-r36.20261103`)](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.166.0-r36.20261103). A merged R37 source PR or successful dev-small build does not mean its final binaries are published or installed. Publication does not establish which version is installed on this PC. The [R35 guide](docs/native-cli-r35.ko.md) describes the memory, language, and update changes now integrated into R36.
+Published Windows packages and checksums are listed in [Releases](https://github.com/jaeseongs95/opendiy-codex/releases). Source merges and development builds do not establish publication or the version installed on a PC. Check the tagged release notes for final binary validation and verify the executable path and version after installation. The [R35 guide](docs/native-cli-r35.ko.md) describes the memory, language, and update changes integrated into R36.
 
 ## Features
 
