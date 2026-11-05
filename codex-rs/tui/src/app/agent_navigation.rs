@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Multi-agent picker navigation and labeling state for the TUI app.
 //!
 //! This module exists to keep the pure parts of multi-agent navigation out of [`crate::app::App`].
@@ -168,6 +168,7 @@ impl AgentNavigationState {
             };
             let detail = self.footer_details.get(&thread_id);
             summary.add_entry(SubagentStatusEntry {
+                thread_id,
                 name: entry.agent_path.clone().unwrap_or_else(|| {
                     format_agent_picker_item_name(
                         entry.agent_nickname.as_deref(),

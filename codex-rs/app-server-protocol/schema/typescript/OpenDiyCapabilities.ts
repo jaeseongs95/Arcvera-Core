@@ -23,4 +23,9 @@ compactStartIfIdle: boolean,
  * Summary itemsView in thread/turns/list and resume.initialTurnsPage.
  * Does not imply passive subscription, materialized items, or a summary DTO.
  */
-historySummary: boolean, };
+historySummary: boolean,
+/**
+ * `thread/memory/note/add` honors an explicit scope without rebinding the thread.
+ * Clients must check this before sending a scope different from the pinned namespace.
+ */
+memoryNoteScope: boolean, };

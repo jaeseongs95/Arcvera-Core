@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! App-server session facade used by the TUI event loop.
 //!
 //! This module owns the typed JSON-RPC calls needed by the TUI and keeps
@@ -1811,26 +1811,85 @@ impl AppServerSession {
             .wrap_err("thread/memory/read failed in TUI")
     }
 
+    pub(crate) async fn memory_consolidate(
+        &mut self,
+        thread_id: ThreadId,
+        retry: bool,
+    ) -> Result<codex_app_server_protocol::ThreadMemoryConsolidateResponse> {
+        let request_id = self.next_request_id();
+        self.client
+            .request_typed(ClientRequest::ThreadMemoryConsolidate {
+                request_id,
+                params: codex_app_server_protocol::ThreadMemoryConsolidateParams {
+                    thread_id: thread_id.to_string(),
+                    retry,
+                },
+            })
+            .await
+            .wrap_err("thread/memory/consolidate failed in TUI")
+    }
+
     pub(crate) async fn memory_note_add(
         &mut self,
         thread_id: ThreadId,
         note: String,
     ) -> Result<codex_app_server_protocol::ThreadMemoryNoteAddResponse> {
+        self.memory_note_add_scoped(thread_id, note, None).await
+    }
+
+    pub(crate) async fn memory_note_add_scoped(
+        &mut self,
+        thread_id: ThreadId,
+        note: String,
+        scope: Option<codex_app_server_protocol::MemoryNoteScope>,
+    ) -> Result<codex_app_server_protocol::ThreadMemoryNoteAddResponse> {
         let state = self.memory_read(thread_id).await?;
         if matches!(state.status.as_deref(), Some("disabled" | "unavailable")) {
             color_eyre::eyre::bail!("{}", crate::i18n::message("controls-memory-disabled", &[]));
         }
+        let scope = match scope {
+            Some(requested) => {
+                let pinned_scope = match state.scope.as_deref() {
+                    Some("project") => Some(codex_app_server_protocol::MemoryNoteScope::Project),
+                    Some("global") => Some(codex_app_server_protocol::MemoryNoteScope::Global),
+                    _ => None,
+                };
+                if pinned_scope == Some(requested) {
+                    // Legacy servers already write safely to the selected namespace.
+                    None
+                } else if self.client.supports_memory_note_scope() {
+                    Some(requested)
+                } else {
+                    color_eyre::eyre::bail!(
+                        "{}",
+                        crate::i18n::message("controls-memory-note-scope-unsupported", &[])
+                    );
+                }
+            }
+            None => None,
+        };
         let request_id = self.next_request_id();
-        self.client
+        let response: codex_app_server_protocol::ThreadMemoryNoteAddResponse = self
+            .client
             .request_typed(ClientRequest::ThreadMemoryNoteAdd {
                 request_id,
                 params: codex_app_server_protocol::ThreadMemoryNoteAddParams {
                     thread_id: thread_id.to_string(),
                     note,
+                    scope,
                 },
             })
             .await
-            .wrap_err("thread/memory/note/add failed in TUI")
+            .wrap_err("thread/memory/note/add failed in TUI")?;
+        if let Some(expected) = scope
+            && (response.scope != Some(expected) || response.root.is_none())
+        {
+            color_eyre::eyre::bail!(
+                "{}",
+                crate::i18n::message("controls-memory-note-scope-unconfirmed", &[])
+            );
+        }
+        Ok(response)
     }
 
     pub(crate) async fn memory_reset(&mut self) -> Result<()> {

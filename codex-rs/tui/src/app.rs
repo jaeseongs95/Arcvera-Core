@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Top-level TUI application state and runtime wiring.
 //!
 //! This module owns the `App` struct, shared imports, and the high-level run loop that coordinates
@@ -1239,7 +1239,13 @@ impl App {
                         self.app_event_tx.send(AppEvent::LaunchExternalEditor);
                     }
                 }
-                TuiEvent::Mouse(mouse) => self.start_right_click_paste(tui, mouse),
+                TuiEvent::Mouse(mouse) => {
+                    if tui.is_owned_screen()
+                        || !self.chat_widget.handle_subagent_footer_mouse(mouse)
+                    {
+                        self.start_right_click_paste(tui, mouse);
+                    }
+                }
                 TuiEvent::FocusLost => {}
             }
         }

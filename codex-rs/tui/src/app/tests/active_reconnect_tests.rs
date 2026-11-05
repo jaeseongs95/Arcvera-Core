@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Active recovery keeps local input and policy while reusing ordinary thread resume.
 
 use super::*;
@@ -12,8 +12,18 @@ use tokio::net::TcpListener;
 
 use super::disconnect::serve_reconnect_requests;
 
-#[tokio::test]
-async fn reconnect_keeps_other_backend_mcp_cron_on_the_new_app_queue() -> Result<()> {
+#[test]
+fn reconnect_keeps_other_backend_mcp_cron_on_the_new_app_queue() -> Result<()> {
+    // Keep spawned MCP handlers on the same thread while the locale guard is active.
+    crate::i18n::with_locale(crate::i18n::Locale::Korean, || {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?
+            .block_on(reconnect_keeps_other_backend_mcp_cron_on_the_new_app_queue_in_korean())
+    })
+}
+
+async fn reconnect_keeps_other_backend_mcp_cron_on_the_new_app_queue_in_korean() -> Result<()> {
     use crate::app::backend_sessions::BackendSessions;
     use crate::dynamic_tools_mcp::{DynamicToolMcpServer, ThreadToolTransport, ToolServices};
 
@@ -160,7 +170,7 @@ async fn reconnect_keeps_other_backend_mcp_cron_on_the_new_app_queue() -> Result
         .await?
         .text()
         .await?;
-    assert!(failed.contains("예약 처리 결과 미확인"), "{failed}");
+    assert!(failed.contains("로컬 제어 결과 미확인"), "{failed}");
     // This is the same collection-wide handoff used immediately after finish_reconnect in startup.
     backends.update_tool_event_senders(&app.app_event_tx);
     assert!(old_sender.app_event_tx.is_closed());
@@ -321,7 +331,7 @@ async fn reconnect_keeps_other_backend_mcp_cron_on_the_new_app_queue() -> Result
         .text()
         .await?;
     assert!(
-        body.contains("TUI is reconnecting; tool was not sent"),
+        body.contains("TUI 재연결 중: 도구 요청을 보내지 않았습니다"),
         "{body}"
     );
     backends.shutdown().await?;

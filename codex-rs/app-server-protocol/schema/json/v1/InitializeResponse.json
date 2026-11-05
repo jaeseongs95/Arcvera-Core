@@ -18,6 +18,11 @@
           "description": "Summary itemsView in thread/turns/list and resume.initialTurnsPage. Does not imply passive subscription, materialized items, or a summary DTO.",
           "type": "boolean"
         },
+        "memoryNoteScope": {
+          "default": false,
+          "description": "`thread/memory/note/add` honors an explicit scope without rebinding the thread. Clients must check this before sending a scope different from the pinned namespace.",
+          "type": "boolean"
+        },
         "passiveSubscription": {
           "default": false,
           "description": "`thread/subscribePassive`: observe a loaded runtime without resuming pending work.",

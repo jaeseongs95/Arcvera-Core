@@ -4560,6 +4560,11 @@
           "description": "Summary itemsView in thread/turns/list and resume.initialTurnsPage. Does not imply passive subscription, materialized items, or a summary DTO.",
           "type": "boolean"
         },
+        "memoryNoteScope": {
+          "default": false,
+          "description": "`thread/memory/note/add` honors an explicit scope without rebinding the thread. Clients must check this before sending a scope different from the pinned namespace.",
+          "type": "boolean"
+        },
         "passiveSubscription": {
           "default": false,
           "description": "`thread/subscribePassive`: observe a loaded runtime without resuming pending work.",
@@ -16051,6 +16056,72 @@
           "path"
         ],
         "type": "object"
+      },
+      "MemoryConsolidationState": {
+        "properties": {
+          "finishedAt": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "inputWatermark": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastSuccessWatermark": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "leaseUntil": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "retryAt": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "startedAt": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "MemoryNoteScope": {
+        "enum": [
+          "project",
+          "global"
+        ],
+        "type": "string"
       },
       "MergeStrategy": {
         "enum": [

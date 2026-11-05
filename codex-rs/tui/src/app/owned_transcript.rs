@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Compose the owned transcript above the composer and route their selection gestures.
 //! Reserve a cleared row below activity and previews, immediately above the composer.
 //! Slash suggestions overlay already-painted rows so opening or closing them leaves transcript
@@ -457,6 +457,12 @@ impl App {
             return Ok(false);
         }
         if let TuiEvent::Mouse(mouse) = event {
+            if mouse.kind == crossterm::event::MouseEventKind::Moved
+                && self.chat_widget.handle_subagent_footer_mouse(*mouse)
+            {
+                // Hover must not dismiss transcript search/selection or repaint for every column.
+                return Ok(true);
+            }
             let composer_ready = self.chat_widget.prepare_composer_mouse(*mouse);
             if mouse.kind != crossterm::event::MouseEventKind::Moved {
                 let size = tui.prepare_draw_size()?;
@@ -548,6 +554,13 @@ impl App {
             tui.frame_requester().schedule_frame();
             return Ok(true);
         }
+        if let TuiEvent::Key(key) = event
+            && !self.transcript_view.has_active_interaction()
+            && self.chat_widget.subagent_selection_owns_key(*key)
+        {
+            // The focused footer owns navigation before history/backtrack or turn interruption.
+            return Ok(false);
+        }
         // Read-only Escape belongs to session navigation, even when the transcript is scrolled.
         // Search and selection still consume Escape first to dismiss their interaction.
         if let TuiEvent::Key(key) = event
@@ -619,26 +632,32 @@ impl App {
             })
         ) && self.enter_returns_to_latest()
             && self.transcript_view.can_return_to_latest();
+        // Voice conflict checks scan the keymap. Resolve contexts only for matching shortcuts,
+        // once per event, so ordinary paste keys and releases do not repeat that scan.
+        let mut shortcut_contexts = None;
         if let TuiEvent::Key(key) = event
+            && key.kind != KeyEventKind::Release
             && !self.transcript_view.has_active_interaction()
             && keymap_action_ids().any(|action| {
                 action.context != KeymapContext::Pager
                     && !matches!(action.action, "find_transcript" | "focus_activity")
-                    && self.active_keymap_contexts().contains_action(action)
                     && !(empty_enter_returns_to_latest
                         && action.context == KeymapContext::Composer
                         && action.action == "submit")
-                    && ((key.modifiers.is_empty()
-                        && matches!(key.code, KeyCode::PageUp | KeyCode::PageDown))
-                        || crate::transcript_view::JumpTarget::from_key(*key).is_some()
-                        || configured_binding_for_action(&self.local_settings.tui.keymap, action)
-                            .is_some_and(std::option::Option::is_some))
                     && bindings_for_action(
                         &self.keymap,
                         action.context.config_name(),
                         action.action,
                     )
                     .is_some_and(|bindings| bindings.is_pressed(*key))
+                    && ((key.modifiers.is_empty()
+                        && matches!(key.code, KeyCode::PageUp | KeyCode::PageDown))
+                        || crate::transcript_view::JumpTarget::from_key(*key).is_some()
+                        || configured_binding_for_action(&self.local_settings.tui.keymap, action)
+                            .is_some_and(std::option::Option::is_some))
+                    && shortcut_contexts
+                        .get_or_insert_with(|| self.active_keymap_contexts())
+                        .contains_action(action)
             })
         {
             return Ok(false);

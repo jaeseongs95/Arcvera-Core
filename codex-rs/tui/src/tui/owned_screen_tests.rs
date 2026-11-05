@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Exercise session ownership in an isolated process so global terminal modes cannot race tests.
 
 #![cfg(unix)]
@@ -205,4 +206,86 @@ async fn owned_screen_lifecycle_child() {
     tui.set_owned_screen(/*owned*/ false)
         .expect("release session screen");
     assert_eq!(tui.terminal.viewport_area, inline);
+}
+
+#[test]
+fn inline_mouse_capture_emits_real_terminal_modes_without_entering_alt_screen() {
+    let output = Command::new(std::env::current_exe().expect("test binary"))
+        .args([
+            "--exact",
+            "tui::owned_screen_tests::inline_mouse_capture_lifecycle_child",
+            "--ignored",
+            "--nocapture",
+        ])
+        .env(CHILD_ENV, "inline-capture")
+        .env_remove("TMUX")
+        .env_remove("TMUX_PANE")
+        .output()
+        .expect("run isolated inline terminal-output child");
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let mut terminal = vt100::Parser::new(24, 80, 0);
+    let mut remaining = output.stdout.as_slice();
+    for (label, captured) in [
+        ("no-alt-on", true),
+        ("no-alt-off", false),
+        ("inline-on", true),
+        ("handoff-off", false),
+        ("same-policy-on", true),
+        ("suspend-cleanup-off", false),
+        ("resume-on", true),
+        ("exit-off", false),
+    ] {
+        let marker = format!("R37_INLINE_STATE={label}\n");
+        let index = remaining
+            .windows(marker.len())
+            .position(|bytes| bytes == marker.as_bytes())
+            .expect("child lifecycle marker");
+        terminal.process(&remaining[..index]);
+        assert!(!terminal.screen().alternate_screen(), "{label}");
+        assert_eq!(
+            terminal.screen().mouse_protocol_mode(),
+            if captured {
+                vt100::MouseProtocolMode::AnyMotion
+            } else {
+                vt100::MouseProtocolMode::None
+            },
+            "{label}"
+        );
+        remaining = &remaining[index + marker.len()..];
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+#[ignore = "spawned by the inline terminal-output test"]
+async fn inline_mouse_capture_lifecycle_child() {
+    if std::env::var(CHILD_ENV).as_deref() != Ok("inline-capture") {
+        return;
+    }
+    let mut tui = super::test_support::make_test_tui().expect("test tui");
+    tui.set_alt_screen_enabled(false);
+    tui.set_mouse_capture(MouseCapture::Enabled).unwrap();
+    println!("R37_INLINE_STATE=no-alt-on");
+    tui.set_mouse_capture(MouseCapture::Inherit).unwrap();
+    println!("R37_INLINE_STATE=no-alt-off");
+    tui.set_alt_screen_enabled(true);
+    tui.set_mouse_capture(MouseCapture::Enabled).unwrap();
+    println!("R37_INLINE_STATE=inline-on");
+    super::restore_keep_raw(super::TerminalHandoff::Restore).unwrap();
+    println!("R37_INLINE_STATE=handoff-off");
+    tui.set_mouse_capture(MouseCapture::Enabled).unwrap();
+    println!("R37_INLINE_STATE=same-policy-on");
+    super::restore_keep_raw(super::TerminalHandoff::Restore).unwrap();
+    println!("R37_INLINE_STATE=suspend-cleanup-off");
+    super::job_control::PreparedResumeAction::RealignViewport(Rect::new(0, 4, 80, 5))
+        .apply(&mut tui.terminal, Size::new(80, 24), false, true)
+        .unwrap();
+    println!("R37_INLINE_STATE=resume-on");
+    super::restore_keep_raw(super::TerminalHandoff::Restore).unwrap();
+    println!("R37_INLINE_STATE=exit-off");
+    assert!(!tui.is_alt_screen_active());
 }

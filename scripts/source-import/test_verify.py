@@ -113,6 +113,8 @@ class VerifierChecks(unittest.TestCase):
             'codex-rs/app-server-protocol/schema/typescript/InitializeResponse.ts',
             'codex-rs/app-server-protocol/schema/typescript/v2/CompletedChildCleanupResult.ts',
             'codex-rs/app-server-protocol/schema/typescript/v2/CompletedChildSnapshot.ts',
+            'codex-rs/app-server-protocol/schema/typescript/v2/MemoryConsolidationState.ts',
+            'codex-rs/app-server-protocol/schema/typescript/v2/MemoryNoteScope.ts',
             'codex-rs/app-server-protocol/schema/typescript/v2/McpServerRefreshParams.ts',
             'codex-rs/app-server-protocol/schema/typescript/v2/McpServerRefreshResponse.ts',
             'codex-rs/app-server-protocol/schema/typescript/v2/SubagentControlStatus.ts',
@@ -173,7 +175,7 @@ class VerifierChecks(unittest.TestCase):
                      'codex-rs/codex-api/tests/cache_batch_boundary.rs',
                      'codex-rs/diagnostics/src/cache_diagnostics.rs']:
             with self.subTest(path=path):
-                self.assertEqual(EXPORT.notice(path), (b'// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/tui/src/app/thread_routing.rs' else b'// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path in {'codex-rs/app-server-daemon/src/lib.rs', 'codex-rs/diagnostics/src/cache_diagnostics.rs'} else b'// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n'))
+                self.assertEqual(EXPORT.notice(path), b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n' if path in {'codex-rs/tui/src/app/replay_filter.rs', 'codex-rs/tui/src/app/thread_routing.rs', 'codex-rs/tui/src/app/tests/buffered_replay.rs', 'codex-rs/app-server-daemon/src/lib.rs', 'codex-rs/app-server-daemon/src/prepare_install.rs'} else (b'// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/tui/src/app/thread_routing.rs' else b'// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path in {'codex-rs/app-server-daemon/src/lib.rs', 'codex-rs/diagnostics/src/cache_diagnostics.rs'} else b'// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n'))
         for path in ['codex-rs/app-server-daemon/README.md',
                      'docs/native-cli-r33-cache-observation.ko.md',
                      'tools/windows-cli/README.md',
@@ -211,9 +213,27 @@ class VerifierChecks(unittest.TestCase):
                      'codex-rs/tui/src/chatwidget.rs', 'codex-rs/tui/src/keymap.rs',
                      'codex-rs/tui/src/app/tests/startup_defaults_tests.rs']:
             with self.subTest(path=path):
-                self.assertEqual(EXPORT.notice(path), (b'// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/cli/src/main.rs' else b'// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path in {'codex-rs/cli/src/main.rs', 'codex-rs/tui/src/keymap.rs'} else b'// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.\n'))
+                self.assertEqual(EXPORT.notice(path), b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n' if path in {'codex-rs/tui/src/tui.rs'} else (b'// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/cli/src/main.rs' else b'// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path in {'codex-rs/cli/src/main.rs', 'codex-rs/tui/src/keymap.rs'} else b'// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.\n'))
         for path in ['codex-rs/Cargo.toml', 'codex-rs/Cargo.lock', 'codex-rs/cli/Cargo.toml']:
             with self.subTest(path=path):
-                self.assertEqual(EXPORT.notice(path), b'# Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/cli/Cargo.toml' else b'# Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n')
+                self.assertEqual(EXPORT.notice(path), b'# Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n' if path in {'codex-rs/Cargo.toml', 'codex-rs/Cargo.lock'} else b'# Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/cli/Cargo.toml' else b'# Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n')
+
+    def test_r37_export_scope_and_notices(self):
+        expected_docs={
+            'docs/r37-agent-selection-cases.ko.md',
+            'docs/r37-cold-cleanup-cases.ko.md',
+            'docs/r37-config-cases.ko.md',
+            'docs/r37-daemon-cases.ko.md',
+            'docs/r37-memory-cases.ko.md',
+            'docs/r37-memory-transport-cases.ko.md',
+            'docs/r37-plugin-cache-cases.ko.md',
+            'docs/r37-replay-compact-cases.ko.md',
+        }
+        self.assertTrue(expected_docs.issubset(EXPORT.PREFIXES))
+        self.assertNotIn('docs/r37-cache-observation-status.ko.md',EXPORT.PREFIXES)
+        self.assertIn('sdk/python/src/openai_codex/generated/v2_all.py',EXPORT.PREFIXES)
+        self.assertEqual(EXPORT.PATCHED,'2289ae3aa847cd64e7e987f56180160ce67a8694')
+        self.assertEqual(EXPORT.notice('codex-rs/core-plugins/src/store.rs'),b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n')
+        self.assertEqual(EXPORT.notice('sdk/python/src/openai_codex/generated/v2_all.py'),b'# Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n')
 
 if __name__=='__main__':unittest.main()

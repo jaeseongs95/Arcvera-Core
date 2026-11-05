@@ -1,3 +1,36 @@
+# R37 공개 소스 pin 후속 동기화
+
+고정 소스는 `8a3b7d35a83467504c59448087f27c7a5c0e0e9b`, 이전 공개 export 기준은 `8c0d816ec3c9256a02334c81a5e965b977ac187a`입니다. 이전 제품 후보 `89139fd7386eaebd9d0cff6ffccb8dc93c2859ea`에서 달라진 파일은 `codex-rs/cli/tests/ui_language.rs` 1개이며 제품 동작 변경은 없습니다. 기본값 false의 disable 키 제거 계약에 맞춰 오래된 시험 assertion을 바로잡았습니다. 이 공개 작업에서는 Cargo·컴파일·실행·설치를 수행하지 않습니다.
+
+R36 정식 발행·동결과 R37 개발 후보 상태를 유지합니다. 공동시험·수용·전체 독립감사·최종 릴리스는 미완료입니다. 기존 운영 관측 문서 제외, 합성 사례 문서 8개와 단일 Python 생성 wire API, 공식 patch·inventory·프롬프트 38개 계약을 유지합니다. 이번 공개 소스 검증의 명령·원시 출력·종료 코드는 별도 외부 기록 `public-source-verification-02`에 보존하며 아래 이전 후보의 검사 결과와 구분합니다.
+
+이번 pin의 공개 소스 검사: 표준 export·verify·test_verify·읽기 전용 9,475개 output 바이트 재현 비교·scoped diff-check는 각각 exit 0입니다. 회귀 시험은 19 PASS·이 Windows 호스트의 실제 symlink 생성 권한 skip 1이며 skip을 PASS로 세지 않습니다. 전체 diff-check는 provenance patch context/CRLF 판정으로 exit 2였고 원시 출력을 별도 보존했습니다. 공개 checkout 빌드·실행은 NOT_RUN입니다.
+
+## 이전 89139fd 공개 소스 기록
+
+# R37 공개 소스 개발 후보
+
+고정 제품 소스는 `89139fd7386eaebd9d0cff6ffccb8dc93c2859ea`, 이전 공개 기준은 `f04304b239491311e310ca86a2a812d138002917`입니다. 공식 0.166.0 기반과 기존 R36 변경을 유지하며 메모리 상태·동시 요청, daemon 실행, 서브에이전트 선택·화면 재생, 설정, 플러그인 캐시의 후속 변경을 포함합니다. 소스 전달용 개발 후보이며 최종 릴리스·설치 완료를 뜻하지 않습니다.
+
+고정 Git blob만 내보내며 R37 사례 문서 8개와 변경된 Python 생성 API 모듈 1개를 명시적으로 포함합니다. Python SDK 전체 배포를 새로 구성하지 않으며 변경된 wire 타입만 제공합니다. 운영 설정 관측이 섞인 `docs/r37-cache-observation-status.ko.md`는 파일과 patch에서 공개 제외합니다. 원시 로그·로컬 시험 결과물·실행 파일·인증·운영 데이터는 내보내지 않습니다. 원본 고지, 공식 대비 patch, inventory, SOURCE_BASELINE과 내장 프롬프트 38개의 바이트 해시 계약을 유지합니다. 이번 공개 작업 사본에서 Cargo·컴파일·실행·설치는 수행하지 않습니다. 제품 시험 결과는 각 사례 문서의 범위를 따르며 공개 소스 검증으로 확대하지 않습니다.
+
+## 이번 공개 소스 검증 범위
+
+실행 전 사례: (1) 고정 Git commit의 patch·inventory·프롬프트 38개와 공개 파일 바이트가 일치해야 합니다. (2) R37 문서 8개·Python 생성 API·새 TypeScript 타입 2개가 누락되지 않아야 합니다. (3) 기존 notice 범위, 생성 파일 헤더, 경로 탈출·예기치 않은 덮어쓰기 거부 회귀 시험이 통과해야 합니다. (4) `git diff --check`가 성공하고 런타임·인증·로컬 증거 파일이 추가되지 않아야 합니다.
+
+명령은 `python -B scripts/source-import/verify.py`, `python -B scripts/source-import/test_verify.py`, `git diff --check`입니다. 종료 코드 0을 각 사례의 통과 조건으로 사용합니다. 실제 결과는 실행 뒤 아래에 기록합니다. 공개 작업 사본의 빌드·실행, Desktop 공동시험, 전체 독립감사, 릴리스·설치는 이 검증에 포함하지 않습니다.
+
+### 실제 공개 소스 검사 결과
+
+- `verify.py`: exit 0. 소스 9,470개·공식 대비 수정 745개, Cargo manifest 171개·workspace member 165개·path input 295개·literal include 154개, 프롬프트 38개 원본/Windows 해시를 대조했습니다. build/runtime은 NOT_RUN입니다.
+- `test_verify.py`: exit 0. 20개 중 19개 통과·실제 symlink 생성 1개는 이 Windows 호스트 권한 제약으로 skip했습니다. 대체 placeholder 및 합성 readlink 검사는 별도로 통과했습니다.
+- 최초 `git diff --check`: exit 2. 고정 Git diff 자체인 `upstream/official-0.166.0.patch`의 빈 context 행과 CRLF catalog 행을 whitespace로 보고했습니다. provenance patch 바이트를 서식 목적으로 수정하지 않았습니다.
+- 소스·도구의 후속 검사 `git -c core.whitespace=cr-at-eol diff --check -- . ':(exclude)upstream/official-0.166.0.patch'`: exit 0. patch는 별도 SHA/Git provenance 검사 대상입니다. 원래 전체 검사 실패를 성공으로 바꾸어 보고하지 않습니다.
+
+고정 R36→R37 변경 88경로 중 87개가 최종 inventory에 있으며 유일한 제외는 위 운영 관측 문서입니다. 제품 구현 누락은 0개입니다. 최종 선택범위로 표준 exporter의 publish를 읽기 전용 바이트 비교로 치환해 재생성한 output 9,475개 모두와 현재 파일을 대조했습니다(exit 0, 새 디스크 복사·쓰기 0). patch와 inventory에 제외 문서가 없음을 별도로 확인했습니다.
+
+## 이전 소스 전달 기록
+
 # R33 graceful 완료 통지 경계 수정 소스
 
 현재 고정 소스는 `36ae395a552fd55962e19409cbf29b1fdf03b0ec`, 이전 공개 기준은 `5300c7238a23cd29d29e4ffdfbcaf3ac53366886`다. 이전 `3d9` 후보에서 달라진 제품 소스는 `bespoke_event_handling.rs`, `outgoing_message.rs`, `thread_status.rs`의 3경로다. 완료·중단 알림의 쓰기 확인이 끝날 때까지 drain 책임을 유지하고 기존 idle 알림 순서를 보존하는 후속 개발 후보다. 제품 버전은 `0.166.0+native-r33.20261102`를 유지한다.

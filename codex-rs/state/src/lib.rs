@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! SQLite-backed state for rollout metadata.
 //!
 //! This crate is intentionally small and focused: it extracts rollout metadata
@@ -94,6 +95,7 @@ pub use runtime::GoalAccountingMode;
 pub use runtime::GoalAccountingOutcome;
 pub use runtime::GoalStore;
 pub use runtime::GoalUpdate;
+pub use runtime::MemoryConsolidationStatus;
 pub use runtime::MemoryStore;
 pub use runtime::ReadStateOperation;
 pub use runtime::ReadStateUpdate;

@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Exercises version selection through app-server and the model request boundary.
 
 use anyhow::Result;
@@ -21,6 +21,9 @@ use core_test_support::responses::start_mock_server;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use tempfile::TempDir;
+
+#[path = "memory_consolidate.rs"]
+mod consolidation;
 
 #[tokio::test]
 async fn memory_read_version_selects_only_its_own_context() -> Result<()> {

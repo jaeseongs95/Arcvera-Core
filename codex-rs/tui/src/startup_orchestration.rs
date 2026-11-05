@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Orchestrates startup while the provisional composer owns terminal input.
 //!
 //! Lightweight validation runs before acquiring the terminal. Once the draft is visible, slow
@@ -7,6 +7,23 @@
 use super::*;
 use codex_terminal_detection::Multiplexer;
 use codex_terminal_detection::TerminalName;
+
+fn automatic_daemon_version_warning(
+    cli_version: &str,
+    server_version: Option<&str>,
+) -> Option<String> {
+    if server_version == Some(cli_version) {
+        return None;
+    }
+    let unknown = crate::i18n::message("status-unknown-version", &[]);
+    Some(crate::i18n::message(
+        "daemon-auto-version-fallback",
+        &[
+            ("server", server_version.unwrap_or(&unknown)),
+            ("client", cli_version),
+        ],
+    ))
+}
 
 pub(super) async fn run_main_inner(
     mut cli: Cli,
@@ -606,6 +623,7 @@ pub(super) async fn run_main_inner(
         daemon_exclusion = Some(daemon_startup::WSL_DRVFS_EXCLUSION);
     }
     let mut managed_daemon = cli.managed_daemon;
+    let mut cli_daemon_mismatch_warning = None;
     if auto_start_daemon && daemon_exclusion.is_none() {
         let output = startup_draft
             .run_until(async {
@@ -616,7 +634,25 @@ pub(super) async fn run_main_inner(
                     codex_app_server_daemon::start_with_features(&Default::default()).await;
                 daemon_telemetry::record_start(&config, &result).await;
                 match result {
-                    Ok(output) => Ok(Some(output)),
+                    Ok(output) => {
+                        if let Some(warning) = automatic_daemon_version_warning(
+                            env!("CARGO_PKG_VERSION"),
+                            output.app_server_version.as_deref(),
+                        ) {
+                            cli_daemon_mismatch_warning = Some(warning);
+                            Ok(None)
+                        } else {
+                            Ok(Some(output))
+                        }
+                    }
+                    Err(err) if err.is::<codex_app_server_daemon::CliDaemonMismatch>() => {
+                        let mismatch = err
+                            .downcast_ref::<codex_app_server_daemon::CliDaemonMismatch>()
+                            .expect("matched CLI daemon mismatch");
+                        cli_daemon_mismatch_warning =
+                            Some(crate::i18n::daemon_selection_mismatch_warning(mismatch));
+                        Ok(None)
+                    }
                     #[cfg(windows)]
                     Err(err) if err.is::<codex_app_server_daemon::DetachedLaunchRestricted>() => {
                         Ok(None)
@@ -638,7 +674,11 @@ pub(super) async fn run_main_inner(
             };
         } else {
             app_server_target = AppServerTarget::Embedded;
-            daemon_exclusion = Some("this Windows launcher");
+            daemon_exclusion = Some(if cli_daemon_mismatch_warning.is_some() {
+                "a different or unverified shared server build"
+            } else {
+                "this Windows launcher"
+            });
         }
     }
     // The overview must inspect the shared server's agents regardless of local settings.
@@ -663,6 +703,7 @@ pub(super) async fn run_main_inner(
     }
     let daemon_startup_warning = elevated_warning
         .map(str::to_string)
+        .or(cli_daemon_mismatch_warning)
         .or(compatibility_warning)
         .or_else(|| {
             daemon_exclusion
@@ -1064,3 +1105,7 @@ pub(super) async fn run_main_inner(
 
     app_result
 }
+
+#[cfg(test)]
+#[path = "startup_orchestration_tests.rs"]
+mod tests;

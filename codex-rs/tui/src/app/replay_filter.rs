@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Helpers for deciding which buffered events to replay when switching threads.
 
 use codex_app_server_protocol::CodexErrorInfo;
@@ -12,7 +12,7 @@ use std::collections::HashSet;
 use super::ThreadBufferedEvent;
 use super::ThreadEventSnapshot;
 
-/// Completed history and the live buffer can overlap after pagination. Suppress only
+/// History and the live buffer can overlap after pagination. Suppress only
 /// identical message displays in this copy; keep terminal events and live questions.
 pub(super) fn omit_messages_covered_by_history(snapshot: &mut ThreadEventSnapshot) {
     let Some(session) = &snapshot.session else {
@@ -22,13 +22,16 @@ pub(super) fn omit_messages_covered_by_history(snapshot: &mut ThreadEventSnapsho
     let mut covered = snapshot
         .turns
         .iter()
-        .filter(|turn| turn.status == TurnStatus::Completed)
         .flat_map(|turn| {
-            turn.item_payloads().filter_map(move |item| {
-                (matches!(
-                    item,
-                    ThreadItemPayload::UserMessage { .. } | ThreadItemPayload::AgentMessage { .. }
-                ) && !item.id().is_empty())
+            turn.items.iter().filter_map(move |entry| {
+                let item = &entry.payload;
+                ((turn.status == TurnStatus::Completed || entry.completed_at_ms.is_some())
+                    && matches!(
+                        item,
+                        ThreadItemPayload::UserMessage { .. }
+                            | ThreadItemPayload::AgentMessage { .. }
+                    )
+                    && !item.id().is_empty())
                 .then_some(((turn.id.clone(), item.id().to_string()), item))
             })
         })
@@ -106,6 +109,44 @@ pub(super) fn omit_messages_covered_by_history(snapshot: &mut ThreadEventSnapsho
         true
     });
     snapshot.events.reverse();
+}
+
+/// Reconnect can replay the same completion more than once without a history page.
+/// Identity alone is insufficient: preserve changed payloads and intentional repeats
+/// with different IDs, and retain assistant completion state even when text is covered.
+pub(super) fn omit_repeated_completed_messages(events: &mut Vec<ThreadBufferedEvent>) {
+    let mut seen = HashMap::new();
+    events.retain_mut(|event| {
+        let ThreadBufferedEvent::Notification(notification) = event else {
+            return true;
+        };
+        let ServerNotification::ItemCompleted(n) = notification.as_mut() else {
+            return true;
+        };
+        if n.item.id().is_empty()
+            || !matches!(
+                n.item.payload,
+                ThreadItemPayload::UserMessage { .. } | ThreadItemPayload::AgentMessage { .. }
+            )
+        {
+            return true;
+        }
+        let key = (
+            n.thread_id.clone(),
+            n.turn_id.clone(),
+            n.item.id().to_string(),
+        );
+        let duplicate = seen.get(&key) == Some(&n.item.payload);
+        seen.insert(key, n.item.payload.clone());
+        if duplicate {
+            match &mut n.item.payload {
+                ThreadItemPayload::UserMessage { .. } => return false,
+                ThreadItemPayload::AgentMessage { text, .. } => text.clear(),
+                _ => {}
+            }
+        }
+        true
+    });
 }
 
 pub(super) fn snapshot_has_pending_interactive_request(snapshot: &ThreadEventSnapshot) -> bool {

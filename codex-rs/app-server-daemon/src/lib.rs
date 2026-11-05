@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Managed app-server lifecycle, serialized across CLI invocations and the updater.
 
 mod backend;
@@ -13,6 +13,7 @@ mod client;
 mod diagnostics;
 mod install_lock;
 mod launch;
+pub use launch::CliDaemonMismatch;
 pub use launch::restart_with_features;
 pub use launch::start_with_features;
 mod managed_install;
@@ -466,11 +467,12 @@ impl Daemon {
     }
 
     async fn start(&self, feature_overrides: &BTreeMap<String, bool>) -> Result<LifecycleOutput> {
-        self.start_with_overrides(Some(feature_overrides)).await
+        self.start_with_overrides(Some(feature_overrides), None)
+            .await
     }
 
     async fn start_existing_installation(&self) -> Result<LifecycleOutput> {
-        self.start_with_overrides(None).await
+        self.start_with_overrides(None, None).await
     }
 
     // The operation lock must cover both this check and the subsequent start.
@@ -523,6 +525,7 @@ impl Daemon {
     async fn start_with_overrides(
         &self,
         feature_overrides: Option<&BTreeMap<String, bool>>,
+        cli_path: Option<&Path>,
     ) -> Result<LifecycleOutput> {
         let existing_only = feature_overrides.is_none();
         if existing_only && !self.managed_codex_bin.is_file() {
@@ -549,9 +552,11 @@ impl Daemon {
                 self.wait_until_ready().await?,
             )
         } else {
-            if let Some(feature_overrides) = feature_overrides {
+            if feature_overrides.is_some() {
                 // Ordinary starts keep their existing install and recovery policy.
-                if let Err(err) = thread_recovery::discard_pending(self) {
+                if cli_path.is_none()
+                    && let Err(err) = thread_recovery::discard_pending(self)
+                {
                     self.diagnostic(format_args!(
                         "warning: failed to clear stale daemon recovery before start: {err}"
                     ));
@@ -559,6 +564,31 @@ impl Daemon {
                 prepare_install::prepare(self, &settings).await?;
                 managed.managed_codex_bin = self.current_managed_codex_bin()?;
             }
+            // Preparation releases its installer lock before returning. Take it
+            // again in the established operation -> installer order, then refresh
+            // current and keep the verified package stable through backend launch.
+            // Initial preparation must run first to avoid reentrant installation.
+            let _install_lock = if let Some(cli_path) = cli_path {
+                let home = self
+                    .settings_file
+                    .parent()
+                    .and_then(Path::parent)
+                    .context("daemon settings path has no Codex home")?;
+                let lock = install_lock::acquire_install_lock(&managed_install::package_root(home))
+                    .await?;
+                managed.managed_codex_bin = self.current_managed_codex_bin()?;
+                managed
+                    .ensure_cli_matches_stopped_installation(&settings, cli_path)
+                    .await?;
+                if let Err(err) = thread_recovery::discard_pending(self) {
+                    self.diagnostic(format_args!(
+                        "warning: failed to clear stale daemon recovery before start: {err}"
+                    ));
+                }
+                Some(lock)
+            } else {
+                None
+            };
             // Existing-only starts use the selection captured under the operation lock.
             managed.ensure_managed_codex_bin()?;
             if let Some(feature_overrides) = feature_overrides {
@@ -584,6 +614,7 @@ impl Daemon {
         };
         if !existing_only
             && backend.is_some()
+            && launch::should_manage_updater(cli_path.is_some(), Some(&info.app_server_version))
             && let Err(err) = managed.ensure_managed_updater(&settings).await
         {
             self.diagnostic(format_args!(
@@ -606,13 +637,13 @@ impl Daemon {
         prepare_install::prepare(self, &settings).await?;
         let mut managed = self.clone();
         managed.managed_codex_bin = self.current_managed_codex_bin()?;
+        managed.ensure_managed_codex_bin()?;
         if !settings.auto_update_enabled {
             backend::pid_update_loop_backend(self.backend_paths(&settings))
                 .stop()
                 .await?;
         }
 
-        managed.ensure_managed_codex_bin()?;
         if let Some(backend) = self.running_backend_instance(&settings).await? {
             if let Err(err) = thread_recovery::discard_pending(self) {
                 eprintln!("warning: failed to clear stale daemon recovery before restart: {err}");
@@ -1179,9 +1210,16 @@ impl Daemon {
     }
 
     fn ensure_managed_codex_bin(&self) -> Result<()> {
+        self.ensure_managed_codex_file()?;
+        #[cfg(windows)]
+        backend::windows::ensure_detached_launch(&self.managed_codex_bin)?;
+        Ok(())
+    }
+
+    // Preparation may inspect an existing selection before the automatic CLI
+    // owns the installer lock and checks its identity. Never execute it here.
+    fn ensure_managed_codex_file(&self) -> Result<()> {
         if self.managed_codex_bin.is_file() {
-            #[cfg(windows)]
-            backend::windows::ensure_detached_launch(&self.managed_codex_bin)?;
             return Ok(());
         }
 

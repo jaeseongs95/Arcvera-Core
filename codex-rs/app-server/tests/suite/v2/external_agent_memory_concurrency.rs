@@ -1,5 +1,7 @@
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Exercises import exclusion against an actual in-flight consolidation agent.
 
+use anyhow::Context;
 use anyhow::Result;
 use app_test_support::MockResponsesConfig;
 use app_test_support::TestAppServer;
@@ -19,8 +21,12 @@ use core_test_support::streaming_sse::StreamingSseChunk;
 use core_test_support::streaming_sse::start_streaming_sse_server;
 use pretty_assertions::assert_eq;
 use serde_json::json;
+use std::time::Duration;
 use tempfile::TempDir;
 use tokio::sync::oneshot;
+use tokio::time::timeout;
+
+const MEMORY_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[tokio::test]
 async fn memory_import_retries_after_consolidation_without_partial_dual_write() -> Result<()> {
@@ -47,7 +53,7 @@ async fn memory_import_retries_after_consolidation_without_partial_dual_write() 
         .enable_feature(Feature::Sqlite)
         .enable_feature(Feature::MemoryTool)
         .enable_feature(Feature::ExternalAgentMemoryImport)
-        .with_extra_config("[memories]\nversion = \"v2\"\ngenerate_memories = false\n")
+        .with_extra_config("[memories]\nversion = \"v2\"\ngenerate_memories = true\n")
         .write(home.path())?;
 
     let db = super::memory_reset::init_state_db(home.path()).await?;
@@ -98,7 +104,12 @@ async fn memory_import_retries_after_consolidation_without_partial_dual_write() 
     let _: TurnStartResponse = app.read_response(request_id).await?;
 
     // The request is sent only after the consolidation snapshot has been written.
-    server.wait_for_request_count(/*count*/ 2).await;
+    timeout(
+        MEMORY_REQUEST_TIMEOUT,
+        server.wait_for_request_count(/*count*/ 2),
+    )
+    .await
+    .context("expected foreground and in-flight memory consolidation requests within 10 seconds")?;
     let diff_path = memory_root.join("phase2_workspace_diff.md");
     let consolidation_diff = std::fs::read(&diff_path)?;
     let params = json!({

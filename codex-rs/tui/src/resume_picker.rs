@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
@@ -16,6 +16,7 @@ use crate::keymap::ListAction;
 use crate::keymap::RuntimeKeymap;
 use crate::legacy_core::config::Config;
 use crate::legacy_core::config::edit::ConfigEditsBuilder;
+use crate::line_truncation::truncate_line_with_ellipsis_if_overflow;
 use crate::markdown_render::render_streaming_markdown_lines_with_width_and_cwd as render_assistant;
 use crate::pager_overlay::Overlay;
 use crate::status::format_directory_display;
@@ -2354,20 +2355,16 @@ fn list_viewport_width(width: u16) -> u16 {
 }
 
 fn search_line(state: &PickerState, width: u16) -> Line<'_> {
-    if let Some(error) = state.inline_error.as_deref() {
-        return Line::from(truncate_text(error, usize::from(width)).red());
-    }
-    if state.query.is_empty() {
+    let line = if let Some(error) = state.inline_error.as_deref() {
+        Line::from(error.to_string().red())
+    } else if state.query.is_empty() {
         crate::i18n::static_message("picker-type-to-search")
             .set_style(secondary_text_style())
             .into()
     } else {
-        truncate_text(
-            &crate::i18n::message("picker-search-query", &[("value", state.query.as_str())]),
-            usize::from(width),
-        )
-        .into()
-    }
+        crate::i18n::message("picker-search-query", &[("value", state.query.as_str())]).into()
+    };
+    truncate_line_with_ellipsis_if_overflow(line, usize::from(width))
 }
 
 fn toolbar_for_width(state: &PickerState, width: u16) -> Line<'static> {
@@ -3954,6 +3951,37 @@ mod tests {
         );
         state.initial_page_mode = PageLoadMode::StateDbOnly;
         (state, requests)
+    }
+
+    #[test]
+    fn search_line_bounds_prompt_query_and_error_by_terminal_cells_without_mutating_query() {
+        for locale in [crate::i18n::Locale::English, crate::i18n::Locale::Korean] {
+            crate::i18n::with_locale(locale, || {
+                let (mut state, requests) = local_db_first_state();
+                for query in ["", "원문 /resume --id=abc 中🙂", "e\u{301} 한글 中🙂"] {
+                    state.query = query.into();
+                    for width in [0, 1, 2, 3, 12, 24, 40, 120] {
+                        let line = search_line(&state, width);
+                        assert!(line.width() <= usize::from(width), "{width}: {line}");
+                        assert_eq!(state.query, query);
+                    }
+                }
+                let query = state.query.clone();
+                let error = "오류: 原因🙂 e\u{301}";
+                state.inline_error = Some(error.into());
+                for width in [0, 1, 2, 3, 12, 24, 40, 120] {
+                    let line = search_line(&state, width);
+                    assert!(line.width() <= usize::from(width), "{width}: {line}");
+                    assert_eq!(state.query, query);
+                }
+                assert_eq!(search_line(&state, 120).to_string(), error);
+                assert_eq!(
+                    search_line(&state, 120).spans[0].style.fg,
+                    Some(ratatui::style::Color::Red)
+                );
+                assert!(requests.lock().unwrap().is_empty());
+            });
+        }
     }
 
     #[test]

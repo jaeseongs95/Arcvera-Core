@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Connect the retained question editor to ordinary input delivery and queue navigation.
 //! Only an accepted local send or queue operation consumes an asynchronous answer.
 
@@ -17,6 +18,8 @@ impl ChatWidget {
                 .is_some_and(|q| q.expanded)
         {
             MouseCapture::Disabled
+        } else if self.bottom_pane.subagent_footer_is_painted() {
+            MouseCapture::Enabled
         } else {
             MouseCapture::Inherit
         }

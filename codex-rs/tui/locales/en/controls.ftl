@@ -128,6 +128,12 @@ controls-compact-failed = Compaction request failed:
 controls-compact-timeout = Compaction result is unknown after timeout. Do not resend automatically.
 
 controls-memory-disabled = Memories are disabled or unavailable. Ask to enable memories explicitly; saved reading preferences alone do not enable the feature. Environment or managed restrictions may prevent activation.
+controls-memory-consolidation-failed = Memory consolidation request failed: { $error }
+controls-memory-consolidation-admitted = This is the consolidation request status. accepted is not completion. Read memory_view for persisted job state; job completion does not prove that a particular note was included.
+controls-memory-note-scope-unsupported = This server has not declared support for saving a memory note to a different scope. The note was not saved.
+controls-memory-note-scope-unconfirmed = The actual scope of the saved memory note could not be verified. Check the result and do not resend automatically.
+language-save-legacy-cleanup-failed = The client language preference was saved, but removing the old shared configuration key failed: { $error }. Do not resend automatically.
+daemon-auto-version-fallback = The shared background server version { $server } differs from this CLI { $client } or could not be verified. Running this CLI's backend without changing or restarting the shared server.
 
 controls-memory-overridden = Memory settings were saved but overridden. Current runtime activation is unconfirmed; do not resend automatically.
 
@@ -151,3 +157,4 @@ diagnostics-cache-wire-requires-response = Wire cache observation requires respo
 
 controls-memory-command-hint = /memory enable on|off · /memory edit <correction> · /memory read on|off · /memory generate on|off
 controls-memory-usage = Usage: /memory view | enable on|off | edit <correction> | read on|off | generate on|off | scope project|global
+daemon-auto-selected-mismatch = The selected shared server executable { $managed_path } differs from this CLI { $cli_path }. This session will use this CLI's bundled server; the shared installation was preserved. To explicitly change the selection, run `codex app-server daemon update --from-cli --yes --no-force`.

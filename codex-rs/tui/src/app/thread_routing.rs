@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Thread routing, buffering, and app-server operation submission for the TUI app.
 //!
 //! This module manages active thread channels, routes server requests and notifications into those
@@ -1944,6 +1944,7 @@ impl App {
         let replayed_final_items = realtime_delivery::completed_agent_items(&snapshot);
         let replayed_voice_texts = realtime_delivery::replayed_voice_texts(&snapshot);
         replay_filter::omit_messages_covered_by_history(&mut snapshot);
+        replay_filter::omit_repeated_completed_messages(&mut snapshot.events);
         replay_filter::omit_completed_agent_deltas(&mut snapshot.events);
         let request_changes = snapshot
             .events

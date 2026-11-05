@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Key routing and composer-adjacent UI interaction for `ChatWidget`.
 
 use super::clipboard::PendingCopy;
@@ -16,6 +16,29 @@ pub(crate) enum KeyEventAction {
 }
 
 impl ChatWidget {
+    pub(crate) fn subagent_selection_owns_key(&self, key: KeyEvent) -> bool {
+        self.bottom_pane.subagent_selection_owns_key(key)
+    }
+
+    pub(crate) fn handle_subagent_footer_mouse(
+        &mut self,
+        mouse: crossterm::event::MouseEvent,
+    ) -> bool {
+        if mouse.kind == crossterm::event::MouseEventKind::Moved {
+            self.bottom_pane.handle_subagent_footer_hover(mouse)
+        } else {
+            self.bottom_pane.subagent_footer_contains_mouse(mouse)
+                && self.bottom_pane.handle_composer_mouse(mouse)
+        }
+    }
+
+    pub(crate) fn guard_footer_selection_enter(&mut self) {
+        self.bottom_pane.suppress_current_view_key_until_release(
+            key_hint::plain(KeyCode::Enter),
+            Instant::now(),
+        );
+    }
+
     pub(crate) fn clear_composer_selection(&mut self) {
         self.bottom_pane.clear_composer_selection();
     }
@@ -137,6 +160,12 @@ impl ChatWidget {
         if self.shortcut_overlay_visible() && key_hint::plain(KeyCode::Esc).is_press(key_event) {
             self.bottom_pane
                 .handle_key_event_with_activation_key(key_event, activation_key);
+            return KeyEventAction::None;
+        }
+
+        // A focused footer consumes Escape before the turn-interrupt shortcuts.
+        // Its router rejects modal/popup/question surfaces and unrelated keys.
+        if self.bottom_pane.handle_subagent_selection_key(key_event) {
             return KeyEventAction::None;
         }
 
