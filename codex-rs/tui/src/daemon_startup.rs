@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Local daemon launch policy. Explicit embedded launches never discover or start a daemon;
 //! optional attachment may fall back to embedded mode, while automatic launches
 //! require a compatible shared server and a successful connection, except when
@@ -242,9 +242,9 @@ pub(super) async fn compatibility_warning(
     .await;
     match check {
         Ok(()) => Ok(None),
-        Err(reason) if *allow_embedded_fallback && restart_features.is_none() => Ok(Some(format!(
-            "Running without the shared background server: {reason}."
-        ))),
+        Err(reason) if *allow_embedded_fallback && restart_features.is_none() => Ok(Some(
+            crate::i18n::message("daemon-running-embedded", &[("reason", &reason)]),
+        )),
         Err(reason) => Err(CompatibilityError {
             reason,
             restart_features,

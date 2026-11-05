@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! UI-only language selection. Never apply this dictionary to prompts, tool arguments,
 //! slash command tokens, paths, or text supplied by the user or a server.
 //!
@@ -27,6 +27,27 @@ pub fn daemon_selection_mismatch_warning(
         &[
             ("cli_path", &mismatch.cli_path.display().to_string()),
             ("managed_path", &mismatch.managed_path.display().to_string()),
+        ],
+    )
+}
+
+/// The socket identifies the contacted runtime, not the selected package path.
+pub(crate) fn daemon_connection_mismatch_warning(
+    cli_version: &str,
+    server_version: Option<&str>,
+    endpoint: &str,
+) -> String {
+    let unknown = message("status-unknown-version", &[]);
+    let cli_path = std::env::current_exe()
+        .map(|path| path.display().to_string())
+        .unwrap_or_else(|_| unknown.clone());
+    message(
+        "daemon-implicit-version-mismatch",
+        &[
+            ("server", server_version.unwrap_or(&unknown)),
+            ("client", cli_version),
+            ("cli_path", &cli_path),
+            ("endpoint", endpoint),
         ],
     )
 }
@@ -108,6 +129,44 @@ pub(crate) fn with_locale<T>(locale: Locale, f: impl FnOnce() -> T) -> T {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn daemon_connection_mismatch_preserves_runtime_source_and_explicit_guidance() {
+        let endpoint = r"unix://D:\공유 서버\control.sock";
+        let cli = "0.166.0+native-r38.20261106";
+        let server = "0.166.0+native-r36.20261104";
+        for (locale, refused, unknown_path) in [
+            (
+                Locale::English,
+                "Automatic attachment was refused",
+                "does not identify the running server executable path",
+            ),
+            (
+                Locale::Korean,
+                "자동 연결을 거부했습니다",
+                "실행 중인 서버 실행 파일 경로는 확인할 수 없습니다",
+            ),
+        ] {
+            for version in [Some(server), None] {
+                let warning = with_locale(locale, || {
+                    daemon_connection_mismatch_warning(cli, version, endpoint)
+                });
+                for expected in [
+                    endpoint,
+                    cli,
+                    refused,
+                    unknown_path,
+                    "--no-daemon",
+                    "codex app-server daemon update --from-cli --yes --no-force",
+                ] {
+                    assert!(warning.contains(expected), "{warning}");
+                }
+                let unknown = with_locale(locale, || message("status-unknown-version", &[]));
+                assert!(warning.contains(version.unwrap_or(&unknown)), "{warning}");
+                assert!(warning.contains(&std::env::current_exe().unwrap().display().to_string()));
+            }
+        }
+    }
 
     #[test]
     fn daemon_selection_mismatch_warning_preserves_paths_and_guidance_in_both_languages() {

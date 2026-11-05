@@ -2,11 +2,11 @@
   "schema": 2,
   "upstream": "https://github.com/openai/codex",
   "officialVersion": "0.166.0",
-  "previousPublicCommit": "503929629651a6b91f20261af4e3f2d874b2fa3f",
+  "previousPublicCommit": "1c3993e4442a391f278ef2799d785d1727a29f8f",
   "officialCommit": "6ff1e1ca3b30fc8b914720681fcf5fe62e95f856",
-  "patchedCommit": "2289ae3aa847cd64e7e987f56180160ce67a8694",
+  "patchedCommit": "3f1a258a92103bc998491e1df220a398b7e99e61",
   "officialTree": "03f3b46689faf274f126dc78508ed238564da8ba",
-  "patchedTree": "dde51804a871392e066b064c4d438d30ddcbb611",
+  "patchedTree": "5b450e2447ac34d99231c9fae469e45ab6f2d4ff",
   "selectedPrefixes": [
     "codex-rs",
     "third_party",
@@ -30,15 +30,21 @@
     "docs/r37-memory-transport-cases.ko.md",
     "docs/r37-plugin-cache-cases.ko.md",
     "docs/r37-replay-compact-cases.ko.md",
-    "sdk/python/src/openai_codex/generated/v2_all.py"
+    "sdk/python/src/openai_codex/generated/v2_all.py",
+    "docs/native-cli-r38.ko.md",
+    "docs/r38-daemon-test-cases.ko.md",
+    "docs/r38-plugin-cache-test-cases.ko.md",
+    "docs/r38-stop-hook-test-cases.ko.md",
+    "scripts/install/normalize_stop_hook_config.py",
+    "scripts/install/test_normalize_stop_hook_config.py"
   ],
   "patchPath": "upstream/official-0.166.0.patch",
-  "patchSha256": "b215db93451be06107b547806714d59b9e6ea0f2f79dd524564070e1fc306a6a",
-  "sourceInventorySha256": "c772cddf467c8899f087599996638c8a8867c8697dacb77ee62bec46fa9925ca",
+  "patchSha256": "e080761bf556746c87528c29d5872ea4bcbc1fafebb0d5a885ba991d8593ee5d",
+  "sourceInventorySha256": "4e58939d8ec50b1f42dac5b26b14e80e96c318e2ada75baa3e15099b740bfd3d",
   "windowsPromptInputsPath": "upstream/windows-prompt-inputs.json",
-  "windowsPromptInputsSha256": "8cd860fdbb40008731b78507c87ac98bd6390125377b5554ba8b723409eea740",
-  "sourceFileCount": 9470,
-  "publishedBytes": 94856261,
+  "windowsPromptInputsSha256": "a0c0542dc565a9c02fcd97866ddde3f37963766877022d132f2f6cfba349811d",
+  "sourceFileCount": 9476,
+  "publishedBytes": 94926156,
   "modifiedNoticeDate": "2026-11-01",
   "modifiedNoticeLabel": "R32",
   "modifiedFiles": [
@@ -2078,20 +2084,20 @@
     {
       "path": "codex-rs/core-plugins/src/store.rs",
       "gitMode": "100644",
-      "gitBlob": "1c232ffca5fd8c6f096d2a8cda34216fdf5c56e1",
-      "sourceSha256": "916936f3116361688dfe45dbe6efac6a761b395d973e144afa1ce81a2783c096",
-      "publishedSha256": "522c9fde0e698b033dc04c3cdaabee9293ac35bc057319f5ed66d9efe1a4f571",
-      "bytes": 31899,
+      "gitBlob": "04def1d8dc6a909a94e07f3af88ebdd1aa401b77",
+      "sourceSha256": "3532b1d77511235b36c03ad9558b441d35ac28fd75b4f96bc494cdf5aa964e0c",
+      "publishedSha256": "c1fbaeef59b3afe3bb8e3702ac820e01268840f4ee2e4d3a82a7345a4b6c5a0b",
+      "bytes": 32261,
       "modified": true,
       "noticeOnly": true
     },
     {
       "path": "codex-rs/core-plugins/src/store_tests.rs",
       "gitMode": "100644",
-      "gitBlob": "ed836f8103a6bad0b1b13437979b121a284705e3",
-      "sourceSha256": "3ab8031e384af2b68c04e4e7e2191943c0db40dd258bc78b246afc2981501dfa",
-      "publishedSha256": "21817a93643ef8fecb3bba738323db1c06b3d487783bbbbaed1b1e1c723d4a3d",
-      "bytes": 40704,
+      "gitBlob": "df7342f6bd8be2f0d8816233a6f5bda61e03b99c",
+      "sourceSha256": "a83a51a26ee549fa3f31937adcef2bd07b2b1b297ec7265b9453de0281ae9fdb",
+      "publishedSha256": "4a318b75ae42e34b0c1b9bab5d46c46a365fed48904f3502a2f23d13826d9871",
+      "bytes": 47880,
       "modified": true,
       "noticeOnly": true
     },
@@ -3928,10 +3934,10 @@
     {
       "path": "codex-rs/tui/locales/en/controls.ftl",
       "gitMode": "100644",
-      "gitBlob": "a0108b3a559394168dab03cbdf27cff93b338a02",
-      "sourceSha256": "b512c7226b5000b831c9b641d4b218d99d8ef55f7e4f10b2f92c3c06e4cef8a1",
-      "publishedSha256": "b512c7226b5000b831c9b641d4b218d99d8ef55f7e4f10b2f92c3c06e4cef8a1",
-      "bytes": 11410,
+      "gitBlob": "c43e34a8e6717d2fdb5b1b231f261658384ebe1e",
+      "sourceSha256": "a08d304e9ac0202e4121d76082ea9acfeb52ca696a0b893e66b1d80b6b700c4d",
+      "publishedSha256": "a08d304e9ac0202e4121d76082ea9acfeb52ca696a0b893e66b1d80b6b700c4d",
+      "bytes": 12163,
       "modified": true,
       "noticeOnly": false
     },
@@ -4038,10 +4044,10 @@
     {
       "path": "codex-rs/tui/locales/ko/controls.ftl",
       "gitMode": "100644",
-      "gitBlob": "896f6154b2a67661c39b71dba0ba957c50eb7d7f",
-      "sourceSha256": "80cca7eda39a385766e1f225002eeee6ff267c4032686f68d403319fa4f0da36",
-      "publishedSha256": "80cca7eda39a385766e1f225002eeee6ff267c4032686f68d403319fa4f0da36",
-      "bytes": 13551,
+      "gitBlob": "4f88b230c72d7599e8f172e96695dc8290584d79",
+      "sourceSha256": "a8c0999943df053c9d08e3c6282694b3f3f477b340d414d1928548595405358c",
+      "publishedSha256": "a8c0999943df053c9d08e3c6282694b3f3f477b340d414d1928548595405358c",
+      "bytes": 14555,
       "modified": true,
       "noticeOnly": false
     },
@@ -4908,10 +4914,10 @@
     {
       "path": "codex-rs/tui/src/app_server_connection.rs",
       "gitMode": "100644",
-      "gitBlob": "6d817d437b3467a6a81dd109b7f7dc89deebb676",
-      "sourceSha256": "d1a2aa2a6c7d7dc56e4c8e639e1e0d8752c99bf27cf482207517f2be30b95329",
-      "publishedSha256": "54e355e1f216fd159d797a8ebe13797387f1c5bb61253d6c8cf9af0d6a6eecad",
-      "bytes": 2973,
+      "gitBlob": "6430ddc1278ed07c5e3fa6f828bbbd1a9ddef129",
+      "sourceSha256": "e736930818ba4d672c8f3ee7a4a020c2e9bc04d2cc45aae96c233059489903ff",
+      "publishedSha256": "21b691774f563e475f80cf0e99a6c5b9d7a1157f9bb92f057ef91feeb7d3fdb2",
+      "bytes": 3645,
       "modified": true,
       "noticeOnly": true
     },
@@ -5998,20 +6004,20 @@
     {
       "path": "codex-rs/tui/src/daemon_startup.rs",
       "gitMode": "100644",
-      "gitBlob": "b2c3098e904e8c054d275fcb3a3449b27bd4ff40",
-      "sourceSha256": "430b7eec24d0578fb46f52501c55b006121b4571ce626c4c0de4e05842abd4fc",
-      "publishedSha256": "0af7527d3f5eb1612e8c974bcb6154f786425413d23de9d096e5c14f60bb090c",
-      "bytes": 10059,
+      "gitBlob": "4cdf228c1f57c327924eef0659fd4fc2ada6d7ac",
+      "sourceSha256": "d5c7d52c04386825b4971f8a0654a9e22e42884905c0383ed94bba8655052771",
+      "publishedSha256": "88d23659350433531fa85f6ae3779540bafd2cc90e19ee3477d2172f113f3712",
+      "bytes": 10065,
       "modified": true,
       "noticeOnly": true
     },
     {
       "path": "codex-rs/tui/src/daemon_startup_tests.rs",
       "gitMode": "100644",
-      "gitBlob": "ce41f0fc2560d5615ee8c06611c60c3f3a7687ed",
-      "sourceSha256": "c7ddaed26c3a29b0f2859428625c9bb559bf49c3d4c097b203238dba26d34570",
-      "publishedSha256": "6ac695085a9e16d1d0c2fc0c62d56d41f3ddac48342c6dd2150d9c705c79d06a",
-      "bytes": 25255,
+      "gitBlob": "683d4b5a821eb23555e9594bea9d7d974654e99c",
+      "sourceSha256": "7fbecdba0e5202e04951a9e65b7ac288eac3d86f65aa0fda1ef9de83e30a1bf2",
+      "publishedSha256": "1d0e7a9caeeb3c463687be9986fa4824c29b2321e16fb5d27c8e72ed67957ea9",
+      "bytes": 26626,
       "modified": true,
       "noticeOnly": true
     },
@@ -6196,6 +6202,16 @@
       "noticeOnly": true
     },
     {
+      "path": "codex-rs/tui/src/history_cell/notices.rs",
+      "gitMode": "100644",
+      "gitBlob": "74b86239b251e6a6bf9786fc6f679abcef2ef446",
+      "sourceSha256": "d2f23c1e70b506158c04f8694aef3a0a5809f19c00a944c7f1cd00ced11de69a",
+      "publishedSha256": "ea003a8cc09419adf93578bb066394f961379120d47b73d2fce826d2b9a47a21",
+      "bytes": 16602,
+      "modified": true,
+      "noticeOnly": true
+    },
+    {
       "path": "codex-rs/tui/src/history_cell/snapshots/codex_tui__history_cell__tests__pnpm_update_available_history_cell_snapshot.snap",
       "gitMode": "100644",
       "gitBlob": "586580f255e52f0b69a09fd2b8a4aa6445017d4a",
@@ -6226,6 +6242,16 @@
       "noticeOnly": false
     },
     {
+      "path": "codex-rs/tui/src/history_cell/tests.rs",
+      "gitMode": "100644",
+      "gitBlob": "9e973b5efb776dc3c6266617c518a1824f3edd63",
+      "sourceSha256": "151218510ccce80d2875ea65316adb20ed4656f1ff495466fbadfc86c7dbfc29",
+      "publishedSha256": "3645a17af8e870c1bac65574aee1b100dd6ace37a51dca78f2e8c0906b63c0b4",
+      "bytes": 107909,
+      "modified": true,
+      "noticeOnly": true
+    },
+    {
       "path": "codex-rs/tui/src/history_window.rs",
       "gitMode": "100644",
       "gitBlob": "f80e68e25f88a8ee5927b300f92adad97b130b3e",
@@ -6238,10 +6264,10 @@
     {
       "path": "codex-rs/tui/src/i18n.rs",
       "gitMode": "100644",
-      "gitBlob": "581d47c4c7a790160ac79d81415481e385c6b544",
-      "sourceSha256": "2e4abc7eb4ea1fb92d5ee1628af5fa88d9cadc581b2bc092cccad37f2a4484bc",
-      "publishedSha256": "a27d8f4177c24176a5bd85c6a50e31f81a7bae7a2b93c65dbadcd6ba97fa837f",
-      "bytes": 8592,
+      "gitBlob": "61c1943e46cc1627013b45dfb7a40913127cb77c",
+      "sourceSha256": "f97f95c2d640dcbcc2881c5dff5eaf422d879d00c10587c336d76c52ccdbf888",
+      "publishedSha256": "b24a7000d921516218dc51b6a75edb0cf6742f35619c68f269205cdc6937ad68",
+      "bytes": 10873,
       "modified": true,
       "noticeOnly": true
     },
@@ -6628,20 +6654,20 @@
     {
       "path": "codex-rs/tui/src/startup_orchestration.rs",
       "gitMode": "100644",
-      "gitBlob": "eb9659bfcfdd75915efadf812029c8d4326dc77e",
-      "sourceSha256": "c443107e6dda337a24d7a072ee903e94cfd4198db8d33200440d3e678e96c0c5",
-      "publishedSha256": "1d2ef51b48e6c5788eb4432b7f72fae3a0e2b8d535e198f59a80c8556b8bca6f",
-      "bytes": 43866,
+      "gitBlob": "d250cdf850efec4e410b56ae1fd6878289709112",
+      "sourceSha256": "bc3d6cdadd855c0d16cac2516ee135ff22640a57e8e217188fd80accd5d7eb5a",
+      "publishedSha256": "69d277d7999aa92fc9ecd912c952e4bd715f1e138f674e8964d199311bcb5878",
+      "bytes": 44200,
       "modified": true,
       "noticeOnly": true
     },
     {
       "path": "codex-rs/tui/src/startup_orchestration_tests.rs",
       "gitMode": "100644",
-      "gitBlob": "df9a53fd549c4e62bca8b88a3577cf80583d96f5",
-      "sourceSha256": "8beb5925a992dc81b98743d524f26da24c2717ff838504b014fca4eeba51ed01",
-      "publishedSha256": "d5e21c5dc82408fbc45881feb2d80adccb3190a534fe51451a9dd7d719e25bf8",
-      "bytes": 643,
+      "gitBlob": "158249c4b34072ec14dee6312f64a91d1f954f18",
+      "sourceSha256": "efe06861be6f189b9ce197c9f1c5c0818b2a148654948c1a5e94e1b32ad45f14",
+      "publishedSha256": "32845485774cce79fe0c75942dae63c3ae25cb75e4b9b537719344bf96a632be",
+      "bytes": 3543,
       "modified": true,
       "noticeOnly": true
     },
@@ -7266,6 +7292,16 @@
       "noticeOnly": true
     },
     {
+      "path": "docs/native-cli-r38.ko.md",
+      "gitMode": "100644",
+      "gitBlob": "9c4042f5e53a7d9aad2957c5c60d38b3796e652f",
+      "sourceSha256": "aeaba0e0d1a3a77a42696886cb75c11ff4ddcfb80501451e3d059f5be40f2c86",
+      "publishedSha256": "03c2284899c8e64e66335ef258bca1a07f1fc0ff7f1619e7e3895b3615ad240a",
+      "bytes": 2966,
+      "modified": true,
+      "noticeOnly": true
+    },
+    {
       "path": "docs/r36-cleanup.ko.md",
       "gitMode": "100644",
       "gitBlob": "982298cff66fb637dfd6f23d7f7d59efe3153787",
@@ -7372,6 +7408,56 @@
       "sourceSha256": "ed02a759856c928a5c625ce018ec2be88769065cbcb5be9c9bfa80039dacc919",
       "publishedSha256": "765072803dc9cb3c5fe1106d2455c5f6b8c4dc46b7886ca70499e2a7d254802f",
       "bytes": 8942,
+      "modified": true,
+      "noticeOnly": true
+    },
+    {
+      "path": "docs/r38-daemon-test-cases.ko.md",
+      "gitMode": "100644",
+      "gitBlob": "d968b7368862134000409b856ab7f655a42f2888",
+      "sourceSha256": "6b34bad2fb09f00f3ae6742b7acf83a82cde48627dead44c31701211f105791b",
+      "publishedSha256": "9e049a4f6179cf80aff1aebe79b312737a769738616333aa7ad2a51b75b33784",
+      "bytes": 8670,
+      "modified": true,
+      "noticeOnly": true
+    },
+    {
+      "path": "docs/r38-plugin-cache-test-cases.ko.md",
+      "gitMode": "100644",
+      "gitBlob": "35f1c1de495acc2578e6bf021badd68eddc3c5ca",
+      "sourceSha256": "a997a569932f3feec2c73c52e2fbf434f4510219671f3023e4627d311985b035",
+      "publishedSha256": "1ae8c4d0fdb1dc8d46a3636aa2e11741305b02848f94251d900e45fa9a3327e8",
+      "bytes": 8231,
+      "modified": true,
+      "noticeOnly": true
+    },
+    {
+      "path": "docs/r38-stop-hook-test-cases.ko.md",
+      "gitMode": "100644",
+      "gitBlob": "7c7bdc41188ff9bcb91da099e4ff1810816eaca8",
+      "sourceSha256": "76f83155f84c561c5f0d974cb2ae4e267fb166efe36698fc35b2ae60e27416d8",
+      "publishedSha256": "af6efd7b4bb9a3064cb56399888332a548a6f35a98d048373d69ed0e7ab1d8ac",
+      "bytes": 8661,
+      "modified": true,
+      "noticeOnly": true
+    },
+    {
+      "path": "scripts/install/normalize_stop_hook_config.py",
+      "gitMode": "100644",
+      "gitBlob": "4f61d0048ed65ba728448556e8b4aa0434cdd7bd",
+      "sourceSha256": "f7d8e9337976d3aff28a13e5b9861500c0b876fc755672ab66bd94bc712be42a",
+      "publishedSha256": "246083eafe91020ce087447794d3882a5d7f69e83656d1e93ce3e98dff5ba66b",
+      "bytes": 8516,
+      "modified": true,
+      "noticeOnly": true
+    },
+    {
+      "path": "scripts/install/test_normalize_stop_hook_config.py",
+      "gitMode": "100644",
+      "gitBlob": "7c60cf68a6f3fe316ede6f61aeb318f1d9bebb0d",
+      "sourceSha256": "7bd58cfadfbf81138cba1aad719e5c8f250dbfd8c409cfbea234804e60a676d1",
+      "publishedSha256": "7b4c714f7baee8cf949665bd7557f8a7eca56f14101a85861b88ca4661349f86",
+      "bytes": 14938,
       "modified": true,
       "noticeOnly": true
     },
@@ -7499,8 +7585,8 @@
   "preservedRepositoryDocuments": {
     "LICENSE": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc",
     "NOTICE": "56e8f508896d981a2c375183d4c4d92d390cc7b4541247932c615b8a4af8b67d",
-    "README.md": "a1d8d0ca9860c77e811cdc45fd6295daaced6ef52a85001647852320c811fb18",
-    "README.ko.md": "a1ba6c2415758f312bbe82bdf948814e75271d2a13c99cf56107ad2584768fb1"
+    "README.md": "8e0b906a4fad2728d62954b146aa744cd7cb3ab2ab49bedbf7c0a931f84e4f11",
+    "README.ko.md": "c7e38ed2e2f010c9bfceb85def77953bfe9170fe8eb90bbb93ad472f5c6b8e1b"
   },
   "limitations": [
     "This public export has not been built or run as a fresh public checkout.",

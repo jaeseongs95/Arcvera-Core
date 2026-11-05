@@ -232,8 +232,27 @@ class VerifierChecks(unittest.TestCase):
         self.assertTrue(expected_docs.issubset(EXPORT.PREFIXES))
         self.assertNotIn('docs/r37-cache-observation-status.ko.md',EXPORT.PREFIXES)
         self.assertIn('sdk/python/src/openai_codex/generated/v2_all.py',EXPORT.PREFIXES)
-        self.assertEqual(EXPORT.PATCHED,'2289ae3aa847cd64e7e987f56180160ce67a8694')
-        self.assertEqual(EXPORT.notice('codex-rs/core-plugins/src/store.rs'),b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n')
+        self.assertEqual(EXPORT.PATCHED,'3f1a258a92103bc998491e1df220a398b7e99e61')
+        self.assertEqual(EXPORT.notice('codex-rs/core-plugins/src/store.rs'),b'// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n')
         self.assertEqual(EXPORT.notice('sdk/python/src/openai_codex/generated/v2_all.py'),b'# Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n')
+
+    def test_r38_scope_does_not_expand_into_operational_artifacts(self):
+        paths={
+            'docs/native-cli-r38.ko.md',
+            'docs/r38-daemon-test-cases.ko.md',
+            'docs/r38-plugin-cache-test-cases.ko.md',
+            'docs/r38-stop-hook-test-cases.ko.md',
+            'scripts/install/normalize_stop_hook_config.py',
+            'scripts/install/test_normalize_stop_hook_config.py',
+        }
+        self.assertTrue(paths.issubset(EXPORT.PREFIXES))
+        self.assertNotIn('docs/r37-cache-observation-status.ko.md',EXPORT.PREFIXES)
+        self.assertNotIn('checks',EXPORT.PREFIXES)
+        for path in ['codex-rs/tui/src/app_server_connection.rs',
+                     'codex-rs/tui/src/startup_orchestration.rs']:
+            with self.subTest(path=path):
+                self.assertEqual(EXPORT.notice(path),b'// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n')
+        self.assertEqual(EXPORT.notice('scripts/install/normalize_stop_hook_config.py'),b'# Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n')
+        self.assertEqual(EXPORT.notice('codex-rs/app-server-daemon/src/prepare_install.rs'),b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n')
 
 if __name__=='__main__':unittest.main()

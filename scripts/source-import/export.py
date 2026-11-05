@@ -9,9 +9,9 @@ import subprocess
 import tarfile
 
 OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='2289ae3aa847cd64e7e987f56180160ce67a8694'
-PREVIOUS_PUBLIC='503929629651a6b91f20261af4e3f2d874b2fa3f'
-PREFIXES=['codex-rs','third_party','patches','.cargo/config.toml','tools/windows-cli','.gitattributes','docs/native-cli-r27.ko.md','docs/native-cli-cron.ko.md','docs/native-cli-r33-cache-observation.ko.md','docs/native-cli-r35.ko.md','docs/native-cli-r36.ko.md','docs/r36-cleanup.ko.md','docs/r36-cloud-ci.ko.md','docs/r36-fast-compaction.ko.md','docs/r37-agent-selection-cases.ko.md','docs/r37-cold-cleanup-cases.ko.md','docs/r37-config-cases.ko.md','docs/r37-daemon-cases.ko.md','docs/r37-memory-cases.ko.md','docs/r37-memory-transport-cases.ko.md','docs/r37-plugin-cache-cases.ko.md','docs/r37-replay-compact-cases.ko.md','sdk/python/src/openai_codex/generated/v2_all.py']
+PATCHED='3f1a258a92103bc998491e1df220a398b7e99e61'
+PREVIOUS_PUBLIC='1c3993e4442a391f278ef2799d785d1727a29f8f'
+PREFIXES=['codex-rs', 'third_party', 'patches', '.cargo/config.toml', 'tools/windows-cli', '.gitattributes', 'docs/native-cli-r27.ko.md', 'docs/native-cli-cron.ko.md', 'docs/native-cli-r33-cache-observation.ko.md', 'docs/native-cli-r35.ko.md', 'docs/native-cli-r36.ko.md', 'docs/r36-cleanup.ko.md', 'docs/r36-cloud-ci.ko.md', 'docs/r36-fast-compaction.ko.md', 'docs/r37-agent-selection-cases.ko.md', 'docs/r37-cold-cleanup-cases.ko.md', 'docs/r37-config-cases.ko.md', 'docs/r37-daemon-cases.ko.md', 'docs/r37-memory-cases.ko.md', 'docs/r37-memory-transport-cases.ko.md', 'docs/r37-plugin-cache-cases.ko.md', 'docs/r37-replay-compact-cases.ko.md', 'sdk/python/src/openai_codex/generated/v2_all.py', 'docs/native-cli-r38.ko.md', 'docs/r38-daemon-test-cases.ko.md', 'docs/r38-plugin-cache-test-cases.ko.md', 'docs/r38-stop-hook-test-cases.ko.md', 'scripts/install/normalize_stop_hook_config.py', 'scripts/install/test_normalize_stop_hook_config.py']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
 PATCH_PATH='upstream/official-0.166.0.patch'
@@ -451,6 +451,7 @@ NOTICE_OVERRIDES.update({path: ('R37', '2026-11-04') for path in (
 WINDOWS_INPUTS_PATH='upstream/windows-prompt-inputs.json'
 WINDOWS_INPUTS={p['path']:p for p in json.loads((Path(__file__).resolve().parents[2]/WINDOWS_INPUTS_PATH).read_bytes())['files']}
 
+NOTICE_OVERRIDES.update({path: ('R38', '2026-11-06') for path in ('codex-rs/core-plugins/src/store.rs', 'codex-rs/core-plugins/src/store_tests.rs', 'codex-rs/tui/locales/en/controls.ftl', 'codex-rs/tui/locales/ko/controls.ftl', 'codex-rs/tui/src/app_server_connection.rs', 'codex-rs/tui/src/daemon_startup.rs', 'codex-rs/tui/src/daemon_startup_tests.rs', 'codex-rs/tui/src/history_cell/notices.rs', 'codex-rs/tui/src/history_cell/tests.rs', 'codex-rs/tui/src/i18n.rs', 'codex-rs/tui/src/startup_orchestration.rs', 'codex-rs/tui/src/startup_orchestration_tests.rs', 'docs/native-cli-r38.ko.md', 'docs/r38-daemon-test-cases.ko.md', 'docs/r38-plugin-cache-test-cases.ko.md', 'docs/r38-stop-hook-test-cases.ko.md', 'scripts/install/normalize_stop_hook_config.py', 'scripts/install/test_normalize_stop_hook_config.py')})
 def sha(data):return hashlib.sha256(data).hexdigest()
 def git(repository,*args):return subprocess.check_output(['git','-c','core.autocrlf=false','-C',str(repository),*args])
 def encode(value):return (json.dumps(value,ensure_ascii=False,indent=2)+'\n').encode()

@@ -52557,7 +52557,7 @@ index 000000000..8da6797d7
 +    }
 +}
 diff --git a/codex-rs/core-plugins/src/store.rs b/codex-rs/core-plugins/src/store.rs
-index 087eae6d7..1c232ffca 100644
+index 087eae6d7..04def1d8d 100644
 --- a/codex-rs/core-plugins/src/store.rs
 +++ b/codex-rs/core-plugins/src/store.rs
 @@ -17,6 +17,7 @@ use sha2::Sha256;
@@ -52610,7 +52610,7 @@ index 087eae6d7..1c232ffca 100644
      let target_version_root = target_root.join(plugin_version);
 +    // A forced marketplace refresh also reinstalls unchanged versions. On Windows,
 +    // renaming their ancestor can fail while a plugin child owns a cwd/file handle.
-+    // Compare the fully staged tree, not just its manifest/version: same-version
++    // Compare the fully staged payload, not just its manifest/version: same-version
 +    // content changes must still take the existing atomic replacement path.
 +    if target_version_root.exists()
 +        && plugin_trees_equal(&staged_version_root, &target_version_root).map_err(|err| {
@@ -52623,7 +52623,7 @@ index 087eae6d7..1c232ffca 100644
      if target_root.exists() && !target_version_root.exists() {
          fs::rename(&staged_version_root, &target_version_root).map_err(|err| {
              PluginStoreError::io("failed to activate updated plugin cache version", err)
-@@ -690,6 +722,59 @@ fn replace_plugin_root_atomically(
+@@ -690,6 +722,62 @@ fn replace_plugin_root_atomically(
      Ok(())
  }
  
@@ -52644,6 +52644,9 @@ index 087eae6d7..1c232ffca 100644
 +        let mut installed_entries = fs::read_dir(installed)?
 +            .map(|entry| entry.map(|entry| entry.file_name()))
 +            .collect::<io::Result<Vec<_>>>()?;
++        // Older caches included Git metadata. Ignore it without touching a live cache.
++        staged_entries.retain(|name| name != ".git");
++        installed_entries.retain(|name| name != ".git");
 +        staged_entries.sort_unstable();
 +        installed_entries.sort_unstable();
 +        if staged_entries != installed_entries {
@@ -52683,8 +52686,19 @@ index 087eae6d7..1c232ffca 100644
  fn remove_old_plugin_versions(
      target_root: &Path,
      plugin_version: &str,
+@@ -742,6 +830,10 @@ fn copy_dir_recursive(source: &Path, target: &Path) -> Result<(), PluginStoreErr
+     {
+         let entry =
+             entry.map_err(|err| PluginStoreError::io("failed to enumerate plugin source", err))?;
++        // Repository/worktree metadata is not plugin payload, including nested repos.
++        if entry.file_name() == ".git" {
++            continue;
++        }
+         let source_path = entry.path();
+         let target_path = target.join(entry.file_name());
+         let file_type = entry
 diff --git a/codex-rs/core-plugins/src/store_tests.rs b/codex-rs/core-plugins/src/store_tests.rs
-index 4a3d76e0a..ed836f810 100644
+index 4a3d76e0a..df7342f6b 100644
 --- a/codex-rs/core-plugins/src/store_tests.rs
 +++ b/codex-rs/core-plugins/src/store_tests.rs
 @@ -51,6 +51,7 @@ fn install_copies_plugin_into_default_marketplace() {
@@ -52707,7 +52721,7 @@ index 4a3d76e0a..ed836f810 100644
  }
  
  #[test]
-@@ -687,6 +693,393 @@ fn old_plugin_version_would_stay_active_for_local_or_later_versions() {
+@@ -687,6 +693,563 @@ fn old_plugin_version_would_stay_active_for_local_or_later_versions() {
      assert!(!old_plugin_version_would_stay_active("1.0.0", "2.0.0"));
  }
  
@@ -52734,6 +52748,57 @@ index 4a3d76e0a..ed836f810 100644
 +}
 +
 +#[test]
++fn install_excludes_only_exact_git_metadata_entries() {
++    let tmp = tempdir().unwrap();
++    write_plugin(tmp.path(), "source", "sample");
++    let source = tmp.path().join("source");
++    fs::create_dir_all(source.join(".git")).unwrap();
++    fs::write(source.join(".git/index"), "git index").unwrap();
++    fs::create_dir_all(source.join("nested")).unwrap();
++    fs::write(source.join("nested/.git"), "gitdir: ../../worktree").unwrap();
++    for path in [
++        ".gitignore",
++        ".gitattributes",
++        ".gitmodules",
++        ".github/workflow.yml",
++    ] {
++        let file = source.join(path);
++        fs::create_dir_all(file.parent().unwrap()).unwrap();
++        fs::write(file, path).unwrap();
++    }
++    let plugin_id = PluginId::parse("sample@debug").unwrap();
++
++    let result = PluginStore::new(tmp.path().to_path_buf())
++        .install(
++            AbsolutePathBuf::try_from(source.clone()).unwrap(),
++            plugin_id,
++        )
++        .unwrap();
++
++    assert!(!result.installed_path.join(".git").as_path().exists());
++    assert!(!result.installed_path.join("nested/.git").as_path().exists());
++    for path in [
++        ".gitignore",
++        ".gitattributes",
++        ".gitmodules",
++        ".github/workflow.yml",
++    ] {
++        assert_eq!(
++            fs::read_to_string(result.installed_path.join(path)).unwrap(),
++            path
++        );
++    }
++    assert_eq!(
++        fs::read_to_string(source.join(".git/index")).unwrap(),
++        "git index"
++    );
++    assert_eq!(
++        fs::read_to_string(source.join("nested/.git")).unwrap(),
++        "gitdir: ../../worktree"
++    );
++}
++
++#[test]
 +fn same_version_refresh_replaces_changed_payload_and_removes_extra_entries() {
 +    let tmp = tempdir().unwrap();
 +    write_plugin_with_version(tmp.path(), "source", "sample", Some("1.0.0"));
@@ -52753,6 +52818,107 @@ index 4a3d76e0a..ed836f810 100644
 +    fs::write(extra.join("unexpected"), "cached only").unwrap();
 +    store.install(source, plugin_id).unwrap();
 +    assert!(!extra.as_path().exists());
++}
++
++#[test]
++fn same_version_refresh_ignores_legacy_git_metadata_without_replacing_payload() {
++    let tmp = tempdir().unwrap();
++    write_plugin_with_version(tmp.path(), "source", "sample", Some("1.0.0"));
++    let store = PluginStore::new(tmp.path().to_path_buf());
++    let plugin_id = PluginId::parse("sample@debug").unwrap();
++    let source = AbsolutePathBuf::try_from(tmp.path().join("source")).unwrap();
++    let result = store.install(source.clone(), plugin_id.clone()).unwrap();
++    let installed_skill = result.installed_path.join("skills/SKILL.md");
++    let identity_link = tmp.path().join("installed-skill-link");
++    fs::hard_link(installed_skill.as_path(), &identity_link).unwrap();
++    fs::create_dir_all(result.installed_path.join(".git")).unwrap();
++    fs::write(result.installed_path.join(".git/index"), "old index").unwrap();
++    fs::write(result.installed_path.join("skills/.git"), "old worktree").unwrap();
++    fs::create_dir_all(source.join(".git")).unwrap();
++    fs::write(source.join(".git/index"), "new index").unwrap();
++
++    store.install(source, plugin_id).unwrap();
++
++    fs::write(identity_link, "same file identity").unwrap();
++    assert_eq!(
++        fs::read_to_string(installed_skill).unwrap(),
++        "same file identity"
++    );
++    assert_eq!(
++        fs::read_to_string(result.installed_path.join(".git/index")).unwrap(),
++        "old index"
++    );
++    assert_eq!(
++        fs::read_to_string(result.installed_path.join("skills/.git")).unwrap(),
++        "old worktree"
++    );
++}
++
++#[test]
++fn same_version_refresh_with_git_metadata_still_applies_payload_changes() {
++    for (path, replacement) in [
++        (
++            ".codex-plugin/plugin.json",
++            Some(r#"{"name":"sample","version":"1.0.0","description":"updated"}"#),
++        ),
++        ("skills/SKILL.md", Some("other")),
++        (
++            ".mcp.json",
++            Some(r#"{"mcpServers":{"sample":{"command":"sample"}}}"#),
++        ),
++        (".gitignore", Some("updated ignore rules")),
++        ("new.txt", Some("new payload")),
++        (".mcp.json", None),
++    ] {
++        let tmp = tempdir().unwrap();
++        write_plugin_with_version(tmp.path(), "source", "sample", Some("1.0.0"));
++        let store = PluginStore::new(tmp.path().to_path_buf());
++        let plugin_id = PluginId::parse("sample@debug").unwrap();
++        let source = AbsolutePathBuf::try_from(tmp.path().join("source")).unwrap();
++        fs::write(source.join(".gitignore"), "original ignore rules").unwrap();
++        let result = store.install(source.clone(), plugin_id.clone()).unwrap();
++        fs::create_dir_all(source.join(".git")).unwrap();
++        fs::write(source.join(".git/index"), "changed metadata").unwrap();
++        fs::create_dir_all(result.installed_path.join(".git")).unwrap();
++        fs::write(result.installed_path.join(".git/index"), "legacy metadata").unwrap();
++        match replacement {
++            Some(contents) => fs::write(source.join(path), contents).unwrap(),
++            None => fs::remove_file(source.join(path)).unwrap(),
++        }
++
++        store.install(source, plugin_id).unwrap();
++
++        let installed_file = result.installed_path.join(path);
++        match replacement {
++            Some(contents) => assert_eq!(fs::read_to_string(installed_file).unwrap(), contents),
++            None => assert!(!installed_file.as_path().exists()),
++        }
++        assert!(!result.installed_path.join(".git").as_path().exists());
++    }
++}
++
++#[cfg(unix)]
++#[test]
++fn same_version_refresh_with_git_metadata_replaces_installed_payload_symlink() {
++    let tmp = tempdir().unwrap();
++    write_plugin_with_version(tmp.path(), "source", "sample", Some("1.0.0"));
++    let store = PluginStore::new(tmp.path().to_path_buf());
++    let plugin_id = PluginId::parse("sample@debug").unwrap();
++    let source = AbsolutePathBuf::try_from(tmp.path().join("source")).unwrap();
++    let result = store.install(source.clone(), plugin_id.clone()).unwrap();
++    let skill = result.installed_path.join("skills/SKILL.md");
++    let outside = tmp.path().join("outside-skill");
++    fs::write(&outside, "skill").unwrap();
++    fs::remove_file(skill.as_path()).unwrap();
++    std::os::unix::fs::symlink(&outside, skill.as_path()).unwrap();
++    fs::create_dir_all(source.join(".git")).unwrap();
++    fs::write(source.join(".git/index"), "metadata").unwrap();
++
++    store.install(source, plugin_id).unwrap();
++
++    assert!(fs::symlink_metadata(skill.as_path()).unwrap().is_file());
++    assert_eq!(fs::read_to_string(skill).unwrap(), "skill");
++    assert_eq!(fs::read_to_string(outside).unwrap(), "skill");
 +}
 +
 +#[cfg(unix)]
@@ -52966,12 +53132,20 @@ index 4a3d76e0a..ed836f810 100644
 +        let plugin_id = PluginId::parse("sample@debug").unwrap();
 +        let source = AbsolutePathBuf::try_from(tmp.path().join("source")).unwrap();
 +        let installed = store.install(source.clone(), plugin_id.clone()).unwrap();
++        fs::create_dir_all(installed.installed_path.join(".git")).unwrap();
++        fs::write(installed.installed_path.join(".git/index"), "old index").unwrap();
++        fs::create_dir_all(source.join(".git")).unwrap();
++        fs::write(source.join(".git/index"), "new index").unwrap();
 +        let mut child = PluginChild::in_directory(installed.installed_path.as_path());
 +        assert_root_is_locked(&store, &plugin_id);
 +
 +        store.install(source, plugin_id.clone()).unwrap();
 +
 +        assert!(child.0.try_wait().unwrap().is_none());
++        assert_eq!(
++            fs::read_to_string(installed.installed_path.join(".git/index")).unwrap(),
++            "old index"
++        );
 +        assert_eq!(
 +            store.active_plugin_version(&plugin_id),
 +            Some("1.0.0".to_string())
@@ -52986,6 +53160,7 @@ index 4a3d76e0a..ed836f810 100644
 +        let plugin_id = PluginId::parse("sample@debug").unwrap();
 +        let source = AbsolutePathBuf::try_from(tmp.path().join("source")).unwrap();
 +        let installed = store.install(source.clone(), plugin_id.clone()).unwrap();
++        fs::write(source.join(".git"), "gitdir: ../worktree").unwrap();
 +        let skill = installed.installed_path.join("skills/SKILL.md");
 +        let mut handle = fs::File::options()
 +            .read(true)
@@ -53009,6 +53184,10 @@ index 4a3d76e0a..ed836f810 100644
 +        let plugin_id = PluginId::parse("sample@debug").unwrap();
 +        let source = AbsolutePathBuf::try_from(tmp.path().join("source")).unwrap();
 +        let installed = store.install(source.clone(), plugin_id.clone()).unwrap();
++        fs::create_dir_all(source.join(".git")).unwrap();
++        fs::write(source.join(".git/index"), "new index").unwrap();
++        fs::create_dir_all(installed.installed_path.join(".git")).unwrap();
++        fs::write(installed.installed_path.join(".git/index"), "old index").unwrap();
 +        let skill = installed.installed_path.join("skills/SKILL.md");
 +        let child = PluginChild::in_directory(installed.installed_path.as_path());
 +        assert_root_is_locked(&store, &plugin_id);
@@ -53027,12 +53206,17 @@ index 4a3d76e0a..ed836f810 100644
 +        ));
 +        assert_eq!(fs::read_to_string(skill.as_path()).unwrap(), "skill");
 +        assert_eq!(
++            fs::read_to_string(installed.installed_path.join(".git/index")).unwrap(),
++            "old index"
++        );
++        assert_eq!(
 +            store.active_plugin_version(&plugin_id),
 +            Some("1.0.0".to_string())
 +        );
 +        drop(child);
 +        store.install(source, plugin_id).unwrap();
 +        assert_eq!(fs::read_to_string(skill).unwrap(), "other");
++        assert!(!installed.installed_path.join(".git").as_path().exists());
 +    }
 +
 +    #[test]
@@ -82350,10 +82534,10 @@ index 000000000..e75508e1a
 +cloud-cli-help-diff-attempt = { "Attempt number to display (1-based)" }
 diff --git a/codex-rs/tui/locales/en/controls.ftl b/codex-rs/tui/locales/en/controls.ftl
 new file mode 100644
-index 000000000..a0108b3a5
+index 000000000..c43e34a8e
 --- /dev/null
 +++ b/codex-rs/tui/locales/en/controls.ftl
-@@ -0,0 +1,160 @@
+@@ -0,0 +1,164 @@
 +# Application-owned chat controls and exit guidance.
 +controls-back = Back
 +controls-goal-edit = Edit goal
@@ -82514,6 +82698,10 @@ index 000000000..a0108b3a5
 +controls-memory-command-hint = /memory enable on|off · /memory edit <correction> · /memory read on|off · /memory generate on|off
 +controls-memory-usage = Usage: /memory view | enable on|off | edit <correction> | read on|off | generate on|off | scope project|global
 +daemon-auto-selected-mismatch = The selected shared server executable { $managed_path } differs from this CLI { $cli_path }. This session will use this CLI's bundled server; the shared installation was preserved. To explicitly change the selection, run `codex app-server daemon update --from-cli --yes --no-force`.
++daemon-implicit-version-mismatch = The shared server at { $endpoint } reports version { $server }, which does not match this CLI { $client } or could not be verified. Automatic attachment was refused. Current CLI executable: { $cli_path }; its bundled backend is available with --no-daemon. The shared server was not changed or restarted. The socket does not identify the running server executable path. To explicitly select this CLI's server, run `codex app-server daemon update --from-cli --yes --no-force`.
++daemon-version-manage-hint = Use /daemon to manage the local background server.
++daemon-version-update-warning = Updating may interrupt active or queued work.
++daemon-running-embedded = Running without the shared background server: { $reason }.
 diff --git a/codex-rs/tui/locales/en/core.ftl b/codex-rs/tui/locales/en/core.ftl
 new file mode 100644
 index 000000000..94d17e5dd
@@ -84988,10 +85176,10 @@ index 000000000..e526eba68
 +cloud-cli-help-diff-attempt = { "표시할 시도 번호입니다 (1부터 시작)." }
 diff --git a/codex-rs/tui/locales/ko/controls.ftl b/codex-rs/tui/locales/ko/controls.ftl
 new file mode 100644
-index 000000000..896f6154b
+index 000000000..4f88b230c
 --- /dev/null
 +++ b/codex-rs/tui/locales/ko/controls.ftl
-@@ -0,0 +1,160 @@
+@@ -0,0 +1,164 @@
 +# Application-owned chat controls and exit guidance.
 +controls-back = 뒤로
 +controls-goal-edit = 목표 편집
@@ -85152,6 +85340,10 @@ index 000000000..896f6154b
 +controls-memory-command-hint = /memory enable on|off · /memory edit <정정 내용> · /memory read on|off · /memory generate on|off
 +controls-memory-usage = 사용법: /memory view | enable on|off | edit <정정 내용> | read on|off | generate on|off | scope project|global
 +daemon-auto-selected-mismatch = 선택된 공유 서버 실행 파일 { $managed_path }은(는) 현재 CLI { $cli_path }와 다릅니다. 이번 대화는 현재 CLI에 포함된 서버를 사용하며 공유 설치본은 보존했습니다. 명시적으로 선택을 바꾸려면 `codex app-server daemon update --from-cli --yes --no-force`를 실행하세요.
++daemon-implicit-version-mismatch = 공유 서버 { $endpoint }에서 확인한 버전 { $server }이(가) 현재 CLI { $client }와 다르거나 확인되지 않아 자동 연결을 거부했습니다. 현재 CLI 실행 파일: { $cli_path }; --no-daemon으로 이 CLI에 포함된 백엔드를 사용할 수 있습니다. 공유 서버는 변경하거나 다시 시작하지 않았습니다. 소켓 경로만으로 실행 중인 서버 실행 파일 경로는 확인할 수 없습니다. 명시적으로 이 CLI의 서버를 선택하려면 `codex app-server daemon update --from-cli --yes --no-force`를 실행하세요.
++daemon-version-manage-hint = /daemon으로 로컬 백그라운드 서버를 관리할 수 있습니다.
++daemon-version-update-warning = 업데이트하면 진행 중이거나 대기 중인 작업이 중단될 수 있습니다.
++daemon-running-embedded = 현재 CLI에 포함된 백엔드로 실행합니다. 공유 백그라운드 서버를 사용하지 않는 이유: { $reason }.
 diff --git a/codex-rs/tui/locales/ko/core.ftl b/codex-rs/tui/locales/ko/core.ftl
 new file mode 100644
 index 000000000..1a52e03c8
@@ -100659,7 +100851,7 @@ index 2adc3036a..6582988b8 100644
      PersistServiceTierSelection {
          service_tier: Option<String>,
 diff --git a/codex-rs/tui/src/app_server_connection.rs b/codex-rs/tui/src/app_server_connection.rs
-index ac3ab1cb2..6d817d437 100644
+index ac3ab1cb2..6430ddc12 100644
 --- a/codex-rs/tui/src/app_server_connection.rs
 +++ b/codex-rs/tui/src/app_server_connection.rs
 @@ -15,7 +15,7 @@ use codex_app_server_client::RemoteAppServerEndpoint;
@@ -100671,23 +100863,41 @@ index ac3ab1cb2..6d817d437 100644
          AppServerTarget::Embedded => {
              color_eyre::eyre::bail!("embedded sessions have no remote connection")
          }
-@@ -45,5 +45,20 @@ pub(crate) async fn connect(target: &AppServerTarget) -> color_eyre::Result<AppS
+@@ -45,5 +45,38 @@ pub(crate) async fn connect(target: &AppServerTarget) -> color_eyre::Result<AppS
          AppServerTarget::LocalDaemon { endpoint, .. } | AppServerTarget::Remote { endpoint } => {
              connect_remote_app_server(endpoint.clone()).await
          }
 +    }?;
-+    if matches!(target, AppServerTarget::LocalDaemon { .. }) {
++    if matches!(
++        target,
++        AppServerTarget::LocalDaemon {
++            allow_embedded_fallback: true,
++            ..
++        }
++    ) {
 +        let AppServerClient::Remote(remote) = &client else {
 +            unreachable!("local daemon connections are remote clients");
 +        };
-+        // Build metadata identifies the runtime; it is not a protocol negotiation.
-+        // Keep local socket/peer validation and per-feature checks independently.
++        // An implicit choice must use this CLI's full build. Check the actual
++        // handshake on every connection; a prior probe/start may race a restart.
++        // Explicit endpoints and backend-ID restoration retain their own policy.
 +        if remote.server_version() != Some(env!("CARGO_PKG_VERSION")) {
-+            tracing::warn!(
-+                cli_version = env!("CARGO_PKG_VERSION"),
-+                server_version = remote.server_version().unwrap_or("unknown"),
-+                "shared server build differs; feature and RPC support must be checked separately"
++            let status = crate::status::remote_connection::remote_connection_status_value(
++                target,
++                remote.server_version(),
++            )
++            .expect("local daemon has a connection status");
++            let warning = crate::i18n::daemon_connection_mismatch_warning(
++                env!("CARGO_PKG_VERSION"),
++                remote.server_version(),
++                &status.address,
 +            );
++            // Shutdown releases only this client's transport; it sends no
++            // app-server lifecycle or thread mutation request.
++            if let Err(error) = client.shutdown().await {
++                tracing::warn!(%error, "could not close rejected shared server connection");
++            }
++            color_eyre::eyre::bail!(warning);
 +        }
      }
 +    Ok(client)
@@ -115424,7 +115634,7 @@ index 000000000..da9f5f05d
 +    }
 +}
 diff --git a/codex-rs/tui/src/daemon_startup.rs b/codex-rs/tui/src/daemon_startup.rs
-index 6c7dca507..b2c3098e9 100644
+index 6c7dca507..4cdf228c1 100644
 --- a/codex-rs/tui/src/daemon_startup.rs
 +++ b/codex-rs/tui/src/daemon_startup.rs
 @@ -159,7 +159,9 @@ pub(super) async fn compatibility_warning(
@@ -115438,8 +115648,21 @@ index 6c7dca507..b2c3098e9 100644
          if requested.is_empty() {
              let _ = client.shutdown().await;
              return Ok(());
+@@ -239,9 +241,9 @@ pub(super) async fn compatibility_warning(
+     .await;
+     match check {
+         Ok(()) => Ok(None),
+-        Err(reason) if *allow_embedded_fallback && restart_features.is_none() => Ok(Some(format!(
+-            "Running without the shared background server: {reason}."
+-        ))),
++        Err(reason) if *allow_embedded_fallback && restart_features.is_none() => Ok(Some(
++            crate::i18n::message("daemon-running-embedded", &[("reason", &reason)]),
++        )),
+         Err(reason) => Err(CompatibilityError {
+             reason,
+             restart_features,
 diff --git a/codex-rs/tui/src/daemon_startup_tests.rs b/codex-rs/tui/src/daemon_startup_tests.rs
-index c689eeb50..ce41f0fc2 100644
+index c689eeb50..683d4b5a8 100644
 --- a/codex-rs/tui/src/daemon_startup_tests.rs
 +++ b/codex-rs/tui/src/daemon_startup_tests.rs
 @@ -153,7 +153,7 @@ async fn daemon_feature_compatibility_respects_required_and_optional_attachment(
@@ -115504,12 +115727,12 @@ index c689eeb50..ce41f0fc2 100644
              }
          };
          let original_target = target.clone();
-@@ -312,12 +341,22 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
+@@ -312,9 +341,15 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
          )
          .await;
          reject_handshake.abort();
 -        if scenario == "explicit endpoint" || scenario == "required daemon" {
-+        if scenario.contains("version") {
++        if scenario == "required version mismatch" {
 +            let client = result?;
 +            assert_eq!(target, original_target);
 +            assert!(state_db.is_none());
@@ -115521,23 +115744,14 @@ index c689eeb50..ce41f0fc2 100644
 +            if scenario.starts_with("required") {
                  let message = result.err().unwrap().to_string();
                  assert!(message.contains("rerun the same command with --no-daemon"));
--                assert!(message.contains("failed to connect to remote app server"));
-+                if scenario == "required version mismatch" {
-+                    assert!(message.contains("does not match this CLI"));
-+                } else {
-+                    assert!(message.contains("failed to connect to remote app server"));
-+                }
-             }
-             assert_eq!(target, original_target);
-             assert!(state_db.is_none());
-@@ -435,3 +474,152 @@ fn daemon_exclusion_warning_snapshot() {
+                 assert!(message.contains("failed to connect to remote app server"));
+@@ -435,3 +470,173 @@ fn daemon_exclusion_warning_snapshot() {
          .join("\n");
      insta::assert_snapshot!("daemon_exclusion_warning", text);
  }
 +
 +#[tokio::test]
-+async fn local_daemon_version_metadata_does_not_override_protocol_handshake()
-+-> color_eyre::Result<()> {
++async fn local_daemon_version_metadata_limits_only_implicit_attachment() -> color_eyre::Result<()> {
 +    use futures::SinkExt;
 +    use futures::StreamExt;
 +    use serde_json::json;
@@ -115593,7 +115807,7 @@ index c689eeb50..ce41f0fc2 100644
 +                }
 +            };
 +            let result = app_server_connection::connect(&target).await;
-+            let accepted = true;
++            let accepted = explicit_remote || version == Some(env!("CARGO_PKG_VERSION"));
 +            assert_eq!(
 +                result.is_ok(),
 +                accepted,
@@ -115617,70 +115831,92 @@ index c689eeb50..ce41f0fc2 100644
 +}
 +
 +#[tokio::test]
-+async fn explicit_default_socket_accepts_other_build_on_initial_and_reconnect()
-+-> color_eyre::Result<()> {
++async fn default_socket_version_policy_applies_on_initial_and_reconnect() -> color_eyre::Result<()>
++{
 +    use futures::SinkExt;
 +    use futures::StreamExt;
 +    use serde_json::json;
 +    use tokio_tungstenite::tungstenite::Message;
 +
-+    let home = TempDir::new()?;
-+    let directory = home.path().join("control");
-+    codex_uds::prepare_private_socket_directory(&directory).await?;
-+    let socket_path = AbsolutePathBuf::from_absolute_path_checked(directory.join("server.sock"))?;
-+    let mut listener = codex_uds::UnixListener::bind(socket_path.as_path()).await?;
-+    let target = app_server_target_for_launch(
-+        Some(RemoteAppServerEndpoint::UnixSocket {
-+            socket_path: socket_path.clone(),
-+        }),
-+        Some(socket_path),
-+        false,
-+        false,
-+        None,
-+    )?;
-+    assert!(matches!(
-+        &target,
-+        AppServerTarget::LocalDaemon {
-+            allow_embedded_fallback: false,
-+            ..
-+        }
-+    ));
-+    assert!(!target.uses_remote_workspace());
-+    let server = tokio::spawn(async move {
-+        for _ in 0..2 {
-+            let stream = listener.accept().await?;
-+            let mut socket = tokio_tungstenite::accept_async(stream).await?;
-+            let Some(Ok(Message::Text(request))) = socket.next().await else {
-+                panic!("initialize request missing");
-+            };
-+            let request: serde_json::Value = serde_json::from_str(&request)?;
-+            assert_eq!(request["method"], "initialize");
-+            socket
-+                .send(Message::Text(
-+                    json!({
-+                        "id": request["id"],
-+                        "result": {"userAgent":"daemon-test/0.165.0+native-r28.20261029"}
-+                    })
-+                    .to_string()
-+                    .into(),
-+                ))
-+                .await?;
-+            while let Some(Ok(message)) = socket.next().await {
-+                if let Message::Text(text) = message {
-+                    let message: serde_json::Value = serde_json::from_str(&text)?;
-+                    // Reconnection only closes this client; never mutate or stop the server.
-+                    assert_eq!(message["method"], "initialized");
++    for implicit in [false, true] {
++        for versions in [
++            [Some(env!("CARGO_PKG_VERSION")); 2],
++            [Some("0.165.0+native-r28.20261029"); 2],
++            [None; 2],
++            [
++                Some(env!("CARGO_PKG_VERSION")),
++                Some("0.165.0+native-r28.20261029"),
++            ],
++            [Some(env!("CARGO_PKG_VERSION")), None],
++        ] {
++            let home = TempDir::new()?;
++            let directory = home.path().join("control");
++            codex_uds::prepare_private_socket_directory(&directory).await?;
++            let socket_path =
++                AbsolutePathBuf::from_absolute_path_checked(directory.join("server.sock"))?;
++            let mut listener = codex_uds::UnixListener::bind(socket_path.as_path()).await?;
++            let target = app_server_target_for_launch(
++                (!implicit).then(|| RemoteAppServerEndpoint::UnixSocket {
++                    socket_path: socket_path.clone(),
++                }),
++                Some(socket_path),
++                implicit,
++                false,
++                None,
++            )?;
++            assert!(matches!(
++                &target,
++                AppServerTarget::LocalDaemon { allow_embedded_fallback, .. }
++                    if *allow_embedded_fallback == implicit
++            ));
++            assert!(!target.uses_remote_workspace());
++            let server = tokio::spawn(async move {
++                for version in versions {
++                    let stream = listener.accept().await?;
++                    let mut socket = tokio_tungstenite::accept_async(stream).await?;
++                    let Some(Ok(Message::Text(request))) = socket.next().await else {
++                        panic!("initialize request missing");
++                    };
++                    let request: serde_json::Value = serde_json::from_str(&request)?;
++                    assert_eq!(request["method"], "initialize");
++                    socket
++                        .send(Message::Text(
++                            json!({
++                                "id": request["id"],
++                                "result": {"userAgent": version.map_or_else(
++                                    || "daemon-test".to_string(),
++                                    |version| format!("daemon-test/{version}"),
++                                )}
++                            })
++                            .to_string()
++                            .into(),
++                        ))
++                        .await?;
++                    while let Some(Ok(message)) = socket.next().await {
++                        if let Message::Text(text) = message {
++                            let message: serde_json::Value = serde_json::from_str(&text)?;
++                            // Reconnection only closes this client; never mutate or stop the server.
++                            assert_eq!(message["method"], "initialized");
++                        }
++                    }
++                }
++                Ok::<_, color_eyre::Report>(())
++            });
++            for version in versions {
++                let result = app_server_connection::connect(&target).await;
++                let accepted = !implicit || version == Some(env!("CARGO_PKG_VERSION"));
++                assert_eq!(result.is_ok(), accepted, "{version:?} implicit={implicit}");
++                if let Ok(client) = result {
++                    assert!(matches!(&client, AppServerClient::Remote(_)));
++                    client.shutdown().await?;
++                } else {
++                    let message = result.err().unwrap().to_string();
++                    assert!(message.contains("does not match this CLI"), "{message}");
 +                }
 +            }
++            tokio::time::timeout(std::time::Duration::from_secs(5), server).await???;
 +        }
-+        Ok::<_, color_eyre::Report>(())
-+    });
-+    for _ in 0..2 {
-+        let client = app_server_connection::connect(&target).await?;
-+        assert!(matches!(&client, AppServerClient::Remote(_)));
-+        client.shutdown().await?;
 +    }
-+    tokio::time::timeout(std::time::Duration::from_secs(5), server).await???;
 +    Ok(())
 +}
 diff --git a/codex-rs/tui/src/desktop_cron/mod.rs b/codex-rs/tui/src/desktop_cron/mod.rs
@@ -118296,6 +118532,23 @@ index 610a5280c..6e581586b 100644
      /// Original Markdown for semantic copy targets, independent of presentation.
      fn copy_source(&self) -> Option<&str> {
          None
+diff --git a/codex-rs/tui/src/history_cell/notices.rs b/codex-rs/tui/src/history_cell/notices.rs
+index 9f5e2137f..74b86239b 100644
+--- a/codex-rs/tui/src/history_cell/notices.rs
++++ b/codex-rs/tui/src/history_cell/notices.rs
+@@ -123,10 +123,10 @@ pub(crate) fn new_server_version_warning(
+     let mut lines = vec![Line::from(notice.message.set_style(style))];
+     if notice.offer_update {
+         lines.push(Line::from(
+-            "Use /daemon to manage the local background server.".fg(accent_color()),
++            crate::i18n::message("daemon-version-manage-hint", &[]).fg(accent_color()),
+         ));
+         lines.push(Line::from(
+-            "Updating may interrupt active or queued work.".set_style(style),
++            crate::i18n::message("daemon-version-update-warning", &[]).set_style(style),
+         ));
+     }
+     WarningHistoryCell {
 diff --git a/codex-rs/tui/src/history_cell/snapshots/codex_tui__history_cell__tests__pnpm_update_available_history_cell_snapshot.snap b/codex-rs/tui/src/history_cell/snapshots/codex_tui__history_cell__tests__pnpm_update_available_history_cell_snapshot.snap
 index a9dd9cac7..586580f25 100644
 --- a/codex-rs/tui/src/history_cell/snapshots/codex_tui__history_cell__tests__pnpm_update_available_history_cell_snapshot.snap
@@ -118352,6 +118605,42 @@ index fb15a0577..563ae9bbe 100644
  │ Run powershell -ExecutionPolicy Bypass -c '$env:CODEX_NON_INTERACTIVE=1; irm                               │
  │ https://chatgpt.com/codex/install.ps1 | iex' to update.                                                    │
  │                                                                                                            │
+diff --git a/codex-rs/tui/src/history_cell/tests.rs b/codex-rs/tui/src/history_cell/tests.rs
+index cc7f2f668..9e973b5ef 100644
+--- a/codex-rs/tui/src/history_cell/tests.rs
++++ b/codex-rs/tui/src/history_cell/tests.rs
+@@ -100,6 +100,31 @@ fn local_daemon_version_notice_snapshot() {
+     }
+ }
+ 
++#[test]
++fn local_daemon_version_guidance_uses_selected_ui_language() {
++    for (locale, expected) in [
++        (crate::i18n::Locale::English, "Use /daemon to manage"),
++        (
++            crate::i18n::Locale::Korean,
++            "/daemon으로 로컬 백그라운드 서버",
++        ),
++    ] {
++        crate::i18n::with_locale(locale, || {
++            let cell =
++                new_server_version_warning(crate::status::remote_connection::ServerVersionNotice {
++                    message: "0.166.0+native-r36 -> 0.166.0+native-r38".to_string(),
++                    offer_update: true,
++                });
++            let text = render_lines(&cell.transcript_lines(200)).join("\n");
++            assert!(text.contains(expected), "{text}");
++            assert!(
++                text.contains("0.166.0+native-r36 -> 0.166.0+native-r38"),
++                "{text}"
++            );
++        });
++    }
++}
++
+ async fn test_config() -> Config {
+     let codex_home = std::env::temp_dir();
+     ConfigBuilder::default()
 diff --git a/codex-rs/tui/src/history_window.rs b/codex-rs/tui/src/history_window.rs
 new file mode 100644
 index 000000000..f80e68e25
@@ -118414,10 +118703,10 @@ index 000000000..f80e68e25
 +}
 diff --git a/codex-rs/tui/src/i18n.rs b/codex-rs/tui/src/i18n.rs
 new file mode 100644
-index 000000000..581d47c4c
+index 000000000..61c1943e4
 --- /dev/null
 +++ b/codex-rs/tui/src/i18n.rs
-@@ -0,0 +1,230 @@
+@@ -0,0 +1,289 @@
 +//! UI-only language selection. Never apply this dictionary to prompts, tool arguments,
 +//! slash command tokens, paths, or text supplied by the user or a server.
 +//!
@@ -118446,6 +118735,27 @@ index 000000000..581d47c4c
 +        &[
 +            ("cli_path", &mismatch.cli_path.display().to_string()),
 +            ("managed_path", &mismatch.managed_path.display().to_string()),
++        ],
++    )
++}
++
++/// The socket identifies the contacted runtime, not the selected package path.
++pub(crate) fn daemon_connection_mismatch_warning(
++    cli_version: &str,
++    server_version: Option<&str>,
++    endpoint: &str,
++) -> String {
++    let unknown = message("status-unknown-version", &[]);
++    let cli_path = std::env::current_exe()
++        .map(|path| path.display().to_string())
++        .unwrap_or_else(|_| unknown.clone());
++    message(
++        "daemon-implicit-version-mismatch",
++        &[
++            ("server", server_version.unwrap_or(&unknown)),
++            ("client", cli_version),
++            ("cli_path", &cli_path),
++            ("endpoint", endpoint),
 +        ],
 +    )
 +}
@@ -118527,6 +118837,44 @@ index 000000000..581d47c4c
 +#[cfg(test)]
 +mod tests {
 +    use super::*;
++
++    #[test]
++    fn daemon_connection_mismatch_preserves_runtime_source_and_explicit_guidance() {
++        let endpoint = r"unix://D:\공유 서버\control.sock";
++        let cli = "0.166.0+native-r38.20261106";
++        let server = "0.166.0+native-r36.20261104";
++        for (locale, refused, unknown_path) in [
++            (
++                Locale::English,
++                "Automatic attachment was refused",
++                "does not identify the running server executable path",
++            ),
++            (
++                Locale::Korean,
++                "자동 연결을 거부했습니다",
++                "실행 중인 서버 실행 파일 경로는 확인할 수 없습니다",
++            ),
++        ] {
++            for version in [Some(server), None] {
++                let warning = with_locale(locale, || {
++                    daemon_connection_mismatch_warning(cli, version, endpoint)
++                });
++                for expected in [
++                    endpoint,
++                    cli,
++                    refused,
++                    unknown_path,
++                    "--no-daemon",
++                    "codex app-server daemon update --from-cli --yes --no-force",
++                ] {
++                    assert!(warning.contains(expected), "{warning}");
++                }
++                let unknown = with_locale(locale, || message("status-unknown-version", &[]));
++                assert!(warning.contains(version.unwrap_or(&unknown)), "{warning}");
++                assert!(warning.contains(&std::env::current_exe().unwrap().display().to_string()));
++            }
++        }
++    }
 +
 +    #[test]
 +    fn daemon_selection_mismatch_warning_preserves_paths_and_guidance_in_both_languages() {
@@ -123222,28 +123570,41 @@ index b54764227..025a0628e 100644
  
  › 1. Update now (runs `npm install -g @openai/codex`)                           
 diff --git a/codex-rs/tui/src/startup_orchestration.rs b/codex-rs/tui/src/startup_orchestration.rs
-index 6a8d96c97..eb9659bfc 100644
+index 6a8d96c97..d250cdf85 100644
 --- a/codex-rs/tui/src/startup_orchestration.rs
 +++ b/codex-rs/tui/src/startup_orchestration.rs
-@@ -7,11 +7,29 @@ use super::*;
+@@ -7,11 +7,42 @@ use super::*;
  use codex_terminal_detection::Multiplexer;
  use codex_terminal_detection::TerminalName;
  
 +fn automatic_daemon_version_warning(
 +    cli_version: &str,
 +    server_version: Option<&str>,
++    socket_path: &std::path::Path,
 +) -> Option<String> {
 +    if server_version == Some(cli_version) {
 +        return None;
 +    }
-+    let unknown = crate::i18n::message("status-unknown-version", &[]);
++    let reason = crate::i18n::daemon_connection_mismatch_warning(
++        cli_version,
++        server_version,
++        &format!("unix://{}", socket_path.display()),
++    );
 +    Some(crate::i18n::message(
-+        "daemon-auto-version-fallback",
-+        &[
-+            ("server", server_version.unwrap_or(&unknown)),
-+            ("client", cli_version),
-+        ],
++        "daemon-running-embedded",
++        &[("reason", &reason)],
 +    ))
++}
++
++fn automatic_daemon_target(socket_path: std::path::PathBuf) -> std::io::Result<AppServerTarget> {
++    Ok(AppServerTarget::LocalDaemon {
++        endpoint: RemoteAppServerEndpoint::UnixSocket {
++            socket_path: AbsolutePathBuf::from_absolute_path_checked(socket_path)?,
++        },
++        // This remains an automatic selection. Recheck the real handshake and
++        // fall back if the server changed after start.
++        allow_embedded_fallback: true,
++    })
 +}
 +
  pub(super) async fn run_main_inner(
@@ -123255,7 +123616,7 @@ index 6a8d96c97..eb9659bfc 100644
  ) -> std::io::Result<AppExitInfo> {
      if cli.no_daemon && explicit_remote_endpoint.is_some() {
          return Err(std::io::Error::other(
-@@ -604,6 +622,7 @@ pub(super) async fn run_main_inner(
+@@ -604,6 +635,7 @@ pub(super) async fn run_main_inner(
          daemon_exclusion = Some(daemon_startup::WSL_DRVFS_EXCLUSION);
      }
      let mut managed_daemon = cli.managed_daemon;
@@ -123263,7 +123624,7 @@ index 6a8d96c97..eb9659bfc 100644
      if auto_start_daemon && daemon_exclusion.is_none() {
          let output = startup_draft
              .run_until(async {
-@@ -614,7 +633,25 @@ pub(super) async fn run_main_inner(
+@@ -614,7 +646,26 @@ pub(super) async fn run_main_inner(
                      codex_app_server_daemon::start_with_features(&Default::default()).await;
                  daemon_telemetry::record_start(&config, &result).await;
                  match result {
@@ -123272,6 +123633,7 @@ index 6a8d96c97..eb9659bfc 100644
 +                        if let Some(warning) = automatic_daemon_version_warning(
 +                            env!("CARGO_PKG_VERSION"),
 +                            output.app_server_version.as_deref(),
++                            &output.socket_path,
 +                        ) {
 +                            cli_daemon_mismatch_warning = Some(warning);
 +                            Ok(None)
@@ -123290,8 +123652,17 @@ index 6a8d96c97..eb9659bfc 100644
                      #[cfg(windows)]
                      Err(err) if err.is::<codex_app_server_daemon::DetachedLaunchRestricted>() => {
                          Ok(None)
-@@ -636,7 +673,11 @@ pub(super) async fn run_main_inner(
-             };
+@@ -628,15 +679,14 @@ pub(super) async fn run_main_inner(
+             .await??;
+         if let Some(output) = output {
+             managed_daemon = output.backend.is_some();
+-            app_server_target = AppServerTarget::LocalDaemon {
+-                endpoint: RemoteAppServerEndpoint::UnixSocket {
+-                    socket_path: AbsolutePathBuf::from_absolute_path_checked(output.socket_path)?,
+-                },
+-                allow_embedded_fallback: false,
+-            };
++            app_server_target = automatic_daemon_target(output.socket_path)?;
          } else {
              app_server_target = AppServerTarget::Embedded;
 -            daemon_exclusion = Some("this Windows launcher");
@@ -123303,7 +123674,7 @@ index 6a8d96c97..eb9659bfc 100644
          }
      }
      // The overview must inspect the shared server's agents regardless of local settings.
-@@ -661,6 +702,7 @@ pub(super) async fn run_main_inner(
+@@ -661,6 +711,7 @@ pub(super) async fn run_main_inner(
      }
      let daemon_startup_warning = elevated_warning
          .map(str::to_string)
@@ -123311,7 +123682,7 @@ index 6a8d96c97..eb9659bfc 100644
          .or(compatibility_warning)
          .or_else(|| {
              daemon_exclusion
-@@ -978,6 +1020,11 @@ pub(super) async fn run_main_inner(
+@@ -978,6 +1029,11 @@ pub(super) async fn run_main_inner(
          .clone()
          .map(|layer| layer.with_filter(log_db::default_filter()));
  
@@ -123323,7 +123694,7 @@ index 6a8d96c97..eb9659bfc 100644
      let _ = tracing_subscriber::registry()
          .with(tui_file_layer)
          .with(feedback_layer)
-@@ -985,6 +1032,7 @@ pub(super) async fn run_main_inner(
+@@ -985,6 +1041,7 @@ pub(super) async fn run_main_inner(
          .with(log_db_layer)
          .with(otel_logger_layer)
          .with(otel_tracing_layer)
@@ -123331,7 +123702,7 @@ index 6a8d96c97..eb9659bfc 100644
          .try_init();
  
      if let Err(err) = screen_reader_result {
-@@ -1014,6 +1062,7 @@ pub(super) async fn run_main_inner(
+@@ -1014,6 +1071,7 @@ pub(super) async fn run_main_inner(
          managed_daemon,
          launch_telemetry,
          startup_draft,
@@ -123339,7 +123710,7 @@ index 6a8d96c97..eb9659bfc 100644
      ))
      .await
      .map_err(|err| {
-@@ -1055,3 +1104,7 @@ pub(super) async fn run_main_inner(
+@@ -1055,3 +1113,7 @@ pub(super) async fn run_main_inner(
  
      app_result
  }
@@ -123349,22 +123720,86 @@ index 6a8d96c97..eb9659bfc 100644
 +mod tests;
 diff --git a/codex-rs/tui/src/startup_orchestration_tests.rs b/codex-rs/tui/src/startup_orchestration_tests.rs
 new file mode 100644
-index 000000000..df9a53fd5
+index 000000000..158249c4b
 --- /dev/null
 +++ b/codex-rs/tui/src/startup_orchestration_tests.rs
-@@ -0,0 +1,13 @@
+@@ -0,0 +1,77 @@
 +#[test]
 +fn automatic_daemon_requires_the_full_known_cli_version() {
 +    let cli = "0.166.0+native-r37.20261104";
 +    for server in [Some(cli), Some("0.166.0+native-r28.20261029"), None] {
-+        let warning = super::automatic_daemon_version_warning(cli, server);
++        let socket = std::path::Path::new("shared server/control.sock");
++        let warning = super::automatic_daemon_version_warning(cli, server, socket);
 +        assert_eq!(warning.is_some(), server != Some(cli));
 +        if let Some(warning) = warning {
 +            assert!(warning.contains(cli));
 +            let unknown = crate::i18n::message("status-unknown-version", &[]);
 +            assert!(warning.contains(server.unwrap_or(&unknown)));
++            assert!(warning.contains(&format!("unix://{}", socket.display())));
 +        }
 +    }
++}
++
++#[tokio::test]
++async fn automatic_daemon_rechecks_replaced_server_after_successful_start() -> color_eyre::Result<()>
++{
++    use futures::SinkExt;
++    use futures::StreamExt;
++    use tokio_tungstenite::tungstenite::Message;
++
++    for version in [Some("0.166.0+native-r36.20261104"), None] {
++        let home = tempfile::tempdir()?;
++        let directory = home.path().join("control");
++        codex_uds::prepare_private_socket_directory(&directory).await?;
++        let socket_path = directory.join("server.sock");
++        let mut listener = codex_uds::UnixListener::bind(&socket_path).await?;
++        // start reported this build, but the socket is replaced before the
++        // final connection. Exercise the same automatic target construction.
++        assert!(
++            super::automatic_daemon_version_warning(
++                env!("CARGO_PKG_VERSION"),
++                Some(env!("CARGO_PKG_VERSION")),
++                &socket_path,
++            )
++            .is_none()
++        );
++        let target = super::automatic_daemon_target(socket_path)?;
++        let server = tokio::spawn(async move {
++            let stream = listener.accept().await?;
++            let mut socket = tokio_tungstenite::accept_async(stream).await?;
++            let Some(Ok(Message::Text(request))) = socket.next().await else {
++                panic!("initialize request missing");
++            };
++            let request: serde_json::Value = serde_json::from_str(&request)?;
++            assert_eq!(request["method"], "initialize");
++            socket
++                .send(Message::Text(
++                    serde_json::json!({
++                        "id": request["id"],
++                        "result": {"userAgent": version.map_or_else(
++                            || "daemon-test".to_string(),
++                            |version| format!("daemon-test/{version}"),
++                        )}
++                    })
++                    .to_string()
++                    .into(),
++                ))
++                .await?;
++            while let Some(Ok(message)) = socket.next().await {
++                if let Message::Text(text) = message {
++                    let message: serde_json::Value = serde_json::from_str(&text)?;
++                    assert_eq!(message["method"], "initialized");
++                }
++            }
++            Ok::<_, color_eyre::Report>(())
++        });
++        let result = crate::app_server_connection::connect(&target).await;
++        assert!(result.is_err(), "a replaced server must not be attached");
++        let error = result.err().unwrap().to_string();
++        assert!(error.contains("does not match this CLI"), "{error}");
++        tokio::time::timeout(std::time::Duration::from_secs(5), server).await???;
++    }
++    Ok(())
 +}
 diff --git a/codex-rs/tui/src/status/card.rs b/codex-rs/tui/src/status/card.rs
 index 8145011fd..2d4eb6ee8 100644
@@ -126534,6 +126969,41 @@ index 000000000..8c51e4acc
 +## 검증과 개발 분리
 +
 +소스와 시험은 별도 R36 브랜치에서 개발한다. 기존 warm cache와 자원 보호를 재사용하며 빌드 프로세스를 여러 개 동시에 시작하지 않는다. 실제 시험 결과·종료 코드·후보 SHA를 연결하고, 미실행과 통과를 구분한다. 최종 변경의 수용 근거 확인과 새로운 독립감사를 거친다. 이번 요청만으로 main 병합·릴리스·설치를 실행하지 않는다.
+diff --git a/docs/native-cli-r38.ko.md b/docs/native-cli-r38.ko.md
+new file mode 100644
+index 000000000..9c4042f5e
+--- /dev/null
++++ b/docs/native-cli-r38.ko.md
+@@ -0,0 +1,29 @@
++# R38 시작 경고 수정 후보
++
++R37 공개 실행 파일은 동결 상태다. 이 문서는 R37 이후 별도 개발 후보의 범위를 설명하며 R38 최종 빌드·공개·설치 완료를 뜻하지 않는다.
++
++## 플러그인 캐시
++
++동일 버전을 다시 준비할 때 저장소 `.git/index`와 같은 메타데이터까지 비교하면 실제 플러그인 내용이 같아도 설치 디렉터리를 교체하려 할 수 있다. Windows에서는 사용 중인 자식 디렉터리의 cwd 또는 열린 파일 때문에 상위 rename이 거절될 수 있다.
++
++새 staging 복사와 설치 내용 비교에서 이름이 정확히 `.git`인 항목만 제외한다. 기존 사용 중인 캐시의 `.git`를 별도로 삭제하지 않는다. 실제 payload의 변경·추가·삭제, 권한 및 읽기 실패는 기존 교체·오류 경로를 유지한다. 특정 운영 오류의 정확한 잠금 보유자를 식별했다는 주장은 하지 않는다.
++
++## 자동 공유 서버 연결
++
++기존 소켓에 대한 암시적 연결, 자동 시작 결과 이후 실제 handshake, 재연결에서 CLI의 전체 빌드 버전을 대조한다. 다르거나 확인되지 않으면 해당 연결을 닫고 기존 embedded fallback을 사용한다. 명시적 원격 endpoint와 사용자가 선택한 공유 연결의 정책은 유지한다.
++
++연결 거절은 공유 서버 종료·업데이트 요청이 아니다. 현재 CLI 실행 경로·서버가 보고한 버전·접속 소켓을 구분하고 한국어/영어 catalog로 안내한다. 소켓만 보고 실행 중인 서버의 실행 파일 경로를 안다고 표시하지 않는다.
++
++## Stop 설정 교정 도구
++
++`Stop` 이벤트는 `additionalContext`를 출력할 수 없어 `additionalContextLimit`가 무시된다. Stop hook 자체가 비활성화됐다는 뜻은 아니다.
++
++`scripts/install/normalize_stop_hook_config.py <명시한 hooks.json 경로>`는 기본값으로 미리보기만 수행한다. 명시한 `--apply`에서만 Stop handler의 해당 속성을 제거하며 원본 백업, 동시 변경 거절, 비대상 원문·인코딩·줄바꿈 보존을 적용한다. 다른 이벤트나 hook 명령을 바꾸거나 hook을 실행하지 않는다. Python이 필요하며 아직 배포 설치기와 연결하지 않은 개발용 도구다. 사용자 운영 hooks 설정은 이 개발 단계에서 적용하지 않았다. 초기 읽기 경쟁과 비정상 종료 시 백업 복구의 한계는 시험 문서를 따른다.
++
++## 검증 자료
++
++- [캐시 사례](r38-plugin-cache-test-cases.ko.md)
++- [서버 연결 사례](r38-daemon-test-cases.ko.md)
++- [Stop 설정 사례](r38-stop-hook-test-cases.ko.md)
++
++원래 실패, 실행하지 않은 운영 조건과 다른 OS에서만 가능한 시험을 성공으로 합산하지 않는다. 이 PC의 다음 시작 R37 선택 변경은 R38 개발과 별도의 운영 변경이다.
 diff --git a/docs/r36-cleanup.ko.md b/docs/r36-cleanup.ko.md
 new file mode 100644
 index 000000000..982298cff
@@ -127408,6 +127878,764 @@ index 000000000..724c25239
 +- `core/src/tasks/compact.rs`, `core/src/compact.rs`에는 준비·원격/로컬 요약 경계 timer가 존재한다. 실제 허용 로그를 읽지 않았으므로 느림의 지배 구간이나 개선율을 제시하지 않는다. 계측의 존재는 지연 해결의 근거가 아니다.
 +
 +이 조사에서 compact backend의 새 결함은 확인하지 못했다. 기존 시험 재실행과 실제 단계별 관측이 남으며 source만으로 사용자 상태를 정상/해결로 판정하지 않는다. compact 제품 코드는 변경하지 않았다.
+diff --git a/docs/r38-daemon-test-cases.ko.md b/docs/r38-daemon-test-cases.ko.md
+new file mode 100644
+index 000000000..d968b7368
+--- /dev/null
++++ b/docs/r38-daemon-test-cases.ko.md
+@@ -0,0 +1,54 @@
++# R38 공유 서버 선택·버전 정합성 시험 계획
++
++작성 기준: R38 소스 `feat/r38-startup-cache-daemon-20261106`. 구현 전 사례다. 이 문서 작성 시점에는 시험·Cargo·빌드를 실행하지 않았다. 각 결과는 `NOT_RUN`이며 실제 실행 담당자가 대상 commit·명령·종료 코드·원시 근거를 연결해야 한다.
++
++## 요구와 불변조건
++
++- R38-D1: 암시적 로컬 공유 서버 연결은 handshake로 확인한 전체 버전 문자열이 현재 CLI와 같을 때만 사용한다. 공식 SemVer만 같고 패치 build가 다르거나 버전이 없으면 현재 CLI의 embedded 서버로 fallback한다.
++- R38-D2: 소켓 사전 탐색 성공과 자동 start의 버전 확인은 실제 최종 연결의 동일성을 보장하지 않는다. 실제 연결 및 재연결 경계에서도 D1을 확인한다.
++- R38-D3: 버전 불일치를 해결하기 위해 공유 서버 업데이트·재시작·강제 종료를 자동 수행하지 않는다. 연결 종료는 이 클라이언트가 소유한 연결에 한정한다.
++- R38-D4: 명시 remote 연결과 특정 backend의 기존 작업 복원은 암시적 fallback과 구별한다. 복원 대상이 다르다는 이유로 다른 backend에 작업을 생성하지 않는다.
++- R38-D5: 안내는 활성화한 backend source와 확인한 버전·경로를 구별해 한국어/영어 catalog로 제공한다. 선택된 package 경로를 실제 실행 중인 서버 경로라고 단정하지 않는다. 명시적 전환 안내는 `codex app-server daemon update --from-cli --yes --no-force`를 유지한다.
++
++CS 적용: 실제 handshake 응답이 사전 probe보다 권위가 높은 관측이다. 초기 탐색과 연결 사이의 교체를 고려하고, 연결 소유권을 보존한다. `DIST-ORDER-004`의 적용 조건인 역순 상태 알림은 이 수정에 해당하지 않으므로 의무로 추가하지 않는다. 버전 문자열은 호환성 협상의 대체물이 아니라 로컬 자동 선택의 정책 조건이다.
++
++## 사례
++
++| 사례 | 요구 | 전제·입력 | 절차 | 기대 결과·독립 oracle | 수준·현재 결과 |
++| --- | --- | --- | --- | --- | --- |
++| R38-DAEMON-01 | D1 | 자동 start 결과 server=`0.166.0+native-r36.20261104`, CLI=`0.166.0+native-r38.20261106` | 기존 `automatic_daemon_requires_the_full_known_cli_version` 경계에서 full version을 비교 | mismatch 안내에 두 전체 버전이 보존되고 embedded 선택. 단순 SemVer 일치를 거부 | 기존 Rust unit 확장, NOT_RUN |
++| R38-DAEMON-02 | D1 | server 버전이 CLI와 정확히 같음 | 같은 경계 호출 | 안내 없음; 기존 정상 shared 선택 보존 | 기존 Rust unit, NOT_RUN |
++| R38-DAEMON-03 | D1 | server version=None | 같은 경계 호출 | 버전 미확인을 표시하고 embedded 선택; unknown을 일치로 간주하지 않음 | 기존 Rust unit, NOT_RUN |
++| R38-DAEMON-04 | D1,D2,D3 | 자동 start 비활성, 암시적 default socket, fixture의 initialize userAgent가 이전 build | 실제 `app_server_connection::connect`에 fixture socket 전달 | connect가 이 shared client를 반환하지 않음; init 뒤 config/feature/thread 요청 없음; 이 client 연결만 닫힘; 상위 embedded fallback. shared 서버 프로세스와 설치 파일 보존 | 기존 transport fixture를 이용한 integration, NOT_RUN |
++| R38-DAEMON-05 | D1,D2 | 암시적 default socket, initialize에 현재 full build 또는 version 미확인 | 04와 같은 경계에서 각 입력 실행 | 현재 build는 연결 유지; 미확인은 연결 거부. oracle은 fixture에 명시한 userAgent와 반환 결과 | integration, NOT_RUN |
++| R38-DAEMON-06 | D2,D3 | 자동 start가 현재 build를 반환한 뒤 실제 handshake는 old/missing build; 최초 handshake current 뒤 재연결은 old/missing | production과 같은 `automatic_daemon_target`을 거쳐 보호된 실제 UDS에 연결하고, 기존 socket fixture에서 같은 endpoint로 재연결 | 사전 관측에 의존해 다른 build에 attach하지 않음. 업데이트·restart·shutdown RPC 없음 | integration, NOT_RUN |
++| R38-DAEMON-07 | D4 | 명시 `Remote` target의 다른 version 서버 | 실제 connect 호출 | remote의 기존 명시 연결 정책을 보존; 암시적 로컬 fallback 조건을 적용하지 않음 | integration, NOT_RUN |
++| R38-DAEMON-08 | D4 | picker가 기존 backend ID용 LocalDaemon target의 fallback=false로 변환 | 연결·복원 경로 추적 및 기존 해당 fixture | 다른 backend에 암묵적으로 새 작업을 만들지 않음; 불일치 처리 정책과 일반 암시적 선택을 구별 | 기존 복원 회귀, NOT_RUN |
++| R38-DAEMON-09 | D3,D5 | 선택된 package가 CLI와 다름; 공백·한국어 포함 경로 | 기존 i18n mismatch formatter를 ko/en으로 호출 | 두 실행 파일 경로·현재 embedded source·보존 사실·정확한 no-force 명령 보존. 표시용 경로를 번역하지 않음 | 기존 i18n unit 확장, NOT_RUN |
++| R38-DAEMON-10 | D5 | 실제 shared handshake mismatch, CLI/source/socket 경로 제공 | ko/en 안내 출력 | 어느 backend로 실행하는지와 관측 source·두 전체 버전·실제 확인한 경로만 표시. `Use /daemon`만으로 원인을 대신하지 않음 | i18n/기존 notice rendering 회귀, NOT_RUN |
++
++## 기존 경로와 검증 한계
++
++- `startup_orchestration.rs` 자동 start는 이미 `automatic_daemon_version_warning`으로 known full build 일치를 확인한다. stopped old package의 `CliDaemonMismatch`도 기존 embedded fallback 대상이다. 추측에 따른 교체는 하지 않는다.
++- `lib.rs::maybe_probe_default_daemon_socket`는 transport probe만 수행하며 버전을 확인하지 않는다. `daemon_startup::compatibility_warning`의 feature check 전에 실제 연결 버전 guard가 필요하다.
++- 구현 전 `app_server_connection.rs::connect`는 초기 연결·재연결의 공통 경계에서 mismatch를 tracing 경고만 남겼다. 담당 범위 확장 후 암시적 `LocalDaemon(allow_embedded_fallback=true)`의 실제 handshake를 거부하도록 수정했다. explicit `Remote`/`LocalDaemon(false)`의 연결 정책은 보존했다.
++- 자동 start 성공 target은 기존 `false`에서 `true`로 전환했다. 이 target은 사용자 지정 endpoint가 아니므로 동일 handshake 검사를 적용하며, start 이후 소켓이 바뀌면 기존 embedded fallback을 허용한다. 기존 picker의 backend-ID 복원은 여전히 `false`다.
++- Desktop launcher의 `--no-daemon`과 Desktop 자체 shared attach는 별도 경로다. 이 TUI 사례의 결과를 Desktop 검증으로 확대하지 않는다.
++- 실행 담당자는 기존 Cargo runner, 격리된 `CODEX_HOME`·socket·fixture 서버만 사용한다. 운영 설정·daemon·인증·타 세션 자료는 시험 입력으로 읽지 않는다.
++
++## 구현 연결 및 실행 인계
++
++기존 Rust 테스트 모듈을 재사용했다. 새 runner나 의존성은 추가하지 않았다.
++
++| 사례 | 구현된 테스트 경계 | 실행 상태 |
++| --- | --- | --- |
++| 01–03 | `startup_orchestration::tests::automatic_daemon_requires_the_full_known_cli_version` | NOT_RUN |
++| 04–05,07 | `daemon_startup_tests::local_daemon_version_metadata_limits_only_implicit_attachment` / `daemon_startup_tests::daemon_startup_falls_back_only_for_implicit_endpoints` | NOT_RUN |
++| 05–08 | `daemon_startup_tests::default_socket_version_policy_applies_on_initial_and_reconnect` | NOT_RUN |
++| 06 | `startup_orchestration::tests::automatic_daemon_rechecks_replaced_server_after_successful_start` | NOT_RUN |
++| 09 | `i18n::tests::daemon_selection_mismatch_warning_preserves_paths_and_guidance_in_both_languages` | NOT_RUN |
++| 10 | `i18n::tests::daemon_connection_mismatch_preserves_runtime_source_and_explicit_guidance` / `history_cell::tests::local_daemon_version_guidance_uses_selected_ui_language` | NOT_RUN |
++
++UDS fixture는 자기 임시 directory의 private socket과 합성 initialize 응답만 사용한다. shared 서버와 무관한 client transport 종료 뒤에도 같은 listener가 다음 연결을 받으며, `initialized` 외 application RPC는 assertion 실패다. 이 oracle는 lifecycle/thread RPC 무발행을 검증하며 실제 진행 작업의 보존 E2E를 대신하지 않는다.
++
++실행 담당자가 격리된 빌드 사본에서 기존 `cargo test -p codex-tui --lib <해당 필터> -- --test-threads=1`을 직렬 실행하고 결과를 위 사례에 연결한다. 구현자는 Cargo/시험/빌드/운영 명령을 실행하지 않았다. 정적 diff 검사는 동적 시험의 PASS가 아니다.
+diff --git a/docs/r38-plugin-cache-test-cases.ko.md b/docs/r38-plugin-cache-test-cases.ko.md
+new file mode 100644
+index 000000000..35f1c1de4
+--- /dev/null
++++ b/docs/r38-plugin-cache-test-cases.ko.md
+@@ -0,0 +1,46 @@
++# R38 플러그인 캐시 시험 사례
++
++구현 전 계획이다. 대상은 `codex-rs/core-plugins/src/store.rs`의 `PluginStore::install`이며, 기존 `store_tests.rs`와 Cargo 시험 체계를 사용한다. 모든 동적 시험과 red/green은 현재 `NOT_RUN`이다. 담당 root의 직렬 실행 지시 전 Cargo, 빌드, 시험, 커밋, push를 실행하지 않는다.
++
++## 요구와 불변조건
++
++- PC-01: 설치 payload에서 이름이 정확히 `.git`인 항목만 제외한다. 디렉터리와 worktree 포인터 파일, 하위 경로에도 적용한다. `.gitignore`, `.gitattributes`, `.gitmodules`, `.github` 등 다른 이름은 payload로 보존한다.
++- PC-02: 기존 설치에 남은 `.git`가 달라도 payload가 같으면 제자리 재사용한다. migration을 위해 기존 `.git`를 강제 삭제하거나 cache 상위 디렉터리를 rename하지 않는다.
++- PC-03: 같은 버전의 manifest, skill, MCP와 다른 payload의 변경·추가·삭제 및 파일 권한 차이는 기존 교체 경로로 보낸다. 비교 I/O 실패를 같음이나 성공으로 바꾸지 않는다.
++- PC-04: 잠긴 Windows 설치에서 실제 payload가 달라지면 오류와 이전 설치를 보존한다. 락 해제 후 정상 교체가 가능해야 한다. payload symlink를 따라가서 같다고 판정하지 않는다.
++- CS 적용: `PERF-CACHE-003`의 캐시 정합성을 PC-01~04로 구체화한다. 기존 설치 직렬 락, staging 검증, 원자 교체 및 rollback을 유지한다. 기존 8 KiB 파일 비교 버퍼를 유지하며 새 캐시·큐·재시도·시간 제한은 만들지 않는다. 성능 수치 개선은 주장하지 않는다.
++
++## 사례
++
++각 사례는 실제 파일시스템과 공개 설치 경계를 사용한다. Windows 락 사례는 기존 `PluginChild`와 `assert_root_is_locked`를 재사용한다. oracle은 고정 입력 bytes, 파일 존재, 실제 rename 실패와 설치 결과이며 구현 비교 함수를 기대값으로 사용하지 않는다.
++
++| ID / 요구 | 입력·사전조건 | 절차 | 기대 결과와 pass/fail oracle | 상태 |
++| --- | --- | --- | --- | --- |
++| PC-T01 / PC-01 | 임시 source에 `.git/index` 디렉터리, `nested/.git` worktree 포인터 파일, `.gitignore`, `.gitattributes`, `.gitmodules`, `.github/workflow.yml`, 정상 manifest·skill·MCP를 둔다. | 공개 `install`을 호출한다. | 설치의 두 `.git`는 없고 나머지 파일 bytes는 입력과 같다. source의 `.git`는 유지된다. 하나라도 다르면 FAIL. | NOT_RUN |
++| PC-T02 / PC-02 | 정상 설치 후 legacy cache `.git/index`와 `skills/.git` 파일을 직접 만들고 source에는 다른 `.git/index`를 둔다. 설치 skill의 별도 hard link를 둔다. | 같은 버전을 재설치한 뒤 별도 hard link에 새 bytes를 쓴다. | 성공, 설치 skill에서도 새 bytes가 보이고 legacy `.git` bytes는 그대로다. hard link와 설치 파일 identity가 갈라지거나 metadata를 바꾸면 FAIL. | NOT_RUN |
++| PC-T03 / PC-03 | 같은 버전 설치의 source에 `.git`가 있고 manifest, skill, MCP, `.gitignore`의 내용을 각각 바꾸거나 새 파일을 추가하거나 MCP를 삭제한다. | 각 독립 fixture에서 재설치한다. | 변경 bytes·추가·삭제가 실제 설치에 반영되고 새 cache에 `.git`가 없다. 하나라도 옛 payload면 FAIL. | NOT_RUN |
++| PC-T04 / PC-02,04 | Windows 설치의 legacy cache `.git/index`가 source와 다르고 실제 child cwd로 상위 rename이 OS 5/32로 실패한다. | 같은 payload 버전을 재설치한다. | 성공, child 생존, 기존 `.git/index` 보존, 활성 버전 동일. rename 전제 미충족이나 설치 오류면 FAIL. | NOT_RUN |
++| PC-T05 / PC-02,04 | Windows 설치 파일을 delete 공유 없이 열고 실제 상위 rename 실패를 확인한다. source에는 다른 `.git` worktree 포인터를 둔다. | 같은 payload 버전을 재설치한다. | 성공, 열려 있는 핸들에서 원래 skill bytes를 읽을 수 있다. rename 전제 미충족이나 설치 오류면 FAIL. | NOT_RUN |
++| PC-T06 / PC-03,04 | Windows child cwd가 cache를 잠근 상태에서 skill bytes와 source `.git/index`를 바꾼다. | 재설치, 기존 payload 검사, child 종료, 재설치 순으로 실행한다. | 첫 설치는 `failed to back up plugin cache entry` 오류이며 원래 skill·활성 버전 보존. 락 해제 뒤에는 새 skill 설치. 오류를 성공으로 바꾸거나 부분 갱신하면 FAIL. | NOT_RUN |
++| PC-T07 / PC-03 | Unix에서 source 실행권한을 변경한다. Windows에서 설치 파일을 공유 읽기 불가로 연다. | 기존 권한 변경 및 unreadable-cache 시험을 실행한다. | Unix 권한이 갱신된다. Windows 읽기 실패는 `failed to compare installed plugin cache entry`로 반환된다. 같음/성공으로 숨기면 FAIL. | NOT_RUN |
++| PC-T08 / PC-04 | Unix에서 설치 skill을 외부 동일 bytes 파일에 대한 symlink로 바꾸고 source `.git`를 둔다. | 공개 `install`을 호출한다. | 설치 skill은 일반 파일로 복구되고 외부 파일 bytes는 유지된다. symlink 유지·추적 시 FAIL. 기존 manifest/skill/executable symlink 거부 시험도 유지한다. | NOT_RUN |
++| PC-T09 / PC-03,04 | 기존 same-version 동시 설치·다른 프로세스 설치 락·새 버전 설치 fixture. | 기존 시험을 그대로 실행한다. | 설치 완전성·프로세스 직렬화·구버전 child 생존과 신버전 활성화의 기존 assertion을 모두 만족한다. | NOT_RUN |
++
++## 실행과 근거 계획
++
++예정 명령은 승인된 별도 build 작업 사본의 `codex-rs`에서 `cargo test -p codex-core-plugins --lib store::tests:: -- --test-threads=1`이다. Windows는 실제 cwd/file-handle 락 사례를, Unix는 권한·symlink 사례를 실행한다. 다른 호스트의 미실행 항목을 통과로 세지 않는다.
++
++red/green은 root가 허용한 격리 사본에서 같은 `store_tests.rs` bytes와 argv를 유지하고 `store.rs`의 `.git` 제외만 원래 동작으로 바꿔 PC-T01,02,04,05가 실제 assertion/설치 오류로 실패하는지 확인한다. runner·컴파일 실패는 red가 아니다. 원시 stdout/stderr, 종료 코드, source/test digest, 후보 커밋 또는 diff 식별자와 호스트를 보관한다. 현재 proof/result는 모두 `NOT_RUN`이며 최종 실행 결과는 root가 연결한다.
++
++기존 cache `.git`는 동등 payload 재사용 시 남아 있을 수 있다. 이후 실제 payload 교체 때 새 staging에서 제외되며, 이 변경은 별도 강제 정리나 운영 cache 변경을 수행하지 않는다.
++
++## Windows 실제 결과
++
++위 NOT_RUN 표는 실행 전 계획을 보존한다. Windows의 같은 격리 시험 사본에서 기존 `store::tests::` 전체를 실행했다.
++
++- 첫 후보: 38 PASS / 0 FAIL, exit0. PC-T01~06 및 PC-T07의 Windows 읽기 거절, PC-T09 설치 직렬화·새 버전 활성화를 포함한다.
++- 비교 실행: 같은 시험 파일 bytes를 유지하고 제품 `store.rs`만 R37 원본으로 복원하자 32 PASS / 6 FAIL, exit101이었다. `.git` 설치 제외, legacy 내용의 파일 신원 유지, metadata 변경을 동반한 교체, 잠금 해제 뒤 교체의 assertion이 실패했다. 실제 cwd/파일 핸들 두 시험은 원래의 OS5 `failed to back up plugin cache entry`를 재현했다. 컴파일 실패를 red로 계산하지 않았다.
++- 후보 복원·서식 정리 뒤 최종 시험: 38 PASS / 0 FAIL, exit0. 비교 실행 뒤 제품 후보를 복원했고 다른 운영 cache를 입력으로 쓰지 않았다.
++- Unix 실행권한·symlink 사례는 이 Windows 실행의 통과 수에 포함하지 않는다. 해당 OS의 실제 실행은 NOT_RUN이다.
++
++명령은 `cargo test --offline --locked --profile dev-small --target x86_64-pc-windows-msvc -j2 -p codex-core-plugins --lib store::tests:: -- --test-threads=1`이었다. 원시 출력·각 argv·종료 코드·시험 파일과 제품 SHA는 로컬 검증 자료에 보존하며 공개 소스에 원시 로그를 포함하지 않는다. 최종 릴리스 빌드나 사용 중인 AGS 운영 갱신 성공을 이 결과로 주장하지 않는다.
+diff --git a/docs/r38-stop-hook-test-cases.ko.md b/docs/r38-stop-hook-test-cases.ko.md
+new file mode 100644
+index 000000000..7c7bdc411
+--- /dev/null
++++ b/docs/r38-stop-hook-test-cases.ko.md
+@@ -0,0 +1,101 @@
++# R38 Stop 설정 교정 시험
++
++## engineering-test-plan — 실행 전 계획
++
++대상은 `scripts/install/normalize_stop_hook_config.py`의 함수와 CLI다. 기존
++`scripts/install/test_install_sh.py`와 같은 표준 라이브러리 `unittest`를 사용한다.
++2026-11-06 구현·시험 전에 사례를 작성했다. 실제 사용자 설정, R37, 운영 DB,
++다른 세션의 로그·인증 파일은 열거나 수정하지 않는다. 기존 설치 스크립트에는 연결하지 않는다.
++
++요구 R1: 명시한 파일의 `hooks.Stop[*].hooks[*].additionalContextLimit`만 제거한다.
++R2: 기본 dry-run이며 `apply=True`/`--apply`만 쓰기를 허용한다.
++R3: 적용 전 원본 그대로의 새 백업을 만들며 기존 백업을 덮어쓰지 않는다.
++R4: 계획 후 내용·파일 신원이 바뀌거나 다른 작성자가 사용 중이면 적용을 거절한다.
++R5: 인코딩·BOM·줄바꿈과 제거 대상 외 원문을 보존한다.
++R6: 파싱·검증·백업 실패 시 원본을 변경하지 않는다.
++
++공통 전제: Windows, 네트워크를 사용하지 않는 자체 `TemporaryDirectory`, 직접 만든 JSON만 사용한다.
++실제 파일 I/O 및 CLI subprocess를 검사하며 배타 핸들 충돌도 실제 핸들로 재현한다.
++인위적 변경 시점·백업 실패만 mock으로 주입한다. JSON 기대값은 수기로 작성하고,
++바이트 보존은 수기 문자열 또는 원본 바이트와 비교한다. 실패는 assertion 실패와 실행 오류를 구분한다.
++
++| 사례 | 요구 | 입력·전제 | 절차 | 기대 결과 / pass-fail oracle | 실제 결과 |
++| --- | --- | --- | --- | --- | --- |
++| SH01 | R1,R2 | Stop handler에 값 8192 | 기본 함수 호출 | 제거 예정 수 1, 원본 바이트 동일, 백업 없음 | PASS |
++| SH02 | R1,R3 | 여러 Stop handler, 다른 event와 중첩 동명 필드 | 명시 apply | 지정 필드만 제거된 수기 JSON과 일치, command/env/timeout/unknown와 다른 event 값 유지, 백업은 원본 바이트 | PASS |
++| SH03 | R1,R5 | 대상 속성이 첫째·중간·마지막·유일 속성, compact·pretty JSON, escaped key | 각각 apply | 유효 JSON, 남는 값과 수기 원문 일치 | PASS (7입력) |
++| SH04 | R5 | UTF-8/BOM, UTF-16 LE/BE/BOM, UTF-32 LE/BE/BOM, LF/CRLF 혼합 | 각각 apply | 원본 codec/BOM 유지, 제거한 key/value/comma 외 바이트 동일 | PASS (10입력) |
++| SH05 | R1,R2 | 대상 없음, 다른 event에만 동명 필드 | 각각 apply | 제거 수 0, 원본 동일, 불필요 백업 없음 | PASS (3입력) |
++| SH06 | R6 | 잘못된 JSON, duplicate key, NaN, 잘못된 encoding | 각각 apply | 명시적 오류, 원본 동일, 백업 없음 | PASS (6입력) |
++| SH07 | R1,R6 | 비객체 root 또는 잘못된 Stop/hooks/handler shape | 각각 apply | 명시적 오류, 원본 동일, 백업 없음 | PASS (6입력) |
++| SH08 | R4 | dry-run digest 이후 내용 변경 | 이전 digest로 apply | concurrent/stale 오류, 새 내용 보존, 백업 없음 | PASS |
++| SH09 | R4 | 읽은 snapshot 뒤 파일 변경 또는 같은 bytes의 파일 교체 | apply의 배타 open 직전 변경 주입 | 동시 변경 오류, 변경본 보존, 백업 없음 | PASS (2입력) |
++| SH10 | R4 | 다른 실제 handle이 파일을 배타적으로 열고 있음 | 실제 Windows handle 유지 후 apply | 최초 읽기 EACCES / 직접 open WinError32, 원본 동일, 백업 없음 | PASS (oracle 교정 후) |
++| SH11 | R3,R6 | 백업 생성 실패 | apply에 백업 실패 주입 | I/O 오류, 원본 동일 | PASS |
++| SH12 | R2 | 자체 fixture 경로만 CLI 전달 | CLI 기본 실행, 이후 --apply | 기본 exit 0와 원본 동일, 명시 apply exit 0와 교정·백업, 출력에 command/env 원문 없음 | PASS |
++| SH13 | R6 | 없는 경로, directory, symlink 판별 branch | 각각 함수/CLI 호출, symlink 판별만 mock | 명시적 오류, 새 설정 생성 없음. 실제 symlink 생성은 권한을 가정하지 않아 NOT_RUN | PASS (명시한 component 경계) |
++| SH14 | R1,R3 | 이미 교정된 동일 파일 | 명시 apply 두 번 | 첫 백업 보존, 둘째 제거 수 0와 새 백업 없음 | PASS |
++| SH15 | R4 | 적용 중 다른 작성자 open 시도 | 백업 작성 시점에 실제 두번째 writer open | Windows 공유 위반, 정상 교정과 원본 백업 | PASS |
++| SH16 | R4,R6 | 쓰기용 Windows CreateFileW 호출 | API 호출만 spy로 캡처하고 오류 반환 | FILE_FLAG_OPEN_REPARSE_POINT·share=0·OPEN_EXISTING 전달. 성공 경로 실제 핸들은 SH10/15에서 별도 확인 | PASS |
++| SH17 | R4,R6 | 자체 fixture symlink 생성 권한이 있는 경우 | initial is_symlink와 rb open 사이 링크 교체 재현 | 쓰기 전에 reparse/신원 불일치 거절, 원본·링크 대상 불변, 백업 없음. 초기 읽기의 링크 추종 여부는 별도 관측 | NOT_RUN: WinError1314로 SKIP |
++
++재현 명령(`$verifiedPython`에는 미리 확인한 Python 실행 파일의 절대 경로를 지정한다):
++
++```powershell
++& $verifiedPython -I -S -B -X utf8 './scripts/install/test_normalize_stop_hook_config.py' -v
++```
++
++## engineering-test-proof — 사전 한계
++
++새 독립 helper이며 기존 운영 설정을 바꾼 결함 버전은 실행하지 않는다.
++기계적 red/green 대신 실제 JSON 경계·백업·sharing 위반·stale 입력을 위 사례로 확인한다.
++운영 설정 적용, 설치 연결, 앱 실행, Stop hook 실행·종료 판정과 warning 소멸은 NOT_RUN이다.
++적용은 Windows 배타 핸들 아래에서 원본 백업 후 같은 파일에 쓴다. 쓰는 도중 프로세스/디스크
++장애의 crash atomicity는 보장하지 않으며 남겨둔 원본 백업으로 복구해야 한다.
++
++## engineering-test-result
++
++첫 실행은 위 명령, exit 1, `Ran 15 tests in 0.428s`, SH01–09·SH11–15 통과,
++SH10 assertion 실패였다. 실제 거절은 발생했으나 Python 최초 `open("rb")`의
++`PermissionError(errno=13, winerror=None)`를 직접 `CreateFileW` 오류와 같다고
++가정한 oracle 오류였다. 동일한 실패를 제품 결함의 red로 보지 않는다.
++
++원시 traceback은 로컬 검증 자료에 보존하고 공개 소스에는 포함하지 않는다.
++실패 assertion은 기대한 WinError32와 실제 `None`의 차이였다.
++
++SH10은 최초읽기의 EACCES와 직접 배타 open의 WinError32를 각각 확인하도록
++교정했다. 이후 결과는 아래에 별도 기록한다.
++
++두번째 실행: 같은 절대 인터프리터·argv, exit 0.
++
++두번째 실행에서 15개가 통과했다(0.359초).
++
++사례별 실제 결과는 위 표와 테스트의 같은 SH ID로 연결된다. SH10의 두 handle은
++같은 프로세스 안에서 열었으며 OS sharing 판정은 실제로 실행했다. 별도 프로세스가
++파일을 보유하는 시험은 NOT_RUN이다. 실물 symlink와 crash/power-loss 복구 시험도
++NOT_RUN이다. 모든 fixture는 자체 빌드 영역의 임시 폴더에만 만들었고
++`TemporaryDirectory`가 정상 반환했다. 원시 실행 출력은 로컬에 보존하며,
++운영 파일과 기존 백업은 이 시험의 입력이 아니다.
++
++## 후속 reparse 경계 확인
++
++추가 사례 SH16/17을 먼저 표에 적고 세번째 실행을 수행했다. helper 제품 코드는
++변경하지 않았다. 기존 `CreateFileW`의 `dwFlagsAndAttributes=0x00200080`은
++`FILE_FLAG_OPEN_REPARSE_POINT(0x00200000) | FILE_ATTRIBUTE_NORMAL(0x80)`이다.
++실제 호출 인자를 캡처한 SH16이 이 플래그, share=0, OPEN_EXISTING을 확인했다.
++쓰기 핸들의 `fstat` reparse 속성·파일 신원·바이트 대조는 백업 이전에 실행된다.
++
++반면 최초 `Path.is_symlink()`와 `Path.open("rb")` 사이 교체는 초기 읽기에서
++링크를 따라갈 수 있는 코드상 간격이다. 이 문제를 쓰기 핸들의 신원 대조가 초기
++읽기까지 보호한다고 설명하지 않는다. 자체 fixture의 실물 symlink 생성 시도가
++`WinError1314`(권한 부족)로 실패해 실제 경쟁 경계는 재현하지 못했다. 권한 확대나
++대체 운영 경로로 검사하지 않았으며 이 초기 읽기의 경쟁 방지는 미검증·남은 제한이다.
++
++세번째 실행: 위와 같은 절대 인터프리터·argv, exit 0. 16 PASS / 1 SKIP이며
++17개 전체 통과로 계산하지 않는다.
++
++전체 17개 중 SH16을 포함한 16개가 통과했고 SH17은 권한 부족으로 실행하지
++못했다(0.771초). 원시 출력은 로컬 검증 자료로 보존했다.
++
++이 산출물은 아직 독립 helper다. R38 installer 연결과 운영 설정 교정의 완료를
++뜻하지 않는다.
+diff --git a/scripts/install/normalize_stop_hook_config.py b/scripts/install/normalize_stop_hook_config.py
+new file mode 100644
+index 000000000..4f61d0048
+--- /dev/null
++++ b/scripts/install/normalize_stop_hook_config.py
+@@ -0,0 +1,223 @@
++#!/usr/bin/env python3
++"""Prepare an explicitly named hooks JSON file; default to a read-only preview.
++
++Only Stop handler additionalContextLimit members are removed. No hook is run.
++Windows apply uses an exclusive file handle and preserves a separate original
++backup. A crash during the in-place write may require restoring that backup.
++"""
++
++import argparse
++import codecs
++import ctypes
++import hashlib
++import json
++import os
++from pathlib import Path
++import stat
++import sys
++import uuid
++
++
++def _unique_object(pairs):
++    result = {}
++    for key, value in pairs:
++        if key in result:
++            raise ValueError("duplicate JSON member; refusing ambiguous input")
++        result[key] = value
++    return result
++
++
++def _reject_constant(_value):
++    raise ValueError("non-standard JSON constant")
++
++
++def _normalize(raw):
++    encoding = json.detect_encoding(raw)
++    bom = b""
++    for prefix, codec in (
++        (codecs.BOM_UTF32_LE, "utf-32-le"),
++        (codecs.BOM_UTF32_BE, "utf-32-be"),
++        (codecs.BOM_UTF8, "utf-8"),
++        (codecs.BOM_UTF16_LE, "utf-16-le"),
++        (codecs.BOM_UTF16_BE, "utf-16-be"),
++    ):
++        if raw.startswith(prefix):
++            bom, encoding = prefix, codec
++            break
++    text = raw[len(bom):].decode(encoding)
++    data = json.loads(
++        text, object_pairs_hook=_unique_object, parse_constant=_reject_constant
++    )
++    if not isinstance(data, dict):
++        raise ValueError("hooks JSON root must be an object")
++    events = data.get("hooks", {})
++    if not isinstance(events, dict):
++        raise ValueError("hooks must be an object")
++    groups = events.get("Stop", [])
++    if not isinstance(groups, list):
++        raise ValueError("hooks.Stop must be an array")
++    targets = set()
++    for group_index, group in enumerate(groups):
++        if not isinstance(group, dict) or not isinstance(group.get("hooks", []), list):
++            raise ValueError("Stop groups must contain a hooks array")
++        for handler_index, handler in enumerate(group.get("hooks", [])):
++            if not isinstance(handler, dict):
++                raise ValueError("Stop handlers must be objects")
++            if "additionalContextLimit" in handler:
++                targets.add(("hooks", "Stop", group_index, "hooks", handler_index))
++    if not targets:
++        return raw, 0
++
++    # Use the stdlib decoder for values; retain raw member spans instead of
++    # reserializing unrelated values, whitespace, escape sequences or numbers.
++    decoder = json.JSONDecoder()
++    removed = []
++
++    def skip_space(index):
++        while index < len(text) and text[index] in " \t\r\n":
++            index += 1
++        return index
++
++    def visit(index, path):
++        index = skip_space(index)
++        if text[index] == "{":
++            index = skip_space(index + 1)
++            previous_comma = None
++            while text[index] != "}":
++                start = index
++                key, index = decoder.raw_decode(text, index)
++                value_start = skip_space(skip_space(index) + 1)
++                end = visit(value_start, path + (key,))
++                index = skip_space(end)
++                following_comma = index if text[index] == "," else None
++                if path in targets and key == "additionalContextLimit":
++                    removed.append((start, end))
++                    comma = following_comma if following_comma is not None else previous_comma
++                    if comma is not None:
++                        removed.append((comma, comma + 1))
++                if following_comma is None:
++                    break
++                previous_comma = following_comma
++                index = skip_space(index + 1)
++            return index + 1
++        if text[index] == "[":
++            index = skip_space(index + 1)
++            item = 0
++            while text[index] != "]":
++                index = skip_space(visit(index, path + (item,)))
++                item += 1
++                if text[index] != ",":
++                    break
++                index = skip_space(index + 1)
++            return index + 1
++        return decoder.raw_decode(text, index)[1]
++
++    visit(0, ())
++    for start, end in sorted(removed, reverse=True):
++        text = text[:start] + text[end:]
++    # Refuse an invalid edit before any backup or write.
++    json.loads(text, object_pairs_hook=_unique_object, parse_constant=_reject_constant)
++    return bom + text.encode(encoding), len(targets)
++
++
++def _fingerprint(info):
++    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
++
++
++def _open_for_update(path):
++    if os.name != "nt":
++        raise OSError("apply requires Windows exclusive file sharing")
++    import msvcrt
++    from ctypes import wintypes
++
++    create = ctypes.WinDLL("kernel32", use_last_error=True).CreateFileW
++    create.argtypes = (
++        wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
++        wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
++    )
++    create.restype = wintypes.HANDLE
++    handle = create(str(path), 0xC0000000, 0, None, 3, 0x00200080, None)
++    if handle == ctypes.c_void_p(-1).value:
++        raise ctypes.WinError(ctypes.get_last_error())
++    try:
++        fd = msvcrt.open_osfhandle(handle, os.O_RDWR | os.O_BINARY)
++    except BaseException:
++        close = ctypes.WinDLL("kernel32", use_last_error=True).CloseHandle
++        close.argtypes = (wintypes.HANDLE,)
++        close(handle)
++        raise
++    return os.fdopen(fd, "r+b")
++
++
++def _write_backup(path, raw):
++    backup = path.with_name(f"{path.name}.r38-stop-hook.{uuid.uuid4().hex}.bak")
++    with backup.open("xb") as stream:
++        stream.write(raw)
++        stream.flush()
++        os.fsync(stream.fileno())
++    return backup
++
++
++def normalize_stop_hook_config(path, *, apply=False, expected_sha256=None):
++    """Return metadata only; apply explicitly, optionally binding a prior preview.
++
++    Parsing/backup/conflict errors propagate without changing the configuration.
++    Backup files are retained, including a partial backup after a backup I/O error.
++    """
++    path = Path(path).absolute()
++    if path.is_symlink():
++        raise ValueError("symbolic links are not supported")
++    with path.open("rb") as source:
++        info = os.fstat(source.fileno())
++        if not stat.S_ISREG(info.st_mode):
++            raise ValueError("configuration must be a regular file")
++        raw = source.read()
++    digest = hashlib.sha256(raw).hexdigest()
++    if expected_sha256 is not None and digest != expected_sha256:
++        raise ValueError("configuration changed since preview")
++    normalized, count = _normalize(raw)
++    result = {"removed": count, "applied": False, "sha256": digest, "backup": None}
++    if not apply or not count:
++        return result
++    with _open_for_update(path) as target:
++        current = os.fstat(target.fileno())
++        if (
++            getattr(current, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
++            or _fingerprint(current) != _fingerprint(info)
++            or target.read() != raw
++        ):
++            raise ValueError("configuration changed before apply")
++        backup = _write_backup(path, raw)
++        target.seek(0)
++        target.write(normalized)
++        target.truncate()
++        target.flush()
++        os.fsync(target.fileno())
++    result.update(applied=True, backup=str(backup))
++    return result
++
++
++def main(argv=None):
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("path", type=Path, help="Explicit hooks JSON path")
++    parser.add_argument("--apply", action="store_true", help="Write with an original backup")
++    parser.add_argument("--expected-sha256", help="Require the digest from an earlier preview")
++    args = parser.parse_args(argv)
++    try:
++        result = normalize_stop_hook_config(
++            args.path, apply=args.apply, expected_sha256=args.expected_sha256
++        )
++    except (OSError, ValueError, RecursionError) as error:
++        # Do not echo JSON content, command strings or environment values.
++        code = getattr(error, "winerror", None) or getattr(error, "errno", None)
++        detail = "invalid configuration encoding" if isinstance(error, UnicodeError) else (
++            str(error) if isinstance(error, ValueError) else "configuration not normalized"
++        )
++        print(f"{type(error).__name__}: {detail} (code={code})", file=sys.stderr)
++        return 1
++    print(json.dumps(result))
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/scripts/install/test_normalize_stop_hook_config.py b/scripts/install/test_normalize_stop_hook_config.py
+new file mode 100644
+index 000000000..7c60cf68a
+--- /dev/null
++++ b/scripts/install/test_normalize_stop_hook_config.py
+@@ -0,0 +1,304 @@
++#!/usr/bin/env python3
++
++import codecs
++import errno
++import hashlib
++import importlib.util
++import json
++import os
++from pathlib import Path
++import subprocess
++import sys
++import tempfile
++from types import SimpleNamespace
++import unittest
++from unittest.mock import Mock, patch
++
++
++HELPER_PATH = Path(__file__).with_name("normalize_stop_hook_config.py")
++spec = importlib.util.spec_from_file_location("stop_hook_normalizer", HELPER_PATH)
++normalizer = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(normalizer)
++ORIGINAL = b'{"hooks":{"Stop":[{"hooks":[{"command":"keep","additionalContextLimit":8192}]}]}}\r\n'
++EXPECTED = b'{"hooks":{"Stop":[{"hooks":[{"command":"keep"}]}]}}\r\n'
++
++
++class NormalizeStopHookConfigTest(unittest.TestCase):
++    def setUp(self):
++        self.temp = tempfile.TemporaryDirectory(
++            prefix="r38-stop-hook-", dir="D:/codex/build"
++        )
++        self.addCleanup(self.temp.cleanup)
++        self.root = Path(self.temp.name)
++        self.path = self.root / "fixture.json"
++        self.path.write_bytes(ORIGINAL)
++
++    def backups(self):
++        return list(self.root.glob("*.bak"))
++
++    def apply(self, **kwargs):
++        return normalizer.normalize_stop_hook_config(self.path, apply=True, **kwargs)
++
++    def test_sh01_default_preview_never_writes(self):
++        result = normalizer.normalize_stop_hook_config(self.path)
++        self.assertEqual(result["removed"], 1)
++        self.assertFalse(result["applied"])
++        self.assertEqual(result["sha256"], hashlib.sha256(ORIGINAL).hexdigest())
++        self.assertEqual(self.path.read_bytes(), ORIGINAL)
++        self.assertEqual(self.backups(), [])
++
++    def test_sh02_only_stop_handler_members_are_removed(self):
++        raw = {
++            "env": {"VALUE": "private-env"}, "unknown": [1, 2],
++            "hooks": {
++                "SessionStart": [{"hooks": [{"additionalContextLimit": 8192}]}],
++                "Stop": [{"matcher": "*", "additionalContextLimit": 12, "hooks": [
++                    {"type": "command", "command": "private-command", "env": {"A": "B"},
++                     "timeout": 60, "unknown": {"additionalContextLimit": 1},
++                     "additionalContextLimit": 8192},
++                    {"command": "second", "additionalContextLimit": 0},
++                    {"command": "third"},
++                ]}, {"hooks": [{"additionalContextLimit": 15, "timeoutSec": 5}]}],
++            },
++        }
++        self.path.write_text(json.dumps(raw), encoding="utf-8")
++        original = self.path.read_bytes()
++        expected = json.loads(original)
++        del expected["hooks"]["Stop"][0]["hooks"][0]["additionalContextLimit"]
++        del expected["hooks"]["Stop"][0]["hooks"][1]["additionalContextLimit"]
++        del expected["hooks"]["Stop"][1]["hooks"][0]["additionalContextLimit"]
++        result = self.apply()
++        self.assertEqual(result["removed"], 3)
++        self.assertEqual(json.loads(self.path.read_bytes()), expected)
++        self.assertEqual(Path(result["backup"]).read_bytes(), original)
++
++    def test_sh03_member_positions_and_escaped_key_preserve_raw_text(self):
++        fixtures = [
++            ('{"additionalContextLimit":8192,"command":"x"}', '{"command":"x"}'),
++            ('{"a":1,"additionalContextLimit":8192,"b":2}', '{"a":1,"b":2}'),
++            ('{"command":"x","additionalContextLimit":8192}', '{"command":"x"}'),
++            ('{"additionalContextLimit":8192}', '{}'),
++            ('{\n "additionalContextLimit": 8192,\n "command": "x"\n}',
++             '{\n \n "command": "x"\n}'),
++            ('{"additionalContext\\u004cimit":8192,"command":"\\u0061"}',
++             '{"command":"\\u0061"}'),
++            ('{"command":"x","additionalContextLimit":{"x":[1,2]},"n":-0.00e+1}',
++             '{"command":"x","n":-0.00e+1}'),
++        ]
++        for index, (source, expected) in enumerate(fixtures):
++            with self.subTest(index=index):
++                prefix, suffix = '{"hooks":{"Stop":[{"hooks":[', ']}]}}'
++                self.path.write_bytes((prefix + source + suffix).encode())
++                self.apply()
++                self.assertEqual(self.path.read_bytes(), (prefix + expected + suffix).encode())
++
++    def test_sh04_encodings_bom_and_mixed_newlines(self):
++        text = '{\r\n"hooks":{\n"Stop":[{"hooks":[{"additionalContextLimit":8192,"command":"한글"}]}]}}\r\n'
++        expected = '{\r\n"hooks":{\n"Stop":[{"hooks":[{"command":"한글"}]}]}}\r\n'
++        formats = [
++            ("utf-8", b""), ("utf-8", codecs.BOM_UTF8),
++            ("utf-16-le", b""), ("utf-16-le", codecs.BOM_UTF16_LE),
++            ("utf-16-be", b""), ("utf-16-be", codecs.BOM_UTF16_BE),
++            ("utf-32-le", b""), ("utf-32-le", codecs.BOM_UTF32_LE),
++            ("utf-32-be", b""), ("utf-32-be", codecs.BOM_UTF32_BE),
++        ]
++        for encoding, bom in formats:
++            with self.subTest(encoding=encoding, bom=bool(bom)):
++                original = bom + text.encode(encoding)
++                self.path.write_bytes(original)
++                result = self.apply()
++                self.assertEqual(self.path.read_bytes(), bom + expected.encode(encoding))
++                self.assertEqual(Path(result["backup"]).read_bytes(), original)
++
++    def test_sh05_unrelated_or_absent_targets_are_byte_identical(self):
++        for raw in (b'{}', b'{"hooks":{"Stop":[]}}',
++                    b'{"hooks":{"SessionStart":[{"hooks":[{"additionalContextLimit":3}]}]}}'):
++            with self.subTest(raw=raw):
++                self.path.write_bytes(raw)
++                self.assertEqual(self.apply()["removed"], 0)
++                self.assertEqual(self.path.read_bytes(), raw)
++                self.assertEqual(self.backups(), [])
++
++    def test_sh06_invalid_json_and_encoding_never_write(self):
++        for raw in (b'{', b'{"hooks":{},"hooks":{}}', b'{"n":NaN}',
++                    b'{"n":Infinity}', b'\xff', b'{"hooks":{"Stop":[],}}'):
++            with self.subTest(raw=raw):
++                self.path.write_bytes(raw)
++                with self.assertRaises(ValueError):
++                    self.apply()
++                self.assertEqual(self.path.read_bytes(), raw)
++                self.assertEqual(self.backups(), [])
++
++    def test_sh07_invalid_shapes_never_write(self):
++        for value in ([], {"hooks": []}, {"hooks": {"Stop": {}}},
++                      {"hooks": {"Stop": [None]}},
++                      {"hooks": {"Stop": [{"hooks": {}}]}},
++                      {"hooks": {"Stop": [{"hooks": [None]}]}}):
++            with self.subTest(value=value):
++                raw = json.dumps(value).encode()
++                self.path.write_bytes(raw)
++                with self.assertRaises(ValueError):
++                    self.apply()
++                self.assertEqual(self.path.read_bytes(), raw)
++                self.assertEqual(self.backups(), [])
++
++    def test_sh08_preview_digest_rejects_new_content(self):
++        preview = normalizer.normalize_stop_hook_config(self.path)
++        self.path.write_bytes(ORIGINAL + b" ")
++        with self.assertRaisesRegex(ValueError, "changed since preview"):
++            self.apply(expected_sha256=preview["sha256"])
++        self.assertEqual(self.path.read_bytes(), ORIGINAL + b" ")
++        self.assertEqual(self.backups(), [])
++
++    def test_sh09_snapshot_race_and_same_content_replacement_are_rejected(self):
++        original_open = normalizer._open_for_update
++        for replace in (False, True):
++            with self.subTest(replace=replace):
++                self.path.write_bytes(ORIGINAL)
++
++                def raced_open(path):
++                    if replace:
++                        replacement = self.root / "replacement.json"
++                        replacement.write_bytes(ORIGINAL)
++                        os.replace(replacement, path)
++                    else:
++                        path.write_bytes(ORIGINAL + b" ")
++                    return original_open(path)
++
++                with patch.object(normalizer, "_open_for_update", raced_open):
++                    with self.assertRaisesRegex(ValueError, "changed before apply"):
++                        self.apply()
++                self.assertEqual(self.path.read_bytes(), ORIGINAL if replace else ORIGINAL + b" ")
++                self.assertEqual(self.backups(), [])
++
++    def test_sh10_existing_writer_causes_actual_sharing_violation(self):
++        with normalizer._open_for_update(self.path):
++            with self.assertRaises(PermissionError) as caught:
++                self.apply()
++            self.assertEqual(caught.exception.errno, errno.EACCES)
++            with self.assertRaises(OSError) as caught:
++                normalizer._open_for_update(self.path)
++            self.assertEqual(caught.exception.winerror, 32)
++        self.assertEqual(self.path.read_bytes(), ORIGINAL)
++        self.assertEqual(self.backups(), [])
++
++    def test_sh11_backup_failure_never_changes_original(self):
++        with patch.object(normalizer, "_write_backup", side_effect=OSError("fixture backup error")):
++            with self.assertRaisesRegex(OSError, "fixture backup error"):
++                self.apply()
++        self.assertEqual(self.path.read_bytes(), ORIGINAL)
++        self.assertEqual(self.backups(), [])
++
++    def test_sh12_cli_defaults_to_preview_and_apply_is_explicit(self):
++        argv = [sys.executable, "-I", "-S", "-B", "-X", "utf8", str(HELPER_PATH), str(self.path)]
++        preview = subprocess.run(argv, capture_output=True, text=True, check=False)
++        self.assertEqual(preview.returncode, 0, preview.stderr)
++        self.assertFalse(json.loads(preview.stdout)["applied"])
++        self.assertEqual(self.path.read_bytes(), ORIGINAL)
++        self.assertEqual(self.backups(), [])
++        applied = subprocess.run(argv + ["--apply"], capture_output=True, text=True, check=False)
++        self.assertEqual(applied.returncode, 0, applied.stderr)
++        self.assertTrue(json.loads(applied.stdout)["applied"])
++        self.assertEqual(self.path.read_bytes(), EXPECTED)
++        self.assertEqual(len(self.backups()), 1)
++        for output in (preview.stdout, preview.stderr, applied.stdout, applied.stderr):
++            self.assertNotIn('"command"', output)
++            self.assertNotIn('"keep"', output)
++
++    def test_sh13_missing_directory_symlink_and_bad_cli_are_safe(self):
++        missing = self.root / "missing.json"
++        for path in (missing, self.root):
++            with self.subTest(path=path):
++                with self.assertRaises(OSError):
++                    normalizer.normalize_stop_hook_config(path, apply=True)
++        self.assertFalse(missing.exists())
++        linked = self.root / "link.json"
++        # Windows symlink privilege is not assumed: the rejection branch is
++        # component-tested; live symlink creation is reported separately.
++        with patch.object(Path, "is_symlink", return_value=True):
++            with self.assertRaisesRegex(ValueError, "symbolic links"):
++                normalizer.normalize_stop_hook_config(linked, apply=True)
++        self.assertFalse(linked.exists())
++        result = subprocess.run(
++            [sys.executable, "-I", "-S", "-B", "-X", "utf8", str(HELPER_PATH), str(missing), "--apply"],
++            capture_output=True, text=True, check=False,
++        )
++        self.assertEqual(result.returncode, 1)
++        self.assertIn("FileNotFoundError", result.stderr)
++        self.assertEqual(self.path.read_bytes(), ORIGINAL)
++        self.assertEqual(self.backups(), [])
++
++    def test_sh14_repeated_apply_preserves_the_original_backup(self):
++        first = self.apply()
++        self.assertEqual(self.path.read_bytes(), EXPECTED)
++        second = self.apply()
++        self.assertEqual(second["removed"], 0)
++        self.assertFalse(second["applied"])
++        self.assertEqual(self.backups(), [Path(first["backup"])])
++        self.assertEqual(Path(first["backup"]).read_bytes(), ORIGINAL)
++
++    def test_sh15_new_writer_is_refused_throughout_apply(self):
++        write_backup = normalizer._write_backup
++
++        def check_locked(path, raw):
++            with self.assertRaises(OSError) as caught:
++                with normalizer._open_for_update(path):
++                    self.fail("a second writer unexpectedly acquired the file")
++            self.assertEqual(caught.exception.winerror, 32)
++            return write_backup(path, raw)
++
++        with patch.object(normalizer, "_write_backup", check_locked):
++            result = self.apply()
++        self.assertEqual(self.path.read_bytes(), EXPECTED)
++        self.assertEqual(Path(result["backup"]).read_bytes(), ORIGINAL)
++
++    def test_sh16_createfile_contract_opens_the_reparse_point_exclusively(self):
++        create = Mock(return_value=normalizer.ctypes.c_void_p(-1).value)
++        kernel = SimpleNamespace(CreateFileW=create)
++        with patch.object(normalizer.ctypes, "WinDLL", return_value=kernel):
++            with patch.object(normalizer.ctypes, "get_last_error", return_value=32):
++                with self.assertRaises(OSError):
++                    normalizer._open_for_update(self.path)
++        args = create.call_args.args
++        self.assertEqual(args[0], str(self.path))
++        self.assertEqual(args[1], 0xC0000000)  # GENERIC_READ | GENERIC_WRITE
++        self.assertEqual(args[2], 0)  # No read/write/delete sharing.
++        self.assertEqual(args[4], 3)  # OPEN_EXISTING: never create a config.
++        self.assertEqual(args[5] & 0x00200000, 0x00200000)  # OPEN_REPARSE_POINT
++
++    def test_sh17_live_symlink_race_cannot_write_the_referent(self):
++        victim = self.root / "victim.json"
++        victim_raw = ORIGINAL + b" "
++        victim.write_bytes(victim_raw)
++        probe = self.root / "probe-link.json"
++        try:
++            os.symlink(victim, probe)
++        except OSError as error:
++            if error.winerror == 1314:
++                self.skipTest("live symlink NOT_RUN: Windows privilege unavailable (1314)")
++            raise
++        probe.unlink()
++        original_check = Path.is_symlink
++        original_file = self.root / "original.json"
++
++        def replace_after_check(path):
++            result = original_check(path)
++            if path == self.path:
++                path.rename(original_file)
++                os.symlink(victim, path)
++            return result
++
++        with patch.object(Path, "is_symlink", replace_after_check):
++            with patch.object(normalizer, "_normalize", wraps=normalizer._normalize) as decoded:
++                with self.assertRaisesRegex(ValueError, "changed before apply"):
++                    self.apply()
++                # Characterize the remaining initial-read gap separately from
++                # the no-follow update handle; this does not assert read safety.
++                self.assertEqual(decoded.call_args.args[0], victim_raw)
++        self.assertEqual(victim.read_bytes(), victim_raw)
++        self.assertEqual(original_file.read_bytes(), ORIGINAL)
++        self.assertEqual(self.backups(), [])
++
++
++if __name__ == "__main__":
++    unittest.main()
 diff --git a/sdk/python/src/openai_codex/generated/v2_all.py b/sdk/python/src/openai_codex/generated/v2_all.py
 index c3a2c63d9..7f92be1aa 100644
 --- a/sdk/python/src/openai_codex/generated/v2_all.py
