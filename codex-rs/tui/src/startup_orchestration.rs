@@ -10,18 +10,31 @@ use codex_terminal_detection::TerminalName;
 fn automatic_daemon_version_warning(
     cli_version: &str,
     server_version: Option<&str>,
+    socket_path: &std::path::Path,
 ) -> Option<String> {
     if server_version == Some(cli_version) {
         return None;
     }
-    let unknown = crate::i18n::message("status-unknown-version", &[]);
+    let reason = crate::i18n::daemon_connection_mismatch_warning(
+        cli_version,
+        server_version,
+        &format!("unix://{}", socket_path.display()),
+    );
     Some(crate::i18n::message(
-        "daemon-auto-version-fallback",
-        &[
-            ("server", server_version.unwrap_or(&unknown)),
-            ("client", cli_version),
-        ],
+        "daemon-running-embedded",
+        &[("reason", &reason)],
     ))
+}
+
+fn automatic_daemon_target(socket_path: std::path::PathBuf) -> std::io::Result<AppServerTarget> {
+    Ok(AppServerTarget::LocalDaemon {
+        endpoint: RemoteAppServerEndpoint::UnixSocket {
+            socket_path: AbsolutePathBuf::from_absolute_path_checked(socket_path)?,
+        },
+        // This remains an automatic selection. Recheck the real handshake and
+        // fall back if the server changed after start.
+        allow_embedded_fallback: true,
+    })
 }
 
 pub(super) async fn run_main_inner(
@@ -637,6 +650,7 @@ pub(super) async fn run_main_inner(
                         if let Some(warning) = automatic_daemon_version_warning(
                             env!("CARGO_PKG_VERSION"),
                             output.app_server_version.as_deref(),
+                            &output.socket_path,
                         ) {
                             cli_daemon_mismatch_warning = Some(warning);
                             Ok(None)
@@ -665,12 +679,7 @@ pub(super) async fn run_main_inner(
             .await??;
         if let Some(output) = output {
             managed_daemon = output.backend.is_some();
-            app_server_target = AppServerTarget::LocalDaemon {
-                endpoint: RemoteAppServerEndpoint::UnixSocket {
-                    socket_path: AbsolutePathBuf::from_absolute_path_checked(output.socket_path)?,
-                },
-                allow_embedded_fallback: false,
-            };
+            app_server_target = automatic_daemon_target(output.socket_path)?;
         } else {
             app_server_target = AppServerTarget::Embedded;
             daemon_exclusion = Some(if cli_daemon_mismatch_warning.is_some() {

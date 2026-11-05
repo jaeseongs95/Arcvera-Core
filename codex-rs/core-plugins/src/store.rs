@@ -668,7 +668,7 @@ fn replace_plugin_root_atomically(
     let target_version_root = target_root.join(plugin_version);
     // A forced marketplace refresh also reinstalls unchanged versions. On Windows,
     // renaming their ancestor can fail while a plugin child owns a cwd/file handle.
-    // Compare the fully staged tree, not just its manifest/version: same-version
+    // Compare the fully staged payload, not just its manifest/version: same-version
     // content changes must still take the existing atomic replacement path.
     if target_version_root.exists()
         && plugin_trees_equal(&staged_version_root, &target_version_root).map_err(|err| {
@@ -739,6 +739,9 @@ fn plugin_trees_equal(staged: &Path, installed: &Path) -> io::Result<bool> {
         let mut installed_entries = fs::read_dir(installed)?
             .map(|entry| entry.map(|entry| entry.file_name()))
             .collect::<io::Result<Vec<_>>>()?;
+        // Older caches included Git metadata. Ignore it without touching a live cache.
+        staged_entries.retain(|name| name != ".git");
+        installed_entries.retain(|name| name != ".git");
         staged_entries.sort_unstable();
         installed_entries.sort_unstable();
         if staged_entries != installed_entries {
@@ -827,6 +830,10 @@ fn copy_dir_recursive(source: &Path, target: &Path) -> Result<(), PluginStoreErr
     {
         let entry =
             entry.map_err(|err| PluginStoreError::io("failed to enumerate plugin source", err))?;
+        // Repository/worktree metadata is not plugin payload, including nested repos.
+        if entry.file_name() == ".git" {
+            continue;
+        }
         let source_path = entry.path();
         let target_path = target.join(entry.file_name());
         let file_type = entry

@@ -100,6 +100,31 @@ fn local_daemon_version_notice_snapshot() {
     }
 }
 
+#[test]
+fn local_daemon_version_guidance_uses_selected_ui_language() {
+    for (locale, expected) in [
+        (crate::i18n::Locale::English, "Use /daemon to manage"),
+        (
+            crate::i18n::Locale::Korean,
+            "/daemon으로 로컬 백그라운드 서버",
+        ),
+    ] {
+        crate::i18n::with_locale(locale, || {
+            let cell =
+                new_server_version_warning(crate::status::remote_connection::ServerVersionNotice {
+                    message: "0.166.0+native-r36 -> 0.166.0+native-r38".to_string(),
+                    offer_update: true,
+                });
+            let text = render_lines(&cell.transcript_lines(200)).join("\n");
+            assert!(text.contains(expected), "{text}");
+            assert!(
+                text.contains("0.166.0+native-r36 -> 0.166.0+native-r38"),
+                "{text}"
+            );
+        });
+    }
+}
+
 async fn test_config() -> Config {
     let codex_home = std::env::temp_dir();
     ConfigBuilder::default()

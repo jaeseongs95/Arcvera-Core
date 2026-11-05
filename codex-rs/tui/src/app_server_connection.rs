@@ -46,18 +46,36 @@ pub(crate) async fn connect(target: &AppServerTarget) -> color_eyre::Result<AppS
             connect_remote_app_server(endpoint.clone()).await
         }
     }?;
-    if matches!(target, AppServerTarget::LocalDaemon { .. }) {
+    if matches!(
+        target,
+        AppServerTarget::LocalDaemon {
+            allow_embedded_fallback: true,
+            ..
+        }
+    ) {
         let AppServerClient::Remote(remote) = &client else {
             unreachable!("local daemon connections are remote clients");
         };
-        // Build metadata identifies the runtime; it is not a protocol negotiation.
-        // Keep local socket/peer validation and per-feature checks independently.
+        // An implicit choice must use this CLI's full build. Check the actual
+        // handshake on every connection; a prior probe/start may race a restart.
+        // Explicit endpoints and backend-ID restoration retain their own policy.
         if remote.server_version() != Some(env!("CARGO_PKG_VERSION")) {
-            tracing::warn!(
-                cli_version = env!("CARGO_PKG_VERSION"),
-                server_version = remote.server_version().unwrap_or("unknown"),
-                "shared server build differs; feature and RPC support must be checked separately"
+            let status = crate::status::remote_connection::remote_connection_status_value(
+                target,
+                remote.server_version(),
+            )
+            .expect("local daemon has a connection status");
+            let warning = crate::i18n::daemon_connection_mismatch_warning(
+                env!("CARGO_PKG_VERSION"),
+                remote.server_version(),
+                &status.address,
             );
+            // Shutdown releases only this client's transport; it sends no
+            // app-server lifecycle or thread mutation request.
+            if let Err(error) = client.shutdown().await {
+                tracing::warn!(%error, "could not close rejected shared server connection");
+            }
+            color_eyre::eyre::bail!(warning);
         }
     }
     Ok(client)

@@ -716,6 +716,57 @@ fn same_version_refresh_keeps_identical_files_in_place() {
 }
 
 #[test]
+fn install_excludes_only_exact_git_metadata_entries() {
+    let tmp = tempdir().unwrap();
+    write_plugin(tmp.path(), "source", "sample");
+    let source = tmp.path().join("source");
+    fs::create_dir_all(source.join(".git")).unwrap();
+    fs::write(source.join(".git/index"), "git index").unwrap();
+    fs::create_dir_all(source.join("nested")).unwrap();
+    fs::write(source.join("nested/.git"), "gitdir: ../../worktree").unwrap();
+    for path in [
+        ".gitignore",
+        ".gitattributes",
+        ".gitmodules",
+        ".github/workflow.yml",
+    ] {
+        let file = source.join(path);
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(file, path).unwrap();
+    }
+    let plugin_id = PluginId::parse("sample@debug").unwrap();
+
+    let result = PluginStore::new(tmp.path().to_path_buf())
+        .install(
+            AbsolutePathBuf::try_from(source.clone()).unwrap(),
+            plugin_id,
+        )
+        .unwrap();
+
+    assert!(!result.installed_path.join(".git").as_path().exists());
+    assert!(!result.installed_path.join("nested/.git").as_path().exists());
+    for path in [
+        ".gitignore",
+        ".gitattributes",
+        ".gitmodules",
+        ".github/workflow.yml",
+    ] {
+        assert_eq!(
+            fs::read_to_string(result.installed_path.join(path)).unwrap(),
+            path
+        );
+    }
+    assert_eq!(
+        fs::read_to_string(source.join(".git/index")).unwrap(),
+        "git index"
+    );
+    assert_eq!(
+        fs::read_to_string(source.join("nested/.git")).unwrap(),
+        "gitdir: ../../worktree"
+    );
+}
+
+#[test]
 fn same_version_refresh_replaces_changed_payload_and_removes_extra_entries() {
     let tmp = tempdir().unwrap();
     write_plugin_with_version(tmp.path(), "source", "sample", Some("1.0.0"));
@@ -735,6 +786,107 @@ fn same_version_refresh_replaces_changed_payload_and_removes_extra_entries() {
     fs::write(extra.join("unexpected"), "cached only").unwrap();
     store.install(source, plugin_id).unwrap();
     assert!(!extra.as_path().exists());
+}
+
+#[test]
+fn same_version_refresh_ignores_legacy_git_metadata_without_replacing_payload() {
+    let tmp = tempdir().unwrap();
+    write_plugin_with_version(tmp.path(), "source", "sample", Some("1.0.0"));
+    let store = PluginStore::new(tmp.path().to_path_buf());
+    let plugin_id = PluginId::parse("sample@debug").unwrap();
+    let source = AbsolutePathBuf::try_from(tmp.path().join("source")).unwrap();
+    let result = store.install(source.clone(), plugin_id.clone()).unwrap();
+    let installed_skill = result.installed_path.join("skills/SKILL.md");
+    let identity_link = tmp.path().join("installed-skill-link");
+    fs::hard_link(installed_skill.as_path(), &identity_link).unwrap();
+    fs::create_dir_all(result.installed_path.join(".git")).unwrap();
+    fs::write(result.installed_path.join(".git/index"), "old index").unwrap();
+    fs::write(result.installed_path.join("skills/.git"), "old worktree").unwrap();
+    fs::create_dir_all(source.join(".git")).unwrap();
+    fs::write(source.join(".git/index"), "new index").unwrap();
+
+    store.install(source, plugin_id).unwrap();
+
+    fs::write(identity_link, "same file identity").unwrap();
+    assert_eq!(
+        fs::read_to_string(installed_skill).unwrap(),
+        "same file identity"
+    );
+    assert_eq!(
+        fs::read_to_string(result.installed_path.join(".git/index")).unwrap(),
+        "old index"
+    );
+    assert_eq!(
+        fs::read_to_string(result.installed_path.join("skills/.git")).unwrap(),
+        "old worktree"
+    );
+}
+
+#[test]
+fn same_version_refresh_with_git_metadata_still_applies_payload_changes() {
+    for (path, replacement) in [
+        (
+            ".codex-plugin/plugin.json",
+            Some(r#"{"name":"sample","version":"1.0.0","description":"updated"}"#),
+        ),
+        ("skills/SKILL.md", Some("other")),
+        (
+            ".mcp.json",
+            Some(r#"{"mcpServers":{"sample":{"command":"sample"}}}"#),
+        ),
+        (".gitignore", Some("updated ignore rules")),
+        ("new.txt", Some("new payload")),
+        (".mcp.json", None),
+    ] {
+        let tmp = tempdir().unwrap();
+        write_plugin_with_version(tmp.path(), "source", "sample", Some("1.0.0"));
+        let store = PluginStore::new(tmp.path().to_path_buf());
+        let plugin_id = PluginId::parse("sample@debug").unwrap();
+        let source = AbsolutePathBuf::try_from(tmp.path().join("source")).unwrap();
+        fs::write(source.join(".gitignore"), "original ignore rules").unwrap();
+        let result = store.install(source.clone(), plugin_id.clone()).unwrap();
+        fs::create_dir_all(source.join(".git")).unwrap();
+        fs::write(source.join(".git/index"), "changed metadata").unwrap();
+        fs::create_dir_all(result.installed_path.join(".git")).unwrap();
+        fs::write(result.installed_path.join(".git/index"), "legacy metadata").unwrap();
+        match replacement {
+            Some(contents) => fs::write(source.join(path), contents).unwrap(),
+            None => fs::remove_file(source.join(path)).unwrap(),
+        }
+
+        store.install(source, plugin_id).unwrap();
+
+        let installed_file = result.installed_path.join(path);
+        match replacement {
+            Some(contents) => assert_eq!(fs::read_to_string(installed_file).unwrap(), contents),
+            None => assert!(!installed_file.as_path().exists()),
+        }
+        assert!(!result.installed_path.join(".git").as_path().exists());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn same_version_refresh_with_git_metadata_replaces_installed_payload_symlink() {
+    let tmp = tempdir().unwrap();
+    write_plugin_with_version(tmp.path(), "source", "sample", Some("1.0.0"));
+    let store = PluginStore::new(tmp.path().to_path_buf());
+    let plugin_id = PluginId::parse("sample@debug").unwrap();
+    let source = AbsolutePathBuf::try_from(tmp.path().join("source")).unwrap();
+    let result = store.install(source.clone(), plugin_id.clone()).unwrap();
+    let skill = result.installed_path.join("skills/SKILL.md");
+    let outside = tmp.path().join("outside-skill");
+    fs::write(&outside, "skill").unwrap();
+    fs::remove_file(skill.as_path()).unwrap();
+    std::os::unix::fs::symlink(&outside, skill.as_path()).unwrap();
+    fs::create_dir_all(source.join(".git")).unwrap();
+    fs::write(source.join(".git/index"), "metadata").unwrap();
+
+    store.install(source, plugin_id).unwrap();
+
+    assert!(fs::symlink_metadata(skill.as_path()).unwrap().is_file());
+    assert_eq!(fs::read_to_string(skill).unwrap(), "skill");
+    assert_eq!(fs::read_to_string(outside).unwrap(), "skill");
 }
 
 #[cfg(unix)]
@@ -948,12 +1100,20 @@ mod windows_refresh {
         let plugin_id = PluginId::parse("sample@debug").unwrap();
         let source = AbsolutePathBuf::try_from(tmp.path().join("source")).unwrap();
         let installed = store.install(source.clone(), plugin_id.clone()).unwrap();
+        fs::create_dir_all(installed.installed_path.join(".git")).unwrap();
+        fs::write(installed.installed_path.join(".git/index"), "old index").unwrap();
+        fs::create_dir_all(source.join(".git")).unwrap();
+        fs::write(source.join(".git/index"), "new index").unwrap();
         let mut child = PluginChild::in_directory(installed.installed_path.as_path());
         assert_root_is_locked(&store, &plugin_id);
 
         store.install(source, plugin_id.clone()).unwrap();
 
         assert!(child.0.try_wait().unwrap().is_none());
+        assert_eq!(
+            fs::read_to_string(installed.installed_path.join(".git/index")).unwrap(),
+            "old index"
+        );
         assert_eq!(
             store.active_plugin_version(&plugin_id),
             Some("1.0.0".to_string())
@@ -968,6 +1128,7 @@ mod windows_refresh {
         let plugin_id = PluginId::parse("sample@debug").unwrap();
         let source = AbsolutePathBuf::try_from(tmp.path().join("source")).unwrap();
         let installed = store.install(source.clone(), plugin_id.clone()).unwrap();
+        fs::write(source.join(".git"), "gitdir: ../worktree").unwrap();
         let skill = installed.installed_path.join("skills/SKILL.md");
         let mut handle = fs::File::options()
             .read(true)
@@ -991,6 +1152,10 @@ mod windows_refresh {
         let plugin_id = PluginId::parse("sample@debug").unwrap();
         let source = AbsolutePathBuf::try_from(tmp.path().join("source")).unwrap();
         let installed = store.install(source.clone(), plugin_id.clone()).unwrap();
+        fs::create_dir_all(source.join(".git")).unwrap();
+        fs::write(source.join(".git/index"), "new index").unwrap();
+        fs::create_dir_all(installed.installed_path.join(".git")).unwrap();
+        fs::write(installed.installed_path.join(".git/index"), "old index").unwrap();
         let skill = installed.installed_path.join("skills/SKILL.md");
         let child = PluginChild::in_directory(installed.installed_path.as_path());
         assert_root_is_locked(&store, &plugin_id);
@@ -1009,12 +1174,17 @@ mod windows_refresh {
         ));
         assert_eq!(fs::read_to_string(skill.as_path()).unwrap(), "skill");
         assert_eq!(
+            fs::read_to_string(installed.installed_path.join(".git/index")).unwrap(),
+            "old index"
+        );
+        assert_eq!(
             store.active_plugin_version(&plugin_id),
             Some("1.0.0".to_string())
         );
         drop(child);
         store.install(source, plugin_id).unwrap();
         assert_eq!(fs::read_to_string(skill).unwrap(), "other");
+        assert!(!installed.installed_path.join(".git").as_path().exists());
     }
 
     #[test]

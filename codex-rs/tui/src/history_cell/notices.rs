@@ -123,10 +123,10 @@ pub(crate) fn new_server_version_warning(
     let mut lines = vec![Line::from(notice.message.set_style(style))];
     if notice.offer_update {
         lines.push(Line::from(
-            "Use /daemon to manage the local background server.".fg(accent_color()),
+            crate::i18n::message("daemon-version-manage-hint", &[]).fg(accent_color()),
         ));
         lines.push(Line::from(
-            "Updating may interrupt active or queued work.".set_style(style),
+            crate::i18n::message("daemon-version-update-warning", &[]).set_style(style),
         ));
     }
     WarningHistoryCell {
