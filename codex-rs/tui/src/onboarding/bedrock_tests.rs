@@ -733,7 +733,8 @@ fn localized_govcloud_guidance_keeps_link_scroll_and_acknowledgement() {
             for width in [18, 24, 72] {
                 let mut state = BedrockState::guidance();
                 let area = Rect::new(0, 0, width, 6);
-                let mut seen = String::new();
+                let mut raw_seen = String::new();
+                let mut logical_seen = String::new();
                 let mut link_seen = false;
                 for _ in 0..100 {
                     let mut buffer = Buffer::empty(area);
@@ -750,13 +751,22 @@ fn localized_govcloud_guidance_keeps_link_scroll_and_acknowledgement() {
                                 <= usize::from(width))
                     );
                     assert!(visible.contains(acknowledge));
-                    seen.push_str(&visible);
+                    raw_seen.push_str(&visible);
+                    logical_seen.extend(visible.lines());
                     assert!(!state.handle_guidance_key_event(&KeyEvent::new(
                         KeyCode::Down,
                         KeyModifiers::NONE
                     )));
                 }
-                assert!(seen.contains(disclosure_end));
+                eprintln!(
+                    "locale={locale:?} width={width} raw_contains={} logical_contains={} raw_seen={raw_seen:?} logical_seen={logical_seen:?}",
+                    raw_seen.contains(disclosure_end),
+                    logical_seen.contains(disclosure_end)
+                );
+                assert!(
+                    logical_seen.contains(disclosure_end),
+                    "locale={locale:?} width={width} raw_seen={raw_seen:?} logical_seen={logical_seen:?}"
+                );
                 assert!(link_seen);
                 assert!(
                     state.handle_guidance_key_event(&KeyEvent::new(

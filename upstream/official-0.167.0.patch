@@ -96040,10 +96040,10 @@ index fca1ef21b..eabf316a3 100644
              tracing::warn!(error = %err, "failed to shut down embedded app server");
 diff --git a/codex-rs/tui/src/app/subagent_status_tests.rs b/codex-rs/tui/src/app/subagent_status_tests.rs
 new file mode 100644
-index 000000000..7e1daddd5
+index 000000000..92ffa51a7
 --- /dev/null
 +++ b/codex-rs/tui/src/app/subagent_status_tests.rs
-@@ -0,0 +1,829 @@
+@@ -0,0 +1,831 @@
 +//! Event-cache-to-terminal regression tests for the root-scoped subagent status row.
 +
 +use super::*;
@@ -96075,6 +96075,7 @@ index 000000000..7e1daddd5
 +                false,
 +            );
 +        }
++        app.sync_active_agent_label();
 +        app.chat_widget
 +            .handle_key_event(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT));
 +        app.chat_widget
@@ -96163,6 +96164,7 @@ index 000000000..7e1daddd5
 +    assert!(!empty.contains("/subagents"));
 +
 +    app.upsert_agent_picker_thread(child, None, None, false);
++    app.sync_agent_picker_thread(child);
 +    assert!(render_bottom(&app).1.contains("idle 1"));
 +    let channel = app.ensure_thread_channel(child);
 +    let store = Arc::clone(&channel.store);
@@ -97167,7 +97169,7 @@ index f8d8f9a90..500eaf91b 100644
              cwd: test_absolute_path("/tmp/thread-settings"),
              approval_policy: AskForApproval::OnRequest,
 diff --git a/codex-rs/tui/src/app/tests/active_reconnect_tests.rs b/codex-rs/tui/src/app/tests/active_reconnect_tests.rs
-index a56853b2f..b93681bb7 100644
+index a56853b2f..9ba269834 100644
 --- a/codex-rs/tui/src/app/tests/active_reconnect_tests.rs
 +++ b/codex-rs/tui/src/app/tests/active_reconnect_tests.rs
 @@ -11,6 +11,332 @@ use tokio::net::TcpListener;
@@ -97583,6 +97585,14 @@ index a56853b2f..b93681bb7 100644
          assert_eq!(
              methods
                  .iter()
+@@ -759,6 +1135,7 @@ async fn reconnect_allows_slow_hydration_but_bounds_a_stalled_server() -> Result
+                     &test_path_buf("/tmp/project").display().to_string(),
+                     "/tmp/project"
+                 )
++                .replace(CODEX_CLI_VERSION, "<VERSION>")
+             );
+             session.shutdown().await?;
+             assert!((15..120).contains(&elapsed), "{elapsed}");
 diff --git a/codex-rs/tui/src/app/tests/backend_ownership_tests.rs b/codex-rs/tui/src/app/tests/backend_ownership_tests.rs
 index 4dcbc4d67..54e7d1da6 100644
 --- a/codex-rs/tui/src/app/tests/backend_ownership_tests.rs
@@ -99277,6 +99287,25 @@ index 504a26b4f..73ffa3966 100644
      );
  
      tui.set_owned_screen(/*owned*/ false)?;
+diff --git a/codex-rs/tui/src/app/tests/new_session_tests.rs b/codex-rs/tui/src/app/tests/new_session_tests.rs
+index 6ac99972f..718bf405e 100644
+--- a/codex-rs/tui/src/app/tests/new_session_tests.rs
++++ b/codex-rs/tui/src/app/tests/new_session_tests.rs
+@@ -185,10 +185,10 @@ async fn widget_replacement_preserves_mention_usage_with_history_disabled() -> R
+     app.replace_chat_widget(ChatWidget::new_with_app_event(init));
+     app.chat_widget.set_skills_from_response(&skills);
+     app.chat_widget.insert_str("$stat");
+-    insta::assert_snapshot!(normalize_snapshot_paths(render_bottom_popup(
+-        &app.chat_widget,
+-        /*width*/ 80
+-    )));
++    insta::assert_snapshot!(
++        normalize_snapshot_paths(render_bottom_popup(&app.chat_widget, /*width*/ 80))
++            .replace(crate::version::CODEX_CLI_VERSION, "<VERSION>")
++    );
+     assert!(
+         !app.local_settings
+             .codex_home
 diff --git a/codex-rs/tui/src/app/tests/pagination_completion_tests.rs b/codex-rs/tui/src/app/tests/pagination_completion_tests.rs
 index ec7d8b433..2d0eba36d 100644
 --- a/codex-rs/tui/src/app/tests/pagination_completion_tests.rs
@@ -100033,7 +100062,7 @@ index 000000000..359b88dfe
 +    Ok(())
 +}
 diff --git a/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs b/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs
-index 53563c33e..4b1c957e0 100644
+index 53563c33e..936c1638a 100644
 --- a/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs
 +++ b/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs
 @@ -366,11 +366,14 @@ async fn same_thread_retry_keeps_subscription_and_restores_draft() -> Result<()>
@@ -100449,8 +100478,64 @@ index 53563c33e..4b1c957e0 100644
                          .map(|index| format!("saved-turn-{index}"))
                          .collect::<Vec<_>>()
                  );
+@@ -5398,14 +5657,53 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
+             };
+             Box::pin(app.resume_target_session(&mut tui, &mut server, target)).await?;
+         }
+-        assert!(app.chat_widget.has_provider_error());
+-        let notice = std::iter::from_fn(|| events.try_recv().ok())
++        let history_messages = std::iter::from_fn(|| events.try_recv().ok())
+             .filter_map(|event| match event {
+                 AppEvent::InsertHistoryCell(cell) => {
+                     Some(lines_to_single_string(&cell.display_lines(/*width*/ 200)))
+                 }
+                 _ => None,
+             })
++            .collect::<Vec<_>>();
++        let safe_requests = requests
++            .lock()
++            .expect("request recorder lock")
++            .iter()
++            .filter(|request| {
++                matches!(
++                    request.method.as_str(),
++                    "thread/start"
++                        | "thread/resume"
++                        | "thread/read"
++                        | "thread/turns/list"
++                        | "thread/items/list"
++                )
++            })
++            .map(|request| {
++                let field = |name: &str| {
++                    request
++                        .params
++                        .as_ref()
++                        .and_then(|params| params.get(name))
++                        .and_then(serde_json::Value::as_str)
++                };
++                serde_json::json!({
++                    "method": request.method.as_str(),
++                    "threadId": field("threadId"),
++                    "modelProvider": field("modelProvider"),
++                    "model": field("model"),
++                    "historyMode": field("historyMode"),
++                })
++            })
++            .collect::<Vec<_>>();
++        assert!(
++            app.chat_widget.has_provider_error(),
++            "route={} target_thread={thread_id} displayed_thread={:?} safe_requests={safe_requests:?} fixture_history={history_messages:?}",
++            if reopen_via_overview { "overview" } else { "resume_target" },
++            app.chat_widget.thread_id(),
++        );
++        let notice = history_messages
++            .into_iter()
+             .find(|message| message.contains("Showing up to 100 recent prompts"))
+             .expect("provider error should preserve the partial-history notice");
+         insta::allow_duplicates! {
 diff --git a/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__active_reconnect__unavailable_conversation.snap b/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__active_reconnect__unavailable_conversation.snap
-index 335071a07..c3f6cd940 100644
+index 335071a07..5c14584f6 100644
 --- a/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__active_reconnect__unavailable_conversation.snap
 +++ b/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__active_reconnect__unavailable_conversation.snap
 @@ -1,10 +1,11 @@
@@ -100462,7 +100547,7 @@ index 335071a07..c3f6cd940 100644
  • This conversation is unavailable. Its cached transcript and draft remain here; input is paused. Open the agent picker or return to the parent to continue.
  ⚠ A background Codex service is running v2.0.0, different from your Codex CLI
 -  v0.0.0.
-+  v0.165.0+native-r30.20261030.
++  v<VERSION>.
  › unavailable draft
  
    gpt-test default · /tmp/project
@@ -100538,7 +100623,7 @@ index 0dfd7333b..587ed73eb 100644
  
    To get started, describe a task or try one of these commands:
 diff --git a/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__session_lifecycle_requests__new_session_tests__widget_replacement_preserves_mention_usage_with_history_disabled.snap b/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__session_lifecycle_requests__new_session_tests__widget_replacement_preserves_mention_usage_with_history_disabled.snap
-index 6a47bf2b7..112f1658b 100644
+index 6a47bf2b7..f79813f9f 100644
 --- a/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__session_lifecycle_requests__new_session_tests__widget_replacement_preserves_mention_usage_with_history_disabled.snap
 +++ b/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__session_lifecycle_requests__new_session_tests__widget_replacement_preserves_mention_usage_with_history_disabled.snap
 @@ -1,8 +1,9 @@
@@ -100548,7 +100633,7 @@ index 6a47bf2b7..112f1658b 100644
  expression: "normalize_snapshot_paths(render_bottom_popup(&app.chat_widget, 80))"
  ---
 -  >_ OpenAI Codex (v0.0.0)
-+  >_ OpenAI Codex (v0.165.0+native-r30.20261030)
++  >_ OpenAI Codex (v<VERSION>)
       /tmp/project
  
  
@@ -120026,10 +120111,10 @@ index 000000000..f80e68e25
 +}
 diff --git a/codex-rs/tui/src/i18n.rs b/codex-rs/tui/src/i18n.rs
 new file mode 100644
-index 000000000..13b4a5bc8
+index 000000000..b413b76cb
 --- /dev/null
 +++ b/codex-rs/tui/src/i18n.rs
-@@ -0,0 +1,418 @@
+@@ -0,0 +1,420 @@
 +//! UI-only language selection. Never apply this dictionary to prompts, tool arguments,
 +//! slash command tokens, paths, or text supplied by the user or a server.
 +//!
@@ -120379,9 +120464,11 @@ index 000000000..13b4a5bc8
 +            assert_eq!(text_for(Locale::Korean, english), korean, "{english:?}");
 +            assert_eq!(text_for(Locale::English, english), english, "{english:?}");
 +        }
++        // "global" is an existing UI scope label; provider data bypasses this API.
++        assert_eq!(text_for(Locale::Korean, "global"), "전역");
++        assert_eq!(text_for(Locale::English, "global"), "global");
 +        for opaque in [
 +            "my-project",
-+            "global",
 +            "  gcloud auth application-default login",
 +            r"D:\자격 증명\provider.json",
 +            "server error { $provider }",
@@ -121895,6 +121982,48 @@ index 1e5c8d251..aeaae8e9f 100644
          )
          .await?;
          let is_fatal = match &exit_info.exit_reason {
+diff --git a/codex-rs/tui/src/managed_worktree_model_tests.rs b/codex-rs/tui/src/managed_worktree_model_tests.rs
+index f72892a39..6c431a932 100644
+--- a/codex-rs/tui/src/managed_worktree_model_tests.rs
++++ b/codex-rs/tui/src/managed_worktree_model_tests.rs
+@@ -228,6 +228,37 @@ pub(super) async fn exercise(
+                 .as_array_mut()
+                 .expect("request tools")
+                 .retain(|tool| tool["name"] == "mcp__codex_tui");
++            let namespaces = body["tools"].as_array().expect("request tools");
++            let [namespace] = namespaces.as_slice() else {
++                panic!("expected exactly one local TUI namespace");
++            };
++            assert_eq!(namespace["type"], "namespace");
++            let mut names = namespace["tools"]
++                .as_array()
++                .expect("local TUI namespace functions")
++                .iter()
++                .map(|tool| tool["name"].as_str().expect("function name"))
++                .collect::<Vec<_>>();
++            names.sort_unstable();
++            assert_eq!(
++                names,
++                vec![
++                    "create_thread",
++                    "create_worktree",
++                    "cron",
++                    "fork_thread",
++                    "get_worktree_creation_status",
++                    "list_archived_threads",
++                    "list_threads",
++                    "list_worktrees",
++                    "read_thread",
++                    "send_message_to_thread",
++                    "session_control",
++                    "set_thread_archived",
++                    "set_thread_title",
++                    "wait_threads",
++                ]
++            );
+             let mut text = body.to_string();
+             for (path, label) in [
+                 (&root.join(""), "<WORKTREE>/"),
 diff --git a/codex-rs/tui/src/managed_worktree_tools_tests.rs b/codex-rs/tui/src/managed_worktree_tools_tests.rs
 index bdcaeca32..7a0964006 100644
 --- a/codex-rs/tui/src/managed_worktree_tools_tests.rs
@@ -122789,7 +122918,7 @@ index c986e03e5..3e38e4dac 100644
          self.spawn_provider_setup(active_request_id, SignInState::Bedrock(fallback), request);
      }
 diff --git a/codex-rs/tui/src/onboarding/bedrock_tests.rs b/codex-rs/tui/src/onboarding/bedrock_tests.rs
-index 44e6d64a5..7e8b9a98d 100644
+index 44e6d64a5..6dc938ee3 100644
 --- a/codex-rs/tui/src/onboarding/bedrock_tests.rs
 +++ b/codex-rs/tui/src/onboarding/bedrock_tests.rs
 @@ -68,13 +68,17 @@ fn render_visible_at(state: &BedrockState, area: Rect) -> String {
@@ -122817,7 +122946,7 @@ index 44e6d64a5..7e8b9a98d 100644
          })
          .collect::<Vec<_>>();
      while rows.last().is_some_and(String::is_empty) {
-@@ -559,3 +563,228 @@ fn credential_entries_share_region_and_keep_aws_secrets_hidden() {
+@@ -559,3 +563,238 @@ fn credential_entries_share_region_and_keep_aws_secrets_hidden() {
          ));
      }
  }
@@ -122990,7 +123119,8 @@ index 44e6d64a5..7e8b9a98d 100644
 +            for width in [18, 24, 72] {
 +                let mut state = BedrockState::guidance();
 +                let area = Rect::new(0, 0, width, 6);
-+                let mut seen = String::new();
++                let mut raw_seen = String::new();
++                let mut logical_seen = String::new();
 +                let mut link_seen = false;
 +                for _ in 0..100 {
 +                    let mut buffer = Buffer::empty(area);
@@ -123007,13 +123137,22 @@ index 44e6d64a5..7e8b9a98d 100644
 +                                <= usize::from(width))
 +                    );
 +                    assert!(visible.contains(acknowledge));
-+                    seen.push_str(&visible);
++                    raw_seen.push_str(&visible);
++                    logical_seen.extend(visible.lines());
 +                    assert!(!state.handle_guidance_key_event(&KeyEvent::new(
 +                        KeyCode::Down,
 +                        KeyModifiers::NONE
 +                    )));
 +                }
-+                assert!(seen.contains(disclosure_end));
++                eprintln!(
++                    "locale={locale:?} width={width} raw_contains={} logical_contains={} raw_seen={raw_seen:?} logical_seen={logical_seen:?}",
++                    raw_seen.contains(disclosure_end),
++                    logical_seen.contains(disclosure_end)
++                );
++                assert!(
++                    logical_seen.contains(disclosure_end),
++                    "locale={locale:?} width={width} raw_seen={raw_seen:?} logical_seen={logical_seen:?}"
++                );
 +                assert!(link_seen);
 +                assert!(
 +                    state.handle_guidance_key_event(&KeyEvent::new(
@@ -123138,6 +123277,43 @@ index 45cb9f554..405de25db 100644
                      self.request_frame.schedule_frame();
                      return true;
                  }
+diff --git a/codex-rs/tui/src/onboarding/gcp_tests.rs b/codex-rs/tui/src/onboarding/gcp_tests.rs
+index 128e0be56..2c972a94d 100644
+--- a/codex-rs/tui/src/onboarding/gcp_tests.rs
++++ b/codex-rs/tui/src/onboarding/gcp_tests.rs
+@@ -122,6 +122,32 @@ async fn gcp_menu_gating_and_setup_flow() {
+ 
+     widget.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+     snapshot(&widget, "gcp_location_entry", area);
++    let location_value = || {
++        let mut sign_in_state = widget.sign_in_state.write().unwrap();
++        let SignInState::Gcp(state) = &mut *sign_in_state else {
++            panic!("GCP location entry");
++        };
++        state.active_input_mut().expect("location input").value()
++    };
++    for (locale, location_row) in [
++        (crate::i18n::Locale::English, "Location (optional): global"),
++        (crate::i18n::Locale::Korean, "위치(선택): global"),
++    ] {
++        assert_eq!(location_value(), None, "{locale:?}");
++        crate::i18n::with_locale(locale, || {
++            let mut terminal = crate::custom_terminal::Terminal::with_options(
++                crate::test_backend::VT100Backend::new(area.width, area.height),
++            )
++            .unwrap();
++            terminal.set_viewport_area(area);
++            terminal
++                .draw(|frame| widget.render_ref(area, frame.buffer_mut()))
++                .unwrap();
++            let rendered = terminal.backend().to_string();
++            assert!(rendered.contains(location_row), "{locale:?}: {rendered}");
++        });
++        assert_eq!(location_value(), None, "{locale:?}");
++    }
+     // Location accepts text normally, and Esc preserves it for the next visit.
+     widget.handle_paste("us-central1".to_string());
+     widget.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
 diff --git a/codex-rs/tui/src/onboarding/onboarding_screen.rs b/codex-rs/tui/src/onboarding/onboarding_screen.rs
 index db40dd0d7..41de3a1ec 100644
 --- a/codex-rs/tui/src/onboarding/onboarding_screen.rs
@@ -125145,6 +125321,32 @@ index edf78a1c9..6e13e6093 100644
 -  Composer       Queue                      tab
  ↓
    left/right group · enter edit shortcut · * custom · - unbound · esc close
+diff --git a/codex-rs/tui/src/snapshots/codex_tui__managed_worktree_tools__tests__model_tests__managed_worktree_model_creation.snap b/codex-rs/tui/src/snapshots/codex_tui__managed_worktree_tools__tests__model_tests__managed_worktree_model_creation.snap
+index 556cf37de..c74e34fac 100644
+--- a/codex-rs/tui/src/snapshots/codex_tui__managed_worktree_tools__tests__model_tests__managed_worktree_model_creation.snap
++++ b/codex-rs/tui/src/snapshots/codex_tui__managed_worktree_tools__tests__model_tests__managed_worktree_model_creation.snap
+@@ -14,10 +14,11 @@ Settings:
+   store: false
+   stream: true
+   tool_choice: "auto"
+-  tools (1; hash=15eb2d52053e3a44):
+-    - namespace/mcp__codex_tui: Tools in the mcp__codex_tui namespace.; hash=cb0a288754c9546e
++  tools (1; hash=c975d43208f99d91):
++    - namespace/mcp__codex_tui: Tools in the mcp__codex_tui namespace.; hash=55c486d92df9a1e9
+       - function/create_thread
+       - function/create_worktree
++      - function/cron
+       - function/fork_thread
+       - function/get_worktree_creation_status
+       - function/list_archived_threads
+@@ -25,6 +26,7 @@ Settings:
+       - function/list_worktrees
+       - function/read_thread
+       - function/send_message_to_thread
++      - function/session_control
+       - function/set_thread_archived
+       - function/set_thread_title
+       - function/wait_threads
 diff --git a/codex-rs/tui/src/snapshots/codex_tui__startup_draft__layout__tests__owned_startup_layout.snap b/codex-rs/tui/src/snapshots/codex_tui__startup_draft__layout__tests__owned_startup_layout.snap
 index 6065eb840..3d7678a1d 100644
 --- a/codex-rs/tui/src/snapshots/codex_tui__startup_draft__layout__tests__owned_startup_layout.snap

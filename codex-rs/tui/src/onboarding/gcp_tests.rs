@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 #![cfg(test)]
 
 //! Exercises Google Cloud onboarding through the widget and embedded app-server.
@@ -122,6 +123,32 @@ async fn gcp_menu_gating_and_setup_flow() {
 
     widget.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
     snapshot(&widget, "gcp_location_entry", area);
+    let location_value = || {
+        let mut sign_in_state = widget.sign_in_state.write().unwrap();
+        let SignInState::Gcp(state) = &mut *sign_in_state else {
+            panic!("GCP location entry");
+        };
+        state.active_input_mut().expect("location input").value()
+    };
+    for (locale, location_row) in [
+        (crate::i18n::Locale::English, "Location (optional): global"),
+        (crate::i18n::Locale::Korean, "위치(선택): global"),
+    ] {
+        assert_eq!(location_value(), None, "{locale:?}");
+        crate::i18n::with_locale(locale, || {
+            let mut terminal = crate::custom_terminal::Terminal::with_options(
+                crate::test_backend::VT100Backend::new(area.width, area.height),
+            )
+            .unwrap();
+            terminal.set_viewport_area(area);
+            terminal
+                .draw(|frame| widget.render_ref(area, frame.buffer_mut()))
+                .unwrap();
+            let rendered = terminal.backend().to_string();
+            assert!(rendered.contains(location_row), "{locale:?}: {rendered}");
+        });
+        assert_eq!(location_value(), None, "{locale:?}");
+    }
     // Location accepts text normally, and Esc preserves it for the next visit.
     widget.handle_paste("us-central1".to_string());
     widget.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));

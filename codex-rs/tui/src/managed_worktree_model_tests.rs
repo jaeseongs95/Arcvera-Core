@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Covers model request history through authenticated MCP and retained cwd/environment roots.
 //! This scenario does not establish filesystem sandbox enforcement.
 
@@ -228,6 +229,37 @@ pub(super) async fn exercise(
                 .as_array_mut()
                 .expect("request tools")
                 .retain(|tool| tool["name"] == "mcp__codex_tui");
+            let namespaces = body["tools"].as_array().expect("request tools");
+            let [namespace] = namespaces.as_slice() else {
+                panic!("expected exactly one local TUI namespace");
+            };
+            assert_eq!(namespace["type"], "namespace");
+            let mut names = namespace["tools"]
+                .as_array()
+                .expect("local TUI namespace functions")
+                .iter()
+                .map(|tool| tool["name"].as_str().expect("function name"))
+                .collect::<Vec<_>>();
+            names.sort_unstable();
+            assert_eq!(
+                names,
+                vec![
+                    "create_thread",
+                    "create_worktree",
+                    "cron",
+                    "fork_thread",
+                    "get_worktree_creation_status",
+                    "list_archived_threads",
+                    "list_threads",
+                    "list_worktrees",
+                    "read_thread",
+                    "send_message_to_thread",
+                    "session_control",
+                    "set_thread_archived",
+                    "set_thread_title",
+                    "wait_threads",
+                ]
+            );
             let mut text = body.to_string();
             for (path, label) in [
                 (&root.join(""), "<WORKTREE>/"),
