@@ -2,11 +2,11 @@
   "schema": 2,
   "upstream": "https://github.com/openai/codex",
   "officialVersion": "0.166.0",
-  "previousPublicCommit": "9d39059a034d2b0887326a14b9cea402dee15ae5",
+  "previousPublicCommit": "0e17500f88e181e5a603cd279a8b9c2da82ee123",
   "officialCommit": "6ff1e1ca3b30fc8b914720681fcf5fe62e95f856",
-  "patchedCommit": "b8989c4c3d2537800e7d5fdb8990a5572f8205f2",
+  "patchedCommit": "8e9b7eff953e750e8f071d101233920108e5ca26",
   "officialTree": "03f3b46689faf274f126dc78508ed238564da8ba",
-  "patchedTree": "d7e49911baaa33089bc6cc4544e1c1297a034a30",
+  "patchedTree": "bd7c043bc5cb61b1fab1843d0dfe5fcf47f4695b",
   "selectedPrefixes": [
     "codex-rs",
     "third_party",
@@ -40,10 +40,10 @@
     "docs/r38-agent-main-return-test-cases.ko.md"
   ],
   "patchPath": "upstream/official-0.166.0.patch",
-  "patchSha256": "9ee7e8d174d7ca0e7d06d0e947cfb113ac98c837c33358cb14db7433952f7fd9",
-  "sourceInventorySha256": "d831857732b10dd138f3c1ef1b00c2088c14a24aad28808394fd93686e80c9fd",
+  "patchSha256": "2d7669ddd575dfa2108076d04486de2f34821fad513f15e3f8e4bea19690f222",
+  "sourceInventorySha256": "eee82267a3c7b0e1f890bab00a8fb473e80c81a82ade6dcb2dab139efa84ed83",
   "windowsPromptInputsPath": "upstream/windows-prompt-inputs.json",
-  "windowsPromptInputsSha256": "3c619b8e0a218a5a58e290d98776bf1a2c45d5bed969920a214f306279141afc",
+  "windowsPromptInputsSha256": "66212af1779944a6ecb19dbded262d2a7a08e09d313cd050532534dec9c02e94",
   "sourceFileCount": 9477,
   "publishedBytes": 94976387,
   "modifiedNoticeDate": "2026-11-01",
@@ -65,9 +65,9 @@
     {
       "path": "codex-rs/Cargo.lock",
       "gitMode": "100644",
-      "gitBlob": "885165c81b63bf8e3cb62ba3c77ce6751a925a3f",
-      "sourceSha256": "0c4fac625008e963d47fbfdf136ee3aac8e5970e635e18c9290c612a42086360",
-      "publishedSha256": "55d3166d1dafbdb91bc2be9850f3c9ace55d8ec7c4a7751860284c9780e9ab3a",
+      "gitBlob": "14b2bd4dcde9c279202dd35af982caaa7cd1ed92",
+      "sourceSha256": "744281acae43b2c2d9a4f053024f55e73305160a067c75f1af50387e5dcbcf92",
+      "publishedSha256": "49d9c8860dddebd04e1ae53f4e5393f327ace0295d9d5436528a3bd57e30a626",
       "bytes": 413415,
       "modified": true,
       "noticeOnly": true
@@ -75,9 +75,9 @@
     {
       "path": "codex-rs/Cargo.toml",
       "gitMode": "100644",
-      "gitBlob": "f2b5a5e884ba9418ccc9ccb72fa66c61e0769567",
-      "sourceSha256": "e3abf48e12c0d0aa1f28b54965683c3e6a56d7af33f1b2e45d3275e716634129",
-      "publishedSha256": "1a797071864b7a184fc1ed792017ad7f36d63b0947dd76fe02deca26102fe759",
+      "gitBlob": "40fd807aeb235e0571e7695efc01b735244dd66c",
+      "sourceSha256": "02cf3cc807ca67ce40f034ee8155507e4aedb54de310cdab2b65211409c7ab1f",
+      "publishedSha256": "2f7d37da1ab51105936010b37cc168204a43de155fa8e8a07c761fe6cf3fd2fe",
       "bytes": 22015,
       "modified": true,
       "noticeOnly": true
@@ -7626,8 +7626,8 @@
   "preservedRepositoryDocuments": {
     "LICENSE": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc",
     "NOTICE": "56e8f508896d981a2c375183d4c4d92d390cc7b4541247932c615b8a4af8b67d",
-    "README.md": "32010db4e6450d4afba1577cdd576db80362d21e8fc45c668f47cccde625c03d",
-    "README.ko.md": "860d2d66ae7e0674329402ff3cb700591ace3abd2d2bb7c56d7a3365489e7871"
+    "README.md": "19b0104ba99b0ab17e60644241d636f4ab18bf143c9e09a0d03fd7828f99bf4a",
+    "README.ko.md": "512df7b0d288be501c772d8cd7bfa822e4b16bec3f4c45c5e558359b25a70168"
   },
   "limitations": [
     "This public export has not been built or run as a fresh public checkout.",

@@ -216,7 +216,7 @@ class VerifierChecks(unittest.TestCase):
                 self.assertEqual(EXPORT.notice(path), b'// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n' if path == 'codex-rs/tui/src/lib.rs' else b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n' if path in {'codex-rs/tui/src/tui.rs'} else (b'// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/cli/src/main.rs' else b'// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path in {'codex-rs/cli/src/main.rs', 'codex-rs/tui/src/keymap.rs'} else b'// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.\n'))
         for path in ['codex-rs/Cargo.toml', 'codex-rs/Cargo.lock', 'codex-rs/cli/Cargo.toml']:
             with self.subTest(path=path):
-                self.assertEqual(EXPORT.notice(path), b'# Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n' if path in {'codex-rs/Cargo.toml', 'codex-rs/Cargo.lock'} else b'# Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/cli/Cargo.toml' else b'# Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n')
+                self.assertEqual(EXPORT.notice(path), b'# Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n' if path in {'codex-rs/Cargo.toml', 'codex-rs/Cargo.lock'} else b'# Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/cli/Cargo.toml' else b'# Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n')
 
     def test_r37_export_scope_and_notices(self):
         expected_docs={
@@ -232,7 +232,7 @@ class VerifierChecks(unittest.TestCase):
         self.assertTrue(expected_docs.issubset(EXPORT.PREFIXES))
         self.assertNotIn('docs/r37-cache-observation-status.ko.md',EXPORT.PREFIXES)
         self.assertIn('sdk/python/src/openai_codex/generated/v2_all.py',EXPORT.PREFIXES)
-        self.assertEqual(EXPORT.PATCHED,'b8989c4c3d2537800e7d5fdb8990a5572f8205f2')
+        self.assertEqual(EXPORT.PATCHED,'8e9b7eff953e750e8f071d101233920108e5ca26')
         self.assertEqual(EXPORT.notice('codex-rs/core-plugins/src/store.rs'),b'// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n')
         self.assertEqual(EXPORT.notice('sdk/python/src/openai_codex/generated/v2_all.py'),b'# Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n')
 
