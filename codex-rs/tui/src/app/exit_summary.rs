@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Exit output distinguishes a disconnected client from a stopped embedded server.
 //! Persisted sessions offer a direct UUID command and an optional named picker hint.
 
@@ -24,12 +24,7 @@ pub struct DisconnectInfo {
 
 impl App {
     pub(super) fn exit_info(&self, exit_reason: ExitReason) -> AppExitInfo {
-        let thread_id = match exit_reason {
-            ExitReason::Archived(_) | ExitReason::ThreadRemoved => None,
-            ExitReason::UserRequested | ExitReason::TurnInterrupted | ExitReason::Fatal(_) => {
-                self.chat_widget.thread_id().or(self.primary_thread_id)
-            }
-        };
+        let thread_id = self.chat_widget.thread_id().or(self.primary_thread_id);
         let disconnect_info = thread_id.and_then(|_| {
             let command = match &self.app_server_target {
                 AppServerTarget::Embedded => return None,
@@ -99,7 +94,7 @@ impl AppExitInfo {
         {
             let turn_interrupted = matches!(self.exit_reason, ExitReason::TurnInterrupted);
             let message = match self.exit_reason {
-                ExitReason::UserRequested | ExitReason::Archived(_) | ExitReason::ThreadRemoved => {
+                ExitReason::UserRequested => {
                     crate::i18n::static_message("controls-exit-disconnected")
                 }
                 ExitReason::Fatal(_) => {
@@ -140,12 +135,7 @@ impl AppExitInfo {
         if !self.token_usage.is_zero() {
             lines.push(self.token_usage.ui_summary(false));
         }
-        if let ExitReason::Archived(thread_id) = self.exit_reason {
-            lines.push(crate::i18n::message(
-                "controls-exit-archived",
-                &[("value", thread_id.to_string().as_str())],
-            ));
-        } else if let Some(thread) = self.resume_hint {
+        if let Some(thread) = self.resume_hint {
             lines.push(crate::i18n::static_message("controls-exit-continue").to_string());
             lines.push(format!(
                 "  {}",

@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Covers model request history through authenticated MCP and retained cwd/environment roots.
 //! This scenario does not establish filesystem sandbox enforcement.
 
@@ -23,7 +24,7 @@ async fn model_call(
     } else {
         responses::ev_function_call_with_namespace(
             tool,
-            "mcp__codex_worktrees",
+            "mcp__codex_tui",
             tool,
             &arguments.to_string(),
         )
@@ -106,6 +107,7 @@ pub(super) async fn exercise(
     model: &wiremock::MockServer,
     config: &Config,
     repository: &Path,
+    existing_thread: &str,
 ) -> color_eyre::Result<()> {
     let mut config = config.clone();
     config.cwd = codex_utils_absolute_path::AbsolutePathBuf::from_absolute_path(
@@ -144,7 +146,7 @@ pub(super) async fn exercise(
     let mut overrides = None;
     server.thread_tool_transport().configure_mcp(&mut overrides);
     let overrides = overrides.unwrap();
-    let mcp = &overrides["mcp_servers.codex_worktrees"];
+    let mcp = &overrides["mcp_servers.codex_tui"];
     let client = codex_http_client::HttpClientBuilder::new().build_direct()?;
     tokio::time::timeout(Duration::from_secs(/*secs*/ 20), async {
         loop {
@@ -180,6 +182,20 @@ pub(super) async fn exercise(
     history.extend(requests);
     assert_eq!(approvals, 0);
     assert_eq!(listed["data"][0]["root"], created["worktree"]["root"]);
+    let (renamed, requests, approvals) = model_call(
+        server,
+        model,
+        &thread,
+        "set_thread_title",
+        json!({"threadId":existing_thread,"title":"Checkout preparation"}),
+    )
+    .await?;
+    history.extend(requests);
+    assert_eq!(approvals, 0);
+    assert_eq!(
+        renamed,
+        json!({"threadId":existing_thread,"title":"Checkout preparation"})
+    );
     let other_attachments: ThreadAttachmentListResponse = server
         .request_handle()
         .request_typed(ClientRequest::ThreadAttachmentList {
@@ -208,11 +224,42 @@ pub(super) async fn exercise(
         .map(|request| {
             let mut body = request.body_json();
             // Keep every request and input item, but focus schema fingerprints on
-            // the worktree tools so unrelated built-in changes do not churn this test.
+            // the local TUI namespace so unrelated built-ins do not churn this test.
             body["tools"]
                 .as_array_mut()
                 .expect("request tools")
-                .retain(|tool| tool["name"] == "mcp__codex_worktrees");
+                .retain(|tool| tool["name"] == "mcp__codex_tui");
+            let namespaces = body["tools"].as_array().expect("request tools");
+            let [namespace] = namespaces.as_slice() else {
+                panic!("expected exactly one local TUI namespace");
+            };
+            assert_eq!(namespace["type"], "namespace");
+            let mut names = namespace["tools"]
+                .as_array()
+                .expect("local TUI namespace functions")
+                .iter()
+                .map(|tool| tool["name"].as_str().expect("function name"))
+                .collect::<Vec<_>>();
+            names.sort_unstable();
+            assert_eq!(
+                names,
+                vec![
+                    "create_thread",
+                    "create_worktree",
+                    "cron",
+                    "fork_thread",
+                    "get_worktree_creation_status",
+                    "list_archived_threads",
+                    "list_threads",
+                    "list_worktrees",
+                    "read_thread",
+                    "send_message_to_thread",
+                    "session_control",
+                    "set_thread_archived",
+                    "set_thread_title",
+                    "wait_threads",
+                ]
+            );
             let mut text = body.to_string();
             for (path, label) in [
                 (&root.join(""), "<WORKTREE>/"),
@@ -249,7 +296,7 @@ pub(super) async fn exercise(
     insta::assert_snapshot!(
         "managed_worktree_model_creation",
         context_snapshot::format_context_snapshot(
-            "Model request history for creating, polling and listing a task-attached checkout through MCP, without a separate creation confirmation. Separate assertions verify retained cwd/environment roots, not sandbox enforcement.",
+            "Model request history for creating, polling and listing a task-attached checkout, then renaming another task through MCP. Separate assertions verify retained cwd/environment roots, not sandbox enforcement.",
             &entries,
             &ContextSnapshotOptions::default()
                 .rewrite_known_segments()

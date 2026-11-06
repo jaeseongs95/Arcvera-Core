@@ -1,4 +1,4 @@
-# Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+# Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 [package]
 name = "codex-tui"
 version.workspace = true
@@ -181,6 +181,7 @@ arboard = { workspace = true }
 app_test_support = { workspace = true }
 codex-mcp = { workspace = true }
 codex-protocol-test-support = { workspace = true }
+codex-thread-store = { workspace = true }
 core_test_support = { workspace = true }
 codex-utils-cargo-bin = { workspace = true }
 assert_matches = { workspace = true }

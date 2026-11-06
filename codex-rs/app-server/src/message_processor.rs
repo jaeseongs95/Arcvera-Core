@@ -182,6 +182,7 @@ pub(crate) struct MessageProcessor {
 
 #[derive(Debug)]
 pub(crate) struct ConnectionSessionState {
+    disconnect: CancellationToken,
     pub(crate) rpc_gate: Arc<ConnectionRpcGate>,
     pub(crate) origin: crate::transport::ConnectionOrigin,
     pub(crate) mcp_event_streams: McpEventStreams,
@@ -202,6 +203,7 @@ impl ConnectionSessionState {
     pub(crate) fn new(origin: crate::transport::ConnectionOrigin) -> Self {
         Self {
             origin,
+            disconnect: CancellationToken::new(),
             rpc_gate: Arc::new(ConnectionRpcGate::new()),
             mcp_event_streams: McpEventStreams::default(),
             initialized: OnceLock::new(),
@@ -957,6 +959,7 @@ impl MessageProcessor {
         connection_id: ConnectionId,
         session_state: &ConnectionSessionState,
     ) {
+        session_state.disconnect.cancel();
         session_state.rpc_gate.close().await;
         self.account_processor
             .gateway_connection_closed(connection_id);
@@ -1095,6 +1098,7 @@ impl MessageProcessor {
             | ClientRequest::ThreadCleanupCompleted { .. }
             | ClientRequest::ThreadArchive { .. } => (Some(self.turn_admission.admit()?), false),
             ClientRequest::ThreadSample { .. }
+            | ClientRequest::ThreadGuardianReview { .. }
             | ClientRequest::TurnStart { .. }
             | ClientRequest::TurnStartIfIdle { .. }
             | ClientRequest::TurnStartUserIfIdle { .. }
@@ -1542,7 +1546,9 @@ impl MessageProcessor {
                     .await
             }
             ClientRequest::ThreadSectionMove { params, .. } => {
-                self.thread_processor.thread_section_move(params).await
+                self.thread_processor
+                    .thread_section_move(request_id.clone(), params)
+                    .await
             }
             ClientRequest::ThreadSectionList { params, .. } => {
                 self.thread_processor.thread_section_list(params).await
@@ -1821,6 +1827,20 @@ impl MessageProcessor {
                         client_version.clone(),
                     )
                     .await
+            }
+            ClientRequest::ThreadGuardianReview { params, .. } => {
+                let cancellation = &request_context.cancellation;
+                let review =
+                    self.turn_processor
+                        .thread_guardian_review(&request_id, params, cancellation);
+                tokio::pin!(review);
+                tokio::select! {
+                    result = &mut review => result,
+                    _ = session.disconnect.cancelled() => {
+                        cancellation.cancel();
+                        review.await
+                    }
+                }
             }
             ClientRequest::ThreadInjectItems { params, .. } => {
                 self.turn_processor

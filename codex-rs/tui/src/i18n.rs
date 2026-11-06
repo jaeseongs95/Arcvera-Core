@@ -133,17 +133,17 @@ mod tests {
     #[test]
     fn daemon_connection_mismatch_preserves_runtime_source_and_explicit_guidance() {
         let endpoint = r"unix://D:\공유 서버\control.sock";
-        let cli = "0.166.0+native-r38.20261106";
+        let cli = env!("CARGO_PKG_VERSION");
         let server = "0.166.0+native-r36.20261104";
         for (locale, refused, unknown_path) in [
             (
                 Locale::English,
-                "Automatic attachment was refused",
+                "The connection was refused",
                 "does not identify the running server executable path",
             ),
             (
                 Locale::Korean,
-                "자동 연결을 거부했습니다",
+                "연결을 거부했습니다",
                 "실행 중인 서버 실행 파일 경로는 확인할 수 없습니다",
             ),
         ] {
@@ -277,6 +277,137 @@ mod tests {
             "project_memories/key/memories_v2",
         ] {
             assert_eq!(text_for(Locale::Korean, opaque), opaque);
+        }
+    }
+
+    #[test]
+    fn official_0167_ui_literals_translate_without_changing_whitespace_or_opaque_values() {
+        for (english, korean) in [
+            ("  Sign in another way", "  다른 방법으로 로그인"),
+            ("Sign in another way", "다른 방법으로 로그인"),
+            (
+                "Use an API key or another provider",
+                "API 키 또는 다른 제공자 사용",
+            ),
+            ("Use Google Cloud Vertex AI", "Google Cloud Vertex AI 사용"),
+            (
+                "Connect using your Google Cloud credentials",
+                "Google Cloud 자격 증명으로 연결",
+            ),
+            (" to go back", " 돌아가기"),
+            (" to review requests", " 요청 검토"),
+            (
+                "> Set up Google Cloud Vertex AI",
+                "> Google Cloud Vertex AI 설정",
+            ),
+            (
+                "Enter the Google Cloud project ID to use with Vertex AI.",
+                "Vertex AI에서 사용할 Google Cloud 프로젝트 ID를 입력하세요.",
+            ),
+            ("  Project ID: ", "  프로젝트 ID: "),
+            (
+                "Press Enter to use global, or enter a Vertex AI location.",
+                "global을 사용하려면 Enter를 누르거나 Vertex AI 위치를 입력하세요.",
+            ),
+            ("  Location (optional): ", "  위치(선택): "),
+            (
+                "Enter an absolute file path on the host running Codex, or press Enter to use Application Default Credentials (ADC).",
+                "Codex가 실행 중인 호스트의 절대 파일 경로를 입력하거나 Enter를 눌러 애플리케이션 기본 사용자 인증 정보(ADC)를 사용하세요.",
+            ),
+            ("  Credential file (optional): ", "  자격 증명 파일(선택): "),
+            (
+                "Validating credentials and saving configuration…",
+                "자격 증명 확인 및 설정 저장 중…",
+            ),
+            (
+                "  To set up ADC with the Google Cloud CLI, run",
+                "  Google Cloud CLI로 ADC를 설정하려면 다음 명령을 실행하세요",
+            ),
+            (" set up", " 설정"),
+            (" continue", " 계속"),
+            (" back", " 뒤로"),
+            (
+                "Enter a Google Cloud project ID.",
+                "Google Cloud 프로젝트 ID를 입력하세요.",
+            ),
+            (
+                "✓ Google Cloud Vertex AI configured",
+                "✓ Google Cloud Vertex AI 설정 완료",
+            ),
+            (" continue in new chat · ", " 새 대화에서 계속 · "),
+            (" start fresh · ", " 새로 시작 · "),
+            (" other chats", " 다른 대화"),
+            ("Continue in a new chat", "새 대화에서 계속"),
+            ("Model provider mismatch", "모델 제공자 불일치"),
+            ("Model provider unavailable", "모델 제공자 사용 불가"),
+            (
+                "Model provider blocked by policy",
+                "정책에 의해 차단된 모델 제공자",
+            ),
+        ] {
+            assert_eq!(text_for(Locale::Korean, english), korean, "{english:?}");
+            assert_eq!(text_for(Locale::English, english), english, "{english:?}");
+        }
+        // "global" is an existing UI scope label; provider data bypasses this API.
+        assert_eq!(text_for(Locale::Korean, "global"), "전역");
+        assert_eq!(text_for(Locale::English, "global"), "global");
+        for opaque in [
+            "my-project",
+            "  gcloud auth application-default login",
+            r"D:\자격 증명\provider.json",
+            "server error { $provider }",
+        ] {
+            assert_eq!(text_for(Locale::Korean, opaque), opaque);
+            assert_eq!(text_for(Locale::English, opaque), opaque);
+        }
+    }
+
+    #[test]
+    fn official_0167_provider_messages_preserve_named_arguments_in_both_languages() {
+        let provider = "제공자 { $current } 🦀";
+        let current = "current \"provider\"";
+        let required = "required { $provider }";
+        let address = "host.example:1234/{ $address }";
+        for (id, args, english, korean) in [
+            (
+                "dialogs-provider-mismatch",
+                vec![("provider", provider), ("current", current)],
+                format!(
+                    "This chat uses {provider}, but Codex now uses {current}, so this chat is read-only."
+                ),
+                format!(
+                    "이 대화는 {provider}을(를) 사용하지만 현재 Codex는 {current}을(를) 사용하므로 이 대화는 읽기 전용입니다."
+                ),
+            ),
+            (
+                "dialogs-provider-not-configured",
+                vec![("provider", provider)],
+                format!(
+                    "This chat uses model provider “{provider}”, which is no longer configured. Restore this provider’s configuration to continue."
+                ),
+                format!(
+                    "이 대화에서 사용하는 모델 제공자 “{provider}”가 더 이상 구성되어 있지 않습니다. 계속하려면 이 제공자의 설정을 복원하세요."
+                ),
+            ),
+            (
+                "dialogs-provider-policy-conflict",
+                vec![("provider", provider), ("required", required)],
+                format!(
+                    "This chat uses model provider “{provider}”, but your organization requires “{required}”. Contact your administrator or start a new chat using the required provider."
+                ),
+                format!(
+                    "이 대화는 모델 제공자 “{provider}”을(를) 사용하지만 조직에서는 “{required}”을(를) 요구합니다. 관리자에게 문의하거나 필요한 제공자로 새 대화를 시작하세요."
+                ),
+            ),
+            (
+                "dialogs-provider-configuration-location",
+                vec![("address", address)],
+                format!("Configuration on {address}"),
+                format!("{address}의 설정"),
+            ),
+        ] {
+            assert_eq!(message_for(Locale::English, id, &args), english, "{id}");
+            assert_eq!(message_for(Locale::Korean, id, &args), korean, "{id}");
         }
     }
 

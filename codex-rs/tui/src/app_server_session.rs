@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! App-server session facade used by the TUI event loop.
 //!
 //! This module owns the typed JSON-RPC calls needed by the TUI and keeps
@@ -16,8 +16,10 @@ pub(crate) mod provider_selection;
 #[cfg(test)]
 #[path = "app_server_session/provider_selection_tests.rs"]
 mod provider_selection_tests;
+mod read_state;
 mod realtime;
 mod rollout_history;
+pub(crate) use read_state::unread_revision;
 mod startup_launch;
 mod thread_list;
 mod web_search;
@@ -351,9 +353,17 @@ pub(crate) struct AppServerSession {
         AppEventSender,
         tokio_util::sync::CancellationToken,
     )>,
-    client: AppServerClient,
+    /// Owns events and the connection lifetime for live sessions. Picker views borrow only the
+    /// request handle below and deliberately have no connection owner.
+    connection_owner: Option<AppServerClient>,
+    request_handle: AppServerRequestHandle,
+    request_id_namespace: Option<Uuid>,
     next_request_id: i64,
     history_pagination: HashMap<ThreadId, history::ThreadHistoryPagination>,
+    pub(crate) focused_conversation: Option<ThreadId>,
+    pub(crate) attempted_revision: Option<String>,
+    pub(crate) frozen_receipt: Option<(ThreadId, String)>,
+    pub(crate) unread_revisions: HashMap<ThreadId, String>,
     task_tool_threads: HashSet<ThreadId>,
     task_tool_capabilities_dir: Option<AbsolutePathBuf>,
     task_search_generation: Arc<AtomicU64>,
@@ -427,6 +437,20 @@ pub(crate) struct AppServerStartedThread {
     pub(crate) task_tools_available: bool,
 }
 
+/// Recognize typed server errors without depending on wording or an older server's behavior.
+pub(crate) fn model_provider_error(
+    error: &color_eyre::eyre::Report,
+) -> Option<codex_app_server_protocol::ModelProviderError> {
+    error.chain().find_map(|cause| {
+        let codex_app_server_client::TypedRequestError::Server { source, .. } =
+            cause.downcast_ref::<codex_app_server_client::TypedRequestError>()?
+        else {
+            return None;
+        };
+        serde_json::from_value(source.data.clone()?).ok()
+    })
+}
+
 pub(crate) fn is_active_writer_error(err: &color_eyre::eyre::Report) -> bool {
     err.chain()
         .any(|cause| cause.to_string().contains("already has an active writer"))
@@ -479,16 +503,30 @@ pub(crate) struct UnsupportedLegacyPermissionProfile;
 impl AppServerSession {
     /// Platform of the app-server process, not necessarily its executor.
     pub(crate) fn app_server_platform_family(&self) -> Option<&str> {
-        self.client.platform_family()
+        self.connection_owner
+            .as_ref()
+            .and_then(AppServerClient::platform_family)
     }
 
     pub(crate) fn app_server_platform_os(&self) -> Option<&str> {
-        self.client.platform_os()
+        self.connection_owner
+            .as_ref()
+            .and_then(AppServerClient::platform_os)
     }
 
     pub(crate) fn new(
         backend_id: crate::backend_id::BackendId,
         client: AppServerClient,
+        thread_params_mode: ThreadParamsMode,
+    ) -> Self {
+        let request_handle = client.request_handle();
+        Self::from_parts(backend_id, Some(client), request_handle, thread_params_mode)
+    }
+
+    fn from_parts(
+        backend_id: crate::backend_id::BackendId,
+        connection_owner: Option<AppServerClient>,
+        request_handle: AppServerRequestHandle,
         thread_params_mode: ThreadParamsMode,
     ) -> Self {
         Self {
@@ -499,9 +537,15 @@ impl AppServerSession {
             runtime_tool_registration_lifetime: tokio_util::sync::CancellationToken::new(),
             pending_runtime_tool_resume: Mutex::new(None),
             pending_compact: None,
-            client,
+            connection_owner,
+            request_handle,
+            request_id_namespace: None,
             next_request_id: 1,
             history_pagination: HashMap::new(),
+            focused_conversation: None,
+            attempted_revision: None,
+            frozen_receipt: None,
+            unread_revisions: HashMap::new(),
             task_tool_threads: HashSet::new(),
             task_tool_capabilities_dir: None,
             task_search_generation: Arc::new(AtomicU64::new(0)),
@@ -527,7 +571,9 @@ impl AppServerSession {
         {
             return None;
         }
-        self.client.supports_expected_turn_interrupt()
+        self.connection_owner
+            .as_ref()
+            .and_then(AppServerClient::supports_expected_turn_interrupt)
     }
 
     pub(crate) fn backend_id(&self) -> crate::backend_id::BackendId {
@@ -540,6 +586,24 @@ impl AppServerSession {
             id: self.connection_id,
             live: Arc::clone(&self.connection_live),
         }
+    }
+
+    /// Creates a request-only picker view without transferring the live connection's events.
+    pub(crate) fn picker_view(&self) -> Self {
+        let mut view = Self::from_parts(
+            self.backend_id,
+            /*connection_owner*/ None,
+            self.request_handle(),
+            self.thread_params_mode,
+        );
+        view.request_id_namespace = Some(Uuid::new_v4());
+        view.remote_cwd_override = self.remote_cwd_override.clone();
+        view.model_provider_override = self.model_provider_override.clone();
+        view.history_support = self.history_support;
+        view.thread_settings_update_supported = self.thread_settings_update_supported;
+        view.default_model = self.default_model.clone();
+        view.available_models = self.available_models.clone();
+        view
     }
 
     pub(crate) async fn start_dynamic_tool_mcp(
@@ -588,15 +652,11 @@ impl AppServerSession {
         } else {
             None
         };
-        let services = crate::dynamic_tools_mcp::ToolServices {
-            task_tools: !self.uses_embedded_app_server(),
-            cron: Some(self.cron_tool_connection()),
-            worktrees,
-        };
-        if !services.task_tools && services.worktrees.is_none() {
-            return Ok(());
-        }
-        if config.mcp_servers.get().contains_key(services.namespace()) {
+        if config
+            .mcp_servers
+            .get()
+            .contains_key(crate::dynamic_tools::NAMESPACE)
+        {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::AlreadyExists,
                 "a user-configured MCP server already owns the TUI tools namespace",
@@ -608,12 +668,15 @@ impl AppServerSession {
             .mcp_servers
             .as_ref()
             .map(|requirements| {
-                requirements.value.get(services.namespace()).ok_or_else(|| {
-                    std::io::Error::new(
-                        std::io::ErrorKind::PermissionDenied,
-                        "managed MCP requirements do not permit the TUI task-tools server",
-                    )
-                })
+                requirements
+                    .value
+                    .get(crate::dynamic_tools::NAMESPACE)
+                    .ok_or_else(|| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::PermissionDenied,
+                            "managed MCP requirements do not permit the TUI task-tools server",
+                        )
+                    })
             })
             .transpose()?;
         let mut thread_start_params = thread_start_params_from_config(
@@ -646,7 +709,8 @@ impl AppServerSession {
                 app_event_tx,
                 status_updates,
                 managed_requirement,
-                services,
+                worktrees,
+                Some(self.cron_tool_connection()),
             )
             .await?,
         ));
@@ -656,8 +720,6 @@ impl AppServerSession {
     pub(crate) fn thread_tool_transport(&self) -> ThreadToolTransport {
         if let Some(server) = self.dynamic_tool_mcp.as_ref() {
             ThreadToolTransport::Mcp(Arc::clone(server))
-        } else if self.uses_embedded_app_server() {
-            ThreadToolTransport::CronOnly
         } else {
             ThreadToolTransport::Dynamic
         }
@@ -687,7 +749,7 @@ impl AppServerSession {
     }
 
     pub(crate) fn uses_embedded_app_server(&self) -> bool {
-        matches!(&self.client, AppServerClient::InProcess(_))
+        matches!(&self.connection_owner, Some(AppServerClient::InProcess(_)))
     }
 
     /// Carry capabilities that may exist only in memory when the optional cache is unwritable.
@@ -721,18 +783,20 @@ impl AppServerSession {
         &self,
         local_codex_home: &AbsolutePathBuf,
     ) -> Option<AppServerPath> {
-        self.client.codex_home(local_codex_home)
+        self.connection_owner
+            .as_ref()
+            .and_then(|client| client.codex_home(local_codex_home))
     }
 
     pub(crate) fn server_version(&self) -> Option<&str> {
-        let AppServerClient::Remote(client) = &self.client else {
+        let Some(AppServerClient::Remote(client)) = &self.connection_owner else {
             return None;
         };
         client.server_version()
     }
 
     pub(crate) fn server_codex_home(&self) -> Option<&str> {
-        let AppServerClient::Remote(client) = &self.client else {
+        let Some(AppServerClient::Remote(client)) = &self.connection_owner else {
             return None;
         };
         client.codex_home()
@@ -784,7 +848,7 @@ impl AppServerSession {
         let requirements_request_id = self.next_request_id();
         let (models, requirements, collaboration_modes) = tokio::try_join!(
             async {
-                self.client
+                self.request_handle
                     .request_typed::<ModelListResponse>(ClientRequest::ModelList {
                         request_id: model_request_id,
                         params: ModelListParams {
@@ -800,7 +864,7 @@ impl AppServerSession {
             },
             async {
                 match self
-                    .client
+                    .request_handle
                     .request_typed::<ConfigRequirementsReadResponse>(
                         ClientRequest::ConfigRequirementsRead {
                             request_id: requirements_request_id,
@@ -957,7 +1021,7 @@ impl AppServerSession {
     /// (to check auth mode without the overhead of a full bootstrap).
     pub(crate) async fn read_account(&mut self) -> Result<GetAccountResponse> {
         let account_request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::GetAccount {
                 request_id: account_request_id,
                 params: GetAccountParams {
@@ -969,7 +1033,15 @@ impl AppServerSession {
     }
 
     pub(crate) async fn next_event(&mut self) -> Option<AppServerSessionEvent> {
-        let event = self.client.next_event().await;
+        let event = self.connection_owner.as_mut()?.next_event().await;
+        if let Some(codex_app_server_client::AppServerEvent::ServerNotification(notification)) =
+            &event
+            && let codex_app_server_protocol::ServerNotification::ThreadReadStateChanged(change) =
+                notification.as_ref()
+            && let Ok(id) = ThreadId::from_string(&change.thread_id)
+        {
+            self.remember_read_state(id, Some(change.read_state.clone()));
+        }
         if event.is_none()
             || matches!(
                 &event,
@@ -1313,7 +1385,7 @@ impl AppServerSession {
         self.thread_tool_transport()
             .configure_mcp(&mut params.config);
         let response: ThreadForkResponse = match self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadFork {
                 request_id,
                 params: params.clone(),
@@ -1327,7 +1399,7 @@ impl AppServerSession {
                 self.history_support = ThreadHistorySupport::LegacyOnly;
                 params.exclude_turns = false;
                 let request_id = self.next_request_id();
-                self.client
+                self.request_handle
                     .request_typed(ClientRequest::ThreadFork { request_id, params })
                     .await
                     .map_err(|err| {
@@ -1456,7 +1528,7 @@ impl AppServerSession {
         params: ThreadLoadedListParams,
     ) -> Result<ThreadLoadedListResponse> {
         let request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::ThreadLoadedList { request_id, params })
             .await
             .wrap_err("failed to list loaded threads from app server")
@@ -1469,7 +1541,7 @@ impl AppServerSession {
     ) -> Result<Thread> {
         let request_id = self.next_request_id();
         let response = self
-            .client
+            .request_handle
             .request_typed::<ThreadReadResponse>(ClientRequest::ThreadRead {
                 request_id,
                 params: ThreadReadParams {
@@ -1479,14 +1551,20 @@ impl AppServerSession {
             })
             .await;
         let mut response: ThreadReadResponse = match response {
-            Ok(response) => return Ok(response.thread),
+            Ok(response) => {
+                // Freeze the metadata revision observed before history hydration.
+                if !include_turns {
+                    self.remember_read_state(thread_id, response.read_state);
+                }
+                return Ok(response.thread);
+            }
             Err(TypedRequestError::Server { source, .. })
                 if include_turns
                     && source.message
                         == "paginated threads do not support thread/read(includeTurns=true)" =>
             {
                 let request_id = self.next_request_id();
-                self.client
+                self.request_handle
                     .request_typed(ClientRequest::ThreadRead {
                         request_id,
                         params: ThreadReadParams {
@@ -1514,7 +1592,7 @@ impl AppServerSession {
     pub(crate) async fn thread_archive(&mut self, thread_id: ThreadId) -> Result<()> {
         let request_id = self.next_request_id();
         let _: ThreadArchiveResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadArchive {
                 request_id,
                 params: ThreadArchiveParams {
@@ -1529,7 +1607,7 @@ impl AppServerSession {
     pub(crate) async fn thread_delete(&mut self, thread_id: ThreadId) -> Result<()> {
         let request_id = self.next_request_id();
         let _: ThreadDeleteResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadDelete {
                 request_id,
                 params: ThreadDeleteParams {
@@ -1544,7 +1622,7 @@ impl AppServerSession {
     pub(crate) async fn thread_unarchive(&mut self, thread_id: ThreadId) -> Result<Thread> {
         let request_id = self.next_request_id();
         let response: ThreadUnarchiveResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadUnarchive {
                 request_id,
                 params: ThreadUnarchiveParams {
@@ -1562,7 +1640,7 @@ impl AppServerSession {
         branch: String,
     ) -> Result<ThreadMetadataUpdateResponse> {
         let request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::ThreadMetadataUpdate {
                 request_id,
                 params: ThreadMetadataUpdateParams {
@@ -1607,7 +1685,7 @@ impl AppServerSession {
         }
         let request_id = self.next_request_id();
         match self
-            .client
+            .request_handle
             .request_typed::<ThreadSettingsUpdateResponse>(ClientRequest::ThreadSettingsUpdate {
                 request_id,
                 params,
@@ -1641,7 +1719,7 @@ impl AppServerSession {
             .collect::<std::result::Result<Vec<_>, _>>()
             .wrap_err("failed to encode thread/inject_items payload")?;
         let request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::ThreadInjectItems {
                 request_id,
                 params: ThreadInjectItemsParams {
@@ -1698,7 +1776,7 @@ impl AppServerSession {
             params.summary = summary;
             params.collaboration_mode = collaboration_mode;
         }
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::TurnStart { request_id, params })
             .await
             .wrap_err("turn/start failed in TUI")
@@ -1711,7 +1789,7 @@ impl AppServerSession {
     ) -> std::result::Result<(), TypedRequestError> {
         let request_id = self.next_request_id();
         let _: TurnInterruptResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::TurnInterrupt {
                 request_id,
                 params: TurnInterruptParams {
@@ -1738,7 +1816,7 @@ impl AppServerSession {
         items: Vec<UserInput>,
     ) -> std::result::Result<TurnSteerResponse, TypedRequestError> {
         let request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::TurnSteer {
                 request_id,
                 params: TurnSteerParams {
@@ -1761,7 +1839,7 @@ impl AppServerSession {
     ) -> Result<()> {
         let request_id = self.next_request_id();
         let _: ThreadSetNameResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadSetName {
                 request_id,
                 params: ThreadSetNameParams {
@@ -1781,7 +1859,7 @@ impl AppServerSession {
     ) -> Result<()> {
         let request_id = self.next_request_id();
         let _: ThreadMemoryModeSetResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadMemoryModeSet {
                 request_id,
                 params: ThreadMemoryModeSetParams {
@@ -1799,7 +1877,7 @@ impl AppServerSession {
         thread_id: ThreadId,
     ) -> Result<codex_app_server_protocol::ThreadMemoryReadResponse> {
         let request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::ThreadMemoryRead {
                 request_id,
                 params: codex_app_server_protocol::ThreadMemoryReadParams {
@@ -1817,7 +1895,7 @@ impl AppServerSession {
         retry: bool,
     ) -> Result<codex_app_server_protocol::ThreadMemoryConsolidateResponse> {
         let request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::ThreadMemoryConsolidate {
                 request_id,
                 params: codex_app_server_protocol::ThreadMemoryConsolidateParams {
@@ -1857,7 +1935,11 @@ impl AppServerSession {
                 if pinned_scope == Some(requested) {
                     // Legacy servers already write safely to the selected namespace.
                     None
-                } else if self.client.supports_memory_note_scope() {
+                } else if self
+                    .connection_owner
+                    .as_ref()
+                    .is_some_and(AppServerClient::supports_memory_note_scope)
+                {
                     Some(requested)
                 } else {
                     color_eyre::eyre::bail!(
@@ -1870,7 +1952,7 @@ impl AppServerSession {
         };
         let request_id = self.next_request_id();
         let response: codex_app_server_protocol::ThreadMemoryNoteAddResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadMemoryNoteAdd {
                 request_id,
                 params: codex_app_server_protocol::ThreadMemoryNoteAddParams {
@@ -1895,7 +1977,7 @@ impl AppServerSession {
     pub(crate) async fn memory_reset(&mut self) -> Result<()> {
         let request_id = self.next_request_id();
         let _: MemoryResetResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::MemoryReset {
                 request_id,
                 params: None,
@@ -1910,7 +1992,7 @@ impl AppServerSession {
         thread_id: ThreadId,
     ) -> Result<ThreadGoalGetResponse> {
         let request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::ThreadGoalGet {
                 request_id,
                 params: ThreadGoalGetParams {
@@ -1929,7 +2011,7 @@ impl AppServerSession {
         token_budget: Option<Option<i64>>,
     ) -> Result<ThreadGoalSetResponse> {
         let request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::ThreadGoalSet {
                 request_id,
                 params: ThreadGoalSetParams {
@@ -1949,7 +2031,7 @@ impl AppServerSession {
         thread_id: ThreadId,
     ) -> Result<ThreadGoalClearResponse> {
         let request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::ThreadGoalClear {
                 request_id,
                 params: ThreadGoalClearParams {
@@ -1964,7 +2046,7 @@ impl AppServerSession {
     pub(crate) async fn logout_account(&mut self) -> Result<()> {
         let request_id = self.next_request_id();
         let _: LogoutAccountResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::LogoutAccount {
                 request_id,
                 params: None,
@@ -1977,7 +2059,7 @@ impl AppServerSession {
     pub(crate) async fn thread_unsubscribe(&mut self, thread_id: ThreadId) -> Result<()> {
         let request_id = self.next_request_id();
         let _: ThreadUnsubscribeResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadUnsubscribe {
                 request_id,
                 params: ThreadUnsubscribeParams {
@@ -1992,7 +2074,7 @@ impl AppServerSession {
     pub(crate) async fn thread_compact_start(&mut self, thread_id: ThreadId) -> Result<()> {
         let request_id = self.next_request_id();
         let _: ThreadCompactStartResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadCompactStart {
                 request_id,
                 params: ThreadCompactStartParams {
@@ -2033,7 +2115,7 @@ impl AppServerSession {
     ) -> Result<()> {
         let request_id = self.next_request_id();
         let _: ThreadShellCommandResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadShellCommand {
                 request_id,
                 params: ThreadShellCommandParams {
@@ -2054,7 +2136,7 @@ impl AppServerSession {
     ) -> Result<()> {
         let request_id = self.next_request_id();
         let _: ThreadApproveGuardianDeniedActionResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadApproveGuardianDeniedAction {
                 request_id,
                 params: ThreadApproveGuardianDeniedActionParams {
@@ -2076,7 +2158,7 @@ impl AppServerSession {
     ) -> Result<()> {
         let request_id = self.next_request_id();
         let _: codex_app_server_protocol::ThreadBackgroundTerminalsYieldResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadBackgroundTerminalsYield {
                 request_id,
                 params: codex_app_server_protocol::ThreadBackgroundTerminalsYieldParams {
@@ -2096,7 +2178,7 @@ impl AppServerSession {
     ) -> Result<()> {
         let request_id = self.next_request_id();
         let _: ThreadBackgroundTerminalsCleanResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadBackgroundTerminalsClean {
                 request_id,
                 params: ThreadBackgroundTerminalsCleanParams {
@@ -2114,7 +2196,7 @@ impl AppServerSession {
         target: ReviewTarget,
     ) -> Result<ReviewStartResponse> {
         let request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::ReviewStart {
                 request_id,
                 params: ReviewStartParams {
@@ -2132,7 +2214,7 @@ impl AppServerSession {
         params: SkillsListParams,
     ) -> Result<SkillsListResponse> {
         let request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::SkillsList { request_id, params })
             .await
             .wrap_err("skills/list failed in TUI")
@@ -2143,7 +2225,7 @@ impl AppServerSession {
         thread_id: ThreadId,
     ) -> Result<codex_app_server_protocol::ThreadPluginReloadResponse> {
         let request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::ThreadPluginReload {
                 request_id,
                 params: codex_app_server_protocol::ThreadPluginReloadParams {
@@ -2159,7 +2241,7 @@ impl AppServerSession {
     pub(crate) async fn reload_user_config(&mut self) -> Result<()> {
         let request_id = self.next_request_id();
         let _: ConfigWriteResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ConfigBatchWrite {
                 request_id,
                 params: ConfigBatchWriteParams {
@@ -2179,23 +2261,32 @@ impl AppServerSession {
         request_id: RequestId,
         result: serde_json::Value,
     ) -> std::io::Result<()> {
-        self.client.resolve_server_request(request_id, result).await
+        let client = self.connection_owner.as_ref().ok_or_else(|| {
+            std::io::Error::other("request-only session cannot resolve server requests")
+        })?;
+        client.resolve_server_request(request_id, result).await
     }
 
     pub(crate) async fn shutdown(self) -> std::io::Result<()> {
         self.connection_live
             .store(false, std::sync::atomic::Ordering::Release);
-        self.client.shutdown().await
+        match self.connection_owner {
+            Some(client) => client.shutdown().await,
+            None => Ok(()),
+        }
     }
 
     pub(crate) fn request_handle(&self) -> AppServerRequestHandle {
-        self.client.request_handle()
+        self.request_handle.clone()
     }
 
     pub(crate) fn next_request_id(&mut self) -> RequestId {
         let request_id = self.next_request_id;
         self.next_request_id += 1;
-        RequestId::Integer(request_id)
+        self.request_id_namespace.map_or_else(
+            || RequestId::Integer(request_id),
+            |namespace| RequestId::String(format!("picker-{namespace}-{request_id}")),
+        )
     }
 }
 
@@ -3083,6 +3174,7 @@ mod tests {
     use crate::legacy_core::config::ConfigOverrides;
     use app_test_support::create_fake_paginated_rollout;
     use app_test_support::create_fake_rollout;
+    use codex_app_server_protocol::ServerNotification;
     use codex_app_server_protocol::ThreadItem;
     use codex_app_server_protocol::ThreadStatus;
     use codex_app_server_protocol::Turn;
@@ -3116,6 +3208,104 @@ mod tests {
             .build()
             .await
             .expect("config should build")
+    }
+
+    #[test]
+    fn picker_views_use_distinct_request_id_namespaces() {
+        let (client, _commands, _events) =
+            codex_app_server_client::CloudClient::channel(/*capacity*/ 1);
+        let mut session = AppServerSession::new(
+            crate::backend_id::BackendId::new(),
+            AppServerClient::Cloud(client),
+            ThreadParamsMode::Cloud,
+        );
+        let mut first = session.picker_view();
+        let mut second = session.picker_view();
+
+        let first_id = first.next_request_id();
+        assert_ne!(session.next_request_id(), first_id);
+        assert_ne!(first_id, second.next_request_id());
+    }
+
+    #[tokio::test]
+    async fn next_event_tracks_unread_revision_and_invalidates_cron_on_disconnect() {
+        let (client, _commands, events) =
+            codex_app_server_client::CloudClient::channel(/*capacity*/ 1);
+        let backend_id = crate::backend_id::BackendId::new();
+        let thread_id = ThreadId::from_u128(42);
+        let mut session = AppServerSession::new(
+            backend_id,
+            AppServerClient::Cloud(client),
+            ThreadParamsMode::Cloud,
+        );
+        let connection = session.cron_tool_connection();
+        events
+            .send(codex_app_server_client::AppServerEvent::ServerNotification(
+                Box::new(ServerNotification::ThreadReadStateChanged(
+                    codex_app_server_protocol::ThreadReadStateChangedNotification {
+                        thread_id: thread_id.to_string(),
+                        read_state: codex_app_server_protocol::ThreadReadState {
+                            first_unread: Some(
+                                codex_app_server_protocol::ThreadUnreadPosition::ThreadStart,
+                            ),
+                            revision: "unread-r1".to_string(),
+                        },
+                    },
+                )),
+            ))
+            .unwrap();
+        let event = session.next_event().await.unwrap();
+        assert_eq!(event.backend_id, backend_id);
+        assert!(matches!(
+            event.event,
+            codex_app_server_client::AppServerEvent::ServerNotification(notification)
+                if matches!(notification.as_ref(), ServerNotification::ThreadReadStateChanged(change)
+                    if change.thread_id == thread_id.to_string() && change.read_state.revision == "unread-r1")
+        ));
+        assert_eq!(
+            session.unread_revisions.get(&thread_id).map(String::as_str),
+            Some("unread-r1")
+        );
+        assert!(connection.live.load(std::sync::atomic::Ordering::Acquire));
+
+        events
+            .send(codex_app_server_client::AppServerEvent::Disconnected {
+                message: "fixture disconnected".to_string(),
+            })
+            .unwrap();
+        let event = session.next_event().await.unwrap();
+        assert_eq!(event.backend_id, backend_id);
+        assert!(matches!(
+            event.event,
+            codex_app_server_client::AppServerEvent::Disconnected { .. }
+        ));
+        assert!(!connection.live.load(std::sync::atomic::Ordering::Acquire));
+    }
+
+    #[tokio::test]
+    async fn picker_view_shutdown_preserves_live_event_stream() {
+        let (client, _commands, events) =
+            codex_app_server_client::CloudClient::channel(/*capacity*/ 1);
+        let backend_id = crate::backend_id::BackendId::new();
+        let mut session = AppServerSession::new(
+            backend_id,
+            AppServerClient::Cloud(client),
+            ThreadParamsMode::Cloud,
+        );
+
+        session.picker_view().shutdown().await.unwrap();
+        events
+            .send(codex_app_server_client::AppServerEvent::Disconnected {
+                message: "still live".to_string(),
+            })
+            .unwrap();
+
+        let event = session.next_event().await.unwrap();
+        assert_eq!(event.backend_id, backend_id);
+        assert!(matches!(
+            event.event,
+            codex_app_server_client::AppServerEvent::Disconnected { .. }
+        ));
     }
 
     #[tokio::test]

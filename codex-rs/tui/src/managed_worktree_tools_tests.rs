@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use super::*;
 use crate::legacy_core::config::ConfigOverrides;
 use crate::test_support::boxed_future;
@@ -74,7 +74,7 @@ async fn start_server(
             status,
         )
         .await?;
-    // Existing worktree MCP carries cron; do not also inject native tools.
+    // Embedded and external task-tool MCP transports carry cron once; do not also inject native tools.
     let mut params = codex_app_server_protocol::ThreadStartParams {
         dynamic_tools: Some(crate::cron_tools::specs()),
         ..Default::default()
@@ -84,9 +84,9 @@ async fn start_server(
     let overrides = params.config.unwrap();
     assert_eq!(
         overrides.keys().map(String::as_str).collect::<Vec<_>>(),
-        vec!["mcp_servers.codex_worktrees"]
+        vec!["mcp_servers.codex_tui"]
     );
-    let mcp = &overrides["mcp_servers.codex_worktrees"];
+    let mcp = &overrides["mcp_servers.codex_tui"];
     let metadata = json!({
         "io.modelcontextprotocol/protocolVersion":"2026-07-28",
         "io.modelcontextprotocol/clientCapabilities":{}
@@ -104,6 +104,15 @@ async fn start_server(
     assert_eq!(
         names,
         vec![
+            "list_threads",
+            "list_archived_threads",
+            "read_thread",
+            "wait_threads",
+            "send_message_to_thread",
+            "create_thread",
+            "fork_thread",
+            "set_thread_title",
+            "set_thread_archived",
             "cron",
             "session_control",
             "create_worktree",
@@ -129,24 +138,6 @@ async fn start_server(
     arguments.sort_unstable();
     assert_eq!(arguments, vec!["action", "at", "every", "id", "prompt"]);
 
-    // Valid protocol and caller metadata must reach the task-tools feature gate.
-    let mut metadata = metadata;
-    metadata["threadId"] = json!(Uuid::new_v4().to_string());
-    metadata["turnId"] = json!("worktree-tools-turn");
-    metadata["callId"] = json!("worktree-tools-create-thread");
-    let rejected = mcp_request(
-        mcp,
-        json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{
-            "name":"create_thread","arguments":{"prompt":"Create a task"},"_meta":metadata
-        }}),
-    )
-    .await?;
-    assert_eq!(rejected["error"]["code"], json!(-32602), "{rejected}");
-    assert_eq!(
-        rejected["error"]["message"],
-        json!("Task tools are unavailable on this connection"),
-        "{rejected}"
-    );
     Ok(server)
 }
 
@@ -185,7 +176,7 @@ async fn creation_attaches_to_original_task_and_survives_service_restart_scenari
         serde_json::from_value(json!({"url":"http://127.0.0.1:1/mcp"}))?;
     let mut servers = conflicting.mcp_servers.get().clone();
     servers.insert(
-        "codex_worktrees".to_owned(),
+        "codex_tui".to_owned(),
         codex_config::McpServerConfig::try_from(raw).map_err(color_eyre::eyre::Report::msg)?,
     );
     conflicting.mcp_servers.set(servers)?;
@@ -194,7 +185,7 @@ async fn creation_attaches_to_original_task_and_survives_service_restart_scenari
         .unwrap_err();
     assert!(error.to_string().contains("MCP server owns"));
     let started = Box::pin(server.start_thread(&config)).await?;
-    assert!(!started.task_tools_available);
+    assert!(started.task_tools_available);
     let thread_id = started.session.thread_id.to_string();
     let _: codex_app_server_protocol::TurnStartResponse = server
         .request_handle()
@@ -407,13 +398,13 @@ async fn creation_attaches_to_original_task_and_survives_service_restart_scenari
         crate::app_server_session::ResumeModelSettings::RestoreFromThread,
     ))
     .await?;
-    assert!(!resumed.task_tools_available);
+    assert!(resumed.task_tools_available);
     assert_eq!(
         value(
             fresh
                 .execute(
                     resumed_server.request_handle(),
-                    thread_id,
+                    thread_id.clone(),
                     "list_worktrees",
                     json!({})
                 )
@@ -426,6 +417,7 @@ async fn creation_attaches_to_original_task_and_survives_service_restart_scenari
         &responses,
         &config,
         &repository,
+        &thread_id,
     ))
     .await?;
     resumed_server.shutdown().await?;

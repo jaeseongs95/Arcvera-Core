@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "b8989c4c3d2537800e7d5fdb8990a5572f8205f2",
+  "sourceCommit": "230567050d3f4bdce4315a2b3e0393bbe17431a6",
   "files": [
     {
       "path": "codex-rs/collaboration-mode-templates/templates/default.md",
@@ -176,6 +176,16 @@
       "path": "codex-rs/prompts/templates/realtime/realtime_start.md",
       "gitBlobSha256": "424ebda35f115edff812596b70d7bf56431e7917b7398ccb4abb270b67a50fc2",
       "windowsSourceSha256": "0601685d4a74d1db28a50e0ddff953bc44262b969ee9f447a735c1dcdbe24005"
+    },
+    {
+      "path": "codex-rs/prompts/templates/review/exit_interrupted.xml",
+      "gitBlobSha256": "034191c75f15338861ce0be2fcf28855833fc5f601b387cbc3c764032507dc86",
+      "windowsSourceSha256": "fa58d1c4baa20e3df1d6343420010ded069664dd2309ca91154ea33596b3b4fc"
+    },
+    {
+      "path": "codex-rs/prompts/templates/review/exit_success.xml",
+      "gitBlobSha256": "87ce1bcbc0f1aee3fcba4fedd35775eccf4a640352b071ead206d0b4ff286559",
+      "windowsSourceSha256": "69458e87960e5180527b70ae9c14b43509c5a3d1c7ea30943117b2d8071ba4cb"
     },
     {
       "path": "codex-rs/prompts/templates/review/rubric.md",

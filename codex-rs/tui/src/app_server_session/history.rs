@@ -630,7 +630,7 @@ impl AppServerSession {
     ) -> std::result::Result<ThreadRevertResponse, codex_app_server_client::TypedRequestError> {
         let request_id = self.next_request_id();
         let response: ThreadRevertResponse = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadRevert {
                 request_id,
                 params: ThreadRevertParams {
@@ -751,7 +751,7 @@ impl AppServerSession {
         limit: u32,
     ) -> Result<ThreadItemsListResponse> {
         let request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::ThreadItemsList {
                 request_id,
                 params: thread_items_page_params(thread_id, turn_id, cursor, limit),
@@ -778,7 +778,7 @@ impl AppServerSession {
         direction: SortDirection,
     ) -> Result<ThreadTurnsListResponse> {
         let request_id = self.next_request_id();
-        self.client
+        self.request_handle
             .request_typed(ClientRequest::ThreadTurnsList {
                 request_id,
                 params: ThreadTurnsListParams {

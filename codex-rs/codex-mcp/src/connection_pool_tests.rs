@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Tests for shared MCP connection ownership and protocol negotiation.
 
 use super::*;
@@ -34,8 +35,12 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
+use tokio::io::AsyncBufReadExt;
+use tokio::io::AsyncWriteExt;
+use tokio::io::BufReader;
 use tokio::sync::Notify;
 use tokio::sync::Semaphore;
+use tokio::sync::mpsc;
 
 #[derive(Clone)]
 pub(crate) struct TestServer {
@@ -170,7 +175,7 @@ pub(crate) fn startup(
     starts: Arc<AtomicUsize>,
     first_started: Arc<Notify>,
     release_first: Arc<Notify>,
-    server: TestServer,
+    server: impl InProcessTransportFactory + Clone + 'static,
 ) -> impl Fn(CancellationToken, Option<CancellationToken>) -> ManagedClientFuture {
     move |cancellation, _sharing_declined| {
         let sharing = sharing.clone();
@@ -233,6 +238,289 @@ pub(crate) fn startup(
         }
         .boxed()
         .shared()
+    }
+}
+
+struct LeaseFrame {
+    message: serde_json::Value,
+    replies: mpsc::UnboundedSender<serde_json::Value>,
+}
+
+impl LeaseFrame {
+    fn reply(&self, result: serde_json::Value) {
+        self.replies
+            .send(json!({"jsonrpc": "2.0", "id": self.message["id"], "result": result}))
+            .unwrap();
+    }
+}
+
+#[derive(Clone)]
+struct LeaseTransport(mpsc::UnboundedSender<LeaseFrame>);
+
+impl InProcessTransportFactory for LeaseTransport {
+    fn open(&self) -> BoxFuture<'static, std::io::Result<tokio::io::DuplexStream>> {
+        let (client, server) = tokio::io::duplex(4096);
+        let (reader, mut writer) = tokio::io::split(server);
+        let mut lines = BufReader::new(reader).lines();
+        let frames = self.0.clone();
+        let (replies, mut responses) = mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    Some(response) = responses.recv() => {
+                        writer.write_all(format!("{response}\n").as_bytes()).await.unwrap();
+                    }
+                    line = lines.next_line() => {
+                        let Some(line) = line.unwrap() else { break };
+                        let frame = LeaseFrame {
+                            message: serde_json::from_str(&line).unwrap(),
+                            replies: replies.clone(),
+                        };
+                        match frame.message["method"].as_str().unwrap() {
+                            "initialize" => frame.reply(json!({
+                                "protocolVersion": "2025-06-18", "capabilities": {"tools": {}},
+                                "serverInfo": {"name": "test", "version": "1"}
+                            })),
+                            "notifications/initialized" => {}
+                            "tools/list" => frame.reply(json!({"tools": []})),
+                            _ => frames.send(frame).unwrap(),
+                        }
+                    }
+                }
+            }
+        });
+        futures::future::ready(Ok(client)).boxed()
+    }
+}
+
+struct LeasePeer {
+    pool: McpConnectionPool,
+    key: ConnectionKey,
+    transport: LeaseTransport,
+    frames: mpsc::UnboundedReceiver<LeaseFrame>,
+}
+
+impl LeasePeer {
+    fn new() -> Self {
+        let (tx, frames) = mpsc::unbounded_channel();
+        Self {
+            pool: McpConnectionPool::default(),
+            key: key(&context(), &config()),
+            transport: LeaseTransport(tx),
+            frames,
+        }
+    }
+
+    fn attach(&self) -> tokio::task::JoinHandle<Result<ManagedClient, StartupOutcomeError>> {
+        let pool = self.pool.clone();
+        let key = self.key.clone();
+        let transport = self.transport.clone();
+        tokio::spawn(async move {
+            let ready = Arc::<Notify>::default();
+            ready.notify_one();
+            let launch = startup(
+                ConnectionSharing::Negotiated,
+                Arc::default(),
+                Arc::default(),
+                ready,
+                transport,
+            );
+            pool.connect(
+                Arc::default(),
+                key,
+                Arc::new(Mutex::new(Some(
+                    json!({"extensions": {LEASE_CAPABILITY: {}}}),
+                ))),
+                /*tool_catalog_cache_context*/ None,
+                CancellationToken::new(),
+                launch,
+            )
+            .await
+        })
+    }
+
+    async fn next(&mut self, method: &str) -> LeaseFrame {
+        let frame = tokio::time::timeout(Duration::from_secs(2), self.frames.recv())
+            .await
+            .expect("expected a frame from the client")
+            .unwrap();
+        assert_eq!(frame.message["method"], method);
+        frame
+    }
+
+    async fn chat(&mut self) -> (ManagedClient, serde_json::Value) {
+        let attach = self.attach();
+        let open = self.next("codex/connection/open").await;
+        open.reply(json!({}));
+        (
+            attach.await.unwrap().unwrap(),
+            open.message["params"]["leaseId"].clone(),
+        )
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn releasing_lease_cancels_pending_call_before_release() {
+    let mut peer = LeasePeer::new();
+    let (first, first_id) = peer.chat().await;
+    let (other, other_id) = peer.chat().await;
+    let call = first.call_tool(
+        "wait".into(),
+        /*arguments*/ None,
+        |_| Ok(None),
+        /*timeout*/ None,
+    );
+    tokio::pin!(call);
+    let request = tokio::select! {
+        result = &mut call => panic!("call completed without a reply: {result:?}"),
+        frame = peer.next("tools/call") => frame,
+    };
+    let ConnectionSharing::Shared(lease) = &first.connection_sharing else {
+        panic!("expected shared lease")
+    };
+    lease.release();
+    // Leave the caller unpolled: the release must drive the cancellation write itself.
+    let cancel = peer.next("notifications/cancelled").await;
+    assert_eq!(cancel.message["params"]["requestId"], request.message["id"]);
+    let release = peer.next("codex/connection/release").await;
+    assert_eq!(release.message["params"]["leaseId"], first_id);
+    release.reply(json!({}));
+    assert!(call.await.is_err());
+
+    let (result, ()) = tokio::join!(
+        other.call_tool(
+            "test".into(),
+            /*arguments*/ None,
+            |_| Ok(None),
+            /*timeout*/ None,
+        ),
+        async {
+            let request = peer.next("tools/call").await;
+            assert_eq!(request.message["params"]["_meta"][LEASE_META_KEY], other_id);
+            request.reply(json!({"content": []}));
+        }
+    );
+    result.unwrap();
+}
+
+#[tokio::test(start_paused = true)]
+async fn dropping_lease_outside_runtime_releases_it() {
+    let mut peer = LeasePeer::new();
+    let (_other, _) = peer.chat().await;
+    let (chat, id) = peer.chat().await;
+    std::thread::spawn(move || drop(chat)).join().unwrap();
+    let release = peer.next("codex/connection/release").await;
+    assert_eq!(release.message["params"]["leaseId"], id);
+    release.reply(json!({}));
+}
+
+#[tokio::test(start_paused = true)]
+async fn timed_out_open_is_released_after_the_server_acknowledges_it() {
+    let mut peer = LeasePeer::new();
+    let (_other, _) = peer.chat().await;
+    let attach = peer.attach();
+    let open = peer.next("codex/connection/open").await;
+    tokio::time::advance(LEASE_REQUEST_TIMEOUT).await;
+    assert!(attach.await.unwrap().is_err());
+    assert!(
+        tokio::time::timeout(Duration::from_secs(1), peer.frames.recv())
+            .await
+            .is_err()
+    );
+    open.reply(json!({}));
+    let release = peer.next("codex/connection/release").await;
+    assert_eq!(
+        release.message["params"]["leaseId"],
+        open.message["params"]["leaseId"]
+    );
+    release.reply(json!({}));
+}
+
+#[tokio::test(start_paused = true)]
+async fn timed_out_release_finishes_after_late_reply_without_closing_another_chat() {
+    for late_rpc_error in [false, true] {
+        let mut peer = LeasePeer::new();
+        let (first, first_id) = peer.chat().await;
+        let (other, other_id) = peer.chat().await;
+        let ConnectionSharing::Shared(first_lease) = &first.connection_sharing else {
+            panic!("expected shared lease")
+        };
+        let ConnectionSharing::Shared(other_lease) = &other.connection_sharing else {
+            panic!("expected shared lease")
+        };
+        assert!(Arc::ptr_eq(&first_lease.entry, &other_lease.entry));
+        let entry = Arc::clone(&first_lease.entry);
+        let entry_references = Arc::strong_count(&entry);
+        let slot = first_lease.release().expect("first release must start cleanup");
+        let release = peer.next("codex/connection/release").await;
+        assert_eq!(release.message["params"]["leaseId"], first_id);
+        let mut waiter = Box::pin(slot.wait_for_shutdown());
+        assert!(waiter.as_mut().now_or_never().is_none());
+        tokio::time::advance(LEASE_REQUEST_TIMEOUT - Duration::from_millis(1)).await;
+        assert!(waiter.as_mut().now_or_never().is_none());
+        // Cancelling a caller must not cancel the retained release RPC.
+        drop(waiter);
+        tokio::time::advance(Duration::from_millis(2)).await;
+        let completion_time = tokio::time::Instant::now();
+        tokio::time::timeout(Duration::from_secs(1), slot.wait_for_shutdown())
+            .await
+            .expect("chat shutdown must finish without the release reply")
+            .unwrap();
+        assert_eq!(tokio::time::Instant::now(), completion_time);
+        assert!(peer.pool.entries.lock().unwrap().is_empty());
+        assert!(!other.client.is_closed().await);
+        // Both chats and this observer retain their references throughout the case.
+        // The one extra Entry owner is the background release task after caller completion.
+        assert_eq!(Arc::strong_count(&entry), entry_references + 1);
+        assert!(matches!(
+            peer.frames.try_recv(),
+            Err(mpsc::error::TryRecvError::Empty)
+        ));
+        if late_rpc_error {
+            release
+                .replies
+                .send(json!({
+                    "jsonrpc": "2.0", "id": release.message["id"],
+                    "error": {"code": -32603, "message": "late lease release rejected"}
+                }))
+                .unwrap();
+        } else {
+            release.reply(json!({}));
+        }
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while Arc::strong_count(&entry) != entry_references {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        })
+        .await
+        .expect("late reply must finish the retained release task");
+        let (result, ()) = tokio::join!(
+            other.call_tool(
+                "test".into(),
+                /*arguments*/ None,
+                |_| Ok(None),
+                /*timeout*/ None,
+            ),
+            async {
+                let request = peer.next("tools/call").await;
+                assert_eq!(request.message["params"]["_meta"][LEASE_META_KEY], other_id);
+                request.reply(json!({"content": []}));
+            }
+        );
+        result.unwrap();
+        slot.wait_for_shutdown().await.unwrap();
+        assert!(first_lease.release().is_none());
+        assert!(matches!(
+            peer.frames.try_recv(),
+            Err(mpsc::error::TryRecvError::Empty)
+        ));
+        let final_slot = other_lease.release().expect("last owner must shut down the client");
+        tokio::time::timeout(Duration::from_secs(1), final_slot.wait_for_shutdown())
+            .await
+            .expect("final client shutdown must finish")
+            .unwrap();
+        assert!(other.client.is_closed().await);
+        slot.wait_for_shutdown().await.unwrap();
     }
 }
 

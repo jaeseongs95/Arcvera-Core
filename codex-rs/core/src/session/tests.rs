@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use crate::agent::LocalAgentControl;
 #[path = "notification_tests.rs"]
 mod notification_tests;
@@ -105,6 +105,10 @@ use codex_protocol::turn_input::TurnInput as SubmittedTurnInput;
 use codex_protocol::turn_input::TurnInputMode;
 use codex_protocol::turn_input::TurnInputRequest;
 use codex_protocol::turn_input::TurnInputSubmission;
+use codex_rollout_trace::RolloutStatus;
+use codex_rollout_trace::ThreadStartedTraceMetadata;
+use codex_rollout_trace::ThreadTraceContext;
+use codex_rollout_trace::replay_bundle;
 use codex_tools::ToolSpec;
 use codex_utils_path_uri::PathUri;
 use std::collections::BTreeMap;
@@ -304,7 +308,8 @@ impl StepContext {
             inherited_environments: environments.clone(),
             environments,
             executor_hook_sources: Vec::new(),
-            extension_data: codex_extension_api::ExtensionData::new(turn.sub_id.clone()),
+            serving_assessment: None,
+            extension_data: Arc::new(codex_extension_api::ExtensionData::new(turn.sub_id.clone())),
             mcp: Arc::new(codex_mcp::McpBinding::empty(mcp_config_for_test(
                 &turn.config,
             ))),
@@ -624,6 +629,8 @@ fn skill_message(text: &str) -> ResponseItem {
 
 #[tokio::test]
 async fn regular_turn_emits_turn_started_with_trace_id_without_waiting_for_startup_prewarm() {
+    // Prepare filesystem-backed fixtures before replacing the ambient subscriber.
+    let (sess, _initial_turn, rx) = make_session_and_context_with_rx().await;
     let _trace_test_context = install_test_tracing("codex-core-tests");
     let request_parent = W3cTraceContext {
         traceparent: Some("00-00000000000000000000000000000011-0000000000000022-01".into()),
@@ -634,9 +641,7 @@ async fn regular_turn_emits_turn_started_with_trace_id_without_waiting_for_start
         &request_span,
         &request_parent
     ));
-    let (sess, tc, rx) = make_session_and_context_with_rx()
-        .instrument(request_span)
-        .await;
+    let tc = sess.new_default_turn().instrument(request_span).await;
     assert_eq!(
         tc.trace_id.as_deref(),
         Some("00000000000000000000000000000011")
@@ -2388,6 +2393,10 @@ async fn refresh_config_rejects_stale_owner_without_effects(scope: RuntimeConfig
     let (session, _turn_context) = make_session_and_context().await;
     let stale_owner = session.get_config().await;
     let mut stale_config = stale_owner.as_ref().clone();
+    stale_config.config_layer_stack = stale_config
+        .config_layer_stack
+        .with_session_plugins(toml::from_str("[browser]\nenabled = false").unwrap())
+        .unwrap();
     stale_config
         .features
         .set_enabled(
@@ -3610,7 +3619,7 @@ async fn recompute_token_usage_updates_model_context_window() {
     assert_eq!(actual.model_context_window, Some(128_000));
 }
 
-#[test_case(crate::session::TokenUsageContext::Sampling { includes_reasoning: false }; "sampling")]
+#[test_case(crate::session::TokenUsageContext::Sampling { includes_reasoning: false, input_item_count: 0 }; "sampling")]
 #[test_case(crate::session::TokenUsageContext::SpendingOnly; "spending_only")]
 #[tokio::test]
 async fn record_token_usage_info_notifies_extension_contributors(
@@ -3699,6 +3708,7 @@ async fn record_token_usage_info_notifies_extension_contributors(
             Some(&first_usage),
             crate::session::TokenUsageContext::Sampling {
                 includes_reasoning: true,
+                input_item_count: 0,
             },
         )
         .await
@@ -3748,9 +3758,9 @@ async fn record_token_usage_info_notifies_extension_contributors(
             token_usage: TokenUsageInfo {
                 total_token_usage: expected_total_usage,
                 last_usage_includes_reasoning: match context {
-                    crate::session::TokenUsageContext::Sampling { includes_reasoning } => {
-                        Some(includes_reasoning)
-                    }
+                    crate::session::TokenUsageContext::Sampling {
+                        includes_reasoning, ..
+                    } => Some(includes_reasoning),
                     crate::session::TokenUsageContext::SpendingOnly => None,
                 },
                 last_token_usage: second_usage,
@@ -8101,6 +8111,7 @@ async fn request_permissions_tool_resolves_legacy_paths_against_selected_environ
                 call_id,
                 tool_name: codex_tools::ToolName::plain("request_permissions"),
                 source: ToolCallSource::Direct,
+                native_call: None,
                 environments: Default::default(),
                 payload: ToolPayload::Function { arguments },
             };
@@ -8186,6 +8197,7 @@ async fn request_permissions_tool_rejects_invalid_requests(
         call_id: "call-1".to_string(),
         tool_name: codex_tools::ToolName::plain("request_permissions"),
         source: ToolCallSource::Direct,
+        native_call: None,
         environments: Default::default(),
         payload: ToolPayload::Function {
             arguments: json!({
@@ -8863,6 +8875,8 @@ async fn spawn_task_turn_span_inherits_dispatch_trace_context() {
         }
     }
 
+    // Keep fixture creation and cleanup under the ambient subscriber.
+    let (sess, tc, rx) = make_session_and_context_with_rx().await;
     let _trace_test_context = install_test_tracing("codex-core-tests");
 
     let request_parent = W3cTraceContext {
@@ -8892,7 +8906,6 @@ async fn spawn_task_turn_span_inherits_dispatch_trace_context() {
     });
     let dispatch_span_id = dispatch_span.context().span().span_context().span_id();
 
-    let (sess, tc, rx) = make_session_and_context_with_rx().await;
     let captured_trace = Arc::new(std::sync::Mutex::new(None));
 
     async {
@@ -9038,7 +9051,7 @@ async fn shutdown_complete_does_not_append_to_thread_store_after_shutdown() {
 }
 
 #[tokio::test]
-async fn submission_loop_channel_close_runs_full_thread_teardown() {
+async fn submission_loop_channel_close_runs_full_thread_teardown() -> anyhow::Result<()> {
     struct SessionStopMarker;
     struct ThreadStopMarker;
 
@@ -9068,6 +9081,24 @@ async fn submission_loop_channel_close_runs_full_thread_teardown() {
     let store = Arc::new(codex_thread_store::InMemoryThreadStore::default());
     let thread_store: Arc<dyn codex_thread_store::ThreadStore> = store.clone();
     let config = session.get_config().await;
+    let traces = tempfile::tempdir()?;
+    session.services.rollout_thread_trace = ThreadTraceContext::start_root_in_root_for_test(
+        traces.path(),
+        ThreadStartedTraceMetadata {
+            thread_id: session.thread_id.to_string(),
+            agent_path: "/root".to_string(),
+            task_name: None,
+            nickname: None,
+            agent_role: None,
+            session_source: SessionSource::Exec,
+            cwd: config.cwd.to_path_buf(),
+            rollout_path: None,
+            model: turn_context.model_info().slug.clone(),
+            provider_name: config.model_provider_id.clone(),
+            approval_policy: "never".to_string(),
+            sandbox_policy: "danger-full-access".to_string(),
+        },
+    )?;
     let live_thread = LiveThread::create(
         Arc::clone(&thread_store),
         CreateThreadParams {
@@ -9127,6 +9158,13 @@ async fn submission_loop_channel_close_runs_full_thread_teardown() {
     let session = Arc::new(session);
     submission_loop(session, Arc::clone(&turn_context.config), rx_sub).await;
 
+    // Channel closure aborts the rollout, but releasing the session still
+    // closes its recording normally, so the resulting bundle is complete.
+    let bundle = std::fs::read_dir(traces.path())?.next().unwrap()?.path();
+    let rollout = replay_bundle(bundle)?;
+    assert_eq!(rollout.status, RolloutStatus::Aborted);
+    assert!(rollout.recording_complete);
+
     assert_eq!(1, calls.load(std::sync::atomic::Ordering::SeqCst));
     assert_eq!(
         codex_thread_store::InMemoryThreadStoreCalls {
@@ -9136,6 +9174,7 @@ async fn submission_loop_channel_close_runs_full_thread_teardown() {
         },
         store.calls().await
     );
+    Ok(())
 }
 
 #[tokio::test]
@@ -13554,7 +13593,8 @@ async fn fatal_tool_error_stops_turn_and_reports_error() {
         internal_chat_message_metadata_passthrough: None,
     };
 
-    let call = ToolRouter::build_tool_call(item.clone())
+    let call = router
+        .build_tool_call(item.clone())
         .expect("build tool call")
         .expect("tool call present");
     let tracker = Arc::new(tokio::sync::Mutex::new(TurnDiffTracker::new()));
@@ -13715,6 +13755,7 @@ async fn unified_exec_rejects_escalated_permissions_when_policy_not_on_request()
             call_id: "exec-call".to_string(),
             tool_name: codex_tools::ToolName::plain("exec_command"),
             source: crate::tools::context::ToolCallSource::Direct,
+            native_call: None,
             environments: Default::default(),
             payload: ToolPayload::Function {
                 arguments: serde_json::json!({
@@ -13967,6 +14008,64 @@ async fn strict_context_commit_validates_before_publishing_any_settings() {
     assert_eq!(session.thread_settings_snapshot().await, before);
     assert_eq!(session.cleanup_admission.activity_revision(), revision);
     assert!(session.active_turn.lock().await.is_none());
+}
+
+#[test_case(ModelOrigin::Bundled; "bundled catalog limit")]
+#[test_case(ModelOrigin::Provider; "provider catalog limit")]
+#[test_case(ModelOrigin::ExplicitConfig; "explicit catalog limit")]
+#[test_case(ModelOrigin::Synthetic; "unmatched synthetic metadata")]
+#[tokio::test]
+async fn context_window_override_uses_catalog_origin(origin: ModelOrigin) {
+    let (mut session, _) = make_session_and_context().await;
+    let before = session.thread_settings_snapshot().await;
+    let mut metadata = model_info::model_info_from_slug(&before.model);
+    metadata.context_window = Some(128_000);
+    metadata.max_context_window = Some(128_000);
+    // An absent entry exercises the real resolver's fallback, including its numeric defaults.
+    let models = if origin == ModelOrigin::Synthetic {
+        Vec::new()
+    } else {
+        vec![metadata]
+    };
+    session.services.models_manager =
+        Arc::new(codex_models_manager::manager::StaticModelsManager::new(
+            None,
+            codex_protocol::openai_models::ModelsResponse { models },
+            origin,
+        ));
+    let resolved = session
+        .services
+        .models_manager
+        .get_model_info(
+            &before.model,
+            &session.get_config().await.to_models_manager_config(),
+        )
+        .await;
+    assert_eq!(resolved.origin, origin);
+    assert!(
+        resolved
+            .resolved_context_window()
+            .is_some_and(|maximum| maximum >= 64_000)
+    );
+    let result = session
+        .update_settings(SessionSettingsUpdate {
+            model_context_window: Some(Some(64_000)),
+            ..Default::default()
+        })
+        .await;
+    if origin == ModelOrigin::Synthetic {
+        assert!(matches!(
+            result,
+            Err(crate::config::ConstraintError::InvalidValue {
+                field_name: "model_context_window",
+                allowed,
+                ..
+            }) if allowed == "a model with a known context limit"
+        ));
+        assert_eq!(session.thread_settings_snapshot().await, before);
+    } else {
+        assert_eq!(result.unwrap().snapshot.model_context_window, Some(64_000));
+    }
 }
 
 #[path = "idle_control_followup_tests.rs"]

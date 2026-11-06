@@ -1,0 +1,31 @@
+# UI literals introduced by the official 0.167 base. Preserve caller whitespace.
+legacy-r38-sign-in-another-way-indented = { "  Sign in another way" }
+legacy-r38-sign-in-another-way = Sign in another way
+legacy-r38-other-provider-description = Use an API key or another provider
+legacy-r38-use-google-cloud = Use Google Cloud Vertex AI
+legacy-r38-google-cloud-description = Connect using your Google Cloud credentials
+legacy-r38-review-requests = { " to review requests" }
+legacy-r38-gcp-title = > Set up Google Cloud Vertex AI
+legacy-r38-gcp-project-guidance = Enter the Google Cloud project ID to use with Vertex AI.
+legacy-r38-gcp-project-label = { "  Project ID: " }
+legacy-r38-gcp-location-guidance = Press Enter to use global, or enter a Vertex AI location.
+legacy-r38-gcp-location-label = { "  Location (optional): " }
+legacy-r38-gcp-credentials-guidance = Enter an absolute file path on the host running Codex, or press Enter to use Application Default Credentials (ADC).
+legacy-r38-gcp-credentials-label = { "  Credential file (optional): " }
+legacy-r38-gcp-configuring = Validating credentials and saving configuration…
+legacy-r38-gcp-adc-guidance = { "  To set up ADC with the Google Cloud CLI, run" }
+legacy-r38-gcp-set-up = { " set up" }
+legacy-r38-gcp-project-required = Enter a Google Cloud project ID.
+legacy-r38-gcp-configured = ✓ Google Cloud Vertex AI configured
+legacy-r38-provider-continue-footer = { " continue in new chat · " }
+legacy-r38-provider-fresh-footer = { " start fresh · " }
+legacy-r38-provider-other-footer = { " other chats" }
+legacy-r38-provider-continue-title = Continue in a new chat
+legacy-r38-provider-mismatch-title = Model provider mismatch
+legacy-r38-provider-unavailable-title = Model provider unavailable
+legacy-r38-provider-policy-title = Model provider blocked by policy
+
+dialogs-provider-mismatch = This chat uses { $provider }, but Codex now uses { $current }, so this chat is read-only.
+dialogs-provider-not-configured = This chat uses model provider “{ $provider }”, which is no longer configured. Restore this provider’s configuration to continue.
+dialogs-provider-policy-conflict = This chat uses model provider “{ $provider }”, but your organization requires “{ $required }”. Contact your administrator or start a new chat using the required provider.
+dialogs-provider-configuration-location = Configuration on { $address }

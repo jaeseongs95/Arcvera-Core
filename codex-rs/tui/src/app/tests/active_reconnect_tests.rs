@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Active recovery keeps local input and policy while reusing ordinary thread resume.
 
 use super::*;
@@ -25,7 +25,7 @@ fn reconnect_keeps_other_backend_mcp_cron_on_the_new_app_queue() -> Result<()> {
 
 async fn reconnect_keeps_other_backend_mcp_cron_on_the_new_app_queue_in_korean() -> Result<()> {
     use crate::app::backend_sessions::BackendSessions;
-    use crate::dynamic_tools_mcp::{DynamicToolMcpServer, ThreadToolTransport, ToolServices};
+    use crate::dynamic_tools_mcp::{DynamicToolMcpServer, ThreadToolTransport};
 
     let (mut app, mut events, _ops) = make_test_app_with_channels().await;
     let caller_a = ThreadId::new();
@@ -80,11 +80,8 @@ async fn reconnect_keeps_other_backend_mcp_cron_on_the_new_app_queue_in_korean()
             app.app_event_tx.clone(),
             app.dynamic_tool_status_updates.clone(),
             None,
-            ToolServices {
-                task_tools: true,
-                cron: Some(connection_b.clone()),
-                worktrees: None,
-            },
+            /*worktrees*/ None,
+            Some(connection_b.clone()),
         )
         .await?,
     );
@@ -518,11 +515,8 @@ async fn reconnect_restores_history_permissions_and_resumes_unsent_input() -> Re
                 app.app_event_tx.clone(),
                 app.dynamic_tool_status_updates.clone(),
                 /*managed_requirement*/ None,
-                crate::dynamic_tools_mcp::ToolServices {
-                    task_tools: true,
-                    cron: None,
-                    worktrees: None,
-                },
+                /*worktrees*/ None,
+                /*cron*/ None,
             )
             .await?,
         ));
@@ -1069,10 +1063,13 @@ async fn reconnect_allows_slow_hydration_but_bounds_a_stalled_server() -> Result
             serve_reconnect_requests(
                 tokio_tungstenite::accept_async(stream).await?,
                 move |request| async move {
-                    assert_eq!(request.method, "thread/resume");
-                    tokio::time::pause();
-                    tokio::time::sleep(Duration::from_secs(delay)).await;
-                    tokio::time::resume();
+                    if request.method == "thread/resume" {
+                        tokio::time::pause();
+                        tokio::time::sleep(Duration::from_secs(delay)).await;
+                        tokio::time::resume();
+                    } else {
+                        assert_eq!(request.method, "thread/read");
+                    }
                     Some(json!({"error": {"code": -32600, "message": "thread no longer exists"}}))
                 },
             )
@@ -1139,6 +1136,7 @@ async fn reconnect_allows_slow_hydration_but_bounds_a_stalled_server() -> Result
                     &test_path_buf("/tmp/project").display().to_string(),
                     "/tmp/project"
                 )
+                .replace(CODEX_CLI_VERSION, "<VERSION>")
             );
             session.shutdown().await?;
             assert!((15..120).contains(&elapsed), "{elapsed}");

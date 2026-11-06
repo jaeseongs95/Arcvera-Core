@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Keyboard input, external editor, and status-line dispatch for the TUI app.
 //!
 //! This module owns global key bindings that sit above ChatWidget, including transcript overlay
@@ -418,21 +418,42 @@ impl App {
             self.handle_clipboard_key_action(tui, action);
             return;
         }
+        if self.chat_widget.has_provider_error()
+            && self.overlay.is_none()
+            && self.chat_widget.no_modal_or_popup_active()
+            && key_event.kind == KeyEventKind::Press
+            && key_event.modifiers == KeyModifiers::NONE
+        {
+            match key_event.code {
+                KeyCode::Char('c') if self.chat_widget.rollout_path().is_some() => {
+                    if let Some(thread_id) = self.chat_widget.thread_id() {
+                        self.app_event_tx
+                            .send(AppEvent::ContinueProviderChat { thread_id });
+                    }
+                    return;
+                }
+                KeyCode::Char('n') => {
+                    self.app_event_tx.send(AppEvent::NewSession { name: None });
+                    return;
+                }
+                KeyCode::Esc => {
+                    self.app_event_tx.send(AppEvent::OpenResumePicker);
+                    return;
+                }
+                _ => {}
+            }
+        }
         if self.chat_widget.is_external_writer_view()
             && self.overlay.is_none()
             && self.chat_widget.no_modal_or_popup_active()
             && key_event.kind == KeyEventKind::Press
         {
             let modifiers = key_event.modifiers;
-            if key_event.code == KeyCode::Esc
-                && modifiers == KeyModifiers::NONE
-                && self.app_server_target.supports_command_center()
-            {
+            if key_event.code == KeyCode::Esc && modifiers == KeyModifiers::NONE {
                 self.open_agents_overview(app_server);
                 return;
             }
             let quit = match key_event.code {
-                KeyCode::Esc => modifiers == KeyModifiers::NONE,
                 KeyCode::Char('q' | 'Q') => {
                     modifiers == KeyModifiers::NONE || modifiers == KeyModifiers::SHIFT
                 }
@@ -536,12 +557,7 @@ impl App {
             let mut running_side_thread_id =
                 running_thread_id.filter(|thread_id| self.side_threads.contains_key(thread_id));
             if running_side_thread_id.is_none() {
-                for thread_id in self.side_threads.keys().copied() {
-                    if self.active_turn_id_for_thread(thread_id).await.is_some() {
-                        running_side_thread_id = Some(thread_id);
-                        break;
-                    }
-                }
+                running_side_thread_id = self.running_side_thread_id().await;
             }
             if running_thread_id.is_none() {
                 running_thread_id = running_side_thread_id;
@@ -637,7 +653,6 @@ impl App {
                 && key_event.code == KeyCode::Left
                 && key_event.modifiers == KeyModifiers::NONE
                 && self.chat_widget.agents_navigation_key_available()
-                && self.app_server_target.supports_command_center()
             {
                 self.open_agents_overview(app_server);
             }
@@ -787,8 +802,7 @@ impl App {
                     &[("value", err.to_string().as_str())],
                 ));
             } else {
-                self.reset_app_ui_state_after_clear();
-                self.queue_clear_ui_header(tui);
+                self.start_cleared_display(tui);
                 tui.frame_requester().schedule_frame();
             }
             return true;
@@ -808,6 +822,7 @@ impl App {
 
     pub(crate) fn should_handle_backtrack_esc(&self, key_event: KeyEvent) -> bool {
         !self.chat_widget.is_external_writer_view()
+            && !self.chat_widget.has_provider_error()
             && !self.chat_widget.side_conversation_active()
             && !self.chat_widget.shortcut_overlay_visible()
             && self.chat_widget.is_normal_backtrack_mode()

@@ -44,6 +44,8 @@ codex-rs/prompts/templates/persistent_mode.md text
 codex-rs/prompts/templates/realtime/backend_prompt.md text
 codex-rs/prompts/templates/realtime/realtime_end.md text
 codex-rs/prompts/templates/realtime/realtime_start.md text
+codex-rs/prompts/templates/review/exit_interrupted.xml text
+codex-rs/prompts/templates/review/exit_success.xml text
 codex-rs/prompts/templates/review/rubric.md text
 codex-rs/protocol/src/prompts/base_instructions/default.md text
 codex-rs/tui/assets/prompt_for_init_command.md text

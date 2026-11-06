@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Exercises daemon startup and excluded resume/fork pickers with Cargo's CLI executable.
 
 use anyhow::Context as _;
@@ -21,6 +21,12 @@ async fn auto_daemon_start_attaches_to_shared_server() -> Result<()> {
 #[cfg(unix)]
 async fn agents_can_offer_restart_for_managed_daemon() -> Result<()> {
     daemon_startup("agents").await
+}
+
+#[tokio::test]
+#[cfg(unix)]
+async fn agents_no_daemon_uses_embedded_even_with_a_running_daemon() -> Result<()> {
+    daemon_startup("agents-no-daemon").await
 }
 
 #[tokio::test]
@@ -61,6 +67,16 @@ async fn version_mismatched_explicit_local_daemon_can_run_embedded_and_quit() ->
         return Ok(());
     }
     daemon_startup("version-mismatch-embedded").await
+}
+
+#[tokio::test]
+async fn version_unknown_explicit_local_daemon_can_run_embedded_and_quit() -> Result<()> {
+    #[cfg(windows)]
+    if codex_app_server_daemon::is_elevated()? {
+        eprintln!("requires a non-elevated Windows runner for local-daemon peer verification");
+        return Ok(());
+    }
+    daemon_startup("version-unknown-embedded").await
 }
 
 #[tokio::test]
@@ -166,7 +182,21 @@ async fn bedrock_onboarding_leaves_a_running_daemon_untouched() -> Result<()> {
 }
 
 async fn daemon_startup(command: &str) -> Result<()> {
-    let version_mismatch = command == "version-mismatch-embedded";
+    let unknown_version = command == "version-unknown-embedded";
+    let version_mismatch = command == "version-mismatch-embedded" || unknown_version;
+    let upstream_version = env!("CARGO_PKG_VERSION")
+        .split_once('+')
+        .map_or(env!("CARGO_PKG_VERSION"), |(version, _)| version);
+    let mismatched_daemon_version = format!("{upstream_version}+native-r28.test");
+    let reported_daemon_version = if unknown_version {
+        "unknown"
+    } else {
+        mismatched_daemon_version.as_str()
+    };
+    let version_mismatch_warning = format!(
+        "reportsversion{reported_daemon_version},whichdoesnotmatchthisCLI{}",
+        env!("CARGO_PKG_VERSION")
+    );
     // All provider traffic in the version fixture stays local; no turn is submitted.
     let model_server = if version_mismatch {
         Some(wiremock::MockServer::start().await)
@@ -196,6 +226,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
             .success(),
         "failed to prepare CLI test executable"
     );
+    let bedrock_onboarding = matches!(command, "bedrock" | "bedrock-running");
     fs::write(
         home.path().join("config.toml"),
         format!(
@@ -214,6 +245,8 @@ async fn daemon_startup(command: &str) -> Result<()> {
                     "model_provider = \"r34-test\"\nmodel_providers.r34-test.name = \"R34 test provider\"\nmodel_providers.r34-test.base_url = \"{}\"\nmodel_providers.r34-test.wire_api = \"responses\"\nmodel_providers.r34-test.requires_openai_auth = false",
                     server.uri()
                 )
+            } else if bedrock_onboarding {
+                "features.gcp_setup_wizard=false".to_string()
             } else {
                 String::new()
             },
@@ -229,7 +262,6 @@ async fn daemon_startup(command: &str) -> Result<()> {
     let persisted = command == "mismatch-disable-persisted";
     let disabling = matches!(command, "mismatch-disable" | "mismatch-disable-persisted");
     let restart = command == "mismatch-restart" || disabling;
-    let bedrock_onboarding = matches!(command, "bedrock" | "bedrock-running");
     if !bedrock_onboarding {
         fs::write(
             home.path().join("auth.json"),
@@ -264,6 +296,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
         command,
         "start"
             | "agents"
+            | "agents-no-daemon"
             | "agents-untrusted"
             | "agents-untrusted-new"
             | "discovered"
@@ -311,11 +344,16 @@ async fn daemon_startup(command: &str) -> Result<()> {
                 .context("missing initialize request")??;
             let request: serde_json::Value = serde_json::from_str(initialize.to_text()?)?;
             ensure!(request["method"] == "initialize", "{request}");
-            // Same upstream version, different build metadata: exercise the full-version guard.
+            // Exercise different full-build metadata or a valid user agent without a version.
+            let user_agent = if unknown_version {
+                "codex_cli_rs".to_string()
+            } else {
+                format!("codex_cli_rs/{mismatched_daemon_version}")
+            };
             let response = serde_json::json!({
                 "id": request["id"],
                 "result": {
-                    "userAgent": "codex_cli_rs/0.166.0+native-r28.test",
+                    "userAgent": user_agent,
                     "codexHome": fake_home,
                 },
             });
@@ -346,7 +384,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
     }
     let pid_file = home.path().join("app-server-daemon/daemon.pid");
     let result = async {
-        let mut existing_daemon = if matches!(command, "bedrock-running" | "discovered")
+        let mut existing_daemon = if matches!(command, "bedrock-running" | "discovered" | "agents-no-daemon")
             || (mismatch && !disabling)
         {
             let started = Command::new(&codex)
@@ -368,6 +406,11 @@ async fn daemon_startup(command: &str) -> Result<()> {
             // The draft header is visible before the session's command composer is ready.
             steps.push_back(("GPT-5.6-Terra", b"/status\r"));
             "Server:Localbackgroundserver"
+        } else if command == "agents-no-daemon" {
+            args.extend(["agents".into(), "--no-daemon".into()]);
+            steps.push_back(("Notasksyet", b"n"));
+            steps.push_back(("GPT-5.6-Terra", b"/daemon\r"));
+            "Notconnectedtothelocalbackgroundserver"
         } else if command == "agents" {
             args.push("agents".into());
             steps.push_back(("Notasksyet", b"\x1b"));
@@ -408,7 +451,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
             "Runningwithoutthesharedbackgroundserver:thisWindowslauncher"
         } else if version_mismatch {
             steps.push_back((
-                "Backgroundserverversion0.166.0+native-r28.testdoesnotmatchthisCLI",
+                version_mismatch_warning.as_str(),
                 b"1",
             ));
             steps.push_back(("GPT-5.6-Terra", b"/status\r"));
@@ -433,7 +476,8 @@ async fn daemon_startup(command: &str) -> Result<()> {
                 if restart { "Server:Localbackgroundserver" } else { "Model:" }
             }
         } else if bedrock_onboarding {
-            "UseAmazonBedrock"
+            // With GCP disabled, only Bedrock makes the sign-in menu advertise another provider.
+            "UseanAPIkeyoranotherprovider"
         } else {
             args.extend([command.into(), "--strict-config".into()]);
             if command == "resume" {
@@ -543,6 +587,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
                     .collect();
                 if let Some((ready, input)) = steps.front()
                     && text.contains(ready)
+                    && (!version_mismatch
+                        || *input != b"1"
+                        || text.contains("Runwithoutdaemonthistime"))
                 {
                     if version_mismatch && *input == b"1" {
                         ensure!(text.contains("Runwithoutdaemonthistime"), "{text}");
@@ -642,8 +689,8 @@ async fn daemon_startup(command: &str) -> Result<()> {
                     } else if bedrock_onboarding || command == "restrictive-job" {
                         ensure!(!pid_file.exists());
                         if command == "restrictive-job" && !elevated {
-                            let contents = screen.screen().contents();
-                            let warning = contents.lines()
+                            // Read physical rows: contents() joins the full-width transcript header to the next row.
+                            let warning = screen.screen().rows(0, screen.screen().size().1)
                                 .find(|line| line.contains("Running without the shared background server:"))
                                 .context("missing rendered fallback warning")?;
                             insta::assert_snapshot!("restrictive_launcher_warning", warning.trim());

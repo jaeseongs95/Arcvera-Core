@@ -85,8 +85,6 @@ pub(super) fn exclusion(
         Some("workload identity")
     } else if exec_server_url.is_some() {
         Some("executor selection (CODEX_EXEC_SERVER_URL)")
-    } else if cli.agents_overview {
-        None
     } else if cli.config_profile_v2.is_some() {
         Some("--profile")
     } else {
@@ -174,6 +172,28 @@ pub(super) async fn compatibility_warning(
             .map_err(|error| {
                 format!("could not connect to check daemon feature settings: {error}")
             })?;
+        let AppServerClient::Remote(remote) = &client else {
+            unreachable!("local daemon connections are remote clients");
+        };
+        // Check the initial handshake before an empty override set can skip
+        // compatibility checks or any daemon configuration is requested.
+        if remote.server_version() != Some(env!("CARGO_PKG_VERSION")) {
+            let status = crate::status::remote_connection::remote_connection_status_value(
+                target,
+                remote.server_version(),
+            )
+            .expect("local daemon has a connection status");
+            let warning = crate::i18n::daemon_connection_mismatch_warning(
+                env!("CARGO_PKG_VERSION"),
+                remote.server_version(),
+                &status.address,
+            );
+            // Release only this client's transport, not the shared server.
+            if let Err(error) = client.shutdown().await {
+                tracing::warn!(%error, "could not close rejected shared server connection");
+            }
+            return Err(warning);
+        }
         if requested.is_empty() {
             let _ = client.shutdown().await;
             return Ok(());
