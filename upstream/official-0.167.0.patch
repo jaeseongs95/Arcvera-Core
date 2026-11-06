@@ -51392,6 +51392,105 @@ index d7ff88ad0..ea5830a92 100644
 +        }
 +    }
 +}
+diff --git a/codex-rs/codex-mcp/src/connection_pool_tests.rs b/codex-rs/codex-mcp/src/connection_pool_tests.rs
+index 52908e1b6..91f4775ab 100644
+--- a/codex-rs/codex-mcp/src/connection_pool_tests.rs
++++ b/codex-rs/codex-mcp/src/connection_pool_tests.rs
+@@ -435,6 +435,94 @@ async fn timed_out_open_is_released_after_the_server_acknowledges_it() {
+     release.reply(json!({}));
+ }
+ 
++#[tokio::test(start_paused = true)]
++async fn timed_out_release_finishes_after_late_reply_without_closing_another_chat() {
++    for late_rpc_error in [false, true] {
++        let mut peer = LeasePeer::new();
++        let (first, first_id) = peer.chat().await;
++        let (other, other_id) = peer.chat().await;
++        let ConnectionSharing::Shared(first_lease) = &first.connection_sharing else {
++            panic!("expected shared lease")
++        };
++        let ConnectionSharing::Shared(other_lease) = &other.connection_sharing else {
++            panic!("expected shared lease")
++        };
++        assert!(Arc::ptr_eq(&first_lease.entry, &other_lease.entry));
++        let entry = Arc::clone(&first_lease.entry);
++        let entry_references = Arc::strong_count(&entry);
++        let slot = first_lease.release().expect("first release must start cleanup");
++        let release = peer.next("codex/connection/release").await;
++        assert_eq!(release.message["params"]["leaseId"], first_id);
++        let mut waiter = Box::pin(slot.wait_for_shutdown());
++        assert!(waiter.as_mut().now_or_never().is_none());
++        tokio::time::advance(LEASE_REQUEST_TIMEOUT - Duration::from_millis(1)).await;
++        assert!(waiter.as_mut().now_or_never().is_none());
++        // Cancelling a caller must not cancel the retained release RPC.
++        drop(waiter);
++        tokio::time::advance(Duration::from_millis(2)).await;
++        let completion_time = tokio::time::Instant::now();
++        tokio::time::timeout(Duration::from_secs(1), slot.wait_for_shutdown())
++            .await
++            .expect("chat shutdown must finish without the release reply")
++            .unwrap();
++        assert_eq!(tokio::time::Instant::now(), completion_time);
++        assert!(peer.pool.entries.lock().unwrap().is_empty());
++        assert!(!other.client.is_closed().await);
++        // Both chats and this observer retain their references throughout the case.
++        // The one extra Entry owner is the background release task after caller completion.
++        assert_eq!(Arc::strong_count(&entry), entry_references + 1);
++        assert!(matches!(
++            peer.frames.try_recv(),
++            Err(mpsc::error::TryRecvError::Empty)
++        ));
++        if late_rpc_error {
++            release
++                .replies
++                .send(json!({
++                    "jsonrpc": "2.0", "id": release.message["id"],
++                    "error": {"code": -32603, "message": "late lease release rejected"}
++                }))
++                .unwrap();
++        } else {
++            release.reply(json!({}));
++        }
++        tokio::time::timeout(Duration::from_secs(1), async {
++            while Arc::strong_count(&entry) != entry_references {
++                tokio::time::sleep(Duration::from_millis(1)).await;
++            }
++        })
++        .await
++        .expect("late reply must finish the retained release task");
++        let (result, ()) = tokio::join!(
++            other.call_tool(
++                "test".into(),
++                /*arguments*/ None,
++                |_| Ok(None),
++                /*timeout*/ None,
++            ),
++            async {
++                let request = peer.next("tools/call").await;
++                assert_eq!(request.message["params"]["_meta"][LEASE_META_KEY], other_id);
++                request.reply(json!({"content": []}));
++            }
++        );
++        result.unwrap();
++        slot.wait_for_shutdown().await.unwrap();
++        assert!(first_lease.release().is_none());
++        assert!(matches!(
++            peer.frames.try_recv(),
++            Err(mpsc::error::TryRecvError::Empty)
++        ));
++        let final_slot = other_lease.release().expect("last owner must shut down the client");
++        tokio::time::timeout(Duration::from_secs(1), final_slot.wait_for_shutdown())
++            .await
++            .expect("final client shutdown must finish")
++            .unwrap();
++        assert!(other.client.is_closed().await);
++        slot.wait_for_shutdown().await.unwrap();
++    }
++}
++
+ #[tokio::test]
+ async fn shared_startup_survives_first_chat_cancellation_and_rejects_released_bindings() {
+     let pool = McpConnectionPool::default();
 diff --git a/codex-rs/codex-mcp/src/lib.rs b/codex-rs/codex-mcp/src/lib.rs
 index 87c9e526d..368012b10 100644
 --- a/codex-rs/codex-mcp/src/lib.rs

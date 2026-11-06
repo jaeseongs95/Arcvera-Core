@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "sourceCommit": "a0b32e768da323646c66b56a0e81a38db846cb94",
+  "sourceCommit": "230567050d3f4bdce4315a2b3e0393bbe17431a6",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -24118,12 +24118,12 @@
     {
       "path": "codex-rs/codex-mcp/src/connection_pool_tests.rs",
       "gitMode": "100644",
-      "gitBlob": "52908e1b6bc605743e218772eb0042cc8bd88957",
-      "sourceSha256": "7bf6701e06953a244fb3ae5fec1097f3f25d6b6e400b9e79a263fde90ac68e2f",
-      "publishedSha256": "7bf6701e06953a244fb3ae5fec1097f3f25d6b6e400b9e79a263fde90ac68e2f",
-      "bytes": 29431,
-      "modified": false,
-      "noticeOnly": false
+      "gitBlob": "91f4775abe8be00d9998f260c87e8be3778ee192",
+      "sourceSha256": "63b97687fe04a356e9a142633a2826c6d61b3bdd66d77c5a41be7b5fb96aa35c",
+      "publishedSha256": "0e3d6feaca29f964a805eb34d11be44c6b349cb4fdfd12571d81eb8d13b3f0e8",
+      "bytes": 33492,
+      "modified": true,
+      "noticeOnly": true
     },
     {
       "path": "codex-rs/codex-mcp/src/elicitation.rs",

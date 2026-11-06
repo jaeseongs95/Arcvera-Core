@@ -2,11 +2,11 @@
   "schema": 2,
   "upstream": "https://github.com/openai/codex",
   "officialVersion": "0.167.0",
-  "previousPublicCommit": "71e5b12fea2ecaeb46fd31e09623b2f175886e32",
+  "previousPublicCommit": "1662744ae8a5437a37eba56a5c893a1562d36a03",
   "officialCommit": "086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a",
-  "patchedCommit": "a0b32e768da323646c66b56a0e81a38db846cb94",
+  "patchedCommit": "230567050d3f4bdce4315a2b3e0393bbe17431a6",
   "officialTree": "930790b05c58ba0be420a4abe240d206f5dfd48e",
-  "patchedTree": "c5d7c0a8d38d2a2d66bdd54b3266fe3de0b01512",
+  "patchedTree": "10afeb9766f2e1089842b61c194584e6ce5b16b6",
   "selectedPrefixes": [
     "codex-rs",
     "third_party",
@@ -40,12 +40,12 @@
     "docs/r38-agent-main-return-test-cases.ko.md"
   ],
   "patchPath": "upstream/official-0.167.0.patch",
-  "patchSha256": "0e9fe83f1bbb5a5025daba10dd8e23814c2cbdec52d40e6af169a88f338f988c",
-  "sourceInventorySha256": "7224c48d433859a1824bf68e2f648609736e2617748bd83f0575ceae68c163cb",
+  "patchSha256": "c199711861c2634ac204b28a25ccbc657dbabd3bc58dd2129cd8b478685d6c72",
+  "sourceInventorySha256": "b5ee437ae1f5587c4eaf78b13bcc80e5d8d5fa5c07eea1712b5bc82a8d95cfbf",
   "windowsPromptInputsPath": "upstream/windows-prompt-inputs.json",
-  "windowsPromptInputsSha256": "abf41214cce79141fd38d029eb6c78844a910af61d9701d6cba3b30be717ad8c",
+  "windowsPromptInputsSha256": "8bdde86c2f771e3e0e13fdccfce62107cc2f354d4cee66a638308e6d35d5a9af",
   "sourceFileCount": 9561,
-  "publishedBytes": 96166953,
+  "publishedBytes": 96171014,
   "modifiedNoticeDate": "2026-11-01",
   "modifiedNoticeLabel": "R32",
   "modifiedFiles": [
@@ -1949,6 +1949,16 @@
       "sourceSha256": "1f508362e1139bc70acd53f56068298b481962466f3156852dc337f40f6fe868",
       "publishedSha256": "618b9bbe3e0cda196b773e3314960e2d0ebf52078685744fcf68524a5c509914",
       "bytes": 27057,
+      "modified": true,
+      "noticeOnly": true
+    },
+    {
+      "path": "codex-rs/codex-mcp/src/connection_pool_tests.rs",
+      "gitMode": "100644",
+      "gitBlob": "91f4775abe8be00d9998f260c87e8be3778ee192",
+      "sourceSha256": "63b97687fe04a356e9a142633a2826c6d61b3bdd66d77c5a41be7b5fb96aa35c",
+      "publishedSha256": "0e3d6feaca29f964a805eb34d11be44c6b349cb4fdfd12571d81eb8d13b3f0e8",
+      "bytes": 33492,
       "modified": true,
       "noticeOnly": true
     },
