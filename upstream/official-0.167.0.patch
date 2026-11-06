@@ -10,7 +10,7 @@ index e1ba3d54e..de22a17dc 100644
 +codex-rs/tui/src/app/cron_jobs.rs text eol=lf
 +codex-rs/tui/src/app/tests/plugin_reload_tests.rs text eol=lf
 diff --git a/codex-rs/Cargo.lock b/codex-rs/Cargo.lock
-index 2eae72dab..98bc097a9 100644
+index 2eae72dab..7fdf251ab 100644
 --- a/codex-rs/Cargo.lock
 +++ b/codex-rs/Cargo.lock
 @@ -287,7 +287,7 @@ checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
@@ -1222,7 +1222,15 @@ index 2eae72dab..98bc097a9 100644
   "codex-exec-server",
   "codex-features",
   "codex-feedback",
-@@ -5116,6 +5131,8 @@ dependencies = [
+@@ -5092,6 +5107,7 @@ dependencies = [
+  "codex-shell-command",
+  "codex-state",
+  "codex-terminal-detection",
++ "codex-thread-store",
+  "codex-uds",
+  "codex-utils-absolute-path",
+  "codex-utils-approval-presets",
+@@ -5116,6 +5132,8 @@ dependencies = [
   "diffy",
   "dirs",
   "dunce",
@@ -1231,7 +1239,7 @@ index 2eae72dab..98bc097a9 100644
   "futures",
   "http 1.4.0",
   "image",
-@@ -5157,6 +5174,7 @@ dependencies = [
+@@ -5157,6 +5175,7 @@ dependencies = [
   "tracing-appender",
   "tracing-subscriber",
   "two-face",
@@ -1239,7 +1247,7 @@ index 2eae72dab..98bc097a9 100644
   "unicode-segmentation",
   "unicode-width 0.2.1",
   "url",
-@@ -5173,7 +5191,7 @@ dependencies = [
+@@ -5173,7 +5192,7 @@ dependencies = [
  
  [[package]]
  name = "codex-uds"
@@ -1248,7 +1256,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "async-io",
   "libc",
-@@ -5187,7 +5205,7 @@ dependencies = [
+@@ -5187,7 +5206,7 @@ dependencies = [
  
  [[package]]
  name = "codex-user-verification"
@@ -1257,7 +1265,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "base64 0.22.1",
   "block2",
-@@ -5208,7 +5226,7 @@ dependencies = [
+@@ -5208,7 +5227,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-absolute-path"
@@ -1266,7 +1274,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "dirs",
   "dunce",
-@@ -5222,14 +5240,14 @@ dependencies = [
+@@ -5222,14 +5241,14 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-approval-presets"
@@ -1283,7 +1291,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "base64 0.22.1",
   "codex-protocol",
-@@ -5243,7 +5261,7 @@ dependencies = [
+@@ -5243,7 +5262,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-cache"
@@ -1292,7 +1300,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "lru",
   "sha1 0.10.6",
-@@ -5252,7 +5270,7 @@ dependencies = [
+@@ -5252,7 +5271,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-cargo-bin"
@@ -1301,7 +1309,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "assert_cmd",
   "runfiles",
-@@ -5261,7 +5279,7 @@ dependencies = [
+@@ -5261,7 +5280,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-cli"
@@ -1310,7 +1318,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "clap",
   "codex-protocol",
-@@ -5273,22 +5291,22 @@ dependencies = [
+@@ -5273,22 +5292,22 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-critical-path"
@@ -1337,7 +1345,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "codex-git-utils",
   "codex-utils-absolute-path",
-@@ -5301,14 +5319,14 @@ dependencies = [
+@@ -5301,14 +5320,14 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-head-tail-buffer"
@@ -1354,7 +1362,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "codex-utils-absolute-path",
   "dirs",
-@@ -5318,7 +5336,7 @@ dependencies = [
+@@ -5318,7 +5337,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-image"
@@ -1363,7 +1371,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "base64 0.22.1",
   "codex-utils-cache",
-@@ -5332,7 +5350,7 @@ dependencies = [
+@@ -5332,7 +5351,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-json-to-toml"
@@ -1372,7 +1380,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "pretty_assertions",
   "serde_json",
-@@ -5341,7 +5359,7 @@ dependencies = [
+@@ -5341,7 +5360,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-oss"
@@ -1381,7 +1389,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "codex-core",
   "codex-lmstudio",
-@@ -5351,7 +5369,7 @@ dependencies = [
+@@ -5351,7 +5370,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-output-truncation"
@@ -1390,7 +1398,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "codex-protocol",
   "codex-utils-string",
-@@ -5361,7 +5379,7 @@ dependencies = [
+@@ -5361,7 +5380,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-path"
@@ -1399,7 +1407,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "codex-utils-absolute-path",
   "dunce",
-@@ -5372,7 +5390,7 @@ dependencies = [
+@@ -5372,7 +5391,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-path-uri"
@@ -1408,7 +1416,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "base64 0.22.1",
   "codex-utils-absolute-path",
-@@ -5388,7 +5406,7 @@ dependencies = [
+@@ -5388,7 +5407,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-plugins"
@@ -1417,7 +1425,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "codex-exec-server",
   "codex-exec-server-protocol",
-@@ -5402,7 +5420,7 @@ dependencies = [
+@@ -5402,7 +5421,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-process"
@@ -1426,7 +1434,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "pretty_assertions",
   "tokio",
-@@ -5410,7 +5428,7 @@ dependencies = [
+@@ -5410,7 +5429,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-pty"
@@ -1435,7 +1443,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "anyhow",
   "codex-utils-cargo-bin",
-@@ -5429,7 +5447,7 @@ dependencies = [
+@@ -5429,7 +5448,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-readiness"
@@ -1444,7 +1452,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "assert_matches",
   "thiserror 2.0.18",
-@@ -5439,7 +5457,7 @@ dependencies = [
+@@ -5439,7 +5458,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-redacted-string"
@@ -1453,7 +1461,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "schemars 0.8.22",
   "serde",
-@@ -5447,14 +5465,14 @@ dependencies = [
+@@ -5447,14 +5466,14 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-rustls-provider"
@@ -1470,7 +1478,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "codex-protocol",
   "codex-utils-absolute-path",
-@@ -5464,7 +5482,7 @@ dependencies = [
+@@ -5464,7 +5483,7 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-sleep-inhibitor"
@@ -1479,7 +1487,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "core-foundation 0.9.4",
   "libc",
-@@ -5474,14 +5492,14 @@ dependencies = [
+@@ -5474,14 +5493,14 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-stream-parser"
@@ -1496,7 +1504,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "pretty_assertions",
   "regex-lite",
-@@ -5491,14 +5509,14 @@ dependencies = [
+@@ -5491,14 +5510,14 @@ dependencies = [
  
  [[package]]
  name = "codex-utils-template"
@@ -1513,7 +1521,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "pretty_assertions",
   "v8",
-@@ -5506,7 +5524,7 @@ dependencies = [
+@@ -5506,7 +5525,7 @@ dependencies = [
  
  [[package]]
  name = "codex-voice-host"
@@ -1522,7 +1530,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "anyhow",
   "codex-install-context",
-@@ -5533,7 +5551,7 @@ dependencies = [
+@@ -5533,7 +5552,7 @@ dependencies = [
  
  [[package]]
  name = "codex-web-search-extension"
@@ -1531,7 +1539,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "codex-api",
   "codex-core",
-@@ -5557,7 +5575,7 @@ dependencies = [
+@@ -5557,7 +5576,7 @@ dependencies = [
  
  [[package]]
  name = "codex-websocket-auth"
@@ -1540,7 +1548,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "anyhow",
   "base64 0.22.1",
-@@ -5576,7 +5594,7 @@ dependencies = [
+@@ -5576,7 +5595,7 @@ dependencies = [
  
  [[package]]
  name = "codex-websocket-client"
@@ -1549,7 +1557,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "codex-http-client",
   "codex-utils-rustls-provider",
-@@ -5592,7 +5610,7 @@ dependencies = [
+@@ -5592,7 +5611,7 @@ dependencies = [
  
  [[package]]
  name = "codex-windows-sandbox"
@@ -1558,7 +1566,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "anyhow",
   "base64 0.22.1",
-@@ -5622,7 +5640,7 @@ dependencies = [
+@@ -5622,7 +5641,7 @@ dependencies = [
  
  [[package]]
  name = "codex-windows-sandbox-service"
@@ -1567,7 +1575,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "anyhow",
   "codex-cloud-config",
-@@ -5640,14 +5658,14 @@ dependencies = [
+@@ -5640,14 +5659,14 @@ dependencies = [
  
  [[package]]
  name = "codex-windows-sandbox-test-support"
@@ -1584,7 +1592,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "codex-http-client",
   "pretty_assertions",
-@@ -5662,7 +5680,7 @@ dependencies = [
+@@ -5662,7 +5681,7 @@ dependencies = [
  
  [[package]]
  name = "codex-worktree"
@@ -1593,7 +1601,7 @@ index 2eae72dab..98bc097a9 100644
  dependencies = [
   "anyhow",
   "codex-git-utils",
-@@ -5915,7 +5933,7 @@ dependencies = [
+@@ -5915,7 +5934,7 @@ dependencies = [
  
  [[package]]
  name = "core_test_support"
@@ -81725,7 +81733,7 @@ index b81862a4a..b9a41db7b 100644
                      model: "gpt-5.2-codex".to_string(),
                      model_provider_id: "updated-provider".to_string(),
 diff --git a/codex-rs/tui/Cargo.toml b/codex-rs/tui/Cargo.toml
-index 47968b869..2bdcf7802 100644
+index 47968b869..ddf9a251c 100644
 --- a/codex-rs/tui/Cargo.toml
 +++ b/codex-rs/tui/Cargo.toml
 @@ -37,6 +37,7 @@ codex-backend-client = { workspace = true }
@@ -81754,6 +81762,14 @@ index 47968b869..2bdcf7802 100644
      "Win32_Storage_FileSystem",
      "Win32_System_Console",
      "Win32_System_Diagnostics_ToolHelp",
+@@ -175,6 +180,7 @@ arboard = { workspace = true }
+ app_test_support = { workspace = true }
+ codex-mcp = { workspace = true }
+ codex-protocol-test-support = { workspace = true }
++codex-thread-store = { workspace = true }
+ core_test_support = { workspace = true }
+ codex-utils-cargo-bin = { workspace = true }
+ assert_matches = { workspace = true }
 diff --git a/codex-rs/tui/locales/en/cli.ftl b/codex-rs/tui/locales/en/cli.ftl
 new file mode 100644
 index 000000000..6ac129357
@@ -100062,7 +100078,7 @@ index 000000000..359b88dfe
 +    Ok(())
 +}
 diff --git a/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs b/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs
-index 53563c33e..3c82e54a2 100644
+index 53563c33e..1335caad5 100644
 --- a/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs
 +++ b/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs
 @@ -366,11 +366,14 @@ async fn same_thread_retry_keeps_subscription_and_restores_draft() -> Result<()>
@@ -100490,7 +100506,76 @@ index 53563c33e..3c82e54a2 100644
          std::fs::write(
              app.config.codex_home.join("config.toml"),
              "[tui]\nresume_cwd = 'current'\n",
-@@ -5383,8 +5645,6 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
+@@ -5371,9 +5633,67 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
+         saved_config.model_provider_id = "missing_provider".into();
+         let thread_id = create_history_rollout(
+             &saved_config,
+-            ThreadHistoryMode::Paginated,
++            ThreadHistoryMode::Legacy,
+             "Saved provider chat",
+         )?;
++        {
++            let state_db = crate::init_state_db_for_app_server_target(
++                &saved_config,
++                &crate::AppServerTarget::Embedded,
++            )
++            .await?
++            .expect("embedded fixture state DB");
++            let store = codex_thread_store::LocalThreadStore::new(
++                codex_thread_store::LocalThreadStoreConfig::from_config(&saved_config),
++                Some(state_db),
++            );
++            let migration = Box::pin(store.migrate_rollouts(
++                codex_thread_store::RolloutMigrationOptions {
++                    mode: codex_thread_store::RolloutMigrationMode::Apply,
++                    thread_ids: vec![thread_id],
++                    max_mib_per_second: None,
++                },
++            ))
++            .await?;
++            assert!(migration.outcomes.iter().any(|outcome| {
++                outcome.thread_id == Some(thread_id)
++                    && outcome.status == codex_thread_store::RolloutMigrationStatus::Migrated
++            }));
++            let summary = store
++                .list_turns(codex_thread_store::ListTurnsParams {
++                    thread_id,
++                    include_archived: false,
++                    cursor: None,
++                    page_size: 100,
++                    sort_direction: codex_thread_store::SortDirection::Desc,
++                    items_view: codex_thread_store::StoredTurnItemsView::Summary,
++                })
++                .await?;
++            assert!(
++                summary
++                    .turns
++                    .iter()
++                    .flat_map(|turn| &turn.items)
++                    .any(|item| {
++                        let payload: codex_app_server_protocol::ThreadItemPayload =
++                            serde_json::from_slice(&item.item_json)
++                                .expect("projected fixture item");
++                        match payload {
++                            codex_app_server_protocol::ThreadItemPayload::UserMessage {
++                                content,
++                                ..
++                            } => content.iter().any(|input| {
++                                matches!(
++                                    input,
++                                    codex_app_server_protocol::UserInput::Text { text, .. }
++                                        if text == "Saved provider chat"
++                                )
++                            }),
++                            _ => false,
++                        }
++                    })
++            );
++        }
+         let (mut server, requests, proxy) = start_recording_app_server_with_history(
+             &app.config,
+             HistoryCapabilities::ItemsListFails,
+@@ -5383,8 +5703,6 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
              LoaderOverrides::default(),
          )
          .await?;
@@ -100499,7 +100584,7 @@ index 53563c33e..3c82e54a2 100644
          let mut tui = crate::tui::test_support::make_test_tui()?;
          if reopen_via_overview {
              Box::pin(app.select_agents_overview_thread(&mut tui, &mut server, thread_id)).await?;
-@@ -5398,14 +5658,55 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
+@@ -5398,14 +5716,55 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
              };
              Box::pin(app.resume_target_session(&mut tui, &mut server, target)).await?;
          }
