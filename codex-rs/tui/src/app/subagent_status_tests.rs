@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Event-cache-to-terminal regression tests for the root-scoped subagent status row.
 
 use super::*;
@@ -56,7 +56,7 @@ async fn expanded_agent_footer_keeps_draft_and_cursor_during_scroll_and_small_la
             if width >= 48 && budget >= 12 {
                 assert!(text.contains("worker-001"));
                 assert!(!text.contains("worker-000"));
-                assert!(!text.contains("worker-004"));
+                assert!(!text.contains("worker-003"));
             } else {
                 assert!(
                     !text.contains("worker-"),
@@ -393,6 +393,20 @@ async fn footer_selection_uses_owned_terminal_routing_and_existing_thread_switch
     app.enqueue_primary_thread_session(root.session, root.turns)
         .await?;
     app.upsert_agent_picker_thread(child_id, Some("footer-child".into()), None, false);
+    app.enqueue_thread_notification(
+        root_id,
+        ServerNotification::TurnStarted(codex_app_server_protocol::TurnStartedNotification {
+            thread_id: root_id.to_string(),
+            turn: turn(TurnStatus::InProgress),
+        }),
+    )
+    .await?;
+    app.chat_widget.set_queue_autosend_suppressed(true);
+    assert!(app.chat_widget.queue_user_message_with_options(
+        "root queued input survives visit".into(),
+        crate::bottom_pane::QueuedInputAction::Plain,
+        Vec::new(),
+    ));
     app.chat_widget
         .restore_user_message_to_composer("root draft survives visit".into());
     while events.try_recv().is_ok() {}
@@ -478,8 +492,65 @@ async fn footer_selection_uses_owned_terminal_routing_and_existing_thread_switch
         );
         app.handle_event(&mut tui, &mut server, selected).await?;
         assert_eq!(app.active_thread_id, Some(child_id));
-        app.select_agent_thread(&mut tui, &mut server, root_id)
+        if owned {
+            assert_eq!(app.chat_widget.composer_text_with_pending(), "");
+            app.chat_widget
+                .restore_user_message_to_composer("child draft survives return".into());
+        } else {
+            assert_eq!(
+                app.chat_widget.composer_text_with_pending(),
+                "child draft survives return"
+            );
+        }
+        // The newly selected child starts collapsed; main remains visible without Alt+S.
+        let root_buffer = if owned {
+            app.render_owned_transcript(&mut tui, ratatui::layout::Size::new(80, 24))?;
+            crate::custom_terminal::test_support::last_rendered_buffer(&tui.terminal).clone()
+        } else {
+            paint_widget_footer(&app.chat_widget, 47)
+        };
+        let root_area = *root_buffer.area();
+        let root_row = (root_area.y..root_area.bottom())
+            .find(|y| {
+                (root_area.x..root_area.right())
+                    .map(|x| root_buffer[(x, *y)].symbol())
+                    .collect::<String>()
+                    .contains(&crate::i18n::message("r38-agents-main", &[]))
+            })
+            .expect("main row stays visible in collapsed/narrow child view");
+        while events.try_recv().is_ok() {}
+        app.handle_tui_event(
+            &mut tui,
+            &mut server,
+            crate::tui::TuiEvent::Mouse(MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column: root_area.x + 2,
+                row: root_row,
+                modifiers: KeyModifiers::NONE,
+            }),
+        )
+        .await?;
+        let main_selection = std::iter::from_fn(|| events.try_recv().ok())
+            .find(|event| matches!(event, AppEvent::SelectFooterAgent { .. }))
+            .expect("public mouse route selected main");
+        assert!(
+            matches!(&main_selection, AppEvent::SelectFooterAgent { root_thread_id, thread_id } if *root_thread_id == root_id && *thread_id == root_id)
+        );
+        assert!(
+            ops.try_recv().is_err(),
+            "click return does not submit or interrupt"
+        );
+        app.handle_event(&mut tui, &mut server, main_selection)
             .await?;
+        assert_eq!(app.active_thread_id, Some(root_id));
+        assert!(
+            app.chat_widget.is_task_running_for_test(),
+            "main return preserves the running turn"
+        );
+        assert_eq!(
+            app.chat_widget.queued_user_message_texts(),
+            vec!["root queued input survives visit"]
+        );
         assert_eq!(
             app.chat_widget.composer_text_with_pending(),
             "root draft survives visit"
@@ -561,6 +632,55 @@ async fn footer_selection_uses_owned_terminal_routing_and_existing_thread_switch
         Some(root_id),
         "another root's stale click must be ignored"
     );
+    app.select_agent_thread(&mut tui, &mut server, child_id)
+        .await?;
+    app.agent_navigation
+        .set_picker_thread_visibility(child_id, AgentPickerThreadVisibility::Hidden);
+    app.sync_active_agent_label();
+    let zero_children = paint_widget_footer(&app.chat_widget, 47);
+    let area = *zero_children.area();
+    let row = (area.y..area.bottom())
+        .find(|y| {
+            (area.x..area.right())
+                .map(|x| zero_children[(x, *y)].symbol())
+                .collect::<String>()
+                .contains(&crate::i18n::message("r38-agents-main", &[]))
+        })
+        .expect("hidden last child does not remove the main return row");
+    assert_eq!(
+        app.chat_widget.composer_text_with_pending(),
+        "child draft survives return"
+    );
+    app.handle_event(
+        &mut tui,
+        &mut server,
+        AppEvent::SelectFooterAgent {
+            root_thread_id: ThreadId::new(),
+            thread_id: root_id,
+        },
+    )
+    .await?;
+    assert_eq!(
+        app.active_thread_id,
+        Some(child_id),
+        "stale root cannot redirect to main"
+    );
+    // Repaint after the rejected event before relying on the actual hit map.
+    paint_widget_footer(&app.chat_widget, 47);
+    while events.try_recv().is_ok() {}
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    let click = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: area.x + 2,
+        row,
+        modifiers: KeyModifiers::NONE,
+    };
+    assert!(app.chat_widget.handle_subagent_footer_mouse(click));
+    let selection = std::iter::from_fn(|| events.try_recv().ok())
+        .find(|event| matches!(event, AppEvent::SelectFooterAgent { .. }))
+        .expect("zero-child main click");
+    app.handle_event(&mut tui, &mut server, selection).await?;
+    assert_eq!(app.active_thread_id, Some(root_id));
     server.shutdown().await?;
     tui.set_owned_screen(false)?;
     Ok(())
@@ -645,7 +765,12 @@ async fn footer_hover_public_inline_owned_routes_preserve_interaction_and_modal_
         );
         let hovered = paint(&mut app, &mut tui, owned)?;
         assert!(
-            hovered[(mouse.column, mouse.row)]
+            hovered[(hovered.area().x, mouse.row)]
+                .modifier
+                .contains(Modifier::UNDERLINED)
+        );
+        assert!(
+            !hovered[(mouse.column, mouse.row)]
                 .modifier
                 .contains(Modifier::REVERSED)
         );

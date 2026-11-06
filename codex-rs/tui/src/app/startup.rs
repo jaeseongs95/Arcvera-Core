@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Startup bootstrap, draft handoff, and protected-input orchestration for the TUI app.
 //!
 //! Owns the main app run loop from app-server bootstrap through terminal shutdown. Startup input
@@ -938,11 +938,7 @@ impl App {
                 })
         };
         // This launch warning belongs to the TUI, independent of picker/trust client replacement.
-        if let Some(warning) = daemon_startup_warning {
-            app_event_tx.send(AppEvent::InsertHistoryCell(Box::new(
-                history_cell::StartupWarningsCell::new(vec![warning]),
-            )));
-        }
+        crate::daemon_startup::emit_startup_warning(daemon_startup_warning, &app_event_tx);
         // Automatic NFS detection is Linux-only; manual migration supports Unix.
         #[cfg(target_os = "linux")]
         if !app_server_target.uses_remote_workspace() {
@@ -1590,25 +1586,7 @@ See the Codex keymap documentation for supported actions and examples."
                                 }
                             }
                             Err(error) => {
-                                if app.pending_startup_thread_start {
-                                    app.pending_startup_thread_start = false;
-                                    app.chat_widget.cancel_startup_submission();
-                                    app.chat_widget
-                                        .set_initial_user_message_submit_suppressed(
-                                            /*suppressed*/ true,
-                                        );
-                                    if let Some(message) =
-                                        app.chat_widget.initial_user_message.take()
-                                    {
-                                        app.chat_widget.restore_user_message_to_composer(message);
-                                    }
-                                }
-                                app.reconnect.failed = true;
-                                app.chat_widget.reconnect_failed();
-                                app.chat_widget.add_error_message(error.to_string());
-                                if let Ok(mut state) = app.agents_overview.view_state.lock() {
-                                    state.connection_notice = Some(crate::i18n::static_message("picker-center-notice-failed"));
-                                }
+                                app.finish_failed_reconnect(error);
                             }
                         }
                         AppRunControl::Continue

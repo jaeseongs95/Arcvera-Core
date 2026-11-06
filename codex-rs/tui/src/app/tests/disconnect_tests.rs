@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Offline editing, uncertain submissions, and stale events never consume local work.
 
 use super::*;
@@ -16,6 +17,195 @@ use pretty_assertions::assert_eq;
 use serde_json::json;
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message;
+
+#[tokio::test]
+async fn daemon_startup_reconnect_version_refusal_reaches_history_without_restoring_work()
+-> Result<()> {
+    for version in [Some("0.166.0+native-r36.20261104"), None] {
+        let (mut app, mut events, mut ops) = make_test_app_with_channels().await;
+        let thread_id = ThreadId::new();
+        app.active_thread_id = Some(thread_id);
+        app.primary_thread_id = Some(thread_id);
+        app.chat_widget
+            .handle_thread_session(test_thread_session(thread_id, app.config.cwd.to_path_buf()));
+        app.chat_widget.handle_server_notification(
+            ServerNotification::TurnStarted(codex_app_server_protocol::TurnStartedNotification {
+                thread_id: thread_id.to_string(),
+                turn: codex_app_server_protocol::Turn {
+                    id: "queued-fixture-turn".into(),
+                    root_turn_id: None,
+                    items: Vec::new(),
+                    items_view: Default::default(),
+                    status: TurnStatus::InProgress,
+                    error: None,
+                    started_at: None,
+                    completed_at: None,
+                    duration_ms: None,
+                },
+            }),
+            None,
+        );
+        app.chat_widget.set_queue_autosend_suppressed(true);
+        while ops.try_recv().is_ok() {}
+        assert!(app.chat_widget.queue_user_message_with_options(
+            "queued work".into(),
+            crate::bottom_pane::QueuedInputAction::Plain,
+            Vec::new(),
+        ));
+        app.chat_widget
+            .restore_user_message_to_composer("draft kept here".into());
+        assert!(app.chat_widget.has_queued_follow_up_messages());
+        assert!(
+            ops.try_recv().is_err(),
+            "fixture setup must queue without submission"
+        );
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let expected_address = format!("ws://{}/", listener.local_addr()?);
+        let endpoint = crate::RemoteAppServerEndpoint::WebSocket {
+            websocket_url: format!(
+                "ws://fixture-user:fixture-password@{}/?token=fixture-token#fixture-fragment",
+                listener.local_addr()?,
+            ),
+            auth_token: None,
+        };
+        app.app_server_target = AppServerTarget::LocalDaemon {
+            endpoint,
+            allow_embedded_fallback: true,
+        };
+        assert!(app.begin_reconnect());
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await?;
+            let mut socket = tokio_tungstenite::accept_async(stream).await?;
+            let Some(Ok(Message::Text(request))) = socket.next().await else {
+                panic!("initialize missing");
+            };
+            let request: serde_json::Value = serde_json::from_str(&request)?;
+            assert_eq!(request["method"], "initialize");
+            socket
+                .send(Message::Text(
+                    json!({
+                        "id": request["id"],
+                        "result": {"userAgent": version.map_or_else(
+                            || "daemon-test".to_string(),
+                            |version| format!("daemon-test/{version}"),
+                        )}
+                    })
+                    .to_string()
+                    .into(),
+                ))
+                .await?;
+            while let Some(Ok(message)) = socket.next().await {
+                if let Message::Text(text) = message {
+                    let message: serde_json::Value = serde_json::from_str(&text)?;
+                    // No resume, fresh task, queued turn, or lifecycle mutation.
+                    assert_eq!(message["method"], "initialized");
+                }
+            }
+            // Keep the same server available: refusal must not be retried.
+            assert!(
+                tokio::time::timeout(Duration::from_millis(100), listener.accept())
+                    .await
+                    .is_err()
+            );
+            Ok::<_, color_eyre::Report>(())
+        });
+        let result = tokio::time::timeout(
+            Duration::from_secs(5),
+            reconnect(
+                crate::backend_id::BackendId::new(),
+                app.app_server_target.clone(),
+                app.config.clone(),
+                app.local_settings.clone(),
+                Some(thread_id),
+                None,
+                crate::dynamic_tools_mcp::ThreadToolTransport::Dynamic,
+                ReconnectPresentation::Conversation,
+            ),
+        )
+        .await?;
+        let error = result
+            .err()
+            .expect("a different local build must be refused");
+        assert!(error.is::<crate::app_server_connection::LocalVersionMismatch>());
+        app.finish_failed_reconnect(error);
+        let mut visible = String::new();
+        while let Ok(event) = events.try_recv() {
+            if let AppEvent::InsertHistoryCell(cell) = event {
+                visible.push_str(&lines_to_single_string(&cell.transcript_lines(2000)));
+            }
+        }
+        for expected in [
+            "does not match this CLI",
+            env!("CARGO_PKG_VERSION"),
+            "codex app-server daemon update --from-cli --yes --no-force",
+        ] {
+            assert!(visible.contains(expected), "{visible}");
+        }
+        let unknown = crate::i18n::message("status-unknown-version", &[]);
+        assert!(visible.contains(version.unwrap_or(&unknown)), "{visible}");
+        assert!(visible.contains(&expected_address), "{visible}");
+        assert!(
+            visible.contains(&std::env::current_exe()?.display().to_string()),
+            "{visible}"
+        );
+        for secret in [
+            "fixture-user",
+            "fixture-password",
+            "fixture-token",
+            "fixture-fragment",
+        ] {
+            assert!(!visible.contains(secret), "{visible}");
+        }
+        assert_eq!(app.current_displayed_thread_id(), Some(thread_id));
+        assert_eq!(
+            app.chat_widget.composer_text_with_pending(),
+            "draft kept here"
+        );
+        assert!(app.chat_widget.has_queued_follow_up_messages());
+        assert!(app.reconnect.failed && app.reconnect.offline);
+        assert!(matches!(
+            app.app_server_target,
+            AppServerTarget::LocalDaemon { .. }
+        ));
+        assert!(ops.try_recv().is_err());
+        server.await??;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn daemon_startup_reconnect_transport_errors_keep_stage_only_diagnostic() -> Result<()> {
+    let app = make_test_app().await;
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let endpoint = crate::RemoteAppServerEndpoint::WebSocket {
+        websocket_url: format!(
+            "ws://fixture-user:fixture-password@{}/?token=fixture-token",
+            listener.local_addr()?
+        ),
+        auth_token: None,
+    };
+    drop(listener);
+    let result = reconnect(
+        crate::backend_id::BackendId::new(),
+        AppServerTarget::Remote { endpoint },
+        app.config.clone(),
+        app.local_settings.clone(),
+        None,
+        None,
+        crate::dynamic_tools_mcp::ThreadToolTransport::Dynamic,
+        ReconnectPresentation::Startup(tokio::time::Instant::now() + Duration::from_millis(100)),
+    )
+    .await;
+    let error = result
+        .err()
+        .expect("closed fixture endpoint cannot reconnect");
+    assert!(!error.is::<crate::app_server_connection::LocalVersionMismatch>());
+    assert_eq!(
+        error.to_string(),
+        "Automatic reconnect timed out while connecting to the server."
+    );
+    Ok(())
+}
 
 #[tokio::test]
 async fn lost_mutation_reply_preserves_work_without_resubmitting() -> Result<()> {

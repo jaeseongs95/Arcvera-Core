@@ -175,7 +175,7 @@ class VerifierChecks(unittest.TestCase):
                      'codex-rs/codex-api/tests/cache_batch_boundary.rs',
                      'codex-rs/diagnostics/src/cache_diagnostics.rs']:
             with self.subTest(path=path):
-                self.assertEqual(EXPORT.notice(path), b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n' if path in {'codex-rs/tui/src/app/replay_filter.rs', 'codex-rs/tui/src/app/thread_routing.rs', 'codex-rs/tui/src/app/tests/buffered_replay.rs', 'codex-rs/app-server-daemon/src/lib.rs', 'codex-rs/app-server-daemon/src/prepare_install.rs'} else (b'// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/tui/src/app/thread_routing.rs' else b'// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path in {'codex-rs/app-server-daemon/src/lib.rs', 'codex-rs/diagnostics/src/cache_diagnostics.rs'} else b'// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n'))
+                self.assertEqual(EXPORT.notice(path), b'// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n' if path == 'codex-rs/tui/src/app/thread_routing.rs' else b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n' if path in {'codex-rs/tui/src/app/replay_filter.rs', 'codex-rs/tui/src/app/thread_routing.rs', 'codex-rs/tui/src/app/tests/buffered_replay.rs', 'codex-rs/app-server-daemon/src/lib.rs', 'codex-rs/app-server-daemon/src/prepare_install.rs'} else (b'// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/tui/src/app/thread_routing.rs' else b'// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path in {'codex-rs/app-server-daemon/src/lib.rs', 'codex-rs/diagnostics/src/cache_diagnostics.rs'} else b'// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n'))
         for path in ['codex-rs/app-server-daemon/README.md',
                      'docs/native-cli-r33-cache-observation.ko.md',
                      'tools/windows-cli/README.md',
@@ -213,7 +213,7 @@ class VerifierChecks(unittest.TestCase):
                      'codex-rs/tui/src/chatwidget.rs', 'codex-rs/tui/src/keymap.rs',
                      'codex-rs/tui/src/app/tests/startup_defaults_tests.rs']:
             with self.subTest(path=path):
-                self.assertEqual(EXPORT.notice(path), b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n' if path in {'codex-rs/tui/src/tui.rs'} else (b'// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/cli/src/main.rs' else b'// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path in {'codex-rs/cli/src/main.rs', 'codex-rs/tui/src/keymap.rs'} else b'// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.\n'))
+                self.assertEqual(EXPORT.notice(path), b'// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n' if path == 'codex-rs/tui/src/lib.rs' else b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n' if path in {'codex-rs/tui/src/tui.rs'} else (b'// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/cli/src/main.rs' else b'// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path in {'codex-rs/cli/src/main.rs', 'codex-rs/tui/src/keymap.rs'} else b'// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.\n'))
         for path in ['codex-rs/Cargo.toml', 'codex-rs/Cargo.lock', 'codex-rs/cli/Cargo.toml']:
             with self.subTest(path=path):
                 self.assertEqual(EXPORT.notice(path), b'# Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n' if path in {'codex-rs/Cargo.toml', 'codex-rs/Cargo.lock'} else b'# Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/cli/Cargo.toml' else b'# Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n')
@@ -232,7 +232,7 @@ class VerifierChecks(unittest.TestCase):
         self.assertTrue(expected_docs.issubset(EXPORT.PREFIXES))
         self.assertNotIn('docs/r37-cache-observation-status.ko.md',EXPORT.PREFIXES)
         self.assertIn('sdk/python/src/openai_codex/generated/v2_all.py',EXPORT.PREFIXES)
-        self.assertEqual(EXPORT.PATCHED,'3f1a258a92103bc998491e1df220a398b7e99e61')
+        self.assertEqual(EXPORT.PATCHED,'b8989c4c3d2537800e7d5fdb8990a5572f8205f2')
         self.assertEqual(EXPORT.notice('codex-rs/core-plugins/src/store.rs'),b'// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n')
         self.assertEqual(EXPORT.notice('sdk/python/src/openai_codex/generated/v2_all.py'),b'# Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n')
 
@@ -242,6 +242,7 @@ class VerifierChecks(unittest.TestCase):
             'docs/r38-daemon-test-cases.ko.md',
             'docs/r38-plugin-cache-test-cases.ko.md',
             'docs/r38-stop-hook-test-cases.ko.md',
+            'docs/r38-agent-main-return-test-cases.ko.md',
             'scripts/install/normalize_stop_hook_config.py',
             'scripts/install/test_normalize_stop_hook_config.py',
         }

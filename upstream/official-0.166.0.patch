@@ -72704,6 +72704,46 @@ index 957995074..f09602d22 100644
      let mut cwd = None;
      let mut custom_title = None;
      let mut ai_title = None;
+diff --git a/codex-rs/hooks/src/engine/discovery.rs b/codex-rs/hooks/src/engine/discovery.rs
+index 3dd05e7fe..a851cc928 100644
+--- a/codex-rs/hooks/src/engine/discovery.rs
++++ b/codex-rs/hooks/src/engine/discovery.rs
+@@ -695,7 +695,7 @@ fn append_matcher_groups(
+                     } else {
+                         if additional_context_limit.is_some() {
+                             warnings.push(format!(
+-                                "ignoring additionalContextLimit for {event_name:?} hook in {}: this event cannot emit additionalContext",
++                                "ignoring additionalContextLimit for {event_name:?} hook in {}: this event cannot emit additionalContext; the {event_name:?} hook remains configured. Remove only additionalContextLimit from this {event_name:?} hook handler; keep the hook and its command.",
+                                 source.path.display()
+                             ));
+                         }
+@@ -1434,7 +1434,7 @@ mod tests {
+     #[test]
+     fn unsupported_event_warns_and_ignores_additional_context_limit() {
+         let source_path = source_path();
+-        let (handler, _, warnings) = discover_command(
++        let (handler, entry, warnings) = discover_command(
+             HookEventName::Stop,
+             /*additional_context_limit*/ Some(4_096),
+         );
+@@ -1443,6 +1443,17 @@ mod tests {
+         assert_eq!(warnings.len(), 1);
+         assert!(warnings[0].contains("ignoring additionalContextLimit for Stop hook"));
+         assert!(warnings[0].contains(&source_path.display().to_string()));
++        assert!(warnings[0].contains("the Stop hook remains configured"));
++        assert!(
++            warnings[0].contains("Remove only additionalContextLimit from this Stop hook handler")
++        );
++        assert_eq!(
++            entry.handler,
++            HookListEntryHandler::Command {
++                command: "echo hello".to_string(),
++                r#async: false,
++            }
++        );
+     }
+ 
+     #[test]
 diff --git a/codex-rs/memories/write/src/explicit_consolidation_tests.rs b/codex-rs/memories/write/src/explicit_consolidation_tests.rs
 new file mode 100644
 index 000000000..aecc26dda
@@ -81479,10 +81519,10 @@ index 47968b869..2bdcf7802 100644
      "Win32_System_Diagnostics_ToolHelp",
 diff --git a/codex-rs/tui/locales/en/cli.ftl b/codex-rs/tui/locales/en/cli.ftl
 new file mode 100644
-index 000000000..705918d59
+index 000000000..6ac129357
 --- /dev/null
 +++ b/codex-rs/tui/locales/en/cli.ftl
-@@ -0,0 +1,882 @@
+@@ -0,0 +1,893 @@
 +# Application-owned CLI help and parse-error presentation. Command tokens and values remain unchanged.
 +
 +cli-help-app-cmd-workspace-path-to-open-in-the-desktop-app = Workspace path to open in the Desktop app
@@ -82365,6 +82405,17 @@ index 000000000..705918d59
 +cli-aliases = Aliases: { $value }
 +
 +cli-help-first-installation-only = Install only if no installation, settings, or recovery state exists under the lifecycle lock.
++
++cli-plugin-reload-requested = Reloaded plugin configuration for { $thread }. MCP reconnect requested for the next capture; server readiness is not yet confirmed.
++
++cli-plugin-reload-partial-warnings = { $message } Partial refresh warnings:
++    { $warnings }
++
++cli-plugin-reload-invalid-ack = Plugin reload returned an invalid acknowledgement for { $thread }.
++
++cli-plugin-reload-failed = Plugin reload failed for { $thread }: { $error }
++
++cli-plugin-reload-stale = Stale plugin reload after conversation/backend change or reconnect; no request was sent. Run /reload_plugin again in the displayed conversation.
 diff --git a/codex-rs/tui/locales/en/cloud.ftl b/codex-rs/tui/locales/en/cloud.ftl
 new file mode 100644
 index 000000000..e75508e1a
@@ -82534,7 +82585,7 @@ index 000000000..e75508e1a
 +cloud-cli-help-diff-attempt = { "Attempt number to display (1-based)" }
 diff --git a/codex-rs/tui/locales/en/controls.ftl b/codex-rs/tui/locales/en/controls.ftl
 new file mode 100644
-index 000000000..c43e34a8e
+index 000000000..c1137e75e
 --- /dev/null
 +++ b/codex-rs/tui/locales/en/controls.ftl
 @@ -0,0 +1,164 @@
@@ -82701,7 +82752,7 @@ index 000000000..c43e34a8e
 +daemon-implicit-version-mismatch = The shared server at { $endpoint } reports version { $server }, which does not match this CLI { $client } or could not be verified. Automatic attachment was refused. Current CLI executable: { $cli_path }; its bundled backend is available with --no-daemon. The shared server was not changed or restarted. The socket does not identify the running server executable path. To explicitly select this CLI's server, run `codex app-server daemon update --from-cli --yes --no-force`.
 +daemon-version-manage-hint = Use /daemon to manage the local background server.
 +daemon-version-update-warning = Updating may interrupt active or queued work.
-+daemon-running-embedded = Running without the shared background server: { $reason }.
++daemon-running-embedded = Running this CLI's bundled backend without the shared background server: { $reason }.
 diff --git a/codex-rs/tui/locales/en/core.ftl b/codex-rs/tui/locales/en/core.ftl
 new file mode 100644
 index 000000000..94d17e5dd
@@ -83845,10 +83896,10 @@ index 000000000..4731b248f
 +picker-write-config-error = failed to write config.toml: { $value }
 diff --git a/codex-rs/tui/locales/en/r36-agents.ftl b/codex-rs/tui/locales/en/r36-agents.ftl
 new file mode 100644
-index 000000000..9b0b2baee
+index 000000000..85eee4b41
 --- /dev/null
 +++ b/codex-rs/tui/locales/en/r36-agents.ftl
-@@ -0,0 +1,9 @@
+@@ -0,0 +1,10 @@
 +r36-agents-expand = alt+s expand
 +r36-agents-collapse = alt+s collapse
 +r36-agents-scroll = alt+pgup/pgdn scroll
@@ -83858,6 +83909,7 @@ index 000000000..9b0b2baee
 +r37-agents-click-expand = click expand
 +r37-agents-click-collapse = click collapse
 +r37-agents-click-open = click open chat
++r38-agents-main = Main agent
 diff --git a/codex-rs/tui/locales/en/r36-ci.ftl b/codex-rs/tui/locales/en/r36-ci.ftl
 new file mode 100644
 index 000000000..a4132806e
@@ -84121,10 +84173,10 @@ index 000000000..7e93ef63a
 +status-title-action-required-hidden = [ . ] Action Required
 diff --git a/codex-rs/tui/locales/ko/cli.ftl b/codex-rs/tui/locales/ko/cli.ftl
 new file mode 100644
-index 000000000..8978fd586
+index 000000000..51f442533
 --- /dev/null
 +++ b/codex-rs/tui/locales/ko/cli.ftl
-@@ -0,0 +1,882 @@
+@@ -0,0 +1,893 @@
 +# Application-owned CLI help and parse-error presentation. Command tokens and values remain unchanged.
 +
 +cli-help-app-cmd-workspace-path-to-open-in-the-desktop-app = Desktop 앱에서 열 작업 공간 경로
@@ -85007,6 +85059,17 @@ index 000000000..8978fd586
 +cli-aliases = 별칭: { $value }
 +
 +cli-help-first-installation-only = 수명 관리 잠금 안에서 설치·설정·복구 상태가 모두 없는 경우에만 설치
++
++cli-plugin-reload-requested = { $thread } 대화의 플러그인 설정을 다시 읽었습니다. 다음 캡처에서 MCP 재연결을 요청했으며, 서버 준비 완료는 아직 확인하지 않았습니다.
++
++cli-plugin-reload-partial-warnings = { $message } 일부 새로고침 경고:
++    { $warnings }
++
++cli-plugin-reload-invalid-ack = { $thread } 대화의 플러그인 다시 읽기 응답이 원래 대화와 일치하지 않거나 재연결 요청을 확인하지 않았습니다.
++
++cli-plugin-reload-failed = { $thread } 대화의 플러그인 다시 읽기에 실패했습니다: { $error }
++
++cli-plugin-reload-stale = 대화·백엔드 변경 또는 재연결 전의 플러그인 다시 읽기 요청이므로 전송하지 않았습니다. 표시된 대화에서 /reload_plugin을 다시 실행하세요.
 diff --git a/codex-rs/tui/locales/ko/cloud.ftl b/codex-rs/tui/locales/ko/cloud.ftl
 new file mode 100644
 index 000000000..e526eba68
@@ -86466,10 +86529,10 @@ index 000000000..8e3780078
 +picker-write-config-error = config.toml 쓰기 실패: { $value }
 diff --git a/codex-rs/tui/locales/ko/r36-agents.ftl b/codex-rs/tui/locales/ko/r36-agents.ftl
 new file mode 100644
-index 000000000..53a3a2b6f
+index 000000000..6f1ee42a5
 --- /dev/null
 +++ b/codex-rs/tui/locales/ko/r36-agents.ftl
-@@ -0,0 +1,9 @@
+@@ -0,0 +1,10 @@
 +r36-agents-expand = alt+s 펼치기
 +r36-agents-collapse = alt+s 접기
 +r36-agents-scroll = alt+pgup/pgdn 스크롤
@@ -86479,6 +86542,7 @@ index 000000000..53a3a2b6f
 +r37-agents-click-expand = 클릭 펼치기
 +r37-agents-click-collapse = 클릭 접기
 +r37-agents-click-open = 클릭 대화 이동
++r38-agents-main = 메인 에이전트
 diff --git a/codex-rs/tui/locales/ko/r36-ci.ftl b/codex-rs/tui/locales/ko/r36-ci.ftl
 new file mode 100644
 index 000000000..6950f85cd
@@ -87329,7 +87393,7 @@ index bf1627c99..7a914c135 100644
      }
  
 diff --git a/codex-rs/tui/src/app/agent_navigation.rs b/codex-rs/tui/src/app/agent_navigation.rs
-index f8862e908..2a4f798f4 100644
+index f8862e908..9826283d4 100644
 --- a/codex-rs/tui/src/app/agent_navigation.rs
 +++ b/codex-rs/tui/src/app/agent_navigation.rs
 @@ -19,6 +19,9 @@
@@ -87370,7 +87434,7 @@ index f8862e908..2a4f798f4 100644
      /// Stable first-seen traversal order for picker rows and keyboard cycling.
      order: Vec<ThreadId>,
      /// Threads with observed terminal liveness that must not be revived by delayed activity.
-@@ -78,6 +93,98 @@ pub(super) struct AgentPickerRefreshState {
+@@ -78,6 +93,99 @@ pub(super) struct AgentPickerRefreshState {
  }
  
  impl AgentNavigationState {
@@ -87463,13 +87527,14 @@ index f8862e908..2a4f798f4 100644
 +                finished_at: detail.and_then(|detail| detail.finished_at),
 +            });
 +        }
++        summary.show_main = !summary.is_empty();
 +        summary
 +    }
 +
      pub(crate) fn begin_picker_refresh(&mut self, thread_id: ThreadId) -> Option<Uuid> {
          if self
              .picker_refresh
-@@ -207,6 +314,8 @@ impl AgentNavigationState {
+@@ -207,6 +315,8 @@ impl AgentNavigationState {
              entry.is_running = false;
              self.stopped_threads.insert(activity.thread_id);
          }
@@ -87478,7 +87543,7 @@ index f8862e908..2a4f798f4 100644
      }
  
      pub(crate) fn mark_running(&mut self, thread_id: ThreadId) {
-@@ -218,11 +327,14 @@ impl AgentNavigationState {
+@@ -218,11 +328,14 @@ impl AgentNavigationState {
              return;
          }
          self.stopped_threads.remove(&thread_id);
@@ -87493,7 +87558,7 @@ index f8862e908..2a4f798f4 100644
          self.set_running(thread_id, /*is_running*/ false);
      }
  
-@@ -230,6 +342,19 @@ impl AgentNavigationState {
+@@ -230,6 +343,19 @@ impl AgentNavigationState {
          if let Some(entry) = self.threads.get_mut(&thread_id) {
              entry.is_running = is_running;
          }
@@ -87513,7 +87578,7 @@ index f8862e908..2a4f798f4 100644
      }
  
      pub(crate) fn set_agent_path(&mut self, thread_id: ThreadId, agent_path: Option<String>) {
-@@ -264,6 +389,9 @@ impl AgentNavigationState {
+@@ -264,6 +390,9 @@ impl AgentNavigationState {
      /// to a pristine single-session state.
      pub(crate) fn clear(&mut self) {
          self.threads.clear();
@@ -87523,7 +87588,7 @@ index f8862e908..2a4f798f4 100644
          self.order.clear();
          self.stopped_threads.clear();
          self.parent_owned_threads.clear();
-@@ -278,6 +406,8 @@ impl AgentNavigationState {
+@@ -278,6 +407,8 @@ impl AgentNavigationState {
      /// would leave ghost rows in `/subagents`.
      pub(crate) fn remove(&mut self, thread_id: ThreadId) {
          self.threads.remove(&thread_id);
@@ -87532,7 +87597,7 @@ index f8862e908..2a4f798f4 100644
          self.order.retain(|candidate| *candidate != thread_id);
          self.stopped_threads.remove(&thread_id);
          self.parent_owned_threads.remove(&thread_id);
-@@ -462,6 +592,45 @@ impl AgentNavigationState {
+@@ -462,6 +593,45 @@ impl AgentNavigationState {
  
  #[cfg(test)]
  mod tests {
@@ -93344,10 +93409,49 @@ index 312185ebd..b97bab995 100644
          }
          let browsing_needs_history = self.browsing_needs_history();
 diff --git a/codex-rs/tui/src/app/reconnect.rs b/codex-rs/tui/src/app/reconnect.rs
-index 91dde4181..74132e208 100644
+index 91dde4181..8022338fe 100644
 --- a/codex-rs/tui/src/app/reconnect.rs
 +++ b/codex-rs/tui/src/app/reconnect.rs
-@@ -219,6 +219,7 @@ impl App {
+@@ -130,6 +130,12 @@ pub(super) async fn reconnect(
+         let result = tokio::time::timeout_at(deadline, attempt).await;
+         match result {
+             Ok(Ok(connected)) => return Ok(connected),
++            Ok(Err(error)) if error.is::<crate::app_server_connection::LocalVersionMismatch>() => {
++                // This typed diagnostic contains only the sanitized local
++                // refusal. Do not retry onto another backend or hide it behind
++                // a transport timeout; the existing failure UI displays it.
++                return Err(error);
++            }
+             Ok(Err(_)) => {}
+             Err(_) => break,
+         }
+@@ -139,6 +145,25 @@ pub(super) async fn reconnect(
+ }
+ 
+ impl App {
++    pub(super) fn finish_failed_reconnect(&mut self, error: color_eyre::Report) {
++        if self.pending_startup_thread_start {
++            self.pending_startup_thread_start = false;
++            self.chat_widget.cancel_startup_submission();
++            self.chat_widget
++                .set_initial_user_message_submit_suppressed(/*suppressed*/ true);
++            if let Some(message) = self.chat_widget.initial_user_message.take() {
++                self.chat_widget.restore_user_message_to_composer(message);
++            }
++        }
++        self.reconnect.failed = true;
++        self.chat_widget.reconnect_failed();
++        self.chat_widget.add_error_message(error.to_string());
++        if let Ok(mut state) = self.agents_overview.view_state.lock() {
++            state.connection_notice =
++                Some(crate::i18n::static_message("picker-center-notice-failed"));
++        }
++    }
++
+     pub(crate) fn is_offline(&self) -> bool {
+         self.reconnect.offline
+     }
+@@ -219,6 +244,7 @@ impl App {
              return false;
          }
          if !self.reconnect.offline {
@@ -93355,7 +93459,7 @@ index 91dde4181..74132e208 100644
              #[cfg(target_os = "windows")]
              if self.windows_sandbox_setup_is_local()
                  && let Some(message) = self.chat_widget.initial_user_message.take()
-@@ -271,7 +272,9 @@ impl App {
+@@ -271,7 +297,9 @@ impl App {
                          .is_some())
              {
                  if let Ok(mut state) = self.agents_overview.view_state.lock() {
@@ -93366,7 +93470,7 @@ index 91dde4181..74132e208 100644
                  }
                  ReconnectPresentation::Overview
              } else {
-@@ -359,6 +362,17 @@ impl App {
+@@ -359,6 +387,17 @@ impl App {
          self.rate_limit_refresh_state.invalidate_recovery();
          session.worktree_source_config_builder = app_server.worktree_source_config_builder.clone();
          session.inherit_task_tool_capabilities(app_server);
@@ -93384,7 +93488,7 @@ index 91dde4181..74132e208 100644
          *app_server = session;
          #[cfg(any(target_os = "windows", test))]
          let interrupted_windows_setup = self.windows_sandbox.pending_setup.take().is_some();
-@@ -455,7 +469,7 @@ impl App {
+@@ -455,7 +494,7 @@ impl App {
              );
              store.pending_interactive_replay = Default::default();
              store.pending_interrupt_turn_id = None;
@@ -93393,7 +93497,7 @@ index 91dde4181..74132e208 100644
              store
                  .buffer
                  .retain(|event| matches!(event, ThreadBufferedEvent::Notification(_)));
-@@ -569,7 +583,11 @@ impl App {
+@@ -569,7 +608,11 @@ impl App {
          }
          // Only accept fresh task-tool calls once this connection and its event queue are adopted.
          if let ThreadToolTransport::Mcp(server) = app_server.thread_tool_transport() {
@@ -93733,10 +93837,10 @@ index bca03e34f..5861867a1 100644
      }
 diff --git a/codex-rs/tui/src/app/session_control.rs b/codex-rs/tui/src/app/session_control.rs
 new file mode 100644
-index 000000000..f63f84cc6
+index 000000000..26c5191d5
 --- /dev/null
 +++ b/codex-rs/tui/src/app/session_control.rs
-@@ -0,0 +1,428 @@
+@@ -0,0 +1,435 @@
 +//! Local controls use the originating model call and the existing confirmed APIs.
 +use super::App;
 +use crate::app_server_session::AppServerSession;
@@ -94009,16 +94113,23 @@ index 000000000..f63f84cc6
 +                )
 +            }
 +            Command::ReloadPlugins => {
-+                let response = app_server
-+                    .reload_plugins(thread)
-+                    .await
-+                    .map_err(|error| format!("플러그인 다시 읽기 실패: {error:#}"))?;
++                let response = app_server.reload_plugins(thread).await.map_err(|error| {
++                    crate::i18n::message(
++                        "cli-plugin-reload-failed",
++                        &[
++                            ("thread", &thread.to_string()),
++                            ("error", &format!("{error:#}")),
++                        ],
++                    )
++                })?;
 +                if response.thread_id != thread.to_string() || !response.mcp_reconnect_requested {
-+                    return Err("플러그인 다시 읽기 응답이 원래 대화와 일치하지 않거나 재연결을 확인하지 않았습니다.".into());
++                    return Err(crate::i18n::message(
++                        "cli-plugin-reload-invalid-ack",
++                        &[("thread", &thread.to_string())],
++                    ));
 +                }
-+                Ok(
-+                    json!({"result":response,"message":"플러그인 설정을 다시 읽고 다음 캡처의 연결 갱신을 요청했습니다. 서버 준비 완료는 아직 확인하지 않았습니다."}),
-+                )
++                let message = Self::plugin_reload_result_message(thread, &response.warnings);
++                Ok(json!({"result":response,"message":message}))
 +            }
 +            Command::CleanupAgentsPreview => {
 +                let response: codex_app_server_protocol::ThreadCleanupCompletedResponse =
@@ -95509,7 +95620,7 @@ index 8aa1bca71..ace6965eb 100644
  
  
 diff --git a/codex-rs/tui/src/app/startup.rs b/codex-rs/tui/src/app/startup.rs
-index f1e83e5a5..2d336becc 100644
+index f1e83e5a5..526985cb9 100644
 --- a/codex-rs/tui/src/app/startup.rs
 +++ b/codex-rs/tui/src/app/startup.rs
 @@ -255,6 +255,7 @@ impl App {
@@ -95520,7 +95631,20 @@ index f1e83e5a5..2d336becc 100644
      ) -> Result<AppExitInfo> {
          use tokio_stream::StreamExt;
  
-@@ -994,6 +995,7 @@ See the Codex keymap documentation for supported actions and examples."
+@@ -936,11 +937,7 @@ impl App {
+                 })
+         };
+         // This launch warning belongs to the TUI, independent of picker/trust client replacement.
+-        if let Some(warning) = daemon_startup_warning {
+-            app_event_tx.send(AppEvent::InsertHistoryCell(Box::new(
+-                history_cell::StartupWarningsCell::new(vec![warning]),
+-            )));
+-        }
++        crate::daemon_startup::emit_startup_warning(daemon_startup_warning, &app_event_tx);
+         // Automatic NFS detection is Linux-only; manual migration supports Unix.
+         #[cfg(target_os = "linux")]
+         if !app_server_target.uses_remote_workspace() {
+@@ -994,6 +991,7 @@ See the Codex keymap documentation for supported actions and examples."
              routed_key_activation: None,
              transcript_cells: Vec::new(),
              native_history: Default::default(),
@@ -95528,7 +95652,7 @@ index f1e83e5a5..2d336becc 100644
              turn_tips: Default::default(),
              transcript_view: Default::default(),
              last_rendered_history_tail: None,
-@@ -1081,6 +1083,7 @@ See the Codex keymap documentation for supported actions and examples."
+@@ -1081,6 +1079,7 @@ See the Codex keymap documentation for supported actions and examples."
              pending_plugin_enabled_writes: HashMap::new(),
              pending_hook_enabled_writes: HashMap::new(),
              recap: recap::RecapState::default(),
@@ -95536,7 +95660,7 @@ index f1e83e5a5..2d336becc 100644
              #[cfg(test)]
              _test_codex_home: None,
          };
-@@ -1094,6 +1097,14 @@ See the Codex keymap documentation for supported actions and examples."
+@@ -1094,6 +1093,14 @@ See the Codex keymap documentation for supported actions and examples."
              // Prewarm WSL interop off the UI thread, without accessing clipboard contents.
              let _ = tui.clipboard.warm_text_reader(tui.frame_requester());
          }
@@ -95551,7 +95675,7 @@ index f1e83e5a5..2d336becc 100644
          app.remember_launch_permissions();
          if !tui.is_terminal_focused() {
              app.recap.note_focus_lost(Instant::now());
-@@ -1426,7 +1437,18 @@ See the Codex keymap documentation for supported actions and examples."
+@@ -1426,7 +1433,18 @@ See the Codex keymap documentation for supported actions and examples."
                      .chat_widget
                      .rate_limit_refresh_interval()
                      .and_then(|interval| app.rate_limit_refresh_state.poll_deadline(interval));
@@ -95570,7 +95694,7 @@ index f1e83e5a5..2d336becc 100644
                      result = async {
                          match app.daemon_restart.as_mut() {
                              Some(task) => task.await,
-@@ -1446,7 +1468,11 @@ See the Codex keymap documentation for supported actions and examples."
+@@ -1446,7 +1464,11 @@ See the Codex keymap documentation for supported actions and examples."
                                  if cell.as_any().is::<history_cell::SessionInfoCell>()
                          );
                          let had_active_modal = app.chat_widget.has_active_modal();
@@ -95583,7 +95707,7 @@ index f1e83e5a5..2d336becc 100644
                              Ok(AppRunControl::Continue) => {
                                  if is_initial_session_header {
                                      waiting_for_initial_session_header = false;
-@@ -1525,6 +1551,9 @@ See the Codex keymap documentation for supported actions and examples."
+@@ -1525,6 +1547,9 @@ See the Codex keymap documentation for supported actions and examples."
                              }
                              Some(_) => {}
                              None => {
@@ -95593,7 +95717,7 @@ index f1e83e5a5..2d336becc 100644
                                  if owner == initial_owner {
                                      if app.reconnect.offline && app.pending_startup_thread_start {
                                          reconnect = None;
-@@ -1544,6 +1573,8 @@ See the Codex keymap documentation for supported actions and examples."
+@@ -1544,6 +1569,8 @@ See the Codex keymap documentation for supported actions and examples."
                                  if let Err(err) = app.finish_reconnect(tui, backends.session_at_mut(displayed_session), &mut app_event_rx, connected, CODEX_CLI_VERSION).await {
                                      break Err(err);
                                  }
@@ -95602,16 +95726,34 @@ index f1e83e5a5..2d336becc 100644
                                  backends.resume_events(initial_owner);
                                  waiting_for_initial_session_configured = app.pending_startup_thread_start;
                                  if app.pending_startup_thread_start {
-@@ -1575,7 +1606,7 @@ See the Codex keymap documentation for supported actions and examples."
-                                 app.chat_widget.reconnect_failed();
-                                 app.chat_widget.add_error_message(error.to_string());
-                                 if let Ok(mut state) = app.agents_overview.view_state.lock() {
--                                    state.connection_notice = Some("Reconnect failed — agent list is stale; relaunch to retry");
-+                                    state.connection_notice = Some(crate::i18n::static_message("picker-center-notice-failed"));
+@@ -1558,25 +1585,7 @@ See the Codex keymap documentation for supported actions and examples."
                                  }
                              }
+                             Err(error) => {
+-                                if app.pending_startup_thread_start {
+-                                    app.pending_startup_thread_start = false;
+-                                    app.chat_widget.cancel_startup_submission();
+-                                    app.chat_widget
+-                                        .set_initial_user_message_submit_suppressed(
+-                                            /*suppressed*/ true,
+-                                        );
+-                                    if let Some(message) =
+-                                        app.chat_widget.initial_user_message.take()
+-                                    {
+-                                        app.chat_widget.restore_user_message_to_composer(message);
+-                                    }
+-                                }
+-                                app.reconnect.failed = true;
+-                                app.chat_widget.reconnect_failed();
+-                                app.chat_widget.add_error_message(error.to_string());
+-                                if let Ok(mut state) = app.agents_overview.view_state.lock() {
+-                                    state.connection_notice = Some("Reconnect failed — agent list is stale; relaunch to retry");
+-                                }
++                                app.finish_failed_reconnect(error);
+                             }
                          }
-@@ -1681,6 +1712,11 @@ See the Codex keymap documentation for supported actions and examples."
+                         AppRunControl::Continue
+@@ -1681,6 +1690,11 @@ See the Codex keymap documentation for supported actions and examples."
          };
          // Let the pending terminal poll unwind while the app server shuts down.
          tui.pause_events();
@@ -95625,10 +95767,10 @@ index f1e83e5a5..2d336becc 100644
              tracing::warn!(error = %err, "failed to shut down embedded app server");
 diff --git a/codex-rs/tui/src/app/subagent_status_tests.rs b/codex-rs/tui/src/app/subagent_status_tests.rs
 new file mode 100644
-index 000000000..f10ed4927
+index 000000000..7e1daddd5
 --- /dev/null
 +++ b/codex-rs/tui/src/app/subagent_status_tests.rs
-@@ -0,0 +1,704 @@
+@@ -0,0 +1,829 @@
 +//! Event-cache-to-terminal regression tests for the root-scoped subagent status row.
 +
 +use super::*;
@@ -95686,7 +95828,7 @@ index 000000000..f10ed4927
 +            if width >= 48 && budget >= 12 {
 +                assert!(text.contains("worker-001"));
 +                assert!(!text.contains("worker-000"));
-+                assert!(!text.contains("worker-004"));
++                assert!(!text.contains("worker-003"));
 +            } else {
 +                assert!(
 +                    !text.contains("worker-"),
@@ -96023,6 +96165,20 @@ index 000000000..f10ed4927
 +    app.enqueue_primary_thread_session(root.session, root.turns)
 +        .await?;
 +    app.upsert_agent_picker_thread(child_id, Some("footer-child".into()), None, false);
++    app.enqueue_thread_notification(
++        root_id,
++        ServerNotification::TurnStarted(codex_app_server_protocol::TurnStartedNotification {
++            thread_id: root_id.to_string(),
++            turn: turn(TurnStatus::InProgress),
++        }),
++    )
++    .await?;
++    app.chat_widget.set_queue_autosend_suppressed(true);
++    assert!(app.chat_widget.queue_user_message_with_options(
++        "root queued input survives visit".into(),
++        crate::bottom_pane::QueuedInputAction::Plain,
++        Vec::new(),
++    ));
 +    app.chat_widget
 +        .restore_user_message_to_composer("root draft survives visit".into());
 +    while events.try_recv().is_ok() {}
@@ -96108,8 +96264,65 @@ index 000000000..f10ed4927
 +        );
 +        app.handle_event(&mut tui, &mut server, selected).await?;
 +        assert_eq!(app.active_thread_id, Some(child_id));
-+        app.select_agent_thread(&mut tui, &mut server, root_id)
++        if owned {
++            assert_eq!(app.chat_widget.composer_text_with_pending(), "");
++            app.chat_widget
++                .restore_user_message_to_composer("child draft survives return".into());
++        } else {
++            assert_eq!(
++                app.chat_widget.composer_text_with_pending(),
++                "child draft survives return"
++            );
++        }
++        // The newly selected child starts collapsed; main remains visible without Alt+S.
++        let root_buffer = if owned {
++            app.render_owned_transcript(&mut tui, ratatui::layout::Size::new(80, 24))?;
++            crate::custom_terminal::test_support::last_rendered_buffer(&tui.terminal).clone()
++        } else {
++            paint_widget_footer(&app.chat_widget, 47)
++        };
++        let root_area = *root_buffer.area();
++        let root_row = (root_area.y..root_area.bottom())
++            .find(|y| {
++                (root_area.x..root_area.right())
++                    .map(|x| root_buffer[(x, *y)].symbol())
++                    .collect::<String>()
++                    .contains(&crate::i18n::message("r38-agents-main", &[]))
++            })
++            .expect("main row stays visible in collapsed/narrow child view");
++        while events.try_recv().is_ok() {}
++        app.handle_tui_event(
++            &mut tui,
++            &mut server,
++            crate::tui::TuiEvent::Mouse(MouseEvent {
++                kind: MouseEventKind::Down(MouseButton::Left),
++                column: root_area.x + 2,
++                row: root_row,
++                modifiers: KeyModifiers::NONE,
++            }),
++        )
++        .await?;
++        let main_selection = std::iter::from_fn(|| events.try_recv().ok())
++            .find(|event| matches!(event, AppEvent::SelectFooterAgent { .. }))
++            .expect("public mouse route selected main");
++        assert!(
++            matches!(&main_selection, AppEvent::SelectFooterAgent { root_thread_id, thread_id } if *root_thread_id == root_id && *thread_id == root_id)
++        );
++        assert!(
++            ops.try_recv().is_err(),
++            "click return does not submit or interrupt"
++        );
++        app.handle_event(&mut tui, &mut server, main_selection)
 +            .await?;
++        assert_eq!(app.active_thread_id, Some(root_id));
++        assert!(
++            app.chat_widget.is_task_running_for_test(),
++            "main return preserves the running turn"
++        );
++        assert_eq!(
++            app.chat_widget.queued_user_message_texts(),
++            vec!["root queued input survives visit"]
++        );
 +        assert_eq!(
 +            app.chat_widget.composer_text_with_pending(),
 +            "root draft survives visit"
@@ -96191,6 +96404,55 @@ index 000000000..f10ed4927
 +        Some(root_id),
 +        "another root's stale click must be ignored"
 +    );
++    app.select_agent_thread(&mut tui, &mut server, child_id)
++        .await?;
++    app.agent_navigation
++        .set_picker_thread_visibility(child_id, AgentPickerThreadVisibility::Hidden);
++    app.sync_active_agent_label();
++    let zero_children = paint_widget_footer(&app.chat_widget, 47);
++    let area = *zero_children.area();
++    let row = (area.y..area.bottom())
++        .find(|y| {
++            (area.x..area.right())
++                .map(|x| zero_children[(x, *y)].symbol())
++                .collect::<String>()
++                .contains(&crate::i18n::message("r38-agents-main", &[]))
++        })
++        .expect("hidden last child does not remove the main return row");
++    assert_eq!(
++        app.chat_widget.composer_text_with_pending(),
++        "child draft survives return"
++    );
++    app.handle_event(
++        &mut tui,
++        &mut server,
++        AppEvent::SelectFooterAgent {
++            root_thread_id: ThreadId::new(),
++            thread_id: root_id,
++        },
++    )
++    .await?;
++    assert_eq!(
++        app.active_thread_id,
++        Some(child_id),
++        "stale root cannot redirect to main"
++    );
++    // Repaint after the rejected event before relying on the actual hit map.
++    paint_widget_footer(&app.chat_widget, 47);
++    while events.try_recv().is_ok() {}
++    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
++    let click = MouseEvent {
++        kind: MouseEventKind::Down(MouseButton::Left),
++        column: area.x + 2,
++        row,
++        modifiers: KeyModifiers::NONE,
++    };
++    assert!(app.chat_widget.handle_subagent_footer_mouse(click));
++    let selection = std::iter::from_fn(|| events.try_recv().ok())
++        .find(|event| matches!(event, AppEvent::SelectFooterAgent { .. }))
++        .expect("zero-child main click");
++    app.handle_event(&mut tui, &mut server, selection).await?;
++    assert_eq!(app.active_thread_id, Some(root_id));
 +    server.shutdown().await?;
 +    tui.set_owned_screen(false)?;
 +    Ok(())
@@ -96275,7 +96537,12 @@ index 000000000..f10ed4927
 +        );
 +        let hovered = paint(&mut app, &mut tui, owned)?;
 +        assert!(
-+            hovered[(mouse.column, mouse.row)]
++            hovered[(hovered.area().x, mouse.row)]
++                .modifier
++                .contains(Modifier::UNDERLINED)
++        );
++        assert!(
++            !hovered[(mouse.column, mouse.row)]
 +                .modifier
 +                .contains(Modifier::REVERSED)
 +        );
@@ -97047,10 +97314,18 @@ index d77c233ba..07bf2e484 100644
              methods
                  .iter()
 diff --git a/codex-rs/tui/src/app/tests/backend_ownership_tests.rs b/codex-rs/tui/src/app/tests/backend_ownership_tests.rs
-index 587a63f7d..e9959db71 100644
+index 587a63f7d..444adceb3 100644
 --- a/codex-rs/tui/src/app/tests/backend_ownership_tests.rs
 +++ b/codex-rs/tui/src/app/tests/backend_ownership_tests.rs
-@@ -274,6 +274,52 @@ async fn startup_rejects_foreign_resume_and_fork_before_requests() -> Result<()>
+@@ -146,6 +146,7 @@ async fn startup_fallback_requires_no_established_backend() -> Result<()> {
+             &mut state_db,
+             Arc::clone(&app.environment_manager),
+             policy,
++            &mut None,
+         )
+         .await;
+         if matches!(selection, SessionSelection::StartFresh) {
+@@ -274,6 +275,52 @@ async fn startup_rejects_foreign_resume_and_fork_before_requests() -> Result<()>
      Ok(())
  }
  
@@ -97513,6 +97788,206 @@ index 2c122f804..48b164579 100644
  #[test]
  fn buffered_replay_preserves_text_before_interactive_requests() {
      let mut store = ThreadEventStore::new(/*capacity*/ 16);
+diff --git a/codex-rs/tui/src/app/tests/disconnect_tests.rs b/codex-rs/tui/src/app/tests/disconnect_tests.rs
+index 15156ba47..1e6c696dd 100644
+--- a/codex-rs/tui/src/app/tests/disconnect_tests.rs
++++ b/codex-rs/tui/src/app/tests/disconnect_tests.rs
+@@ -17,6 +17,195 @@ use serde_json::json;
+ use tokio::net::TcpListener;
+ use tokio_tungstenite::tungstenite::Message;
+ 
++#[tokio::test]
++async fn daemon_startup_reconnect_version_refusal_reaches_history_without_restoring_work()
++-> Result<()> {
++    for version in [Some("0.166.0+native-r36.20261104"), None] {
++        let (mut app, mut events, mut ops) = make_test_app_with_channels().await;
++        let thread_id = ThreadId::new();
++        app.active_thread_id = Some(thread_id);
++        app.primary_thread_id = Some(thread_id);
++        app.chat_widget
++            .handle_thread_session(test_thread_session(thread_id, app.config.cwd.to_path_buf()));
++        app.chat_widget.handle_server_notification(
++            ServerNotification::TurnStarted(codex_app_server_protocol::TurnStartedNotification {
++                thread_id: thread_id.to_string(),
++                turn: codex_app_server_protocol::Turn {
++                    id: "queued-fixture-turn".into(),
++                    root_turn_id: None,
++                    items: Vec::new(),
++                    items_view: Default::default(),
++                    status: TurnStatus::InProgress,
++                    error: None,
++                    started_at: None,
++                    completed_at: None,
++                    duration_ms: None,
++                },
++            }),
++            None,
++        );
++        app.chat_widget.set_queue_autosend_suppressed(true);
++        while ops.try_recv().is_ok() {}
++        assert!(app.chat_widget.queue_user_message_with_options(
++            "queued work".into(),
++            crate::bottom_pane::QueuedInputAction::Plain,
++            Vec::new(),
++        ));
++        app.chat_widget
++            .restore_user_message_to_composer("draft kept here".into());
++        assert!(app.chat_widget.has_queued_follow_up_messages());
++        assert!(
++            ops.try_recv().is_err(),
++            "fixture setup must queue without submission"
++        );
++        let listener = TcpListener::bind("127.0.0.1:0").await?;
++        let expected_address = format!("ws://{}/", listener.local_addr()?);
++        let endpoint = crate::RemoteAppServerEndpoint::WebSocket {
++            websocket_url: format!(
++                "ws://fixture-user:fixture-password@{}/?token=fixture-token#fixture-fragment",
++                listener.local_addr()?,
++            ),
++            auth_token: None,
++        };
++        app.app_server_target = AppServerTarget::LocalDaemon {
++            endpoint,
++            allow_embedded_fallback: true,
++        };
++        assert!(app.begin_reconnect());
++        let server = tokio::spawn(async move {
++            let (stream, _) = listener.accept().await?;
++            let mut socket = tokio_tungstenite::accept_async(stream).await?;
++            let Some(Ok(Message::Text(request))) = socket.next().await else {
++                panic!("initialize missing");
++            };
++            let request: serde_json::Value = serde_json::from_str(&request)?;
++            assert_eq!(request["method"], "initialize");
++            socket
++                .send(Message::Text(
++                    json!({
++                        "id": request["id"],
++                        "result": {"userAgent": version.map_or_else(
++                            || "daemon-test".to_string(),
++                            |version| format!("daemon-test/{version}"),
++                        )}
++                    })
++                    .to_string()
++                    .into(),
++                ))
++                .await?;
++            while let Some(Ok(message)) = socket.next().await {
++                if let Message::Text(text) = message {
++                    let message: serde_json::Value = serde_json::from_str(&text)?;
++                    // No resume, fresh task, queued turn, or lifecycle mutation.
++                    assert_eq!(message["method"], "initialized");
++                }
++            }
++            // Keep the same server available: refusal must not be retried.
++            assert!(
++                tokio::time::timeout(Duration::from_millis(100), listener.accept())
++                    .await
++                    .is_err()
++            );
++            Ok::<_, color_eyre::Report>(())
++        });
++        let result = tokio::time::timeout(
++            Duration::from_secs(5),
++            reconnect(
++                crate::backend_id::BackendId::new(),
++                app.app_server_target.clone(),
++                app.config.clone(),
++                app.local_settings.clone(),
++                Some(thread_id),
++                None,
++                crate::dynamic_tools_mcp::ThreadToolTransport::Dynamic,
++                ReconnectPresentation::Conversation,
++            ),
++        )
++        .await?;
++        let error = result
++            .err()
++            .expect("a different local build must be refused");
++        assert!(error.is::<crate::app_server_connection::LocalVersionMismatch>());
++        app.finish_failed_reconnect(error);
++        let mut visible = String::new();
++        while let Ok(event) = events.try_recv() {
++            if let AppEvent::InsertHistoryCell(cell) = event {
++                visible.push_str(&lines_to_single_string(&cell.transcript_lines(2000)));
++            }
++        }
++        for expected in [
++            "does not match this CLI",
++            env!("CARGO_PKG_VERSION"),
++            "codex app-server daemon update --from-cli --yes --no-force",
++        ] {
++            assert!(visible.contains(expected), "{visible}");
++        }
++        let unknown = crate::i18n::message("status-unknown-version", &[]);
++        assert!(visible.contains(version.unwrap_or(&unknown)), "{visible}");
++        assert!(visible.contains(&expected_address), "{visible}");
++        assert!(
++            visible.contains(&std::env::current_exe()?.display().to_string()),
++            "{visible}"
++        );
++        for secret in [
++            "fixture-user",
++            "fixture-password",
++            "fixture-token",
++            "fixture-fragment",
++        ] {
++            assert!(!visible.contains(secret), "{visible}");
++        }
++        assert_eq!(app.current_displayed_thread_id(), Some(thread_id));
++        assert_eq!(
++            app.chat_widget.composer_text_with_pending(),
++            "draft kept here"
++        );
++        assert!(app.chat_widget.has_queued_follow_up_messages());
++        assert!(app.reconnect.failed && app.reconnect.offline);
++        assert!(matches!(
++            app.app_server_target,
++            AppServerTarget::LocalDaemon { .. }
++        ));
++        assert!(ops.try_recv().is_err());
++        server.await??;
++    }
++    Ok(())
++}
++
++#[tokio::test]
++async fn daemon_startup_reconnect_transport_errors_keep_stage_only_diagnostic() -> Result<()> {
++    let app = make_test_app().await;
++    let listener = TcpListener::bind("127.0.0.1:0").await?;
++    let endpoint = crate::RemoteAppServerEndpoint::WebSocket {
++        websocket_url: format!(
++            "ws://fixture-user:fixture-password@{}/?token=fixture-token",
++            listener.local_addr()?
++        ),
++        auth_token: None,
++    };
++    drop(listener);
++    let result = reconnect(
++        crate::backend_id::BackendId::new(),
++        AppServerTarget::Remote { endpoint },
++        app.config.clone(),
++        app.local_settings.clone(),
++        None,
++        None,
++        crate::dynamic_tools_mcp::ThreadToolTransport::Dynamic,
++        ReconnectPresentation::Startup(tokio::time::Instant::now() + Duration::from_millis(100)),
++    )
++    .await;
++    let error = result
++        .err()
++        .expect("closed fixture endpoint cannot reconnect");
++    assert!(!error.is::<crate::app_server_connection::LocalVersionMismatch>());
++    assert_eq!(
++        error.to_string(),
++        "Automatic reconnect timed out while connecting to the server."
++    );
++    Ok(())
++}
++
+ #[tokio::test]
+ async fn lost_mutation_reply_preserves_work_without_resubmitting() -> Result<()> {
+     let (mut app, mut events, mut ops) = make_test_app_with_channels().await;
 diff --git a/codex-rs/tui/src/app/tests/history_hydration_tests.rs b/codex-rs/tui/src/app/tests/history_hydration_tests.rs
 index ecc4ba35e..6bfe4325f 100644
 --- a/codex-rs/tui/src/app/tests/history_hydration_tests.rs
@@ -98547,10 +99022,10 @@ index ec7d8b433..2d0eba36d 100644
          result: Err("current request failed".to_string()),
 diff --git a/codex-rs/tui/src/app/tests/plugin_reload_tests.rs b/codex-rs/tui/src/app/tests/plugin_reload_tests.rs
 new file mode 100644
-index 000000000..628a4d86e
+index 000000000..796648144
 --- /dev/null
 +++ b/codex-rs/tui/src/app/tests/plugin_reload_tests.rs
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,429 @@
 +//! Targeted reload never retargets a queued command or falls back to global config mutation.
 +
 +use super::session_lifecycle_requests::{
@@ -98610,13 +99085,215 @@ index 000000000..628a4d86e
 +        let history = next_history_message(&mut events);
 +        if capabilities == HistoryCapabilities::Current {
 +            assert!(history.contains("MCP reconnect requested"));
-+            assert!(history.contains("confirmed"));
++            let unwrapped = history.split_whitespace().collect::<Vec<_>>().join(" ");
++            assert!(unwrapped.contains("server readiness is not yet confirmed"));
 +        } else {
 +            assert!(history.contains("Plugin reload failed"));
 +            assert!(history.contains("method not found"));
 +        }
 +        proxy.abort();
 +    }
++    Ok(())
++}
++
++#[test]
++fn reload_plugin_messages_localize_without_translating_server_diagnostics() {
++    let thread_id = ThreadId::new();
++    let diagnostic = r"ignoring additionalContextLimit for Stop hook in C:\fixture\hooks.json: this event cannot emit additionalContext";
++    for (locale, requested, readiness, partial, invalid, failed, stale) in [
++        (
++            crate::i18n::Locale::English,
++            "MCP reconnect requested",
++            "server readiness is not yet confirmed",
++            "Partial refresh warnings:",
++            "invalid acknowledgement",
++            "Plugin reload failed",
++            "Stale plugin reload",
++        ),
++        (
++            crate::i18n::Locale::Korean,
++            "MCP 재연결을 요청",
++            "서버 준비 완료는 아직 확인하지 않았습니다",
++            "일부 새로고침 경고:",
++            "원래 대화와 일치하지 않거나 재연결 요청을 확인하지 않았습니다",
++            "플러그인 다시 읽기에 실패했습니다",
++            "요청이므로 전송하지 않았습니다",
++        ),
++    ] {
++        crate::i18n::with_locale(locale, || {
++            let clean = App::plugin_reload_result_message(thread_id, &[]);
++            let warning = App::plugin_reload_result_message(thread_id, &[diagnostic.to_string()]);
++            for message in [&clean, &warning] {
++                assert!(message.contains(&thread_id.to_string()));
++                assert!(message.contains(requested));
++                assert!(message.contains(readiness));
++            }
++            assert!(!clean.contains(partial));
++            assert!(warning.contains(partial));
++            assert!(warning.contains(diagnostic));
++            let invalid_ack = crate::i18n::message(
++                "cli-plugin-reload-invalid-ack",
++                &[("thread", &thread_id.to_string())],
++            );
++            assert!(invalid_ack.contains(invalid));
++            assert!(invalid_ack.contains(&thread_id.to_string()));
++            let failure = crate::i18n::message(
++                "cli-plugin-reload-failed",
++                &[("thread", &thread_id.to_string()), ("error", diagnostic)],
++            );
++            assert!(failure.contains(failed));
++            assert!(failure.contains(diagnostic));
++            let stale_message = crate::i18n::message("cli-plugin-reload-stale", &[]);
++            assert!(stale_message.contains(stale));
++            assert!(stale_message.contains("/reload_plugin"));
++        });
++    }
++}
++
++#[tokio::test]
++async fn reload_plugin_reports_unsupported_stop_setting_without_removing_the_hook() -> Result<()> {
++    let (mut app, mut events, _) = make_test_app_with_channels().await;
++    let owned_home = app._test_codex_home.as_ref().expect("owned fixture home");
++    assert_eq!(app.config.codex_home.as_path(), owned_home.path());
++    let config_path = app.config.codex_home.join("config.toml");
++    let config_bytes = b"[features]\ncodex_hooks = true\n";
++    std::fs::write(&config_path, config_bytes)?;
++    app.config.features.enable(Feature::CodexHooks)?;
++    app.config.config_layer_stack = app.config.config_layer_stack.with_user_config(
++        &config_path,
++        toml::from_str(std::str::from_utf8(config_bytes)?)?,
++    )?;
++    let (mut server, requests, proxy) = start_recording_app_server_with_history(
++        &app.config,
++        HistoryCapabilities::Current,
++        None,
++        None,
++        ThreadParamsMode::Embedded,
++        LoaderOverrides::without_managed_config_for_tests(),
++    )
++    .await?;
++    let started = server.start_thread(&app.config).await?;
++    let thread_id = started.session.thread_id;
++    app.enqueue_primary_thread_session(started.session, started.turns)
++        .await?;
++    let hooks_path = app.config.codex_home.join("hooks.json");
++    let original = serde_json::json!({
++        "description": "owned Stop reload fixture",
++        "hooks": {
++            "Stop": [{"hooks": [{
++                "type": "command", "command": "echo stop-fixture",
++                "timeout": 17, "statusMessage": "retained status",
++                "env": {"FIXTURE_VALUE": "retained"}, "futureField": "retained",
++                "additionalContextLimit": 8192,
++            }]}],
++            "PreToolUse": [{"matcher": "fixture-tool", "hooks": [{
++                "type": "command", "command": "echo other-event",
++                "additionalContextLimit": 4096,
++            }]}],
++        },
++    });
++    let mut corrected = original.clone();
++    corrected["hooks"]["Stop"][0]["hooks"][0]
++        .as_object_mut()
++        .expect("fixture handler")
++        .remove("additionalContextLimit");
++    let mut first_stop = None;
++    let mut tui = crate::tui::test_support::make_test_tui()?;
++    requests.lock().unwrap().clear();
++    for (document, expect_warning) in [(&original, true), (&corrected, false)] {
++        // The test explicitly edits only its fixture; reload must not edit either file.
++        let bytes = serde_json::to_vec_pretty(document)?;
++        std::fs::write(&hooks_path, &bytes)?;
++        let response = server.reload_plugins(thread_id).await?;
++        assert_eq!(response.thread_id, thread_id.to_string());
++        assert!(response.mcp_reconnect_requested);
++        let unsupported = response
++            .warnings
++            .iter()
++            .find(|warning| warning.contains("ignoring additionalContextLimit for Stop hook"));
++        assert_eq!(unsupported.is_some(), expect_warning);
++        if let Some(warning) = unsupported {
++            assert!(warning.contains(&hooks_path.display().to_string()));
++            assert!(warning.contains("the Stop hook remains configured"));
++            assert!(
++                warning.contains("Remove only additionalContextLimit from this Stop hook handler")
++            );
++        }
++        let inventory = crate::hooks_rpc::fetch_hooks_list(
++            server.request_handle(),
++            &crate::hooks_rpc::HooksListTarget::Thread(thread_id),
++        )
++        .await?;
++        let stop = inventory
++            .hooks
++            .iter()
++            .find(|hook| {
++                hook.event_name == codex_app_server_protocol::HookEventName::Stop
++                    && hook.source_path.as_path() == hooks_path.as_path()
++            })
++            .expect("Stop handler is retained after reload");
++        assert!(matches!(
++            &stop.handler,
++            codex_app_server_protocol::HookHandlerMetadata::Command { command, .. }
++                if command == "echo stop-fixture"
++        ));
++        assert!(stop.enabled);
++        assert_eq!(stop.timeout_sec, 17);
++        assert_eq!(stop.additional_context_limit, None);
++        if let Some(first) = &first_stop {
++            assert_eq!(
++                stop, first,
++                "removing an ignored field preserves hook identity"
++            );
++        } else {
++            first_stop = Some(stop.clone());
++        }
++        let command = queued_reload_plugin(&mut app, &mut events);
++        app.handle_event(&mut tui, &mut server, command).await?;
++        let cell = std::iter::from_fn(|| events.try_recv().ok())
++            .find_map(|event| match event {
++                AppEvent::InsertHistoryCell(cell) => Some(cell),
++                _ => None,
++            })
++            .expect("reload result history message");
++        // Unlike the shared 80-column helper, this preserves the diagnostic's
++        // uninterrupted text while still exercising the actual history cell.
++        let history = lines_to_single_string(&cell.display_lines(/*width*/ 4096));
++        assert!(history.contains("server readiness is not yet confirmed"));
++        assert_eq!(
++            history.contains("Partial refresh warnings:"),
++            expect_warning
++        );
++        if let Some(warning) = unsupported {
++            assert!(
++                history.contains(warning),
++                "server diagnostic is not rewritten"
++            );
++        }
++        assert_eq!(std::fs::read(&hooks_path)?, bytes);
++        assert_eq!(
++            std::fs::read(&config_path)?.as_slice(),
++            config_bytes.as_slice()
++        );
++        assert_eq!(
++            serde_json::from_slice::<serde_json::Value>(&bytes)?,
++            *document
++        );
++    }
++    let reloads = recorded_params(&requests, "thread/plugin/reload");
++    assert_eq!(reloads.len(), 4);
++    assert!(
++        reloads
++            .iter()
++            .all(|params| params["threadId"] == thread_id.to_string())
++    );
++    for forbidden in ["config/batchWrite", "config/mcpServer/reload", "turn/start"] {
++        assert!(
++            recorded_params(&requests, forbidden).is_empty(),
++            "{forbidden}"
++        );
++    }
++    proxy.abort();
 +    Ok(())
 +}
 +
@@ -100143,7 +100820,7 @@ index f810d3874..ddaf766ac 100644
 +    }
  }
 diff --git a/codex-rs/tui/src/app/thread_routing.rs b/codex-rs/tui/src/app/thread_routing.rs
-index e4ecae0ec..0d5f7e3f7 100644
+index e4ecae0ec..b6c426c8c 100644
 --- a/codex-rs/tui/src/app/thread_routing.rs
 +++ b/codex-rs/tui/src/app/thread_routing.rs
 @@ -7,6 +7,7 @@
@@ -100154,7 +100831,29 @@ index e4ecae0ec..0d5f7e3f7 100644
  use crate::chatwidget::ThreadInputStateRestoreMode;
  use codex_app_server_protocol::ThreadStartedNotification;
  use codex_app_server_protocol::TurnInterruptParams;
-@@ -81,7 +82,7 @@ impl App {
+@@ -17,6 +18,21 @@ use codex_app_server_protocol::WarningNotification;
+ const REALTIME_STOP_TIMEOUT: Duration = Duration::from_secs(/*secs*/ 1);
+ 
+ impl App {
++    pub(super) fn plugin_reload_result_message(thread_id: ThreadId, warnings: &[String]) -> String {
++        let message = crate::i18n::message(
++            "cli-plugin-reload-requested",
++            &[("thread", &thread_id.to_string())],
++        );
++        if warnings.is_empty() {
++            message
++        } else {
++            crate::i18n::message(
++                "cli-plugin-reload-partial-warnings",
++                &[("message", &message), ("warnings", &warnings.join("\n"))],
++            )
++        }
++    }
++
+     pub(super) async fn stop_realtime_conversation(&mut self, app_server: &mut AppServerSession) {
+         let thread_id = self
+             .background_voice
+@@ -81,7 +97,7 @@ impl App {
      pub(super) async fn set_thread_active(&mut self, thread_id: ThreadId, active: bool) {
          if let Some(channel) = self.thread_event_channels.get_mut(&thread_id) {
              let mut store = channel.store.lock().await;
@@ -100163,7 +100862,7 @@ index e4ecae0ec..0d5f7e3f7 100644
          }
      }
  
-@@ -109,7 +110,7 @@ impl App {
+@@ -109,7 +125,7 @@ impl App {
          if let Some(channel) = self.thread_event_channels.get_mut(&active_id) {
              let receiver = self.active_thread_rx.take();
              let mut store = channel.store.lock().await;
@@ -100172,7 +100871,7 @@ index e4ecae0ec..0d5f7e3f7 100644
              store.input_state = input_state;
              store.merge_recap_progress(recap_progress);
              if let Some(receiver) = receiver {
-@@ -149,7 +150,7 @@ impl App {
+@@ -149,7 +165,7 @@ impl App {
          let channel = self.thread_event_channels.get_mut(&thread_id)?;
          let receiver = channel.receiver.take()?;
          let mut store = channel.store.lock().await;
@@ -100181,20 +100880,25 @@ index e4ecae0ec..0d5f7e3f7 100644
          let snapshot = store.snapshot();
          Some((receiver, snapshot))
      }
-@@ -254,6 +255,12 @@ impl App {
+@@ -254,6 +270,17 @@ impl App {
              .agent_navigation
              .active_agent_label(self.current_displayed_thread_id(), self.primary_thread_id);
          self.chat_widget.set_active_agent_label(label);
-+        let summary = self
++        let mut summary = self
 +            .agent_navigation
 +            .status_summary(self.primary_thread_id, |id| {
 +                self.side_threads.contains_key(&id)
 +            });
++        summary.current_thread_id = self.current_displayed_thread_id();
++        summary.show_main |= summary.root.is_some()
++            && self
++                .current_displayed_thread_id()
++                .is_some_and(|id| Some(id) != self.primary_thread_id);
 +        self.chat_widget.set_subagent_status(summary);
          self.sync_side_thread_ui();
      }
  
-@@ -529,6 +536,16 @@ impl App {
+@@ -529,6 +556,16 @@ impl App {
          op: AppCommand,
      ) -> Result<()> {
          if self.thread_unavailable(thread_id) {
@@ -100211,7 +100915,7 @@ index e4ecae0ec..0d5f7e3f7 100644
              if let AppCommand::RealtimeConversationSpeech { delivery_id, .. } = &op {
                  self.chat_widget
                      .restore_undelivered_realtime_speech(*delivery_id);
-@@ -547,6 +564,16 @@ impl App {
+@@ -547,6 +584,16 @@ impl App {
              return Ok(());
          }
          if self.chat_widget.rejects_misalignment_policy_op(&op) {
@@ -100228,7 +100932,7 @@ index e4ecae0ec..0d5f7e3f7 100644
              if let AppCommand::RealtimeConversationSpeech { delivery_id, .. } = &op {
                  self.chat_widget
                      .restore_undelivered_realtime_speech(*delivery_id);
-@@ -799,6 +826,31 @@ impl App {
+@@ -799,6 +846,31 @@ impl App {
                  self.chat_widget.on_review_started();
                  Ok(true)
              }
@@ -100260,7 +100964,7 @@ index e4ecae0ec..0d5f7e3f7 100644
              AppCommand::CleanBackgroundTerminals => {
                  app_server
                      .thread_background_terminals_clean(thread_id)
-@@ -868,6 +920,107 @@ impl App {
+@@ -868,6 +940,107 @@ impl App {
                      .await?;
                  Ok(true)
              }
@@ -100334,9 +101038,8 @@ index e4ecae0ec..0d5f7e3f7 100644
 +                if self.chat_widget.thread_id() != Some(thread_id)
 +                    || *owner_generation != self.chat_widget.thread_runtime_generation
 +                {
-+                    self.chat_widget.add_error_message(
-+                        "Stale plugin reload after conversation/backend change or reconnect; no request was sent. Run /reload_plugin again in the displayed conversation.".into(),
-+                    );
++                    self.chat_widget
++                        .add_error_message(crate::i18n::message("cli-plugin-reload-stale", &[]));
 +                    return Ok(true);
 +                }
 +                match app_server.reload_plugins(thread_id).await {
@@ -100344,23 +101047,24 @@ index e4ecae0ec..0d5f7e3f7 100644
 +                        if response.thread_id == thread_id.to_string()
 +                            && response.mcp_reconnect_requested =>
 +                    {
-+                        let message = format!(
-+                            "Reloaded plugin configuration for {thread_id}. MCP reconnect requested for the next capture; server readiness is not yet confirmed."
-+                        );
++                        let message =
++                            Self::plugin_reload_result_message(thread_id, &response.warnings);
 +                        if response.warnings.is_empty() {
 +                            self.chat_widget.add_info_message(message, None);
 +                        } else {
-+                            self.chat_widget.add_error_message(format!(
-+                                "{message} Partial refresh warnings:\n{}",
-+                                response.warnings.join("\n")
-+                            ));
++                            self.chat_widget.add_error_message(message);
 +                        }
 +                    }
-+                    Ok(_) => self.chat_widget.add_error_message(format!(
-+                        "Plugin reload returned an invalid acknowledgement for {thread_id}."
++                    Ok(_) => self.chat_widget.add_error_message(crate::i18n::message(
++                        "cli-plugin-reload-invalid-ack",
++                        &[("thread", &thread_id.to_string())],
 +                    )),
-+                    Err(err) => self.chat_widget.add_error_message(format!(
-+                        "Plugin reload failed for {thread_id}: {err:#}"
++                    Err(err) => self.chat_widget.add_error_message(crate::i18n::message(
++                        "cli-plugin-reload-failed",
++                        &[
++                            ("thread", &thread_id.to_string()),
++                            ("error", &format!("{err:#}")),
++                        ],
 +                    )),
 +                }
 +                Ok(true)
@@ -100368,7 +101072,7 @@ index e4ecae0ec..0d5f7e3f7 100644
              AppCommand::ReloadUserConfig => {
                  app_server.reload_user_config().await?;
                  Ok(true)
-@@ -969,25 +1122,61 @@ impl App {
+@@ -969,25 +1142,61 @@ impl App {
  
          let mut pending_thread_ids = Vec::new();
          for (thread_id, store) in channels {
@@ -100436,7 +101140,7 @@ index e4ecae0ec..0d5f7e3f7 100644
      }
  
      pub(super) async fn refresh_side_parent_status_from_store(&mut self, thread_id: ThreadId) {
-@@ -1111,6 +1300,16 @@ impl App {
+@@ -1111,6 +1320,16 @@ impl App {
          } else {
              None
          };
@@ -100453,7 +101157,7 @@ index e4ecae0ec..0d5f7e3f7 100644
          let is_turn_started = matches!(notification, ServerNotification::TurnStarted(_));
          let is_thread_closed = matches!(notification, ServerNotification::ThreadClosed(_));
          let notification_status_change = SideParentStatusChange::for_notification(&notification);
-@@ -1118,7 +1317,13 @@ impl App {
+@@ -1118,7 +1337,13 @@ impl App {
              let channel = self.ensure_thread_channel(thread_id);
              (channel.sender.clone(), Arc::clone(&channel.store))
          };
@@ -100468,7 +101172,7 @@ index e4ecae0ec..0d5f7e3f7 100644
              let mut guard = store.lock().await;
              if guard.session.is_none()
                  && let Some(session) = inferred_session
-@@ -1151,6 +1356,7 @@ impl App {
+@@ -1151,6 +1376,7 @@ impl App {
                  previous_pending_status,
                  guard.side_parent_pending_status(),
                  turn_stopped,
@@ -100476,7 +101180,7 @@ index e4ecae0ec..0d5f7e3f7 100644
              )
          };
          if is_turn_started {
-@@ -1160,6 +1366,9 @@ impl App {
+@@ -1160,6 +1386,9 @@ impl App {
          } else if turn_stopped {
              self.agent_navigation.mark_stopped(thread_id);
          }
@@ -100486,7 +101190,7 @@ index e4ecae0ec..0d5f7e3f7 100644
  
          // Settings snapshots do not belong in the transcript queue: apply them in receive order.
          if let Some(ServerNotification::ThreadSettingsUpdated(settings)) = notification.as_ref()
-@@ -1434,6 +1643,7 @@ impl App {
+@@ -1434,6 +1663,7 @@ impl App {
          if self.primary_thread_id != Some(thread_id) {
              self.recap.reset_for_new_thread(Instant::now());
          }
@@ -100494,7 +101198,7 @@ index e4ecae0ec..0d5f7e3f7 100644
          self.primary_thread_id = Some(thread_id);
          self.agents_overview.hidden_threads.remove(&thread_id);
          self.agents_overview.threads.entry(thread_id).or_default();
-@@ -1445,7 +1655,7 @@ impl App {
+@@ -1445,7 +1675,7 @@ impl App {
          let channel = self.ensure_thread_channel(thread_id);
          {
              let mut store = channel.store.lock().await;
@@ -100503,7 +101207,7 @@ index e4ecae0ec..0d5f7e3f7 100644
          }
          self.activate_thread_channel(thread_id).await;
          self.chat_widget
-@@ -1476,10 +1686,10 @@ impl App {
+@@ -1476,10 +1706,10 @@ impl App {
  
          self.chat_widget
              .replay_thread_turns(turns, ReplayKind::ResumeInitialMessages);
@@ -100518,7 +101222,7 @@ index e4ecae0ec..0d5f7e3f7 100644
          self.restore_realtime_replay_state_after_replay(
              &replayed_final_items,
              retained_assistant_captions,
-@@ -1544,6 +1754,39 @@ impl App {
+@@ -1544,6 +1774,39 @@ impl App {
          snapshot: &mut ThreadEventSnapshot,
      ) -> bool {
          if !self.should_refresh_snapshot_session(thread_id, is_replay_only, snapshot) {
@@ -100558,7 +101262,7 @@ index e4ecae0ec..0d5f7e3f7 100644
              return true;
          }
  
-@@ -1603,7 +1846,7 @@ impl App {
+@@ -1603,7 +1866,7 @@ impl App {
          let AppServerStartedThread { session, turns, .. } = started;
          if let Some(channel) = self.thread_event_channels.get(&thread_id) {
              let mut store = channel.store.lock().await;
@@ -100567,7 +101271,7 @@ index e4ecae0ec..0d5f7e3f7 100644
              store.rebase_buffer_after_session_refresh();
              snapshot.active_reasoning_item = store.active_reasoning_item.clone();
          }
-@@ -1699,6 +1942,8 @@ impl App {
+@@ -1699,6 +1962,8 @@ impl App {
          let mut reasoning_replay = reasoning_replay::ReasoningReplay::new(&mut snapshot);
          let replayed_final_items = realtime_delivery::completed_agent_items(&snapshot);
          let replayed_voice_texts = realtime_delivery::replayed_voice_texts(&snapshot);
@@ -100576,7 +101280,7 @@ index e4ecae0ec..0d5f7e3f7 100644
          replay_filter::omit_completed_agent_deltas(&mut snapshot.events);
          let request_changes = snapshot
              .events
-@@ -2189,3 +2434,7 @@ mod tests {
+@@ -2189,3 +2454,7 @@ mod tests {
          );
      }
  }
@@ -100851,19 +101555,37 @@ index 2adc3036a..6582988b8 100644
      PersistServiceTierSelection {
          service_tier: Option<String>,
 diff --git a/codex-rs/tui/src/app_server_connection.rs b/codex-rs/tui/src/app_server_connection.rs
-index ac3ab1cb2..6430ddc12 100644
+index ac3ab1cb2..245c2323f 100644
 --- a/codex-rs/tui/src/app_server_connection.rs
 +++ b/codex-rs/tui/src/app_server_connection.rs
-@@ -15,7 +15,7 @@ use codex_app_server_client::RemoteAppServerEndpoint;
+@@ -14,10 +14,24 @@ use codex_app_server_client::RemoteAppServerEndpoint;
+ #[cfg(windows)]
  use codex_utils_absolute_path::AbsolutePathBuf;
  
++/// Only this refusal is safe to forward as a connection diagnostic to the UI.
++/// Its message is built from the sanitized endpoint and version metadata below.
++#[derive(Debug, thiserror::Error)]
++#[error("{warning}")]
++pub(crate) struct LocalVersionMismatch {
++    warning: String,
++}
++
++impl LocalVersionMismatch {
++    pub(crate) fn embedded_warning(&self) -> String {
++        crate::i18n::message("daemon-running-embedded", &[("reason", &self.warning)])
++    }
++}
++
  pub(crate) async fn connect(target: &AppServerTarget) -> color_eyre::Result<AppServerClient> {
 -    match target {
 +    let client = match target {
          AppServerTarget::Embedded => {
-             color_eyre::eyre::bail!("embedded sessions have no remote connection")
+-            color_eyre::eyre::bail!("embedded sessions have no remote connection")
++            color_eyre::eyre::bail!("embedded sessions have no remote connection");
          }
-@@ -45,5 +45,38 @@ pub(crate) async fn connect(target: &AppServerTarget) -> color_eyre::Result<AppS
+         #[cfg(windows)]
+         AppServerTarget::LocalDaemon {
+@@ -45,5 +59,38 @@ pub(crate) async fn connect(target: &AppServerTarget) -> color_eyre::Result<AppS
          AppServerTarget::LocalDaemon { endpoint, .. } | AppServerTarget::Remote { endpoint } => {
              connect_remote_app_server(endpoint.clone()).await
          }
@@ -100897,7 +101619,7 @@ index ac3ab1cb2..6430ddc12 100644
 +            if let Err(error) = client.shutdown().await {
 +                tracing::warn!(%error, "could not close rejected shared server connection");
 +            }
-+            color_eyre::eyre::bail!(warning);
++            return Err(LocalVersionMismatch { warning }.into());
 +        }
      }
 +    Ok(client)
@@ -108305,10 +109027,10 @@ index 4c455ed8c..e741da615 100644
                  SlashCommand::Status,
 diff --git a/codex-rs/tui/src/bottom_pane/subagent_status.rs b/codex-rs/tui/src/bottom_pane/subagent_status.rs
 new file mode 100644
-index 000000000..8461fd35c
+index 000000000..a6ac41d74
 --- /dev/null
 +++ b/codex-rs/tui/src/bottom_pane/subagent_status.rs
-@@ -0,0 +1,1258 @@
+@@ -0,0 +1,1317 @@
 +//! Root-scoped, event-driven agent footer. Expanded details never exceed three rows.
 +//! Only cached UI metadata is rendered; this surface never reads backend state.
 +
@@ -108393,6 +109115,9 @@ index 000000000..8461fd35c
 +pub(crate) struct SubagentStatusSummary {
 +    counts: [usize; 8],
 +    pub(crate) root: Option<ThreadId>,
++    // Navigation metadata is separate from descendant state/counts.
++    pub(crate) show_main: bool,
++    pub(crate) current_thread_id: Option<ThreadId>,
 +    entries: Vec<SubagentStatusEntry>,
 +}
 +
@@ -108416,9 +109141,11 @@ index 000000000..8461fd35c
 +    }
 +
 +    pub(crate) fn contains_visible_thread(&self, thread_id: ThreadId) -> bool {
-+        self.entries
-+            .iter()
-+            .any(|entry| entry.thread_id == thread_id && entry.visible())
++        self.root == Some(thread_id)
++            || self
++                .entries
++                .iter()
++                .any(|entry| entry.thread_id == thread_id && entry.visible())
 +    }
 +
 +    fn line(&self, width: u16) -> Line<'static> {
@@ -108524,7 +109251,11 @@ index 000000000..8461fd35c
 +        let next = if !self.contains_mouse(event) {
 +            None
 +        } else if event.row == area.y {
-+            Some(SubagentHover::Summary)
++            if self.compact_main() {
++                self.summary.root.map(SubagentHover::Agent)
++            } else {
++                Some(SubagentHover::Summary)
++            }
 +        } else {
 +            self.painted_rows
 +                .borrow()
@@ -108553,13 +109284,26 @@ index 000000000..8461fd35c
 +        }
 +    }
 +    pub(crate) fn is_empty(&self) -> bool {
-+        self.summary.is_empty()
-+            || (!self.summary.entries.is_empty()
-+                && !self
-+                    .summary
-+                    .entries
-+                    .iter()
-+                    .any(SubagentStatusEntry::visible))
++        !self.has_main()
++            && (self.summary.is_empty()
++                || (!self.summary.entries.is_empty()
++                    && !self
++                        .summary
++                        .entries
++                        .iter()
++                        .any(SubagentStatusEntry::visible)))
++    }
++
++    fn has_main(&self) -> bool {
++        self.summary.show_main && self.summary.root.is_some()
++    }
++
++    fn child_rows(&self) -> usize {
++        MAX_AGENT_ROWS - usize::from(self.has_main())
++    }
++
++    fn compact_main(&self) -> bool {
++        self.has_main() && self.area.get().height == 1
 +    }
 +
 +    fn visible_summary(&self) -> SubagentStatusSummary {
@@ -108605,7 +109349,7 @@ index 000000000..8461fd35c
 +        self.summary = summary;
 +        self.offset = self
 +            .offset
-+            .min(self.entries().len().saturating_sub(MAX_AGENT_ROWS));
++            .min(self.entries().len().saturating_sub(self.child_rows()));
 +        if self.focused.get()
 +            && let Some(index) = self.selected.and_then(|id| {
 +                self.entries()
@@ -108615,8 +109359,8 @@ index 000000000..8461fd35c
 +        {
 +            if index < self.offset {
 +                self.offset = index;
-+            } else if index >= self.offset + MAX_AGENT_ROWS {
-+                self.offset = index + 1 - MAX_AGENT_ROWS;
++            } else if index >= self.offset + self.child_rows() {
++                self.offset = index + 1 - self.child_rows();
 +            }
 +        }
 +        true
@@ -108644,7 +109388,7 @@ index 000000000..8461fd35c
 +    }
 +
 +    fn scroll(&mut self, down: bool) {
-+        let max = self.entries().len().saturating_sub(MAX_AGENT_ROWS);
++        let max = self.entries().len().saturating_sub(self.child_rows());
 +        self.offset = if down {
 +            self.offset.saturating_add(1).min(max)
 +        } else {
@@ -108708,6 +109452,15 @@ index 000000000..8461fd35c
 +                    let index = self
 +                        .selected
 +                        .and_then(|id| entries.iter().position(|entry| entry.thread_id == id));
++                    if self.has_main()
++                        && key.code == KeyCode::Up
++                        && (index == Some(0) || self.selected == self.summary.root)
++                    {
++                        self.selected = self.summary.root;
++                        self.painted_rows.borrow_mut().clear();
++                        self.clear_hover();
++                        return true;
++                    }
 +                    let next = match (key.code, index) {
 +                        (KeyCode::Up, Some(index)) => index.saturating_sub(1),
 +                        (KeyCode::Down, Some(index)) => {
@@ -108718,8 +109471,8 @@ index 000000000..8461fd35c
 +                    self.selected = entries.get(next).map(|entry| entry.thread_id);
 +                    if next < self.offset {
 +                        self.offset = next;
-+                    } else if next >= self.offset + MAX_AGENT_ROWS {
-+                        self.offset = next + 1 - MAX_AGENT_ROWS;
++                    } else if next >= self.offset + self.child_rows() {
++                        self.offset = next + 1 - self.child_rows();
 +                    }
 +                    self.painted_rows.borrow_mut().clear();
 +                    self.clear_hover();
@@ -108754,6 +109507,11 @@ index 000000000..8461fd35c
 +            return false;
 +        }
 +        match event.kind {
++            MouseEventKind::Down(MouseButton::Left) if self.compact_main() => {
++                if let Some(root) = self.summary.root {
++                    self.select(root);
++                }
++            }
 +            MouseEventKind::Down(MouseButton::Left) if event.row == self.area.get().y => {
 +                self.toggle();
 +            }
@@ -108790,11 +109548,12 @@ index 000000000..8461fd35c
 +        if width == 0 || self.panel.is_empty() {
 +            return 0;
 +        }
-+        1 + if self.allow_expanded && self.panel.expanded && width >= 48 {
-+            self.panel.entries().len().min(MAX_AGENT_ROWS) as u16
-+        } else {
-+            0
-+        }
++        1 + u16::from(self.panel.has_main())
++            + if self.allow_expanded && self.panel.expanded && width >= 48 {
++                self.panel.entries().len().min(self.panel.child_rows()) as u16
++            } else {
++                0
++            }
 +    }
 +
 +    fn render(&self, area: Rect, buf: &mut Buffer) {
@@ -108807,24 +109566,28 @@ index 000000000..8461fd35c
 +        let show_details = self.allow_expanded
 +            && self.panel.expanded
 +            && area.width >= 48
-+            && usize::from(area.height) > entries.len().min(MAX_AGENT_ROWS);
++            && usize::from(area.height)
++                > entries.len().min(self.panel.child_rows()) + usize::from(self.panel.has_main());
 +        if !show_details {
 +            self.panel.focused.set(false);
 +        }
 +        let offset = self
 +            .panel
 +            .offset
-+            .min(entries.len().saturating_sub(MAX_AGENT_ROWS));
-+        let painted_rows: Vec<_> = if show_details {
-+            entries
-+                .iter()
-+                .skip(offset)
-+                .take(MAX_AGENT_ROWS)
-+                .map(|entry| entry.thread_id)
-+                .collect()
-+        } else {
-+            Vec::new()
-+        };
++            .min(entries.len().saturating_sub(self.panel.child_rows()));
++        let mut painted_rows: Vec<_> = Vec::new();
++        if self.panel.has_main() {
++            painted_rows.extend(self.panel.summary.root);
++        }
++        if show_details {
++            painted_rows.extend(
++                entries
++                    .iter()
++                    .skip(offset)
++                    .take(self.panel.child_rows())
++                    .map(|entry| entry.thread_id),
++            );
++        }
 +        if self.panel.area.get() != area || *self.panel.painted_rows.borrow() != painted_rows {
 +            self.panel.clear_hover();
 +        }
@@ -108847,39 +109610,17 @@ index 000000000..8461fd35c
 +                    &[],
 +                )
 +            );
-+            hint = keyboard_hint.clone();
-+            if hovered == Some(SubagentHover::Summary) {
-+                hint = format!(
-+                    " · {}",
-+                    message(
-+                        if self.panel.expanded {
-+                            "r37-agents-click-collapse"
-+                        } else {
-+                            "r37-agents-click-expand"
-+                        },
-+                        &[],
-+                    )
-+                );
-+                if Line::from(format!("{hint}{keyboard_hint}")).width() + 14
-+                    < usize::from(area.width)
-+                {
-+                    hint.push_str(&keyboard_hint);
-+                }
-+            } else {
-+                if show_details && self.panel.focused.get() {
-+                    let selection = format!(" · {}", message("r37-agents-select", &[]));
-+                    if Line::from(format!("{hint}{selection}")).width() + 14
-+                        < usize::from(area.width)
-+                    {
-+                        hint.push_str(&selection);
-+                    }
-+                }
-+                if Line::from(format!("{hint}{click_hint}")).width() + 14 < usize::from(area.width)
-+                {
-+                    hint.push_str(&click_hint);
++            hint = keyboard_hint;
++            if show_details && self.panel.focused.get() {
++                let selection = format!(" · {}", message("r37-agents-select", &[]));
++                if Line::from(format!("{hint}{selection}")).width() + 14 < usize::from(area.width) {
++                    hint.push_str(&selection);
 +                }
 +            }
-+            if self.panel.expanded && entries.len() > MAX_AGENT_ROWS {
++            if Line::from(format!("{hint}{click_hint}")).width() + 14 < usize::from(area.width) {
++                hint.push_str(&click_hint);
++            }
++            if self.panel.expanded && entries.len() > self.panel.child_rows() {
 +                let position = format!(" [{}/{}]", offset + 1, entries.len());
 +                if Line::from(format!("{hint}{position}")).width() + 14 < usize::from(area.width) {
 +                    hint.push_str(&position);
@@ -108895,22 +109636,54 @@ index 000000000..8461fd35c
 +            line = summary.line(area.width.saturating_sub(hint_width as u16));
 +            line.push_span(hint.dim());
 +        }
-+        if hovered == Some(SubagentHover::Summary) {
-+            line = line.reversed().underlined();
++        if hovered == Some(SubagentHover::Summary)
++            && let Some(span) = line.spans.first_mut()
++            && let Some(first) = span.content.chars().next()
++        {
++            span.content = span.content[first.len_utf8()..].to_owned().into();
++            line.spans.insert(0, first.to_string().dim().underlined());
 +        }
-+        let mut lines = vec![line];
++        let mut lines = if self.panel.compact_main() {
++            Vec::new()
++        } else {
++            vec![line]
++        };
++        if self.panel.has_main() {
++            let root = self.panel.summary.root.unwrap();
++            let current = self.panel.summary.current_thread_id == Some(root);
++            let selected = self.panel.focused.get() && self.panel.selected == Some(root);
++            let marker = if selected {
++                "›"
++            } else if current {
++                "●"
++            } else {
++                " "
++            };
++            let marker = format!("{marker} ").dim();
++            let marker = if hovered == Some(SubagentHover::Agent(root)) {
++                marker.underlined()
++            } else {
++                marker
++            };
++            lines.push(truncate_line_with_ellipsis_if_overflow(
++                Line::from(vec![marker, message("r38-agents-main", &[]).dim()]),
++                usize::from(area.width),
++            ));
++        }
 +        if show_details {
-+            for entry in entries
-+                .iter()
-+                .skip(offset)
-+                .take(MAX_AGENT_ROWS.min(usize::from(area.height - 1)))
-+            {
++            for entry in entries.iter().skip(offset).take(self.panel.child_rows()) {
 +                let name = crate::text_formatting::truncate_text(&entry.name, 24);
 +                let selected =
 +                    self.panel.focused.get() && self.panel.selected == Some(entry.thread_id);
 +                let hovered = hovered == Some(SubagentHover::Agent(entry.thread_id));
-+                let marker = if selected { "›" } else { " " };
-+                let mut detail = format!("{marker} {name} · {}", text(entry.state.label()));
++                let marker = if selected {
++                    "›"
++                } else if self.panel.summary.current_thread_id == Some(entry.thread_id) {
++                    "●"
++                } else {
++                    " "
++                };
++                let mut detail = format!("{name} · {}", text(entry.state.label()));
 +                detail.push_str(&format!(
 +                    " · {}",
 +                    entry
@@ -108933,11 +109706,7 @@ index 000000000..8461fd35c
 +                            .as_secs()
 +                            .checked_sub(started)
 +                    });
-+                let mut suffix = if hovered {
-+                    format!(" · {}", message("r37-agents-click-open", &[]))
-+                } else {
-+                    String::new()
-+                };
++                let mut suffix = String::new();
 +                suffix.push_str(
 +                    &elapsed
 +                        .map(|seconds| {
@@ -108949,18 +109718,17 @@ index 000000000..8461fd35c
 +                        .unwrap_or_default(),
 +                );
 +                let suffix_width = Line::from(suffix.as_str()).width();
++                let marker = if hovered {
++                    format!("{marker} ").dim().underlined()
++                } else {
++                    format!("{marker} ").dim()
++                };
 +                let mut line = truncate_line_with_ellipsis_if_overflow(
-+                    Line::from(detail.dim()),
++                    Line::from(vec![marker, detail.dim()]),
 +                    usize::from(area.width).saturating_sub(suffix_width),
 +                );
 +                line.push_span(suffix.dim());
-+                lines.push(if hovered {
-+                    line.reversed().underlined()
-+                } else if selected {
-+                    line.reversed()
-+                } else {
-+                    line
-+                });
++                lines.push(line);
 +            }
 +        }
 +        Paragraph::new(lines).render(area, buf);
@@ -109035,88 +109803,101 @@ index 000000000..8461fd35c
 +    }
 +
 +    #[test]
-+    fn footer_hover_reveals_localized_actions_without_selecting_or_repeated_changes() {
++    fn footer_hover_is_subtle_and_keeps_text_geometry_and_click_behavior() {
 +        use ratatui::style::Modifier;
-+        // Real frames reset their back buffer in Terminal::swap_buffers before rendering.
-+        for (locale, click_hint, expand_hint, collapse_hint, open_hint) in [
-+            (
-+                crate::i18n::Locale::English,
-+                "click",
-+                "click expand",
-+                "click collapse",
-+                "click open chat",
-+            ),
-+            (
-+                crate::i18n::Locale::Korean,
-+                "클릭",
-+                "클릭 펼치기",
-+                "클릭 접기",
-+                "클릭 대화 이동",
-+            ),
-+        ] {
++        for locale in [crate::i18n::Locale::English, crate::i18n::Locale::Korean] {
 +            crate::i18n::with_locale(locale, || {
 +                let root = ThreadId::new();
 +                let summary = summary_with_agents(15, root);
 +                let child = summary.entries[0].thread_id;
 +                let mut panel = SubagentStatusPanel::default();
 +                panel.update(summary);
-+                let area = Rect::new(7, 11, 120, 1);
-+                let mut buffer = Buffer::empty(area);
-+                buffer.reset();
-+                panel.view(true).render(area, &mut buffer);
-+                let text = hover_row_text(&buffer, 11);
-+                assert!(text.contains(click_hint));
-+                let moved = MouseEvent {
-+                    kind: MouseEventKind::Moved,
-+                    ..click(9, 11)
-+                };
-+                assert!(panel.handle_hover(moved));
-+                assert!(!panel.handle_hover(MouseEvent {
-+                    column: 10,
-+                    ..moved
-+                }));
-+                buffer.reset();
-+                panel.view(true).render(area, &mut buffer);
-+                assert!(buffer[(7, 11)].modifier.contains(Modifier::REVERSED));
-+                let text = hover_row_text(&buffer, 11);
-+                assert!(text.contains(expand_hint));
-+                assert_eq!(panel.take_selection(), None);
-+                assert!(!panel.owns_selection_key(KeyCode::Enter.into()));
-+                assert!(panel.handle_mouse(click(9, 11)));
-+                assert!(panel.handle_key(KeyCode::Esc.into()));
-+                let area = Rect { height: 4, ..area };
-+                let mut buffer = Buffer::empty(area);
-+                buffer.reset();
-+                panel.view(true).render(area, &mut buffer);
-+                assert!(panel.handle_hover(moved));
-+                buffer.reset();
-+                panel.view(true).render(area, &mut buffer);
-+                assert!(hover_row_text(&buffer, 11).contains(collapse_hint));
-+                let moved = MouseEvent { row: 12, ..moved };
-+                assert!(panel.handle_hover(moved));
-+                assert!(!panel.handle_hover(MouseEvent {
-+                    column: 10,
-+                    ..moved
-+                }));
-+                buffer.reset();
-+                panel.view(true).render(area, &mut buffer);
-+                let row = hover_row_text(&buffer, 12);
-+                assert!(row.contains(open_hint), "{row}");
-+                assert!(
-+                    buffer[(7, 12)]
-+                        .modifier
-+                        .contains(Modifier::REVERSED | Modifier::UNDERLINED)
-+                );
-+                assert_eq!(panel.take_selection(), None);
-+                assert!(!panel.owns_selection_key(KeyCode::Enter.into()));
-+                assert!(panel.handle_hover(MouseEvent { column: 6, ..moved }));
-+                assert!(!panel.handle_hover(MouseEvent { column: 5, ..moved }));
-+                buffer.reset();
-+                panel.view(true).render(area, &mut buffer);
-+                assert!(!buffer[(7, 12)].modifier.contains(Modifier::REVERSED));
++                for expanded in [false, true] {
++                    if expanded {
++                        assert!(panel.handle_mouse(click(9, 11)));
++                        assert!(panel.handle_key(KeyCode::Esc.into()));
++                    }
++                    let area = Rect::new(7, 11, 120, if expanded { 4 } else { 1 });
++                    let mut before = Buffer::empty(area);
++                    panel.view(true).render(area, &mut before);
++                    for row in 11..area.bottom() {
++                        let moved = MouseEvent {
++                            kind: MouseEventKind::Moved,
++                            ..click(9, row)
++                        };
++                        assert!(panel.handle_hover(moved));
++                        assert!(!panel.handle_hover(MouseEvent {
++                            column: 10,
++                            ..moved
++                        }));
++                        let mut hovered = Buffer::empty(area);
++                        panel.view(true).render(area, &mut hovered);
++                        assert_eq!(hover_row_text(&hovered, row), hover_row_text(&before, row));
++                        assert!(
++                            !hovered
++                                .content()
++                                .iter()
++                                .any(|cell| cell.modifier.contains(Modifier::REVERSED))
++                        );
++                        let underlined = hovered
++                            .content()
++                            .iter()
++                            .filter(|cell| cell.modifier.contains(Modifier::UNDERLINED))
++                            .count();
++                        assert!(
++                            (1..=2).contains(&underlined),
++                            "only the small action marker reacts"
++                        );
++                        assert_eq!(panel.take_selection(), None);
++                        assert!(!panel.owns_selection_key(KeyCode::Enter.into()));
++                    }
++                }
 +                assert!(panel.handle_mouse(click(9, 12)));
 +                assert_eq!(panel.take_selection(), Some((root, child)));
 +            });
++        }
++    }
++
++    #[test]
++    fn main_agent_row_is_pinned_counted_separately_and_clickable_in_small_layouts() {
++        for count in [0, 15, 100] {
++            let root = ThreadId::new();
++            let mut summary = summary_with_agents(count, root);
++            summary.show_main = true;
++            summary.current_thread_id = Some(ThreadId::new());
++            assert_eq!(summary.counts()[SubagentState::Running as usize], count);
++            let mut panel = SubagentStatusPanel::default();
++            panel.update(summary.clone());
++            for expanded in [false, true] {
++                panel.expanded = expanded;
++                for _ in 0..count + 1 {
++                    panel.scroll(true);
++                }
++                for (width, allow_expanded) in
++                    [(1, true), (24, true), (47, true), (120, true), (120, false)]
++                {
++                    let (height, text) = render_panel(&panel, width, allow_expanded);
++                    assert!((2..=4).contains(&height));
++                    if width >= 24 {
++                        assert!(text.contains(&message("r38-agents-main", &[])));
++                    }
++                    assert_eq!(panel.painted_rows.borrow().first(), Some(&root));
++                    assert!(panel.painted_rows.borrow().len() <= MAX_AGENT_ROWS);
++                    assert!(panel.handle_mouse(click(0, 1)));
++                    assert_eq!(panel.take_selection(), Some((root, root)));
++                }
++            }
++            // A terminal height clip keeps return available by replacing the summary.
++            render_panel_at(&panel, Rect::new(7, 11, 24, 1));
++            assert!(panel.handle_mouse(click(7, 11)));
++            assert_eq!(panel.take_selection(), Some((root, root)));
++            summary.current_thread_id = Some(root);
++            panel.update(summary);
++            let (_, text) = render_panel(&panel, 120, false);
++            assert!(text.contains("●"), "current main has a persistent marker");
++            panel.update(SubagentStatusSummary::default());
++            assert!(!panel.handle_mouse(click(0, 1)));
++            assert_eq!(panel.take_selection(), None);
 +        }
 +    }
 +
@@ -115634,10 +116415,28 @@ index 000000000..da9f5f05d
 +    }
 +}
 diff --git a/codex-rs/tui/src/daemon_startup.rs b/codex-rs/tui/src/daemon_startup.rs
-index 6c7dca507..4cdf228c1 100644
+index 6c7dca507..af845ec4e 100644
 --- a/codex-rs/tui/src/daemon_startup.rs
 +++ b/codex-rs/tui/src/daemon_startup.rs
-@@ -159,7 +159,9 @@ pub(super) async fn compatibility_warning(
+@@ -17,6 +17,17 @@ use std::collections::BTreeMap;
+ pub(super) const FAILURE_HINT: &str = "To work without the background server, rerun the same command with --no-daemon (including resume or fork and its arguments).";
+ pub(super) const WSL_DRVFS_EXCLUSION: &str = "a Windows-mounted WSL CODEX_HOME (DrvFS/9p)";
+ 
++pub(crate) fn emit_startup_warning(
++    warning: Option<String>,
++    events: &crate::app_event_sender::AppEventSender,
++) {
++    if let Some(warning) = warning {
++        events.send(crate::app_event::AppEvent::InsertHistoryCell(Box::new(
++            crate::history_cell::StartupWarningsCell::new(vec![warning]),
++        )));
++    }
++}
++
+ /// Returns whether `codex_home` is on a Windows-mounted WSL filesystem.
+ pub fn uses_wsl_drvfs(codex_home: &std::path::Path) -> bool {
+     // The managed daemon writes an executable and Unix-style state beneath CODEX_HOME.
+@@ -159,7 +170,9 @@ pub(super) async fn compatibility_warning(
          // Connect even without overrides so startup can recover from an unreachable daemon.
          let client = app_server_connection::connect(target)
              .await
@@ -115648,7 +116447,7 @@ index 6c7dca507..4cdf228c1 100644
          if requested.is_empty() {
              let _ = client.shutdown().await;
              return Ok(());
-@@ -239,9 +241,9 @@ pub(super) async fn compatibility_warning(
+@@ -239,9 +252,9 @@ pub(super) async fn compatibility_warning(
      .await;
      match check {
          Ok(()) => Ok(None),
@@ -115662,7 +116461,7 @@ index 6c7dca507..4cdf228c1 100644
              reason,
              restart_features,
 diff --git a/codex-rs/tui/src/daemon_startup_tests.rs b/codex-rs/tui/src/daemon_startup_tests.rs
-index c689eeb50..683d4b5a8 100644
+index c689eeb50..155bf3135 100644
 --- a/codex-rs/tui/src/daemon_startup_tests.rs
 +++ b/codex-rs/tui/src/daemon_startup_tests.rs
 @@ -153,7 +153,7 @@ async fn daemon_feature_compatibility_respects_required_and_optional_attachment(
@@ -115674,7 +116473,18 @@ index c689eeb50..683d4b5a8 100644
                          }
                          "config/read" => {
                              json!({"id": request.id, "result": {"config": {}, "layers": [{
-@@ -262,6 +262,9 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
+@@ -207,7 +207,9 @@ async fn daemon_feature_compatibility_respects_required_and_optional_attachment(
+                 let warning = result?.expect("optional attachment should fall back");
+                 assert_eq!(
+                     warning,
+-                    format!("Running without the shared background server: {reason}.")
++                    format!(
++                        "Running this CLI's bundled backend without the shared background server: {reason}."
++                    )
+                 );
+             } else {
+                 let error = result.unwrap_err();
+@@ -262,6 +264,9 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
      for scenario in [
          "missing socket",
          "failed handshake",
@@ -115684,7 +116494,7 @@ index c689eeb50..683d4b5a8 100644
          "explicit endpoint",
          "required daemon",
      ] {
-@@ -284,14 +287,40 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
+@@ -284,18 +289,50 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
              }
          };
          let reject_handshake = tokio::spawn(async move {
@@ -115714,7 +116524,12 @@ index c689eeb50..683d4b5a8 100644
 +                    ))
 +                    .await
 +                    .unwrap();
-+                while let Some(Ok(_)) = socket.next().await {}
++                while let Some(Ok(message)) = socket.next().await {
++                    if let Message::Text(text) = message {
++                        let message: serde_json::Value = serde_json::from_str(&text).unwrap();
++                        assert_eq!(message["method"], "initialized");
++                    }
++                }
 +            }
          });
          let mut target = if scenario == "explicit endpoint" {
@@ -115727,11 +116542,65 @@ index c689eeb50..683d4b5a8 100644
              }
          };
          let original_target = target.clone();
-@@ -312,9 +341,15 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
+         let mut state_db = None;
++        let mut startup_warning = Some("previous startup warning".to_string());
+         let result = start_app_server(
+             &mut target,
+             Arg0DispatchPaths::default(),
+@@ -309,12 +346,64 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
+             &mut state_db,
+             Arc::new(EnvironmentManager::default_for_tests()),
+             Default::default(),
++            &mut startup_warning,
          )
          .await;
          reject_handshake.abort();
 -        if scenario == "explicit endpoint" || scenario == "required daemon" {
++        if scenario == "version mismatch" || scenario == "unknown version" {
++            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
++            daemon_startup::emit_startup_warning(
++                startup_warning,
++                &crate::app_event_sender::AppEventSender::new(tx),
++            );
++            let Some(crate::app_event::AppEvent::InsertHistoryCell(cell)) = rx.recv().await else {
++                panic!("fallback must deliver the runtime refusal to the startup history");
++            };
++            let visible = cell
++                .transcript_lines(1000)
++                .iter()
++                .map(ToString::to_string)
++                .collect::<Vec<_>>()
++                .join("\n");
++            for expected in [
++                "previous startup warning",
++                "does not match this CLI",
++                env!("CARGO_PKG_VERSION"),
++                "codex app-server daemon update --from-cli --yes --no-force",
++            ] {
++                assert!(visible.contains(expected), "{visible}");
++            }
++            assert!(
++                visible.contains(&std::env::current_exe()?.display().to_string()),
++                "{visible}"
++            );
++            assert!(visible.contains("its bundled backend"), "{visible}");
++            let server = if scenario == "unknown version" {
++                crate::i18n::message("status-unknown-version", &[])
++            } else {
++                "0.166.0+native-r28.20261029".to_string()
++            };
++            assert!(visible.contains(&server), "{visible}");
++            let AppServerTarget::LocalDaemon {
++                endpoint: RemoteAppServerEndpoint::WebSocket { websocket_url, .. },
++                ..
++            } = &original_target
++            else {
++                panic!("version fixtures use a local WebSocket endpoint");
++            };
++            assert!(visible.contains(websocket_url), "{visible}");
++        } else {
++            assert_eq!(startup_warning.as_deref(), Some("previous startup warning"));
++        }
 +        if scenario == "required version mismatch" {
 +            let client = result?;
 +            assert_eq!(target, original_target);
@@ -115745,7 +116614,7 @@ index c689eeb50..683d4b5a8 100644
                  let message = result.err().unwrap().to_string();
                  assert!(message.contains("rerun the same command with --no-daemon"));
                  assert!(message.contains("failed to connect to remote app server"));
-@@ -435,3 +470,173 @@ fn daemon_exclusion_warning_snapshot() {
+@@ -435,3 +524,173 @@ fn daemon_exclusion_warning_snapshot() {
          .join("\n");
      insta::assert_snapshot!("daemon_exclusion_warning", text);
  }
@@ -120087,18 +120956,18 @@ index 425198346..72f7a7879 100644
          increase_reasoning_effort => "Increase reasoning effort.",
          previous_permission_mode => "Switch to the previous available permission mode.",
 diff --git a/codex-rs/tui/src/lib.rs b/codex-rs/tui/src/lib.rs
-index 1b0b08cb3..c37ffcb9b 100644
+index 1b0b08cb3..d61cb4177 100644
 --- a/codex-rs/tui/src/lib.rs
 +++ b/codex-rs/tui/src/lib.rs
-@@ -77,6 +77,8 @@ use codex_utils_oss::get_default_model_for_oss_provider;
- use color_eyre::eyre::WrapErr;
- use crossterm::SynchronizedUpdate;
- use cwd_prompt::CwdPromptAction;
+@@ -31,6 +31,8 @@ pub use app::ExitReason;
+ pub use app::ResumableThread;
+ use app_server_session::AppServerSession;
+ use app_server_session::ThreadParamsMode;
 +pub use cleanup_agents_command::CleanupAgentsCommandOptions;
 +pub use cleanup_agents_command::run_cleanup_agents_command;
- pub use daemon_startup::uses_wsl_drvfs;
- pub use session_archive_commands::DeleteConfirmation;
- pub use session_archive_commands::SessionArchiveAction;
+ use codex_app_server_client::AppServerClient;
+ use codex_app_server_client::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY;
+ use codex_app_server_client::InProcessAppServerClient;
 @@ -96,6 +98,8 @@ use tracing::warn;
  use tracing_appender::non_blocking;
  use tracing_subscriber::EnvFilter;
@@ -120152,7 +121021,49 @@ index 1b0b08cb3..c37ffcb9b 100644
  mod update_prompt;
  mod update_versions;
  mod updates;
-@@ -1142,12 +1155,36 @@ fn restore_terminal_before_fatal_exit() {
+@@ -590,6 +603,7 @@ async fn start_app_server(
+     state_db: &mut Option<StateDbHandle>,
+     environment_manager: Arc<EnvironmentManager>,
+     embedded_network_policy: codex_app_server_client::EmbeddedNetworkPolicy,
++    daemon_startup_warning: &mut Option<String>,
+ ) -> color_eyre::Result<AppServerClient> {
+     let connection = if matches!(target, AppServerTarget::Embedded) {
+         None
+@@ -609,6 +623,17 @@ async fn start_app_server(
+                 ) =>
+             {
+                 tracing::debug!(%err, "local daemon connection failed; starting embedded app server");
++                if let Some(refusal) =
++                    err.downcast_ref::<app_server_connection::LocalVersionMismatch>()
++                {
++                    let warning = refusal.embedded_warning();
++                    if let Some(existing) = daemon_startup_warning {
++                        existing.push('\n');
++                        existing.push_str(&warning);
++                    } else {
++                        *daemon_startup_warning = Some(warning);
++                    }
++                }
+                 *target = AppServerTarget::Embedded;
+                 *state_db = init_state_db_for_app_server_target(&config, target).await?;
+             }
+@@ -672,6 +697,7 @@ pub(crate) async fn start_app_server_for_picker(
+         &mut state_db,
+         environment_manager,
+         embedded_network_policy,
++        &mut None,
+     )
+     .await?;
+     Ok(
+@@ -700,6 +726,7 @@ pub(crate) async fn start_embedded_app_server_for_picker(
+         &mut state_db,
+         Arc::new(EnvironmentManager::default_for_tests()),
+         Default::default(),
++        &mut None,
+     ))
+     .await?;
+     Ok(AppServerSession::new(
+@@ -1142,12 +1169,36 @@ fn restore_terminal_before_fatal_exit() {
      startup_recovery::print_unsent_draft();
  }
  
@@ -120189,7 +121100,7 @@ index 1b0b08cb3..c37ffcb9b 100644
      system_motion::initialize().await;
      startup_recovery::scope(async move {
          // Startup retains a large future for the whole session. Keep it off callers' stacks,
-@@ -1157,6 +1194,7 @@ pub async fn run_main(
+@@ -1157,6 +1208,7 @@ pub async fn run_main(
              arg0_paths,
              loader_overrides,
              explicit_remote_endpoint,
@@ -120197,7 +121108,14 @@ index 1b0b08cb3..c37ffcb9b 100644
          ))
          .await
          {
-@@ -1207,24 +1245,13 @@ async fn run_ratatui_app(
+@@ -1201,30 +1253,19 @@ async fn run_ratatui_app(
+     environment_manager: Arc<EnvironmentManager>,
+     embedded_network_policy: codex_app_server_client::EmbeddedNetworkPolicy,
+     managed_worktree: Option<ManagedTuiWorktree>,
+-    daemon_startup_warning: Option<String>,
++    mut daemon_startup_warning: Option<String>,
+     managed_daemon: bool,
+     launch_telemetry: daemon_telemetry::Launch<
          impl FnOnce(&AppServerTarget, bool) -> terminal_size_telemetry::LaunchTags,
      >,
      startup_draft: startup_draft::StartupDraft,
@@ -120223,7 +121141,31 @@ index 1b0b08cb3..c37ffcb9b 100644
      let (mut tui, mut terminal_restore_guard, mut startup_draft) = startup_draft.into_parts();
  
      #[cfg(not(debug_assertions))]
-@@ -2201,6 +2228,7 @@ async fn run_ratatui_app(
+@@ -1270,6 +1311,7 @@ async fn run_ratatui_app(
+                 &mut state_db,
+                 environment_manager.clone(),
+                 embedded_network_policy.clone(),
++                &mut daemon_startup_warning,
+             ),
+         )
+         .await;
+@@ -1851,6 +1893,7 @@ async fn run_ratatui_app(
+                     &mut state_db,
+                     environment_manager.clone(),
+                     embedded_network_policy.clone(),
++                    &mut daemon_startup_warning,
+                 ),
+             )
+             .await
+@@ -1972,6 +2015,7 @@ async fn run_ratatui_app(
+                     &mut state_db,
+                     environment_manager.clone(),
+                     embedded_network_policy.clone(),
++                    &mut daemon_startup_warning,
+                 )
+                 .await?;
+                 app_server = AppServerSession::new(
+@@ -2201,6 +2245,7 @@ async fn run_ratatui_app(
          startup_draft,
          managed_worktree,
          daemon_cli_executable,
@@ -122763,6 +123705,18 @@ index 5a9efb790..3d0f699e5 100644
                          }
                      };
                      match event {
+diff --git a/codex-rs/tui/src/session_archive_commands.rs b/codex-rs/tui/src/session_archive_commands.rs
+index 44aaafdde..5f3a12adc 100644
+--- a/codex-rs/tui/src/session_archive_commands.rs
++++ b/codex-rs/tui/src/session_archive_commands.rs
+@@ -404,6 +404,7 @@ pub(super) async fn start_app_server_for_session_command(
+         &mut state_db,
+         environment_manager,
+         embedded_network_policy,
++        &mut None,
+     )
+     .await?;
+     Ok(AppServerSession::new(
 diff --git a/codex-rs/tui/src/session_control.rs b/codex-rs/tui/src/session_control.rs
 new file mode 100644
 index 000000000..e14596217
@@ -126971,10 +127925,10 @@ index 000000000..8c51e4acc
 +소스와 시험은 별도 R36 브랜치에서 개발한다. 기존 warm cache와 자원 보호를 재사용하며 빌드 프로세스를 여러 개 동시에 시작하지 않는다. 실제 시험 결과·종료 코드·후보 SHA를 연결하고, 미실행과 통과를 구분한다. 최종 변경의 수용 근거 확인과 새로운 독립감사를 거친다. 이번 요청만으로 main 병합·릴리스·설치를 실행하지 않는다.
 diff --git a/docs/native-cli-r38.ko.md b/docs/native-cli-r38.ko.md
 new file mode 100644
-index 000000000..9c4042f5e
+index 000000000..ab324ca73
 --- /dev/null
 +++ b/docs/native-cli-r38.ko.md
-@@ -0,0 +1,29 @@
+@@ -0,0 +1,48 @@
 +# R38 시작 경고 수정 후보
 +
 +R37 공개 실행 파일은 동결 상태다. 이 문서는 R37 이후 별도 개발 후보의 범위를 설명하며 R38 최종 빌드·공개·설치 완료를 뜻하지 않는다.
@@ -126987,7 +127941,7 @@ index 000000000..9c4042f5e
 +
 +## 자동 공유 서버 연결
 +
-+기존 소켓에 대한 암시적 연결, 자동 시작 결과 이후 실제 handshake, 재연결에서 CLI의 전체 빌드 버전을 대조한다. 다르거나 확인되지 않으면 해당 연결을 닫고 기존 embedded fallback을 사용한다. 명시적 원격 endpoint와 사용자가 선택한 공유 연결의 정책은 유지한다.
++기존 소켓에 대한 암시적 연결, 자동 시작 결과 이후 실제 handshake, 재연결에서 CLI의 전체 빌드 버전을 대조한다. 다르거나 확인되지 않으면 해당 클라이언트 연결을 닫는다. 초기 시작은 현재 CLI의 embedded backend를 사용하며 그 이유를 화면에 표시한다. 진행 중 대화의 재연결에서는 다른 backend로 옮기지 않고 거부 이유를 표시하며 대화 ID·draft·대기 입력을 보존한다. 명시적 원격 endpoint와 사용자가 선택한 공유 연결의 정책은 유지한다.
 +
 +연결 거절은 공유 서버 종료·업데이트 요청이 아니다. 현재 CLI 실행 경로·서버가 보고한 버전·접속 소켓을 구분하고 한국어/영어 catalog로 안내한다. 소켓만 보고 실행 중인 서버의 실행 파일 경로를 안다고 표시하지 않는다.
 +
@@ -126997,6 +127951,18 @@ index 000000000..9c4042f5e
 +
 +`scripts/install/normalize_stop_hook_config.py <명시한 hooks.json 경로>`는 기본값으로 미리보기만 수행한다. 명시한 `--apply`에서만 Stop handler의 해당 속성을 제거하며 원본 백업, 동시 변경 거절, 비대상 원문·인코딩·줄바꿈 보존을 적용한다. 다른 이벤트나 hook 명령을 바꾸거나 hook을 실행하지 않는다. Python이 필요하며 아직 배포 설치기와 연결하지 않은 개발용 도구다. 사용자 운영 hooks 설정은 이 개발 단계에서 적용하지 않았다. 초기 읽기 경쟁과 비정상 종료 시 백업 복구의 한계는 시험 문서를 따른다.
 +
++## 플러그인 다시 읽기의 Stop 경고
++
++`/reload_plugin`은 사용자 설정과 hook을 다시 검증하므로, 같은 파일에 지원하지 않는 Stop 속성이 남아 있으면 같은 경고를 다시 반환한다. 설정 재로드와 다음 capture의 MCP 재연결 요청이 처리됐다는 응답이며 MCP 서버 준비 완료를 의미하지 않는다.
++
++R38은 재로드 결과·일부 설정 경고·실패·잘못된 응답·오래된 화면 요청을 한국어/영어 catalog로 안내한다. 서버가 반환한 경고와 파일 경로는 보존한다. 지원하지 않는 속성의 진단에는 해당 handler의 `additionalContextLimit`만 제거하고 Stop hook 및 command는 유지하라는 설명을 추가한다. 재로드가 사용자 설정을 자동으로 삭제하거나 경고를 숨기지는 않는다. 위 교정 도구로 명시적으로 해당 속성을 제거한 뒤 다시 읽으면 이 경고가 사라지는지를 격리된 실제 서버 fixture로 검사한다.
++
++## 메인 에이전트로 마우스 복귀
++
++하단 에이전트 목록에 `메인` 행을 함께 표시한다. 같은 마우스 선택 경로로 자식 대화와 메인을 오가며, 메인은 하위 에이전트 실행·대기 개수나 정리 대상에 합산하지 않는다. 접힌 목록·좁은 화면·마지막 자식 숨김에서도 메인 복귀 경로를 유지한다. 전체 상세행 높이 제한은 유지하며 메인과 자식의 현재 위치는 별도 표시한다.
++
++호버는 작은 표시자의 밑줄만 바꾼다. 행 전체 반전과 호버에 따른 문구 교체를 제거해 글자와 레이아웃을 안정적으로 유지한다. 초안·진행 중 turn·대기 입력 보존과 잘못된 root의 클릭 거부는 기존 탐색 경로의 시험으로 확인한다. [마우스 복귀와 호버 사례](r38-agent-main-return-test-cases.ko.md)는 실제 사용자 GUI의 체감 검증을 대신하지 않는다.
++
 +## 검증 자료
 +
 +- [캐시 사례](r38-plugin-cache-test-cases.ko.md)
@@ -127004,6 +127970,13 @@ index 000000000..9c4042f5e
 +- [Stop 설정 사례](r38-stop-hook-test-cases.ko.md)
 +
 +원래 실패, 실행하지 않은 운영 조건과 다른 OS에서만 가능한 시험을 성공으로 합산하지 않는다. 이 PC의 다음 시작 R37 선택 변경은 R38 개발과 별도의 운영 변경이다.
++
++
++## Windows 개발 후보의 실행 결과
++
++격리된 같은 시험 사본과 기존 cache에서 `--offline --locked --profile dev-small --target x86_64-pc-windows-msvc -j2`로 실행했다. plugin store 38개, hook discovery 2개와 중복을 제외한 TUI 125개가 통과했다. Stop 교정 도구는 17개 중 16개 통과·실제 symlink 권한 부족 1개 SKIP이다. TUI 11필터의 종료 코드는 모두 0이며 Rust/FTL bytes를 시험 receipt와 직접 대조했다.
++
++원본 cache 동작 비교의 6개 실제 실패, 초기 통합 fixture 오류, 별도 test compile 오류, 명시적으로 취소한 이전 실행은 원시 자료를 로컬에 보존했다. 새로운 실제 통과로 원래 결과를 덮어쓰지 않는다. 자연어 reload 별도 RPC·invalid ACK 실서버·운영 UI 체감·다른 OS·장시간 부하는 미검증이다. 이 결과는 최종 R38 실행 파일이나 Desktop 공동 설치 시험을 대신하지 않는다.
 diff --git a/docs/r36-cleanup.ko.md b/docs/r36-cleanup.ko.md
 new file mode 100644
 index 000000000..982298cff
@@ -127878,12 +128851,45 @@ index 000000000..724c25239
 +- `core/src/tasks/compact.rs`, `core/src/compact.rs`에는 준비·원격/로컬 요약 경계 timer가 존재한다. 실제 허용 로그를 읽지 않았으므로 느림의 지배 구간이나 개선율을 제시하지 않는다. 계측의 존재는 지연 해결의 근거가 아니다.
 +
 +이 조사에서 compact backend의 새 결함은 확인하지 못했다. 기존 시험 재실행과 실제 단계별 관측이 남으며 source만으로 사용자 상태를 정상/해결로 판정하지 않는다. compact 제품 코드는 변경하지 않았다.
+diff --git a/docs/r38-agent-main-return-test-cases.ko.md b/docs/r38-agent-main-return-test-cases.ko.md
+new file mode 100644
+index 000000000..2501bb6b5
+--- /dev/null
++++ b/docs/r38-agent-main-return-test-cases.ko.md
+@@ -0,0 +1,27 @@
++# R38 메인 에이전트 마우스 복귀와 hover 완화 시험 사례
++
++작성 시점: 구현 전. runner는 기존 codex-tui Rust unit/integration fixture이며 새 runner를 추가하지 않는다. 실행은 조정 담당이 격리 시험 사본에서 수행한다. 아래 실제 결과는 모두 NOT_RUN이다.
++
++| 사례 | 입력·전제 | 절차 | 기대 결과·합격 기준 | 실제 결과 |
++| --- | --- | --- | --- | --- |
++| MAIN-01 | 정상 root와 자식 1개, root/child 각 초안 | 실제 footer 좌표를 클릭해 child로 전환한 뒤 메인행 클릭; owned/inline 경로 반복 | 발행된 root/thread ID와 active_thread_id가 정확히 왕복; 각 초안 복원; submit/interrupt 미발행 | NOT_RUN |
++| MAIN-02 | child 화면, 표시되는 자식 0개(숨김/완료 만료 포함) | 접힌 footer의 메인행 클릭 | 정확한 root로 복귀; 메인이 자식 개수에 포함되지 않음 | NOT_RUN |
++| MAIN-03 | 자식 15/100개, 긴 목록 | 펼치기·스크롤·페이지 이동 후 메인행 클릭 | 메인행 고정; 상세행 기존 최대 3개 한도 내; 현재행 표시와 선택 커서 구별 | NOT_RUN |
++| MAIN-04 | 폭 1/24/47/80/120, composer 높이 제한 | 접힘/펼침·resize·제한 렌더 후 메인행 클릭 | 사용 가능한 footer에서 메인행 유지; 실제 그린 행만 선택; composer 초안 유지 | NOT_RUN |
++| MAIN-05 | root 없음/다른 root로 바뀜, 오래된 click | 이전 좌표·root/thread ID 이벤트 전달 | 임의 세션을 선택하지 않음; 현재 backend의 정확한 primary만 수용 | NOT_RUN |
++| MAIN-06 | 진행 중 turn과 queued input/초안 | child 왕복 | 기존 navigation/cache 경로 사용; 작업 중단/제출/큐 편집 없음 | NOT_RUN |
++| HOVER-01 | 영어/한국어, summary/메인/child | 마우스 진입·같은행 이동·이탈, 전후 Buffer 비교 | hover 전후 글자·행높이 동일; 전체 반전 없음; 작은 underlined 단서만 변경; 현재행 표시 유지 | NOT_RUN |
++| HOVER-02 | popup·search·selection·resize·root 변경 | 기존 공개 mouse 경로로 hover/click | modal 우선순위·draft·진행 turn 유지; 오래된 hit map 무효화 | NOT_RUN |
++
++선택한 수준: Buffer/MouseEvent → AppEvent → 기존 App::handle_event → 실제 embedded server navigation을 포함하는 기존 fixture. 실제 사용자 GUI 체감·운영 backend·전체 부하·실행 파일 배포는 이 소스 시험의 보장 범위 밖이다. hover 강도 완화는 렌더 스타일/문구 안정성으로 판정하며 사용자 체감 개선은 실측 전 미확인이다.
++
++조정 담당 실행 필터: `cargo test -p codex-tui subagent_status -- --test-threads=1`, `cargo test -p codex-tui footer_ -- --test-threads=1`, `cargo test -p codex-tui expanded_agent_footer -- --test-threads=1`. 실행 명령·대상 commit·종료 코드는 실행 담당이 추가한다. red/green은 본 담당에게 시험 실행이 금지되어 NOT_RUN이며 원본 소스를 되돌려 시행하지 않는다.
++
++통합 3차: subagent_status 21개 중 20 PASS/1 FAIL(exit101). 실패는 owned/inline 두 순회에서 restore_user_message_to_composer를 두 번 호출한 fixture 준비 때문이었다. 기존 input_restore.rs:543의 이 함수는 기존 초안과 입력을 병합한다. 첫 순회에서만 빈 초안에 한 번 넣고 두 번째 순회에서는 보존된 동일 초안을 먼저 assertion하는 방식으로 보정한다. 정확한 단일 초안·큐·turn 보존, 실제 마우스 왕복 oracle는 그대로 유지한다. 원 실패를 제품 red/green으로 포장하지 않는다.
++
++
++## Windows 최종 개발 시험 결과
++
++위 NOT_RUN은 실행 전 계획이다. 통합 4차의 `subagent_status` 21개, `footer_` 82개, `expanded_agent_footer` 1개, `agent_navigation` 8개는 각각 exit0이다. 필터 간 중복이 있으므로 수를 합산하지 않는다. 실제 MouseEvent → AppEvent → embedded server 탐색에서 owned/inline 메인 왕복, 단일 child 초안, root 초안·진행 turn·대기 입력, 다른 root의 stale 이벤트 거부와 마지막 child 숨김 뒤 복귀가 통과했다. MAIN-01~06 및 HOVER-01~02의 해당 fixture·Buffer 경계가 통과했다.
++
++호버 시험은 EN/KO의 글자·높이 불변, 작은 marker의 밑줄, 전체 반전 없음과 modal/검색/선택 보존을 검사했다. 실제 운영 터미널의 사용자 체감·R38 설치본은 미검증이다. 원래 fixture 오류는 위 기록대로 보존하며 제품 결함 탐지 red/green으로 계산하지 않는다.
 diff --git a/docs/r38-daemon-test-cases.ko.md b/docs/r38-daemon-test-cases.ko.md
 new file mode 100644
-index 000000000..d968b7368
+index 000000000..4dba9fd36
 --- /dev/null
 +++ b/docs/r38-daemon-test-cases.ko.md
-@@ -0,0 +1,54 @@
+@@ -0,0 +1,80 @@
 +# R38 공유 서버 선택·버전 정합성 시험 계획
 +
 +작성 기준: R38 소스 `feat/r38-startup-cache-daemon-20261106`. 구현 전 사례다. 이 문서 작성 시점에는 시험·Cargo·빌드를 실행하지 않았다. 각 결과는 `NOT_RUN`이며 실제 실행 담당자가 대상 commit·명령·종료 코드·원시 근거를 연결해야 한다.
@@ -127924,6 +128930,18 @@ index 000000000..d968b7368
 +
 +## 구현 연결 및 실행 인계
 +
++### D5 실제 표시 경계 보완 계획 (독립감사 후, 제품 수정 전)
++
++기존 06·10의 handshake 거부/formatter 검증만으로 실제 화면 전달을 입증하지 못했다. 초기 `start_app_server`는 mismatch를 버리고 embedded로 전환했으며, `reconnect`는 mismatch를 재시도하다 단계별 timeout으로 바꿨다. 아래 사례를 먼저 추가하고 결과는 실행 전 `NOT_RUN`으로 유지한다.
++
++| 사례 | 전제·입력 | 절차·실제 경계 | 기대 결과·oracle | 상태 |
++| --- | --- | --- | --- | --- |
++| R38-DAEMON-11 | 자동선택 preflight는 current build, 최종 handshake는 old 또는 version missing; 시작 안내에 기존 경고 있음 | 실제 `start_app_server`의 embedded fallback 결과를 `run_ratatui_app`에서 쓰는 동일 startup-warning 전달 경계로 넘기고 기존 startup history event를 렌더 | active backend가 Embedded이고, 시작 경고에 current CLI executable/source·전체 client/server version 또는 unknown·socket·no-force 명령이 모두 남는다. 기존 경고도 보존. fixture는 initialize/initialized 외 RPC를 거부 | NOT_RUN |
++| R38-DAEMON-12 | 진행 대화 ID·편집 중 draft·queue가 있는 implicit LocalDaemon이 old 또는 version missing으로 교체됨 | 실제 `reconnect` 호출 후 production reconnect 실패 표시 경계에서 history event를 렌더 | deadline까지 재시도하지 않고 typed local-version refusal만 반환·표시. 전체 version·안전한 endpoint·CLI source/path·no-force 안내 보존. 기존 ID/draft/queue 유지; resume/start/fork/turn/lifecycle RPC와 타 backend 전환 없음 | NOT_RUN |
++| R38-DAEMON-13 | 임의 transport 오류 문자열 또는 credential/query/fragment가 있는 WebSocket endpoint; explicit target 포함 | startup fallback과 reconnect의 같은 오류 전달 경계 호출 | 일반 transport error를 startup UI에 복사하지 않음. reconnect는 기존 stage-only timeout 유지. typed refusal의 endpoint만 기존 sanitizer를 거치며 credential/query/fragment가 표시되지 않음. explicit Remote/LocalDaemon(false)는 기존 정책 보존 | NOT_RUN |
++
++실제 UI 표시를 검사하는 사례 이름에 `daemon_startup` 또는 `startup_orchestration`을 포함해 기존 직렬 시험 필터에서도 새 경계가 실행되도록 한다. 오류 문자열 전체를 안전하다고 가정하지 않고, 생성 위치가 제한된 typed local-version refusal만 UI용 진단으로 취급한다.
++
 +기존 Rust 테스트 모듈을 재사용했다. 새 runner나 의존성은 추가하지 않았다.
 +
 +| 사례 | 구현된 테스트 경계 | 실행 상태 |
@@ -127934,10 +128952,24 @@ index 000000000..d968b7368
 +| 06 | `startup_orchestration::tests::automatic_daemon_rechecks_replaced_server_after_successful_start` | NOT_RUN |
 +| 09 | `i18n::tests::daemon_selection_mismatch_warning_preserves_paths_and_guidance_in_both_languages` | NOT_RUN |
 +| 10 | `i18n::tests::daemon_connection_mismatch_preserves_runtime_source_and_explicit_guidance` / `history_cell::tests::local_daemon_version_guidance_uses_selected_ui_language` | NOT_RUN |
++| 11 | `daemon_startup_tests::daemon_startup_falls_back_only_for_implicit_endpoints`가 실제 fallback의 warning out-parameter → production `emit_startup_warning` → `InsertHistoryCell` 렌더를 검사 | NOT_RUN |
++| 12 | `app::tests::disconnect_tests::daemon_startup_reconnect_version_refusal_reaches_history_without_restoring_work`가 실제 reconnect → production `finish_failed_reconnect` → history event 렌더와 ID/draft/queue 보존을 검사 | NOT_RUN |
++| 13 | 기존 11의 일반 transport 오류 경고 미추가 oracle + `app::tests::disconnect_tests::daemon_startup_reconnect_transport_errors_keep_stage_only_diagnostic`; 12에서 합성 credential/query/fragment 비노출도 검사 | NOT_RUN |
++
++D5 보완 구현은 `LocalVersionMismatch`의 private 진단만 UI로 전달한다. 초기 fallback은 `run_ratatui_app`의 기존 startup warning에 추가하며, `App::run`은 동일 `emit_startup_warning` 경계로 표시한다. 재연결은 typed refusal만 즉시 반환하고 기존 실패 UI 경계를 호출한다. 다른 오류는 기존 재시도·stage-only timeout을 유지한다. archive/picker 호출자는 UI warning을 소비하지 않으므로 기존 동작을 보존하도록 빈 warning sink를 전달한다.
 +
 +UDS fixture는 자기 임시 directory의 private socket과 합성 initialize 응답만 사용한다. shared 서버와 무관한 client transport 종료 뒤에도 같은 listener가 다음 연결을 받으며, `initialized` 외 application RPC는 assertion 실패다. 이 oracle는 lifecycle/thread RPC 무발행을 검증하며 실제 진행 작업의 보존 E2E를 대신하지 않는다.
 +
 +실행 담당자가 격리된 빌드 사본에서 기존 `cargo test -p codex-tui --lib <해당 필터> -- --test-threads=1`을 직렬 실행하고 결과를 위 사례에 연결한다. 구현자는 Cargo/시험/빌드/운영 명령을 실행하지 않았다. 정적 diff 검사는 동적 시험의 PASS가 아니다.
++
++2026-11-06 통합 시험 1차: 11개 중 10 PASS, 12번 사례는 reconnect 전에 fixture의 Enter가 operation을 발생시켜 준비 조건에서 FAIL했다. 원시 결과는 보존한다. 실제 진행 중 TurnStarted 상태에서 기존 queue_user_message_with_options 경계로 대기 입력을 준비하고, 준비 전 초기 operation만 비운다. 준비 후·재연결 후 operation 없음과 ID/draft/queue 보존 oracle는 유지한다. 제품 코드·대기 정책은 바꾸지 않는다. 재실행 전 결과는 NOT_RUN이다.
++
++통합 재시험 2차는 다른 테스트 모듈의 private turn helper를 잘못 참조해 E0425 compile 오류(exit101)였다. 실제 시험 0개이며 제품 실패나 통과로 계산하지 않는다. 동일한 protocol Turn 구조체를 fixture에 명시하고 조건·oracle 그대로 3차 실행한다.
++
++
++## Windows 최종 개발 시험 결과
++
++통합 4차에서 `daemon_startup` 11개, `startup_orchestration` 2개, `i18n::tests::daemon_` 2개, `history_cell::tests::local_daemon` 2개와 기존 backend 소유권 필터 1개가 각각 exit0이다. 01~13 사례의 위에 명시한 실제 fixture·메시지 경계가 통과했다. 초기 fallback history와 실제 reconnect 거부 history, source·version·안전한 endpoint 안내, draft/queue/ID 보존을 포함한다. 최초 fixture 준비 실패와 E0425 컴파일 실패는 보존했다. 공유 운영 프로세스의 강제 전환·실제 진행 작업 전체 E2E는 이 격리 시험의 보장 범위가 아니다.
 diff --git a/docs/r38-plugin-cache-test-cases.ko.md b/docs/r38-plugin-cache-test-cases.ko.md
 new file mode 100644
 index 000000000..35f1c1de4
@@ -127992,10 +129024,10 @@ index 000000000..35f1c1de4
 +명령은 `cargo test --offline --locked --profile dev-small --target x86_64-pc-windows-msvc -j2 -p codex-core-plugins --lib store::tests:: -- --test-threads=1`이었다. 원시 출력·각 argv·종료 코드·시험 파일과 제품 SHA는 로컬 검증 자료에 보존하며 공개 소스에 원시 로그를 포함하지 않는다. 최종 릴리스 빌드나 사용 중인 AGS 운영 갱신 성공을 이 결과로 주장하지 않는다.
 diff --git a/docs/r38-stop-hook-test-cases.ko.md b/docs/r38-stop-hook-test-cases.ko.md
 new file mode 100644
-index 000000000..7c7bdc411
+index 000000000..b8cee3f3b
 --- /dev/null
 +++ b/docs/r38-stop-hook-test-cases.ko.md
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,156 @@
 +# R38 Stop 설정 교정 시험
 +
 +## engineering-test-plan — 실행 전 계획
@@ -128097,6 +129129,61 @@ index 000000000..7c7bdc411
 +
 +이 산출물은 아직 독립 helper다. R38 installer 연결과 운영 설정 교정의 완료를
 +뜻하지 않는다.
++
++## 추가 요청: reload_plugin 진단과 표시 — 실행 전 계획
++
++추가 요구 PR-R1: unsupported Stop handler 속성 경고에 hook 자체가 유지되고 해당
++handler의 `additionalContextLimit`만 제거하면 된다는 안내를 넣는다. 경고 원문·경로는
++유지하고 경고 억제·전체 hook 비활성·자동 설정 수정은 하지 않는다.
++PR-R2: slash 명령의 결과·partial warnings·invalid acknowledgement·실패·stale 안내를
++기존 i18n message API와 두 `cli.ftl`로 제공한다. 서버 diagnostic/path는 번역하지 않는다.
++PR-R3: 기존 embedded-server fixture로 실제 reload의 경고 전달·재연결 요청과 파일
++불변을 검사하고, fixture에서 대상 속성만 명시 제거한 다음 reload의 경고 해소와 hook
++유지를 검사한다. MCP readiness와 reconnect 요청을 같은 것으로 판정하지 않는다.
++
++공통 전제: canonical R38 소스만 편집하며 운영 설정·R37·daemon·인증·다른 세션
++로그는 접근하지 않는다. 이번 추가작업은 실행시험·Cargo·빌드·commit·push 금지이므로
++아래 사례를 작성해도 실제 결과는 NOT_RUN으로 남긴다. 기존 helper 시험 결과를 이
++추가 변경의 시험 결과로 전용하지 않는다. 기존 파일의 CRLF/LF를 각각 유지한다.
++
++| 사례 | 요구 | 전제·입력 | 절차 | 기대 결과 / oracle | 실제 |
++| --- | --- | --- | --- | --- | --- |
++| PR01 | PR-R1 | discovery의 Stop command handler에 unsupported 속성 | 기존 discovery 단위사례 확장 | handler/entry command 유지, 경로와 기존 diagnostic 및 속성만 제거하라는 안내 존재 | NOT_RUN |
++| PR02 | PR-R2 | EN/KO locale, 원시 서버 경고와 Windows 경로 | 같은 결과 formatter에 warning 유무 입력 | 각 locale 결과·partial 안내, 경고 원문/경로 byte-equivalent 문자열 유지, 준비 미확인 명시 | NOT_RUN |
++| PR03 | PR-R3 | 자체 hooks.json에 Stop handler 속성8192, 다른 event·command·env·timeout | 기존 실제 embedded fixture로 targeted reload 후 hooks/list | 원 thread ACK/reconnect 요청 true, warning 전달, readiness 단정 없음, 설정 bytes 동일, hook list에 Stop handler 유지 | NOT_RUN |
++| PR04 | PR-R3 | PR03과 동일 fixture의 해당 속성만 명시 제거 | 두번째 targeted reload와 hooks/list | 해당 warning 해소, 원 thread ACK/reconnect 요청 true, 교정본 bytes 불변, 다른 모든 JSON 값과 Stop command 유지 | NOT_RUN |
++| PR05 | PR-R2 | unsupported backend·invalid ACK·stale 화면 소유권 | 기존 실패/stale 사례와 message catalog 기대값 보강 | 각 locale 안내와 오류 원인 보존, stale일 때 RPC 0, reconnect 요청을 readiness로 표현하지 않음 | NOT_RUN |
++| PR06 | PR-R2 | 자연어 session-control ReloadPlugins 경로 | slash와 동일 formatter 재사용 | 결과·경고·invalid ACK·오류가 같은 locale 계약을 따름 | NOT_RUN |
++
++예정 필터: `codex-hooks unsupported_event_warns_and_ignores_additional_context_limit`,
++`codex-tui app::tests::plugin_reload_tests` 및 카탈로그 기존 parity 검사. 이번 작업에서
++해당 명령을 실행하지 않는다. 기존 `start_recording_app_server_with_history`는
++실제 embedded server로 요청을 전달하므로 새 서버 harness를 만들지 않는다.
++
++작성한 구체 필터는 `reload_plugin_reports_unsupported_stop_setting_without_removing_the_hook`
++(PR03/04, 직접 ACK·slash 표시를 교정 전후 각각 확인),
++`reload_plugin_messages_localize_without_translating_server_diagnostics`(PR02/05),
++기존 `reload_plugin_routes_captured_thread_and_unsupported_backend_fails_closed`와
++`reload_plugin_and_fast_queued_before_screen_or_backend_replacement_sends_zero_rpcs`다.
++PR01은 기존 discovery 필터에 handler entry/command와 구체 교정 안내 assertion을
++추가했다. PR06은 자연어 경로가 동일 formatter를 쓰도록 수정했으며 별도 자연어 RPC
++실행은 하지 않았다. invalid ACK의 메시지는 카탈로그 사례이고 서버가 잘못된 ACK를
++반환하는 실서버 fixture는 추가하지 않았다.
++
++새 actual fixture는 app 소유 TempDir와 `codex_home` 일치를 먼저 검사한다.
++직접 ACK 확인과 slash 표시 확인으로 교정 전후 총 4회의 reload와 2회의 hooks/list를
++요청하도록 작성했다. JSON 교정은 fixture handler의 대상 key 하나만 명시 제거한다.
++공유 history helper는 80열로 줄을 나누므로 원시 진단 문자열 assertion에는 같은 실제
++history cell의 4096열 렌더링을 사용한다. 좁은 화면의 시각 레이아웃 시험은 별도다.
++
++작성 시 정적 확인은 소유 파일 `git diff --check` exit 0이며, 이번 추가 변경의
++컴파일·시험·실제 앱 검증은 실행하지 않았다. 기존 helper의 PASS/SKIP와 이 추가
++요구의 NOT_RUN을 합산하지 않는다. 운영 hooks.json의 경고가 해소됐다고 보고하지 않는다.
++
++
++## 재로드 추가 요구의 Windows 개발 결과
++
++`codex-hooks additional_context_limit` 2개와 통합 4차 `codex-tui reload_plugin` 6개, catalog 8개가 exit0이다. PR01·PR02와 실제 embedded server의 PR03·PR04는 해당 원시 assertion을 확인했다. Stop handler의 동일 identity·command·timeout·enabled 상태, 원 thread ACK, 설정 bytes 불변과 대상 속성 제거 후 해당 warning 해소를 확인했다. PR05의 unsupported/stale 경계는 기존 실제 경로이고 invalid ACK는 catalog 검사다. PR06은 같은 formatter 재사용을 정적으로 확인했으며 별도 자연어 RPC와 잘못된 ACK를 보내는 실서버 시험은 NOT_RUN이다. 이 차이를 전체 경로 PASS로 확대하지 않는다. 운영 hooks.json은 수정하지 않았다.
 diff --git a/scripts/install/normalize_stop_hook_config.py b/scripts/install/normalize_stop_hook_config.py
 new file mode 100644
 index 000000000..4f61d0048

@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Selection must retain backend provenance even when native thread IDs collide.
 
 use super::start_recording_app_server;
@@ -147,6 +147,7 @@ async fn startup_fallback_requires_no_established_backend() -> Result<()> {
             &mut state_db,
             Arc::clone(&app.environment_manager),
             policy,
+            &mut None,
         )
         .await;
         if matches!(selection, SessionSelection::StartFresh) {

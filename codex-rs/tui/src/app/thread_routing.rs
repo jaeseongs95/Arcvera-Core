@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Thread routing, buffering, and app-server operation submission for the TUI app.
 //!
 //! This module manages active thread channels, routes server requests and notifications into those
@@ -19,6 +19,21 @@ use codex_app_server_protocol::WarningNotification;
 const REALTIME_STOP_TIMEOUT: Duration = Duration::from_secs(/*secs*/ 1);
 
 impl App {
+    pub(super) fn plugin_reload_result_message(thread_id: ThreadId, warnings: &[String]) -> String {
+        let message = crate::i18n::message(
+            "cli-plugin-reload-requested",
+            &[("thread", &thread_id.to_string())],
+        );
+        if warnings.is_empty() {
+            message
+        } else {
+            crate::i18n::message(
+                "cli-plugin-reload-partial-warnings",
+                &[("message", &message), ("warnings", &warnings.join("\n"))],
+            )
+        }
+    }
+
     pub(super) async fn stop_realtime_conversation(&mut self, app_server: &mut AppServerSession) {
         let thread_id = self
             .background_voice
@@ -256,11 +271,16 @@ impl App {
             .agent_navigation
             .active_agent_label(self.current_displayed_thread_id(), self.primary_thread_id);
         self.chat_widget.set_active_agent_label(label);
-        let summary = self
+        let mut summary = self
             .agent_navigation
             .status_summary(self.primary_thread_id, |id| {
                 self.side_threads.contains_key(&id)
             });
+        summary.current_thread_id = self.current_displayed_thread_id();
+        summary.show_main |= summary.root.is_some()
+            && self
+                .current_displayed_thread_id()
+                .is_some_and(|id| Some(id) != self.primary_thread_id);
         self.chat_widget.set_subagent_status(summary);
         self.sync_side_thread_ui();
     }
@@ -991,9 +1011,8 @@ impl App {
                 if self.chat_widget.thread_id() != Some(thread_id)
                     || *owner_generation != self.chat_widget.thread_runtime_generation
                 {
-                    self.chat_widget.add_error_message(
-                        "Stale plugin reload after conversation/backend change or reconnect; no request was sent. Run /reload_plugin again in the displayed conversation.".into(),
-                    );
+                    self.chat_widget
+                        .add_error_message(crate::i18n::message("cli-plugin-reload-stale", &[]));
                     return Ok(true);
                 }
                 match app_server.reload_plugins(thread_id).await {
@@ -1001,23 +1020,24 @@ impl App {
                         if response.thread_id == thread_id.to_string()
                             && response.mcp_reconnect_requested =>
                     {
-                        let message = format!(
-                            "Reloaded plugin configuration for {thread_id}. MCP reconnect requested for the next capture; server readiness is not yet confirmed."
-                        );
+                        let message =
+                            Self::plugin_reload_result_message(thread_id, &response.warnings);
                         if response.warnings.is_empty() {
                             self.chat_widget.add_info_message(message, None);
                         } else {
-                            self.chat_widget.add_error_message(format!(
-                                "{message} Partial refresh warnings:\n{}",
-                                response.warnings.join("\n")
-                            ));
+                            self.chat_widget.add_error_message(message);
                         }
                     }
-                    Ok(_) => self.chat_widget.add_error_message(format!(
-                        "Plugin reload returned an invalid acknowledgement for {thread_id}."
+                    Ok(_) => self.chat_widget.add_error_message(crate::i18n::message(
+                        "cli-plugin-reload-invalid-ack",
+                        &[("thread", &thread_id.to_string())],
                     )),
-                    Err(err) => self.chat_widget.add_error_message(format!(
-                        "Plugin reload failed for {thread_id}: {err:#}"
+                    Err(err) => self.chat_widget.add_error_message(crate::i18n::message(
+                        "cli-plugin-reload-failed",
+                        &[
+                            ("thread", &thread_id.to_string()),
+                            ("error", &format!("{err:#}")),
+                        ],
                     )),
                 }
                 Ok(true)

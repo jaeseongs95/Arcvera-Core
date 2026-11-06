@@ -208,7 +208,9 @@ async fn daemon_feature_compatibility_respects_required_and_optional_attachment(
                 let warning = result?.expect("optional attachment should fall back");
                 assert_eq!(
                     warning,
-                    format!("Running without the shared background server: {reason}.")
+                    format!(
+                        "Running this CLI's bundled backend without the shared background server: {reason}."
+                    )
                 );
             } else {
                 let error = result.unwrap_err();
@@ -313,7 +315,12 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
                     ))
                     .await
                     .unwrap();
-                while let Some(Ok(_)) = socket.next().await {}
+                while let Some(Ok(message)) = socket.next().await {
+                    if let Message::Text(text) = message {
+                        let message: serde_json::Value = serde_json::from_str(&text).unwrap();
+                        assert_eq!(message["method"], "initialized");
+                    }
+                }
             }
         });
         let mut target = if scenario == "explicit endpoint" {
@@ -326,6 +333,7 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
         };
         let original_target = target.clone();
         let mut state_db = None;
+        let mut startup_warning = Some("previous startup warning".to_string());
         let result = start_app_server(
             &mut target,
             Arg0DispatchPaths::default(),
@@ -339,9 +347,55 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
             &mut state_db,
             Arc::new(EnvironmentManager::default_for_tests()),
             Default::default(),
+            &mut startup_warning,
         )
         .await;
         reject_handshake.abort();
+        if scenario == "version mismatch" || scenario == "unknown version" {
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+            daemon_startup::emit_startup_warning(
+                startup_warning,
+                &crate::app_event_sender::AppEventSender::new(tx),
+            );
+            let Some(crate::app_event::AppEvent::InsertHistoryCell(cell)) = rx.recv().await else {
+                panic!("fallback must deliver the runtime refusal to the startup history");
+            };
+            let visible = cell
+                .transcript_lines(1000)
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n");
+            for expected in [
+                "previous startup warning",
+                "does not match this CLI",
+                env!("CARGO_PKG_VERSION"),
+                "codex app-server daemon update --from-cli --yes --no-force",
+            ] {
+                assert!(visible.contains(expected), "{visible}");
+            }
+            assert!(
+                visible.contains(&std::env::current_exe()?.display().to_string()),
+                "{visible}"
+            );
+            assert!(visible.contains("its bundled backend"), "{visible}");
+            let server = if scenario == "unknown version" {
+                crate::i18n::message("status-unknown-version", &[])
+            } else {
+                "0.166.0+native-r28.20261029".to_string()
+            };
+            assert!(visible.contains(&server), "{visible}");
+            let AppServerTarget::LocalDaemon {
+                endpoint: RemoteAppServerEndpoint::WebSocket { websocket_url, .. },
+                ..
+            } = &original_target
+            else {
+                panic!("version fixtures use a local WebSocket endpoint");
+            };
+            assert!(visible.contains(websocket_url), "{visible}");
+        } else {
+            assert_eq!(startup_warning.as_deref(), Some("previous startup warning"));
+        }
         if scenario == "required version mismatch" {
             let client = result?;
             assert_eq!(target, original_target);

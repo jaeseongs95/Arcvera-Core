@@ -39,6 +39,18 @@ CS 적용: 실제 handshake 응답이 사전 probe보다 권위가 높은 관측
 
 ## 구현 연결 및 실행 인계
 
+### D5 실제 표시 경계 보완 계획 (독립감사 후, 제품 수정 전)
+
+기존 06·10의 handshake 거부/formatter 검증만으로 실제 화면 전달을 입증하지 못했다. 초기 `start_app_server`는 mismatch를 버리고 embedded로 전환했으며, `reconnect`는 mismatch를 재시도하다 단계별 timeout으로 바꿨다. 아래 사례를 먼저 추가하고 결과는 실행 전 `NOT_RUN`으로 유지한다.
+
+| 사례 | 전제·입력 | 절차·실제 경계 | 기대 결과·oracle | 상태 |
+| --- | --- | --- | --- | --- |
+| R38-DAEMON-11 | 자동선택 preflight는 current build, 최종 handshake는 old 또는 version missing; 시작 안내에 기존 경고 있음 | 실제 `start_app_server`의 embedded fallback 결과를 `run_ratatui_app`에서 쓰는 동일 startup-warning 전달 경계로 넘기고 기존 startup history event를 렌더 | active backend가 Embedded이고, 시작 경고에 current CLI executable/source·전체 client/server version 또는 unknown·socket·no-force 명령이 모두 남는다. 기존 경고도 보존. fixture는 initialize/initialized 외 RPC를 거부 | NOT_RUN |
+| R38-DAEMON-12 | 진행 대화 ID·편집 중 draft·queue가 있는 implicit LocalDaemon이 old 또는 version missing으로 교체됨 | 실제 `reconnect` 호출 후 production reconnect 실패 표시 경계에서 history event를 렌더 | deadline까지 재시도하지 않고 typed local-version refusal만 반환·표시. 전체 version·안전한 endpoint·CLI source/path·no-force 안내 보존. 기존 ID/draft/queue 유지; resume/start/fork/turn/lifecycle RPC와 타 backend 전환 없음 | NOT_RUN |
+| R38-DAEMON-13 | 임의 transport 오류 문자열 또는 credential/query/fragment가 있는 WebSocket endpoint; explicit target 포함 | startup fallback과 reconnect의 같은 오류 전달 경계 호출 | 일반 transport error를 startup UI에 복사하지 않음. reconnect는 기존 stage-only timeout 유지. typed refusal의 endpoint만 기존 sanitizer를 거치며 credential/query/fragment가 표시되지 않음. explicit Remote/LocalDaemon(false)는 기존 정책 보존 | NOT_RUN |
+
+실제 UI 표시를 검사하는 사례 이름에 `daemon_startup` 또는 `startup_orchestration`을 포함해 기존 직렬 시험 필터에서도 새 경계가 실행되도록 한다. 오류 문자열 전체를 안전하다고 가정하지 않고, 생성 위치가 제한된 typed local-version refusal만 UI용 진단으로 취급한다.
+
 기존 Rust 테스트 모듈을 재사용했다. 새 runner나 의존성은 추가하지 않았다.
 
 | 사례 | 구현된 테스트 경계 | 실행 상태 |
@@ -49,7 +61,21 @@ CS 적용: 실제 handshake 응답이 사전 probe보다 권위가 높은 관측
 | 06 | `startup_orchestration::tests::automatic_daemon_rechecks_replaced_server_after_successful_start` | NOT_RUN |
 | 09 | `i18n::tests::daemon_selection_mismatch_warning_preserves_paths_and_guidance_in_both_languages` | NOT_RUN |
 | 10 | `i18n::tests::daemon_connection_mismatch_preserves_runtime_source_and_explicit_guidance` / `history_cell::tests::local_daemon_version_guidance_uses_selected_ui_language` | NOT_RUN |
+| 11 | `daemon_startup_tests::daemon_startup_falls_back_only_for_implicit_endpoints`가 실제 fallback의 warning out-parameter → production `emit_startup_warning` → `InsertHistoryCell` 렌더를 검사 | NOT_RUN |
+| 12 | `app::tests::disconnect_tests::daemon_startup_reconnect_version_refusal_reaches_history_without_restoring_work`가 실제 reconnect → production `finish_failed_reconnect` → history event 렌더와 ID/draft/queue 보존을 검사 | NOT_RUN |
+| 13 | 기존 11의 일반 transport 오류 경고 미추가 oracle + `app::tests::disconnect_tests::daemon_startup_reconnect_transport_errors_keep_stage_only_diagnostic`; 12에서 합성 credential/query/fragment 비노출도 검사 | NOT_RUN |
+
+D5 보완 구현은 `LocalVersionMismatch`의 private 진단만 UI로 전달한다. 초기 fallback은 `run_ratatui_app`의 기존 startup warning에 추가하며, `App::run`은 동일 `emit_startup_warning` 경계로 표시한다. 재연결은 typed refusal만 즉시 반환하고 기존 실패 UI 경계를 호출한다. 다른 오류는 기존 재시도·stage-only timeout을 유지한다. archive/picker 호출자는 UI warning을 소비하지 않으므로 기존 동작을 보존하도록 빈 warning sink를 전달한다.
 
 UDS fixture는 자기 임시 directory의 private socket과 합성 initialize 응답만 사용한다. shared 서버와 무관한 client transport 종료 뒤에도 같은 listener가 다음 연결을 받으며, `initialized` 외 application RPC는 assertion 실패다. 이 oracle는 lifecycle/thread RPC 무발행을 검증하며 실제 진행 작업의 보존 E2E를 대신하지 않는다.
 
 실행 담당자가 격리된 빌드 사본에서 기존 `cargo test -p codex-tui --lib <해당 필터> -- --test-threads=1`을 직렬 실행하고 결과를 위 사례에 연결한다. 구현자는 Cargo/시험/빌드/운영 명령을 실행하지 않았다. 정적 diff 검사는 동적 시험의 PASS가 아니다.
+
+2026-11-06 통합 시험 1차: 11개 중 10 PASS, 12번 사례는 reconnect 전에 fixture의 Enter가 operation을 발생시켜 준비 조건에서 FAIL했다. 원시 결과는 보존한다. 실제 진행 중 TurnStarted 상태에서 기존 queue_user_message_with_options 경계로 대기 입력을 준비하고, 준비 전 초기 operation만 비운다. 준비 후·재연결 후 operation 없음과 ID/draft/queue 보존 oracle는 유지한다. 제품 코드·대기 정책은 바꾸지 않는다. 재실행 전 결과는 NOT_RUN이다.
+
+통합 재시험 2차는 다른 테스트 모듈의 private turn helper를 잘못 참조해 E0425 compile 오류(exit101)였다. 실제 시험 0개이며 제품 실패나 통과로 계산하지 않는다. 동일한 protocol Turn 구조체를 fixture에 명시하고 조건·oracle 그대로 3차 실행한다.
+
+
+## Windows 최종 개발 시험 결과
+
+통합 4차에서 `daemon_startup` 11개, `startup_orchestration` 2개, `i18n::tests::daemon_` 2개, `history_cell::tests::local_daemon` 2개와 기존 backend 소유권 필터 1개가 각각 exit0이다. 01~13 사례의 위에 명시한 실제 fixture·메시지 경계가 통과했다. 초기 fallback history와 실제 reconnect 거부 history, source·version·안전한 endpoint 안내, draft/queue/ID 보존을 포함한다. 최초 fixture 준비 실패와 E0425 컴파일 실패는 보존했다. 공유 운영 프로세스의 강제 전환·실제 진행 작업 전체 E2E는 이 격리 시험의 보장 범위가 아니다.

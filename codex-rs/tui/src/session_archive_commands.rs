@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Shared implementation for `codex archive`, `codex delete`, and `codex unarchive`.
 //!
 //! The CLI commands are thin app-server clients: resolve a user-provided UUID or exact session
@@ -404,6 +405,7 @@ pub(super) async fn start_app_server_for_session_command(
         &mut state_db,
         environment_manager,
         embedded_network_policy,
+        &mut None,
     )
     .await?;
     Ok(AppServerSession::new(

@@ -679,3 +679,9 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미�
 - Resolve task-owner account spellings to SIDs while preserving exact action and Limited-privilege checks.
 - Emit UTF-8 from the updater process so Korean installation paths survive native CLI forwarding and hidden execution.
 - Add native-host output regression and extend existing scheduler ownership tests. The published R33 assets remain unchanged.
+
+## R38 개발 후보 — 2026-11-06
+
+고정 소스 `b8989c4c3d2537800e7d5fdb8990a5572f8205f2`는 R37 이후의 별도 개발 후보다. 플러그인 payload 비교에서 정확한 `.git`만 제외하고, 암시적 daemon의 전체 버전 확인과 실제 시작·재연결 화면 안내를 보강했다. Stop 속성의 명시적 교정 도구와 재로드 경고의 한국어/영어 안내, 에이전트 목록의 메인 마우스 복귀 및 작은 밑줄만 사용하는 hover를 포함한다.
+
+요구별 실행 결과·원래 실패·미검증 경계는 [R38 범위](docs/native-cli-r38.ko.md)와 연결된 사례 문서를 따른다. 운영 설정 자동 교정·R38 최종 릴리스 빌드·공개·설치는 수행하지 않았다. R37 동결 실행 파일은 변경하지 않았다.

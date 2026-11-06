@@ -18,6 +18,17 @@ use std::collections::BTreeMap;
 pub(super) const FAILURE_HINT: &str = "To work without the background server, rerun the same command with --no-daemon (including resume or fork and its arguments).";
 pub(super) const WSL_DRVFS_EXCLUSION: &str = "a Windows-mounted WSL CODEX_HOME (DrvFS/9p)";
 
+pub(crate) fn emit_startup_warning(
+    warning: Option<String>,
+    events: &crate::app_event_sender::AppEventSender,
+) {
+    if let Some(warning) = warning {
+        events.send(crate::app_event::AppEvent::InsertHistoryCell(Box::new(
+            crate::history_cell::StartupWarningsCell::new(vec![warning]),
+        )));
+    }
+}
+
 /// Returns whether `codex_home` is on a Windows-mounted WSL filesystem.
 pub fn uses_wsl_drvfs(codex_home: &std::path::Path) -> bool {
     // The managed daemon writes an executable and Unix-style state beneath CODEX_HOME.

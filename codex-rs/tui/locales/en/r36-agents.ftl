@@ -7,3 +7,4 @@ r37-agents-click = click
 r37-agents-click-expand = click expand
 r37-agents-click-collapse = click collapse
 r37-agents-click-open = click open chat
+r38-agents-main = Main agent
