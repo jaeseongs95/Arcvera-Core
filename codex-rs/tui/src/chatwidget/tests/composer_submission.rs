@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use super::*;
 use crate::app_event::ConnectorsSnapshot;
 use crate::bottom_pane::RestrictedInputMode;
@@ -1873,6 +1873,7 @@ async fn restore_thread_input_state_applies_running_state_policy() {
         text_elements: Vec::new(),
     });
     let input_state = ThreadInputState {
+        provider_error: None,
         questions: None,
         pending_thread_settings: None,
         initial_user_message: None,
@@ -2942,5 +2943,56 @@ async fn reload_plugin_captures_thread_preserves_draft_and_runs_while_busy() {
         if owner_generation == chat.thread_runtime_generation));
     assert_eq!(chat.bottom_pane.composer_text(), "keep this draft");
     assert!(chat.turn_lifecycle.agent_turn_running);
+    assert!(operations.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn provider_error_recovers_only_the_rejected_steer() {
+    let (mut chat, _events, mut operations) = make_chatwidget_manual(/*model_override*/ None).await;
+    let mut accepted = pending_steer("Focus on the backend");
+    accepted.client_id = "accepted".into();
+    let mut rejected = pending_steer("Also add tests");
+    rejected.client_id = "rejected".into();
+    chat.input_queue
+        .pending_steers
+        .extend([accepted.clone(), rejected.clone()]);
+
+    chat.show_provider_error(
+        codex_app_server_protocol::ModelProviderError::ModelProviderPolicyConflict {
+            model_provider: "old-provider".into(),
+            required_model_provider: "required-provider".into(),
+        },
+        Some("rejected"),
+    );
+
+    assert_eq!(chat.input_queue.pending_steers, VecDeque::from([accepted]));
+    assert_eq!(
+        chat.input_queue.rejected_steers_queue,
+        VecDeque::from([rejected.user_message])
+    );
+    assert!(chat.input_queue.suppress_queue_autosend);
+    assert!(operations.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn provider_error_recovers_the_rejected_initial_prompt() {
+    let (mut chat, _events, mut operations) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.thread_id = Some(ThreadId::new());
+    chat.submit_user_message(UserMessage::from("Keep this prompt"));
+    let Op::UserTurn {
+        client_user_message_id,
+        ..
+    } = next_submit_op(&mut operations)
+    else {
+        panic!("expected user turn");
+    };
+    chat.show_provider_error(
+        codex_app_server_protocol::ModelProviderError::ModelProviderNotConfigured {
+            model_provider: "old-provider".into(),
+        },
+        Some(&client_user_message_id),
+    );
+    assert_eq!(chat.queued_user_message_texts(), vec!["Keep this prompt"]);
+    assert!(!chat.input_queue.user_turn_pending_start);
     assert!(operations.try_recv().is_err());
 }

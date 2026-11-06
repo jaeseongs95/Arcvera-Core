@@ -1,7 +1,7 @@
 // Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Dashboard for inspecting and managing the TUI's retained daemon tasks.
 //! Search, rename, status filters and selection survive metadata refreshes.
-//! Rows retain their relative order while they remain in the same status group.
+//! The caller supplies rows in status, descending update time, and thread ID order.
 
 #[path = "agent_center/mod.rs"]
 pub(super) mod command_center;
@@ -113,6 +113,7 @@ pub(super) struct AgentsOverviewRow {
     pub(super) thread_id: ThreadId,
     pub(super) group: AgentsOverviewGroup,
     pub(super) is_current: bool,
+    pub(super) unread: bool,
     pub(super) has_voice: bool,
 }
 
@@ -161,7 +162,6 @@ pub(super) fn directory_group_key(cwd: &Path, worktrees_enabled: bool) -> PathBu
 
 #[derive(Default)]
 pub(super) struct AgentsOverviewViewState {
-    row_order: HashMap<ThreadId, (AgentsOverviewGroup, usize)>,
     scroll: usize,
     page_height: usize,
     status_filter: usize,
@@ -221,7 +221,7 @@ pub(super) struct AgentsOverviewView {
 
 impl AgentsOverviewView {
     pub(super) fn new(
-        mut rows: Vec<AgentsOverviewRow>,
+        rows: Vec<AgentsOverviewRow>,
         selected_thread_id: Option<ThreadId>,
         worktrees_enabled: bool,
         use_theme_colors: bool,
@@ -229,24 +229,6 @@ impl AgentsOverviewView {
         keymap: RuntimeKeymap,
         state: Arc<Mutex<AgentsOverviewViewState>>,
     ) -> Self {
-        {
-            let mut state = state.lock().unwrap_or_else(PoisonError::into_inner);
-            // The caller supplies recency order. Keep existing rows in place, and append
-            // new arrivals or status transitions in that order within their new group.
-            rows.sort_by_key(|row| {
-                let rank = state
-                    .row_order
-                    .get(&row.thread_id)
-                    .filter(|(group, _)| *group == row.group)
-                    .map_or(usize::MAX, |(_, rank)| *rank);
-                (row.group, rank)
-            });
-            state.row_order = rows
-                .iter()
-                .enumerate()
-                .map(|(rank, row)| (row.thread_id, (row.group, rank)))
-                .collect();
-        }
         let selected = state
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Fluent catalogs for application-owned UI messages. Argument values are opaque.
 
 use std::collections::BTreeMap;
@@ -30,7 +30,14 @@ const EN: Sources<'static> = &[
         include_str!("../../locales/en/r36-agents.ftl"),
     ),
     ("r36-ci", include_str!("../../locales/en/r36-ci.ftl")),
-    ("r36-cleanup", include_str!("../../locales/en/r36-cleanup.ftl")),
+    (
+        "r36-cleanup",
+        include_str!("../../locales/en/r36-cleanup.ftl"),
+    ),
+    (
+        "r38-official",
+        include_str!("../../locales/en/r38-official.ftl"),
+    ),
 ];
 const KO: Sources<'static> = &[
     ("core", include_str!("../../locales/ko/core.ftl")),
@@ -46,7 +53,14 @@ const KO: Sources<'static> = &[
         include_str!("../../locales/ko/r36-agents.ftl"),
     ),
     ("r36-ci", include_str!("../../locales/ko/r36-ci.ftl")),
-    ("r36-cleanup", include_str!("../../locales/ko/r36-cleanup.ftl")),
+    (
+        "r36-cleanup",
+        include_str!("../../locales/ko/r36-cleanup.ftl"),
+    ),
+    (
+        "r38-official",
+        include_str!("../../locales/ko/r38-official.ftl"),
+    ),
 ];
 
 struct Catalog {
@@ -365,11 +379,17 @@ mod tests {
 
     #[test]
     fn all_475_legacy_translations_match_the_pre_migration_dictionary() {
-        let legacy = &catalogs().legacy;
+        // Freeze the original dictionary while allowing new official UI literals.
+        let original = Catalogs::new(
+            &[("legacy", include_str!("../../locales/en/legacy.ftl"))],
+            &[("legacy", include_str!("../../locales/ko/legacy.ftl"))],
+        );
+        let legacy = &original.legacy;
         assert_eq!(legacy.len(), 475);
         let sorted: BTreeMap<_, _> = legacy.iter().collect();
         let mut hash = Sha256::new();
         for (original, translated) in sorted {
+            assert_eq!(catalogs().legacy.get(original), Some(translated));
             hash.update(original.as_bytes());
             hash.update([0]);
             hash.update(translated.as_bytes());

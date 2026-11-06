@@ -48,16 +48,19 @@ def main():
     assert sha((ROOT/WINDOWS_INPUTS_PATH).read_bytes())==baseline['windowsPromptInputsSha256'],'Windows prompt catalog changed'
     assert baseline['windowsPromptInputsPath']==WINDOWS_INPUTS_PATH
     assert json.loads((ROOT/WINDOWS_INPUTS_PATH).read_bytes())['sourceCommit']==baseline['patchedCommit']
-    assert len(WINDOWS_INPUTS)==38
+    assert len(WINDOWS_INPUTS)==40
     windows_prompts=0
     ts_header=generated_ts_header(ROOT)
     assert sha((ROOT/baseline['patchPath']).read_bytes())==baseline['patchSha256'],'patch changed'
     changed={item['path'] for item in baseline['modifiedFiles']}
-    assert baseline['officialCommit']=='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-    assert baseline['patchedCommit']=='8e9b7eff953e750e8f071d101233920108e5ca26'
+    assert baseline['officialCommit']=='086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a'
+    assert baseline['patchedCommit']=='1e1ca88d101369b5b2d25c3f522fd4af34ca2a2e'
+    assert baseline['officialVersion']=='0.167.0'
+    assert baseline['previousPublicCommit']=='6e8253badf4deb156ce3291283851565f9643ddc'
+    assert baseline['patchPath']=='upstream/official-0.167.0.patch'
     assert inventory['sourceCommit']==baseline['patchedCommit']
     assert len(inventory['files'])==baseline['sourceFileCount']
-    assert len(changed)==757
+    assert len(changed)==760
     includes=0;manifests=0;path_inputs=0;members=0
     for item in inventory['files']:
         relative=item['path'];path=ROOT/relative
@@ -109,7 +112,7 @@ def main():
                 if '$' not in target:
                     assert (path.parent/target).is_file(),(relative,target)
                     includes+=1
-    assert windows_prompts==38
+    assert windows_prompts==40
     for relative,expected in baseline['preservedRepositoryDocuments'].items():assert sha((ROOT/relative).read_bytes())==expected,relative
     for name in ['bubblewrap.c','bind-mount.c','network.c','utils.c','COPYING']:assert (ROOT/'codex-rs/vendor/bubblewrap'/name).is_file(),name
     assert read_source(ROOT,{'path':LICENSE_LINK,'gitMode':'120000'})==b'COPYING'

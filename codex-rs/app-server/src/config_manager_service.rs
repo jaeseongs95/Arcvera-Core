@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use crate::config_layer::config_layer_metadata_to_api;
 use crate::config_layer::config_layer_to_api;
 use crate::config_manager::ConfigManager;
@@ -26,6 +26,8 @@ use codex_config::is_structured_feature_path;
 use codex_config::merge_toml_values;
 use codex_config::shell_environment_filter_entry;
 use codex_config::validate_shell_environment_policy_filter_config;
+use codex_connectors::apps_config_from_layer_stack;
+use codex_connectors::apps_config_origins_from_layer_stack;
 use codex_core::config::deserialize_config_toml_with_base;
 use codex_core::config::edit::ConfigEdit;
 use codex_core::config::edit::ConfigEditsBuilder;
@@ -164,10 +166,9 @@ impl ConfigManager {
         layers: &ConfigLayerStack,
         include_layers: bool,
     ) -> Result<ConfigReadResponse, ConfigManagerError> {
-        let effective = layers.effective_config();
-        let mut effective_config_toml: ConfigToml = effective
-            .try_into()
+        let mut effective_config_toml = ConfigToml::try_from(layers.effective_config())
             .map_err(|err| ConfigManagerError::toml("invalid configuration", err))?;
+        effective_config_toml.apps = apps_config_from_layer_stack(layers);
         layers
             .requirements_toml()
             .apply_exact_to_config(&mut effective_config_toml);
@@ -184,6 +185,8 @@ impl ConfigManager {
                 .exact_requirement_for_config_path(segments)
                 .is_none()
         });
+        origins.retain(|path, _| !path.starts_with("apps."));
+        origins.extend(apps_config_origins_from_layer_stack(layers));
         origins.retain(|_, metadata| {
             !matches!(&metadata.name, ConfigLayerSource::PackagedDefaults { .. })
         });
@@ -880,7 +883,7 @@ fn toml_value_to_value(value: &TomlValue) -> anyhow::Result<toml_edit::Value> {
 }
 
 fn validate_config(value: &TomlValue) -> anyhow::Result<()> {
-    let config: ConfigToml = value.clone().try_into()?;
+    let config = ConfigToml::try_from(value.clone())?;
     if config.approval_policy == Some(AskForApproval::UnlessTrusted) {
         anyhow::bail!(
             "approval_policy = \"untrusted\" is no longer supported; remove this setting"

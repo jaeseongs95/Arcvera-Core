@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Input queue restore and thread-input snapshot behavior for `ChatWidget`.
 
 use std::collections::HashSet;
@@ -617,6 +617,7 @@ impl ChatWidget {
             pending_pastes: draft.pending_pastes,
         };
         Some(ThreadInputState {
+            provider_error: self.provider_error.clone(),
             questions: self
                 .bottom_pane
                 .questions
@@ -662,6 +663,9 @@ impl ChatWidget {
         restore_mode: ThreadInputStateRestoreMode,
     ) {
         self.input_queue.service_tier_selection_pending = false;
+        let provider_error = input_state
+            .as_ref()
+            .and_then(|state| state.provider_error.clone());
         let preserve_in_flight_turn = restore_mode.preserve_in_flight_turn;
         let restored_task_running =
             preserve_in_flight_turn && input_state.as_ref().is_some_and(|state| state.task_running);
@@ -754,6 +758,9 @@ impl ChatWidget {
         if restored_task_running && !self.bottom_pane.is_task_running() {
             self.bottom_pane.set_task_running(/*running*/ true);
             self.refresh_status_surfaces();
+        }
+        if let Some(error) = provider_error {
+            self.show_provider_error(error, /*rejected_message_id*/ None);
         }
         self.refresh_pending_input_preview();
         self.request_redraw();

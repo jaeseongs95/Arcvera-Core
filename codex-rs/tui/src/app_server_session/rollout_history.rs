@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Resume and read-only history loading across rollout formats.
 
 use super::AppServerSession;
@@ -93,7 +93,7 @@ impl AppServerSession {
         let Some(selection) = selection else {
             return;
         };
-        let client = self.client.request_handle();
+        let client = self.request_handle();
         let connection_live = self.connection_live.clone();
         let registration = self.runtime_tool_registration_lifetime.clone();
         tokio::spawn(async move {
@@ -158,7 +158,7 @@ impl AppServerSession {
             tracing::warn!("Failed to page read-only thread history; trying summary pages");
             let request_id = self.next_request_id();
             let page: ThreadTurnsListResponse = self
-                .client
+                .request_handle
                 .request_typed(ClientRequest::ThreadTurnsList {
                     request_id,
                     params: ThreadTurnsListParams {
@@ -197,6 +197,7 @@ impl AppServerSession {
         )
         .await
         .map_err(color_eyre::eyre::Report::msg)?;
+        self.freeze_viewed_receipt(thread_id);
         Ok((
             AppServerStartedThread {
                 session,
@@ -209,8 +210,8 @@ impl AppServerSession {
     }
 
     pub(crate) fn with_local_codex_home(mut self, codex_home: &AbsolutePathBuf) -> Self {
-        self.task_tool_capabilities_dir = (!self.uses_embedded_app_server())
-            .then(|| codex_home.join("tui-thread-reference-capabilities"));
+        self.task_tool_capabilities_dir =
+            Some(codex_home.join("tui-thread-reference-capabilities"));
         self
     }
 
@@ -284,37 +285,37 @@ impl AppServerSession {
         if self.thread_params_mode().settings_owner() == ThreadSettingsOwner::Client {
             self.thread_tool_transport().configure_resume(&mut params);
         }
-        let mut rollout_maintenance_guard = None;
-        params.exclude_turns = if self.history_support == ThreadHistorySupport::Paginated {
-            let known_legacy_history = self
+        let paginated = self.history_support == ThreadHistorySupport::Paginated;
+        let cached_legacy = paginated
+            && self
                 .history_pagination
                 .get(&thread_id)
-                .is_some_and(|state| state.history_mode == ThreadHistoryMode::Legacy)
-                && (!self.uses_embedded_app_server()
-                    || ({
-                        // The guard prevents migration through the full resume,
-                        // regardless of the server's migration feature settings.
-                        rollout_maintenance_guard =
-                            codex_rollout::try_acquire_rollout_maintenance_lock(
-                                config.codex_home.as_path(),
-                            )
-                            .ok()
-                            .flatten();
-                        rollout_maintenance_guard.is_some()
-                    } && self
-                        .thread_read(thread_id, /*include_turns*/ false)
-                        .await
-                        .is_ok_and(|thread| thread.history_mode == ThreadHistoryMode::Legacy)));
-            !known_legacy_history
+                .is_some_and(|state| state.history_mode == ThreadHistoryMode::Legacy);
+        // Hold the maintenance lock through a full legacy resume to prevent migration.
+        let mut rollout_maintenance_guard = if cached_legacy && self.uses_embedded_app_server() {
+            codex_rollout::try_acquire_rollout_maintenance_lock(config.codex_home.as_path())
+                .ok()
+                .flatten()
         } else {
-            false
+            None
         };
+        // Capture the receipt before the resume-time history boundary. Later results are delivered live.
+        self.unread_revisions.remove(&thread_id);
+        let metadata = Box::pin(self.thread_read(thread_id, /*include_turns*/ false))
+            .await
+            .ok();
+        let known_legacy = cached_legacy
+            && (!self.uses_embedded_app_server()
+                || (rollout_maintenance_guard.is_some()
+                    && metadata
+                        .is_some_and(|thread| thread.history_mode == ThreadHistoryMode::Legacy)));
+        params.exclude_turns = paginated && !known_legacy;
         if params.exclude_turns {
             rollout_maintenance_guard = None;
         }
         let request_id = self.next_request_id();
         let resume_response = self
-            .client
+            .request_handle
             .request_typed(ClientRequest::ThreadResume {
                 request_id,
                 params: params.clone(),
@@ -329,7 +330,7 @@ impl AppServerSession {
                 self.history_support = ThreadHistorySupport::LegacyOnly;
                 params.exclude_turns = false;
                 let request_id = self.next_request_id();
-                self.client
+                self.request_handle
                     .request_typed(ClientRequest::ThreadResume {
                         request_id,
                         params: params.clone(),

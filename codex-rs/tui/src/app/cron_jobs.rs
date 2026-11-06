@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! CLI-lifetime cron integration: immutable targets, normal protocol input, one loop deadline.
 use super::*;
 use crate::backend_id::BackendId;
@@ -1960,11 +1960,8 @@ mod tests {
                 app.app_event_tx.clone(),
                 app.dynamic_tool_status_updates.clone(),
                 None,
-                crate::dynamic_tools_mcp::ToolServices {
-                    task_tools: true,
-                    cron: Some(connection),
-                    worktrees: None,
-                },
+                /*worktrees*/ None,
+                Some(connection),
             )
             .await?,
         );

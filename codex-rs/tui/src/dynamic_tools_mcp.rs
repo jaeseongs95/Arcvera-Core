@@ -1,5 +1,5 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
-//! Approval-gated MCP transport for task tools owned by a local-daemon TUI.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
+//! Approval-gated MCP transport for task tools owned by a local TUI.
 
 use crate::app_event_sender::AppEventSender;
 use crate::dynamic_tools;
@@ -55,7 +55,6 @@ use uuid::Uuid;
 
 #[derive(Clone)]
 pub(crate) enum ThreadToolTransport {
-    CronOnly,
     Dynamic,
     Mcp(Arc<DynamicToolMcpServer>),
 }
@@ -76,8 +75,11 @@ impl ThreadToolTransport {
         &self,
         config: &crate::legacy_core::config::Config,
     ) -> std::io::Result<()> {
-        if let Self::Mcp(server) = self
-            && config.mcp_servers.get().contains_key(server.namespace)
+        if matches!(self, Self::Mcp(_))
+            && config
+                .mcp_servers
+                .get()
+                .contains_key(dynamic_tools::NAMESPACE)
         {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::AlreadyExists,
@@ -89,7 +91,6 @@ impl ThreadToolTransport {
 
     pub(crate) fn configure(&self, params: &mut ThreadStartParams) {
         match self {
-            Self::CronOnly => params.dynamic_tools = Some(crate::cron_tools::specs()),
             Self::Dynamic => {
                 params.dynamic_tools = Some(dynamic_tools::non_delegation_tool_specs());
             }
@@ -103,26 +104,9 @@ impl ThreadToolTransport {
     pub(crate) fn configure_mcp(&self, config: &mut Option<HashMap<String, Value>>) {
         if let Self::Mcp(server) = self {
             config.get_or_insert_default().insert(
-                format!("mcp_servers.{}", server.namespace),
+                format!("mcp_servers.{}", dynamic_tools::NAMESPACE),
                 server.config.clone(),
             );
-        }
-    }
-}
-
-#[derive(Clone)]
-pub(crate) struct ToolServices {
-    pub(crate) task_tools: bool,
-    pub(crate) cron: Option<crate::cron_tools::Connection>,
-    pub(crate) worktrees: Option<crate::managed_worktree_tools::ManagedWorktreeTools>,
-}
-
-impl ToolServices {
-    pub(crate) fn namespace(&self) -> &'static str {
-        if self.task_tools {
-            dynamic_tools::NAMESPACE
-        } else {
-            "codex_worktrees"
         }
     }
 }
@@ -140,7 +124,6 @@ type ToolConnection = Arc<
 pub(crate) struct DynamicToolMcpServer {
     connection: ToolConnection,
     config: Value,
-    namespace: &'static str,
     task: JoinHandle<()>,
 }
 
@@ -187,7 +170,8 @@ impl DynamicToolMcpServer {
         app_event_tx: AppEventSender,
         status_updates: broadcast::Sender<ThreadStatusChangedNotification>,
         managed_requirement: Option<&McpServerRequirement>,
-        services: ToolServices,
+        worktrees: Option<crate::managed_worktree_tools::ManagedWorktreeTools>,
+        cron: Option<crate::cron_tools::Connection>,
     ) -> std::io::Result<Self> {
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let address = listener.local_addr()?;
@@ -220,19 +204,14 @@ impl DynamicToolMcpServer {
         if let Some(overrides) = thread_start_params.config.as_mut() {
             overrides.remove("web_search");
         }
-        let connection = Arc::new(RwLock::new(Some((
-            request_handle,
-            app_event_tx,
-            services.cron.clone(),
-        ))));
-        let namespace = services.namespace();
+        let connection = Arc::new(RwLock::new(Some((request_handle, app_event_tx, cron))));
         let handler = DynamicToolMcpHandler {
             connection: Arc::clone(&connection),
             thread_start_params,
             features,
             status_updates,
             server_config: server_config.clone(),
-            services,
+            worktrees,
         };
         let service = StreamableHttpService::new(
             move || Ok(handler.clone()),
@@ -254,7 +233,6 @@ impl DynamicToolMcpServer {
         Ok(Self {
             connection,
             config: server_config,
-            namespace,
             task,
         })
     }
@@ -289,7 +267,7 @@ struct DynamicToolMcpHandler {
     features: Features,
     status_updates: broadcast::Sender<ThreadStatusChangedNotification>,
     server_config: Value,
-    services: ToolServices,
+    worktrees: Option<crate::managed_worktree_tools::ManagedWorktreeTools>,
 }
 
 impl ServerHandler for DynamicToolMcpHandler {
@@ -303,15 +281,8 @@ impl ServerHandler for DynamicToolMcpHandler {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = Vec::new();
-        let mut specs = if self.services.task_tools {
-            dynamic_tools::tool_specs()
-        } else {
-            Vec::new()
-        };
-        if !self.services.task_tools && self.services.cron.is_some() {
-            specs.extend(crate::cron_tools::specs());
-        }
-        if self.services.worktrees.is_some() {
+        let mut specs = dynamic_tools::tool_specs();
+        if self.worktrees.is_some() {
             specs.extend(crate::managed_worktree_tool_specs::specs());
         }
         for spec in specs {
@@ -416,7 +387,7 @@ impl ServerHandler for DynamicToolMcpHandler {
         };
         let mut thread_start_params = self.thread_start_params.clone();
         thread_start_params.config.get_or_insert_default().insert(
-            format!("mcp_servers.{}", self.services.namespace()),
+            format!("mcp_servers.{}", dynamic_tools::NAMESPACE),
             self.server_config.clone(),
         );
         // Snapshot once: an in-flight call must never switch connections or replay a mutation.
@@ -443,7 +414,7 @@ impl ServerHandler for DynamicToolMcpHandler {
             params.tool.as_str(),
             "create_worktree" | "get_worktree_creation_status" | "list_worktrees"
         ) {
-            let service = self.services.worktrees.as_ref().ok_or_else(|| {
+            let service = self.worktrees.as_ref().ok_or_else(|| {
                 McpError::invalid_params("Worktree tools are unavailable on this connection", None)
             })?;
             service
@@ -455,12 +426,6 @@ impl ServerHandler for DynamicToolMcpHandler {
                 )
                 .await
         } else {
-            if !self.services.task_tools {
-                return Err(McpError::invalid_params(
-                    "Task tools are unavailable on this connection",
-                    None,
-                ));
-            }
             dynamic_tools::execute(
                 request_handle,
                 params,

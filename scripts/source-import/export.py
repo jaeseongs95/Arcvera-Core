@@ -8,13 +8,13 @@ from pathlib import Path
 import subprocess
 import tarfile
 
-OFFICIAL='6ff1e1ca3b30fc8b914720681fcf5fe62e95f856'
-PATCHED='8e9b7eff953e750e8f071d101233920108e5ca26'
-PREVIOUS_PUBLIC='0e17500f88e181e5a603cd279a8b9c2da82ee123'
+OFFICIAL='086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a'
+PATCHED='1e1ca88d101369b5b2d25c3f522fd4af34ca2a2e'
+PREVIOUS_PUBLIC='6e8253badf4deb156ce3291283851565f9643ddc'
 PREFIXES=['codex-rs', 'third_party', 'patches', '.cargo/config.toml', 'tools/windows-cli', '.gitattributes', 'docs/native-cli-r27.ko.md', 'docs/native-cli-cron.ko.md', 'docs/native-cli-r33-cache-observation.ko.md', 'docs/native-cli-r35.ko.md', 'docs/native-cli-r36.ko.md', 'docs/r36-cleanup.ko.md', 'docs/r36-cloud-ci.ko.md', 'docs/r36-fast-compaction.ko.md', 'docs/r37-agent-selection-cases.ko.md', 'docs/r37-cold-cleanup-cases.ko.md', 'docs/r37-config-cases.ko.md', 'docs/r37-daemon-cases.ko.md', 'docs/r37-memory-cases.ko.md', 'docs/r37-memory-transport-cases.ko.md', 'docs/r37-plugin-cache-cases.ko.md', 'docs/r37-replay-compact-cases.ko.md', 'sdk/python/src/openai_codex/generated/v2_all.py', 'docs/native-cli-r38.ko.md', 'docs/r38-daemon-test-cases.ko.md', 'docs/r38-plugin-cache-test-cases.ko.md', 'docs/r38-stop-hook-test-cases.ko.md', 'scripts/install/normalize_stop_hook_config.py', 'scripts/install/test_normalize_stop_hook_config.py', 'docs/r38-agent-main-return-test-cases.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
-PATCH_PATH='upstream/official-0.166.0.patch'
+PATCH_PATH='upstream/official-0.167.0.patch'
 LABEL='R32'
 NOTICE_OVERRIDES={path:('R33','2026-11-02') for path in (
     'codex-rs/tui/src/app/replay_filter.rs',
@@ -452,6 +452,64 @@ WINDOWS_INPUTS_PATH='upstream/windows-prompt-inputs.json'
 WINDOWS_INPUTS={p['path']:p for p in json.loads((Path(__file__).resolve().parents[2]/WINDOWS_INPUTS_PATH).read_bytes())['files']}
 
 NOTICE_OVERRIDES.update({path: ('R38', '2026-11-06') for path in ('codex-rs/Cargo.lock', 'codex-rs/Cargo.toml', 'codex-rs/core-plugins/src/store.rs', 'codex-rs/core-plugins/src/store_tests.rs', 'codex-rs/hooks/src/engine/discovery.rs', 'codex-rs/tui/locales/en/cli.ftl', 'codex-rs/tui/locales/en/controls.ftl', 'codex-rs/tui/locales/en/r36-agents.ftl', 'codex-rs/tui/locales/ko/cli.ftl', 'codex-rs/tui/locales/ko/controls.ftl', 'codex-rs/tui/locales/ko/r36-agents.ftl', 'codex-rs/tui/src/app/agent_navigation.rs', 'codex-rs/tui/src/app/reconnect.rs', 'codex-rs/tui/src/app/session_control.rs', 'codex-rs/tui/src/app/startup.rs', 'codex-rs/tui/src/app/subagent_status_tests.rs', 'codex-rs/tui/src/app/tests/backend_ownership_tests.rs', 'codex-rs/tui/src/app/tests/disconnect_tests.rs', 'codex-rs/tui/src/app/tests/plugin_reload_tests.rs', 'codex-rs/tui/src/app/thread_routing.rs', 'codex-rs/tui/src/app_server_connection.rs', 'codex-rs/tui/src/bottom_pane/subagent_status.rs', 'codex-rs/tui/src/daemon_startup.rs', 'codex-rs/tui/src/daemon_startup_tests.rs', 'codex-rs/tui/src/history_cell/notices.rs', 'codex-rs/tui/src/history_cell/tests.rs', 'codex-rs/tui/src/i18n.rs', 'codex-rs/tui/src/lib.rs', 'codex-rs/tui/src/session_archive_commands.rs', 'codex-rs/tui/src/startup_orchestration.rs', 'codex-rs/tui/src/startup_orchestration_tests.rs', 'docs/native-cli-r38.ko.md', 'docs/r38-agent-main-return-test-cases.ko.md', 'docs/r38-daemon-test-cases.ko.md', 'docs/r38-plugin-cache-test-cases.ko.md', 'docs/r38-stop-hook-test-cases.ko.md', 'scripts/install/normalize_stop_hook_config.py', 'scripts/install/test_normalize_stop_hook_config.py')})
+NOTICE_OVERRIDES.update({path: ('R38', '2026-11-06') for path in ('codex-rs/core/src/session/mod.rs', 'codex-rs/core/src/session/tests.rs')})
+
+# R38 0.167 integration: only directly edited, changed selected source files.
+NOTICE_OVERRIDES.update({path: ('R38', '2026-11-06') for path in (
+    'codex-rs/Cargo.lock',
+    'codex-rs/Cargo.toml',
+    'codex-rs/app-server/README.md',
+    'codex-rs/app-server/src/config_manager_service.rs',
+    'codex-rs/app-server/src/outgoing_message.rs',
+    'codex-rs/app-server/src/request_processors/thread_lifecycle.rs',
+    'codex-rs/app-server/src/request_processors/turn_processor.rs',
+    'codex-rs/cli/src/main.rs',
+    'codex-rs/cli/tests/daemon_startup.rs',
+    'codex-rs/codex-api/src/endpoint/responses_websocket.rs',
+    'codex-rs/codex-mcp/src/connection_manager/test_support.rs',
+    'codex-rs/codex-mcp/src/connection_manager_tests.rs',
+    'codex-rs/codex-mcp/src/connection_pool.rs',
+    'codex-rs/core/src/agent/control/spawn.rs',
+    'codex-rs/core/src/agent/control/spawn_guard.rs',
+    'codex-rs/core/src/session/handlers.rs',
+    'codex-rs/core/src/session/turn.rs',
+    'codex-rs/core/src/thread_manager.rs',
+    'codex-rs/tui/src/app/agent_center/rows.rs',
+    'codex-rs/tui/src/app/agent_navigation.rs',
+    'codex-rs/tui/src/app/app_server_events.rs',
+    'codex-rs/tui/src/app/backend_events.rs',
+    'codex-rs/tui/src/app/backend_sessions.rs',
+    'codex-rs/tui/src/app/cron_jobs.rs',
+    'codex-rs/tui/src/app/exit_summary.rs',
+    'codex-rs/tui/src/app/input.rs',
+    'codex-rs/tui/src/app/session_picker.rs',
+    'codex-rs/tui/src/app/startup.rs',
+    'codex-rs/tui/src/app/tests/active_reconnect_tests.rs',
+    'codex-rs/tui/src/app/thread_events.rs',
+    'codex-rs/tui/src/app/thread_routing.rs',
+    'codex-rs/tui/src/app_server_session.rs',
+    'codex-rs/tui/src/app_server_session/rollout_history.rs',
+    'codex-rs/tui/src/bottom_pane/pending_thread_approvals.rs',
+    'codex-rs/tui/src/chatwidget/input_restore.rs',
+    'codex-rs/tui/src/chatwidget/interaction.rs',
+    'codex-rs/tui/src/chatwidget/provider_error.rs',
+    'codex-rs/tui/src/chatwidget/rendering.rs',
+    'codex-rs/tui/src/chatwidget/tests/composer_submission.rs',
+    'codex-rs/tui/src/dynamic_tools_mcp.rs',
+    'codex-rs/tui/src/i18n.rs',
+    'codex-rs/tui/src/i18n/catalog.rs',
+    'codex-rs/tui/src/lib.rs',
+    'codex-rs/tui/src/managed_worktree_tools_tests.rs',
+    'codex-rs/tui/src/onboarding/auth.rs',
+    'codex-rs/tui/src/onboarding/bedrock.rs',
+    'codex-rs/tui/src/onboarding/bedrock_tests.rs',
+    'codex-rs/tui/src/onboarding/gcp.rs',
+    'codex-rs/tui/src/resume_picker.rs',
+    'codex-rs/tui/src/resume_picker/sources.rs',
+    'codex-rs/tui/src/startup_orchestration.rs',
+    'docs/native-cli-r38.ko.md',
+)})
+
 def sha(data):return hashlib.sha256(data).hexdigest()
 def git(repository,*args):return subprocess.check_output(['git','-c','core.autocrlf=false','-C',str(repository),*args])
 def encode(value):return (json.dumps(value,ensure_ascii=False,indent=2)+'\n').encode()
@@ -587,7 +645,7 @@ def main():
     for name in ['LICENSE','NOTICE']:outputs['upstream/'+name]=git(source,'show',PATCHED+':'+name)
     outputs[PATCH_PATH]=patch
     outputs['upstream/source-inventory.json']=encode({'schema':2,'sourceCommit':PATCHED,'files':inventory,'excluded':excluded,'symlinks':symlinks})
-    outputs['SOURCE_BASELINE.json']=encode({'schema':2,'upstream':'https://github.com/openai/codex','officialVersion':'0.166.0','previousPublicCommit':PREVIOUS_PUBLIC,'officialCommit':OFFICIAL,'patchedCommit':PATCHED,'officialTree':git(source,'rev-parse',OFFICIAL+'^{tree}').decode().strip(),'patchedTree':git(source,'rev-parse',PATCHED+'^{tree}').decode().strip(),'selectedPrefixes':PREFIXES,'patchPath':PATCH_PATH,'patchSha256':sha(patch),'sourceInventorySha256':sha(outputs['upstream/source-inventory.json']),'windowsPromptInputsPath':WINDOWS_INPUTS_PATH,'windowsPromptInputsSha256':sha((root/WINDOWS_INPUTS_PATH).read_bytes()),'sourceFileCount':len(inventory),'publishedBytes':sum(p['bytes'] for p in inventory),'modifiedNoticeDate':DATE,'modifiedNoticeLabel':LABEL,'modifiedFiles':[p for p in inventory if p['modified']],'preservedRepositoryDocuments':existing,'limitations':['This public export has not been built or run as a fresh public checkout.','Operational checks, logs, credentials, binaries, local receipts and local Git history are excluded.','Tracked compressed schemas and other upstream source resources remain build inputs, not installable binaries.','Cargo.lock and workspace path dependencies are preserved; no machine-local cache/config overrides are exported.']})
+    outputs['SOURCE_BASELINE.json']=encode({'schema':2,'upstream':'https://github.com/openai/codex','officialVersion':'0.167.0','previousPublicCommit':PREVIOUS_PUBLIC,'officialCommit':OFFICIAL,'patchedCommit':PATCHED,'officialTree':git(source,'rev-parse',OFFICIAL+'^{tree}').decode().strip(),'patchedTree':git(source,'rev-parse',PATCHED+'^{tree}').decode().strip(),'selectedPrefixes':PREFIXES,'patchPath':PATCH_PATH,'patchSha256':sha(patch),'sourceInventorySha256':sha(outputs['upstream/source-inventory.json']),'windowsPromptInputsPath':WINDOWS_INPUTS_PATH,'windowsPromptInputsSha256':sha((root/WINDOWS_INPUTS_PATH).read_bytes()),'sourceFileCount':len(inventory),'publishedBytes':sum(p['bytes'] for p in inventory),'modifiedNoticeDate':DATE,'modifiedNoticeLabel':LABEL,'modifiedFiles':[p for p in inventory if p['modified']],'preservedRepositoryDocuments':existing,'limitations':['This public export has not been built or run as a fresh public checkout.','Operational checks, logs, credentials, binaries, local receipts and local Git history are excluded.','Tracked compressed schemas and other upstream source resources remain build inputs, not installable binaries.','Cargo.lock and workspace path dependencies are preserved; no machine-local cache/config overrides are exported.']})
     publish(root,outputs,previous)
     if os.name=='nt':
         for path,item in WINDOWS_INPUTS.items():

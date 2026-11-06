@@ -101,7 +101,7 @@ class VerifierChecks(unittest.TestCase):
         self.assertEqual(EXPORT.canonical_bytes(path,b'a\r\nb\r\n'),b'a\nb\n')
         self.assertEqual(EXPORT.canonical_bytes('codex-rs/schema.json.zst',b'\x00\r\n'),b'\x00\r\n')
         self.assertNotIn(b'eol=crlf',EXPORT.prompt_attributes())
-        self.assertEqual(EXPORT.prompt_attributes().count(b' text\n'),38)
+        self.assertEqual(EXPORT.prompt_attributes().count(b' text\n'),40)
     def test_generated_typescript_preserves_actual_rust_prefix_contract(self):
         root=SCRIPT.resolve().parents[2]
         inventory=__import__('json').loads((root/'upstream/source-inventory.json').read_bytes())
@@ -213,7 +213,7 @@ class VerifierChecks(unittest.TestCase):
                      'codex-rs/tui/src/chatwidget.rs', 'codex-rs/tui/src/keymap.rs',
                      'codex-rs/tui/src/app/tests/startup_defaults_tests.rs']:
             with self.subTest(path=path):
-                self.assertEqual(EXPORT.notice(path), b'// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n' if path == 'codex-rs/tui/src/lib.rs' else b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n' if path in {'codex-rs/tui/src/tui.rs'} else (b'// Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/cli/src/main.rs' else b'// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path in {'codex-rs/cli/src/main.rs', 'codex-rs/tui/src/keymap.rs'} else b'// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.\n'))
+                self.assertEqual(EXPORT.notice(path), b'// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n' if path in {'codex-rs/tui/src/lib.rs', 'codex-rs/cli/src/main.rs', 'codex-rs/cli/tests/daemon_startup.rs'} else b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n' if path in {'codex-rs/tui/src/tui.rs'} else (b'// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/tui/src/keymap.rs' else b'// Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.\n'))
         for path in ['codex-rs/Cargo.toml', 'codex-rs/Cargo.lock', 'codex-rs/cli/Cargo.toml']:
             with self.subTest(path=path):
                 self.assertEqual(EXPORT.notice(path), b'# Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n' if path in {'codex-rs/Cargo.toml', 'codex-rs/Cargo.lock'} else b'# Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.\n' if path == 'codex-rs/cli/Cargo.toml' else b'# Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.\n')
@@ -232,7 +232,6 @@ class VerifierChecks(unittest.TestCase):
         self.assertTrue(expected_docs.issubset(EXPORT.PREFIXES))
         self.assertNotIn('docs/r37-cache-observation-status.ko.md',EXPORT.PREFIXES)
         self.assertIn('sdk/python/src/openai_codex/generated/v2_all.py',EXPORT.PREFIXES)
-        self.assertEqual(EXPORT.PATCHED,'8e9b7eff953e750e8f071d101233920108e5ca26')
         self.assertEqual(EXPORT.notice('codex-rs/core-plugins/src/store.rs'),b'// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n')
         self.assertEqual(EXPORT.notice('sdk/python/src/openai_codex/generated/v2_all.py'),b'# Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n')
 
@@ -255,5 +254,19 @@ class VerifierChecks(unittest.TestCase):
                 self.assertEqual(EXPORT.notice(path),b'// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n')
         self.assertEqual(EXPORT.notice('scripts/install/normalize_stop_hook_config.py'),b'# Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n')
         self.assertEqual(EXPORT.notice('codex-rs/app-server-daemon/src/prepare_install.rs'),b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n')
+
+    def test_r38_0167_pins_and_runtime_prompt_catalog(self):
+        self.assertEqual(EXPORT.OFFICIAL,'086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a')
+        self.assertEqual(EXPORT.PATCHED,'1e1ca88d101369b5b2d25c3f522fd4af34ca2a2e')
+        self.assertEqual(EXPORT.PREVIOUS_PUBLIC,'6e8253badf4deb156ce3291283851565f9643ddc')
+        self.assertEqual(EXPORT.PATCH_PATH,'upstream/official-0.167.0.patch')
+        catalog=__import__('json').loads((SCRIPT.resolve().parents[2]/EXPORT.WINDOWS_INPUTS_PATH).read_bytes())
+        self.assertEqual(catalog['sourceCommit'],'1e1ca88d101369b5b2d25c3f522fd4af34ca2a2e')
+        paths=[item['path'] for item in catalog['files']]
+        self.assertEqual(len(paths),40)
+        self.assertEqual(len(set(paths)),40)
+        self.assertEqual(EXPORT.sha(('\n'.join(sorted(paths))+'\n').encode()),'3f0f64f1fcf91b22c111f8d97da372e038eff083d3172e61560f0c0500b79e24')
+        self.assertIn('codex-rs/prompts/templates/review/exit_interrupted.xml',paths)
+        self.assertIn('codex-rs/prompts/templates/review/exit_success.xml',paths)
 
 if __name__=='__main__':unittest.main()
