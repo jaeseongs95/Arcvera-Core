@@ -69,6 +69,16 @@ async fn version_mismatched_explicit_local_daemon_can_run_embedded_and_quit() ->
 }
 
 #[tokio::test]
+async fn version_unknown_explicit_local_daemon_can_run_embedded_and_quit() -> Result<()> {
+    #[cfg(windows)]
+    if codex_app_server_daemon::is_elevated()? {
+        eprintln!("requires a non-elevated Windows runner for local-daemon peer verification");
+        return Ok(());
+    }
+    daemon_startup("version-unknown-embedded").await
+}
+
+#[tokio::test]
 #[cfg(unix)]
 async fn incompatible_daemon_can_restart_with_confirmed_settings() -> Result<()> {
     daemon_startup("mismatch-restart").await
@@ -171,13 +181,21 @@ async fn bedrock_onboarding_leaves_a_running_daemon_untouched() -> Result<()> {
 }
 
 async fn daemon_startup(command: &str) -> Result<()> {
-    let version_mismatch = command == "version-mismatch-embedded";
+    let unknown_version = command == "version-unknown-embedded";
+    let version_mismatch = command == "version-mismatch-embedded" || unknown_version;
     let upstream_version = env!("CARGO_PKG_VERSION")
         .split_once('+')
         .map_or(env!("CARGO_PKG_VERSION"), |(version, _)| version);
     let mismatched_daemon_version = format!("{upstream_version}+native-r28.test");
-    let version_mismatch_warning =
-        format!("Backgroundserverversion{mismatched_daemon_version}doesnotmatchthisCLI");
+    let reported_daemon_version = if unknown_version {
+        "unknown"
+    } else {
+        mismatched_daemon_version.as_str()
+    };
+    let version_mismatch_warning = format!(
+        "reportsversion{reported_daemon_version},whichdoesnotmatchthisCLI{}",
+        env!("CARGO_PKG_VERSION")
+    );
     // All provider traffic in the version fixture stays local; no turn is submitted.
     let model_server = if version_mismatch {
         Some(wiremock::MockServer::start().await)
@@ -325,11 +343,16 @@ async fn daemon_startup(command: &str) -> Result<()> {
                 .context("missing initialize request")??;
             let request: serde_json::Value = serde_json::from_str(initialize.to_text()?)?;
             ensure!(request["method"] == "initialize", "{request}");
-            // Same upstream version, different build metadata: exercise the full-version guard.
+            // Exercise different full-build metadata or a valid user agent without a version.
+            let user_agent = if unknown_version {
+                "codex_cli_rs".to_string()
+            } else {
+                format!("codex_cli_rs/{mismatched_daemon_version}")
+            };
             let response = serde_json::json!({
                 "id": request["id"],
                 "result": {
-                    "userAgent": format!("codex_cli_rs/{mismatched_daemon_version}"),
+                    "userAgent": user_agent,
                     "codexHome": fake_home,
                 },
             });
@@ -563,6 +586,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
                     .collect();
                 if let Some((ready, input)) = steps.front()
                     && text.contains(ready)
+                    && (!version_mismatch
+                        || *input != b"1"
+                        || text.contains("Runwithoutdaemonthistime"))
                 {
                     if version_mismatch && *input == b"1" {
                         ensure!(text.contains("Runwithoutdaemonthistime"), "{text}");

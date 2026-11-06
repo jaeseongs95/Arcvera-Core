@@ -137,12 +137,12 @@ mod tests {
         for (locale, refused, unknown_path) in [
             (
                 Locale::English,
-                "Automatic attachment was refused",
+                "The connection was refused",
                 "does not identify the running server executable path",
             ),
             (
                 Locale::Korean,
-                "자동 연결을 거부했습니다",
+                "연결을 거부했습니다",
                 "실행 중인 서버 실행 파일 경로는 확인할 수 없습니다",
             ),
         ] {
