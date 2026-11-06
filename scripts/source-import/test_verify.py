@@ -257,11 +257,11 @@ class VerifierChecks(unittest.TestCase):
 
     def test_r38_0167_pins_and_runtime_prompt_catalog(self):
         self.assertEqual(EXPORT.OFFICIAL,'086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a')
-        self.assertEqual(EXPORT.PATCHED,'2caf716604e442793edcfd3a17f0efd21b605732')
-        self.assertEqual(EXPORT.PREVIOUS_PUBLIC,'a52974453ad0aff19fac785b6335d5ce782bf1bb')
+        self.assertEqual(EXPORT.PATCHED,'e9605b57c64680d55b8f16f655992bf1c8a61b0a')
+        self.assertEqual(EXPORT.PREVIOUS_PUBLIC,'6b56d9913349618c2a90d6e2a08debb4b23a1ff3')
         self.assertEqual(EXPORT.PATCH_PATH,'upstream/official-0.167.0.patch')
         catalog=__import__('json').loads((SCRIPT.resolve().parents[2]/EXPORT.WINDOWS_INPUTS_PATH).read_bytes())
-        self.assertEqual(catalog['sourceCommit'],'2caf716604e442793edcfd3a17f0efd21b605732')
+        self.assertEqual(catalog['sourceCommit'],'e9605b57c64680d55b8f16f655992bf1c8a61b0a')
         paths=[item['path'] for item in catalog['files']]
         self.assertEqual(len(paths),40)
         self.assertEqual(len(set(paths)),40)

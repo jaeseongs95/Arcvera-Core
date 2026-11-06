@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "sourceCommit": "2caf716604e442793edcfd3a17f0efd21b605732",
+  "sourceCommit": "e9605b57c64680d55b8f16f655992bf1c8a61b0a",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -73268,10 +73268,10 @@
     {
       "path": "codex-rs/tui/src/chatwidget/provider_error.rs",
       "gitMode": "100644",
-      "gitBlob": "982eb2091ae2369c68e6cfb8e9def3b90db59628",
-      "sourceSha256": "a465b995695c9b42d11e6adeb4d805360a78b43175d20d665e80a86695c9e0dc",
-      "publishedSha256": "b7a31c174ecdeb090f85c18c8a6b9d693f95fef11ff45379fabdd6c4aa13a357",
-      "bytes": 9012,
+      "gitBlob": "60497e3a67dcc71bbdffbd5add8e60a0f3310a43",
+      "sourceSha256": "18766dc56335c44ca4d18773010ec2ef6108faa5e45e8548f524246c548f7974",
+      "publishedSha256": "e8f20a4f45bb14053f20dbbab259ce29c5390b61d0bea3c1638b1d2c74375ae5",
+      "bytes": 9029,
       "modified": true,
       "noticeOnly": true
     },
