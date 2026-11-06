@@ -45466,7 +45466,7 @@ index 21cff3a7a..c95259ffb 100644
      fn daemon_app_server_human_lines_include_path_and_version() {
          assert_eq!(
 diff --git a/codex-rs/cli/tests/daemon_startup.rs b/codex-rs/cli/tests/daemon_startup.rs
-index 319a43eb4..6ee5def6b 100644
+index 319a43eb4..43c3d6f69 100644
 --- a/codex-rs/cli/tests/daemon_startup.rs
 +++ b/codex-rs/cli/tests/daemon_startup.rs
 @@ -3,6 +3,8 @@
@@ -45670,7 +45670,16 @@ index 319a43eb4..6ee5def6b 100644
                      if command == "agents-untrusted" && *ready == "Notasksyet" {
                          if !text.contains("enteropennnew") {
                              continue;
-@@ -573,6 +695,11 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -566,13 +688,18 @@ async fn daemon_startup(command: &str) -> Result<()> {
+                     } else if bedrock_onboarding || command == "restrictive-job" {
+                         ensure!(!pid_file.exists());
+                         if command == "restrictive-job" && !elevated {
+-                            let contents = screen.screen().contents();
+-                            let warning = contents.lines()
++                            // Read physical rows: contents() joins the full-width transcript header to the next row.
++                            let warning = screen.screen().rows(0, screen.screen().size().1)
+                                 .find(|line| line.contains("Running without the shared background server:"))
+                                 .context("missing rendered fallback warning")?;
                              insta::assert_snapshot!("restrictive_launcher_warning", warning.trim());
                          }
                      }
