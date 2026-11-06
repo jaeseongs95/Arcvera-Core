@@ -1734,7 +1734,8 @@ mod tests {
             };
             // Poll startup alongside the listener so fixture/auth/path errors are
             // reported immediately instead of being hidden by an accept timeout.
-            let mut task = startup.start(None);
+            let mut task =
+                startup.start(/*sharing_declined*/ None, /*publish_apps*/ None);
             let (peer, _) = tokio::select! {
                 biased;
                 outcome = &mut task => match outcome {
