@@ -24,6 +24,12 @@ async fn agents_can_offer_restart_for_managed_daemon() -> Result<()> {
 
 #[tokio::test]
 #[cfg(unix)]
+async fn agents_no_daemon_uses_embedded_even_with_a_running_daemon() -> Result<()> {
+    daemon_startup("agents-no-daemon").await
+}
+
+#[tokio::test]
+#[cfg(unix)]
 async fn agents_defers_launch_directory_trust_until_starting_a_task() -> Result<()> {
     daemon_startup("agents-untrusted").await
 }
@@ -166,6 +172,12 @@ async fn bedrock_onboarding_leaves_a_running_daemon_untouched() -> Result<()> {
 
 async fn daemon_startup(command: &str) -> Result<()> {
     let version_mismatch = command == "version-mismatch-embedded";
+    let upstream_version = env!("CARGO_PKG_VERSION")
+        .split_once('+')
+        .map_or(env!("CARGO_PKG_VERSION"), |(version, _)| version);
+    let mismatched_daemon_version = format!("{upstream_version}+native-r28.test");
+    let version_mismatch_warning =
+        format!("Backgroundserverversion{mismatched_daemon_version}doesnotmatchthisCLI");
     // All provider traffic in the version fixture stays local; no turn is submitted.
     let model_server = if version_mismatch {
         Some(wiremock::MockServer::start().await)
@@ -195,6 +207,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
             .success(),
         "failed to prepare CLI test executable"
     );
+    let bedrock_onboarding = matches!(command, "bedrock" | "bedrock-running");
     fs::write(
         home.path().join("config.toml"),
         format!(
@@ -213,6 +226,8 @@ async fn daemon_startup(command: &str) -> Result<()> {
                     "model_provider = \"r34-test\"\nmodel_providers.r34-test.name = \"R34 test provider\"\nmodel_providers.r34-test.base_url = \"{}\"\nmodel_providers.r34-test.wire_api = \"responses\"\nmodel_providers.r34-test.requires_openai_auth = false",
                     server.uri()
                 )
+            } else if bedrock_onboarding {
+                "features.gcp_setup_wizard=false".to_string()
             } else {
                 String::new()
             },
@@ -228,7 +243,6 @@ async fn daemon_startup(command: &str) -> Result<()> {
     let persisted = command == "mismatch-disable-persisted";
     let disabling = matches!(command, "mismatch-disable" | "mismatch-disable-persisted");
     let restart = command == "mismatch-restart" || disabling;
-    let bedrock_onboarding = matches!(command, "bedrock" | "bedrock-running");
     if !bedrock_onboarding {
         fs::write(
             home.path().join("auth.json"),
@@ -263,6 +277,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
         command,
         "start"
             | "agents"
+            | "agents-no-daemon"
             | "agents-untrusted"
             | "agents-untrusted-new"
             | "discovered"
@@ -314,7 +329,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
             let response = serde_json::json!({
                 "id": request["id"],
                 "result": {
-                    "userAgent": "codex_cli_rs/0.166.0+native-r28.test",
+                    "userAgent": format!("codex_cli_rs/{mismatched_daemon_version}"),
                     "codexHome": fake_home,
                 },
             });
@@ -345,7 +360,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
     }
     let pid_file = home.path().join("app-server-daemon/daemon.pid");
     let result = async {
-        let mut existing_daemon = if matches!(command, "bedrock-running" | "discovered")
+        let mut existing_daemon = if matches!(command, "bedrock-running" | "discovered" | "agents-no-daemon")
             || (mismatch && !disabling)
         {
             let started = Command::new(&codex)
@@ -367,6 +382,11 @@ async fn daemon_startup(command: &str) -> Result<()> {
             // The draft header is visible before the session's command composer is ready.
             steps.push_back(("GPT-5.6-Terra", b"/status\r"));
             "Server:Localbackgroundserver"
+        } else if command == "agents-no-daemon" {
+            args.extend(["agents".into(), "--no-daemon".into()]);
+            steps.push_back(("Notasksyet", b"n"));
+            steps.push_back(("GPT-5.6-Terra", b"/daemon\r"));
+            "Notconnectedtothelocalbackgroundserver"
         } else if command == "agents" {
             args.push("agents".into());
             steps.push_back(("Notasksyet", b"\x1b"));
@@ -407,7 +427,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
             "Runningwithoutthesharedbackgroundserver:thisWindowslauncher"
         } else if version_mismatch {
             steps.push_back((
-                "Backgroundserverversion0.166.0+native-r28.testdoesnotmatchthisCLI",
+                version_mismatch_warning.as_str(),
                 b"1",
             ));
             steps.push_back(("GPT-5.6-Terra", b"/status\r"));
@@ -432,7 +452,8 @@ async fn daemon_startup(command: &str) -> Result<()> {
                 if restart { "Server:Localbackgroundserver" } else { "Model:" }
             }
         } else if bedrock_onboarding {
-            "UseAmazonBedrock"
+            // With GCP disabled, only Bedrock makes the sign-in menu advertise another provider.
+            "UseanAPIkeyoranotherprovider"
         } else {
             args.extend([command.into(), "--strict-config".into()]);
             if command == "resume" {

@@ -40,6 +40,7 @@ use crate::codex_apps::prepare_openai_file_params_for_model;
 use crate::connection_pool::ConnectionKey;
 use crate::connection_pool::ConnectionSharing;
 use crate::connection_pool::ConnectionSlot;
+use crate::connection_pool::LEASE_CAPABILITY;
 use crate::connection_pool::SharingNegotiation;
 use crate::elicitation::ElicitationRequestManager;
 use crate::executor_environment_http_client::ExecutorEnvironmentHttpClient;
@@ -296,7 +297,11 @@ struct ManagedClientStartup {
 }
 
 impl ManagedClientStartup {
-    fn start(&self, sharing_declined: Option<CancellationToken>) -> ManagedClientFuture {
+    fn start(
+        &self,
+        sharing_declined: Option<CancellationToken>,
+        publish_apps: Option<watch::Sender<Option<std::sync::Weak<RmcpClient>>>>,
+    ) -> ManagedClientFuture {
         // A new attempt must not expose capabilities from an earlier connection.
         *self
             .server_capabilities
@@ -416,6 +421,7 @@ impl ManagedClientStartup {
                     client,
                     StartServerTaskParams {
                         sharing_declined,
+                        publish_apps,
                         is_codex_apps_mcp_server,
                         startup_timeout: Some(startup_timeout),
                         tx_event,
@@ -552,6 +558,7 @@ impl AsyncManagedClient {
         protocol_mode: McpProtocolMode,
         catalog_item_limit: usize,
         connection_pool: Option<(crate::McpConnectionPool, ConnectionKey)>,
+        publish_apps: Option<watch::Sender<Option<std::sync::Weak<RmcpClient>>>>,
     ) -> Self {
         let is_codex_apps_mcp_server = server_name == CODEX_APPS_MCP_SERVER_NAME;
         let reconnect_server_name = server_name.clone();
@@ -624,7 +631,7 @@ impl AsyncManagedClient {
                         |cancellation, sharing_declined| {
                             let mut shared_startup = (*startup).clone();
                             shared_startup.cancel_token = cancellation;
-                            shared_startup.start(sharing_declined)
+                            shared_startup.start(sharing_declined, /*publish_apps*/ None)
                         },
                     )
                     .await
@@ -646,13 +653,13 @@ impl AsyncManagedClient {
             .shared();
             (client, Some(connection_slot))
         } else {
-            (startup.start(/*sharing_declined*/ None), None)
+            (startup.start(/*sharing_declined*/ None, publish_apps), None)
         };
         let startup_reconnect = is_codex_apps_mcp_server.then(|| {
             let startup = Arc::clone(&startup);
             Arc::new(
                 CodexAppsStartupReconnect::new(Arc::new(move || {
-                    startup.start(/*sharing_declined*/ None)
+                    startup.start(/*sharing_declined*/ None, /*publish_apps*/ None)
                 }))
                 .with_startup_status_context(
                     startup_submit_id,
@@ -1185,6 +1192,7 @@ async fn start_server_task(
 ) -> Result<ManagedClient, StartupOutcomeError> {
     let StartServerTaskParams {
         sharing_declined,
+        publish_apps,
         is_codex_apps_mcp_server,
         startup_timeout,
         tx_event,
@@ -1210,6 +1218,13 @@ async fn start_server_task(
     };
     let mut params =
         mcp_initialize_request_params(client_elicitation_capability, client_mcp_extensions);
+    if sharing_negotiation.is_some() {
+        params
+            .capabilities
+            .extensions
+            .get_or_insert_default()
+            .insert(LEASE_CAPABILITY.to_owned(), Default::default());
+    }
     if auth_changes.is_some() {
         params
             .capabilities
@@ -1300,6 +1315,9 @@ async fn start_server_task(
     let fetch_ticket = codex_apps_tools_cache_context
         .as_ref()
         .map(|context| context.begin_fetch(ConnectorRuntimeFetchSource::Startup));
+    if let Some(tx) = &publish_apps {
+        tx.send_replace(Some(Arc::downgrade(&client)));
+    }
     let (tools, meta) = list_tools_for_client_uncached(
         &server_name,
         is_codex_apps_mcp_server,
@@ -1414,7 +1432,8 @@ pub(crate) fn mcp_initialize_request_params(
     }
     let extensions = client_mcp_extensions
         .iter()
-        .filter(|(id, _)| *id != MCP_NETWORK_POLICY_META_CAPABILITY)
+        // Only Core can open and release leases on a pooled connection.
+        .filter(|(id, _)| !matches!(*id, MCP_NETWORK_POLICY_META_CAPABILITY | LEASE_CAPABILITY))
         .filter_map(|(id, settings)| {
             settings
                 .as_object()
@@ -1453,6 +1472,7 @@ fn mcp_server_info_from_implementation(
 }
 
 struct StartServerTaskParams {
+    publish_apps: Option<watch::Sender<Option<std::sync::Weak<RmcpClient>>>>,
     sharing_declined: Option<CancellationToken>,
     server_capabilities: Arc<StdMutex<Option<serde_json::Value>>>,
     is_codex_apps_mcp_server: bool,
@@ -1818,6 +1838,7 @@ mod tests {
                 ),
                 (OPENAI_FORM_EXTENSION_ID.to_string(), serde_json::json!({})),
                 (MCP_APP_UI_EXTENSION_ID.to_string(), app_ui.clone()),
+                (LEASE_CAPABILITY.to_string(), serde_json::json!({})),
             ]),
         );
         assert_eq!(

@@ -23,12 +23,7 @@ pub struct DisconnectInfo {
 
 impl App {
     pub(super) fn exit_info(&self, exit_reason: ExitReason) -> AppExitInfo {
-        let thread_id = match exit_reason {
-            ExitReason::Archived(_) | ExitReason::ThreadRemoved => None,
-            ExitReason::UserRequested | ExitReason::TurnInterrupted | ExitReason::Fatal(_) => {
-                self.chat_widget.thread_id().or(self.primary_thread_id)
-            }
-        };
+        let thread_id = self.chat_widget.thread_id().or(self.primary_thread_id);
         let disconnect_info = thread_id.and_then(|_| {
             let command = match &self.app_server_target {
                 AppServerTarget::Embedded => return None,

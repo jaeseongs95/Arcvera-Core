@@ -1,5 +1,6 @@
 use codex_core::TurnInputRequest;
 
+use codex_protocol::models::AudioReference;
 use codex_protocol::models::ImageReference;
 use codex_protocol::openai_models::InputModality;
 use codex_protocol::protocol::EventMsg;
@@ -95,7 +96,9 @@ Move-Item -LiteralPath $tmp -Destination $path -Force"#,
                 detail: None,
             },
             UserInput::Audio {
-                audio_url: audio_url.into(),
+                audio: AudioReference::Inline {
+                    audio_url: audio_url.into(),
+                },
             },
         ]))
         .await?;

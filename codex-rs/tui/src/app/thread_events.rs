@@ -718,6 +718,8 @@ fn file_change_item_changes(
 
 #[derive(Debug)]
 pub(super) struct ThreadEventChannel {
+    /// Set on backend handoff so a retained channel is detached through its owning session.
+    pub(super) backend_id: Option<crate::backend_id::BackendId>,
     pub(super) sender: mpsc::Sender<ThreadBufferedEvent>,
     pub(super) receiver: Option<mpsc::Receiver<ThreadBufferedEvent>>,
     pub(super) store: Arc<Mutex<ThreadEventStore>>,
@@ -740,6 +742,7 @@ impl ThreadEventChannel {
             sender,
             receiver: Some(receiver),
             store: Arc::new(Mutex::new(store)),
+            backend_id: None,
             attachment: ThreadEventAttachment::Live,
             runtime_tool_scope,
         }
@@ -770,6 +773,7 @@ impl ThreadEventChannel {
             sender,
             receiver: Some(receiver),
             store: Arc::new(Mutex::new(store)),
+            backend_id: None,
             attachment: ThreadEventAttachment::Live,
             runtime_tool_scope,
         }

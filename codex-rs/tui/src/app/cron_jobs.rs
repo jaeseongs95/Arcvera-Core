@@ -1959,11 +1959,8 @@ mod tests {
                 app.app_event_tx.clone(),
                 app.dynamic_tool_status_updates.clone(),
                 None,
-                crate::dynamic_tools_mcp::ToolServices {
-                    task_tools: true,
-                    cron: Some(connection),
-                    worktrees: None,
-                },
+                /*worktrees*/ None,
+                Some(connection),
             )
             .await?,
         );

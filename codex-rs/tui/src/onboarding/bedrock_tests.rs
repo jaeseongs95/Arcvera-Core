@@ -1,4 +1,5 @@
 use super::*;
+use crossterm::event::KeyModifiers;
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -419,9 +420,9 @@ fn credential_entries_share_region_and_keep_aws_secrets_hidden() {
     });
     access_keys.view = BedrockView::AccessKeyEntry {
         values: [
-            "AKIAEXAMPLE".to_string(),
-            "secret-value".to_string(),
-            "session-value".to_string(),
+            "AKIAEXAMPLE".into(),
+            "secret-value".into(),
+            "session-value".into(),
         ],
         selected_field: 1,
     };
@@ -463,7 +464,18 @@ fn credential_entries_share_region_and_keep_aws_secrets_hidden() {
     assert!(!visible.contains("secret-value"));
     assert!(!visible.contains("session-value"));
 
-    access_keys.view = BedrockView::ApiKeyEntry("bedrock-api-key".to_string());
+    access_keys.view = BedrockView::ApiKeyEntry("old-key".into());
+    access_keys.handle_key_event(&KeyEvent::new(KeyCode::Home, KeyModifiers::NONE));
+    for _ in 0..3 {
+        access_keys.handle_key_event(&KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+    }
+    access_keys.handle_key_event(&KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
+    access_keys.active_input_mut().unwrap().paste("bedrock-api");
+    assert_eq!(
+        access_keys.active_input_mut().unwrap().value().as_deref(),
+        Some("bedrock-api-key")
+    );
+    access_keys.handle_key_event(&KeyEvent::new(KeyCode::End, KeyModifiers::NONE));
     let visible = render_visible(&access_keys);
     insta::assert_snapshot!(visible, @r###"
     > Set up Amazon Bedrock
@@ -479,7 +491,7 @@ fn credential_entries_share_region_and_keep_aws_secrets_hidden() {
     access_keys.handle_key_event(&KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
     assert!(render_visible(&access_keys).contains("Bedrock API key: •••••••••••••••z"));
 
-    access_keys.view = BedrockView::ProfileEntry("engineering".to_string());
+    access_keys.view = BedrockView::ProfileEntry("engineering".into());
     insta::assert_snapshot!(render_visible(&access_keys), @r###"
     > Set up Amazon Bedrock
 
@@ -491,7 +503,7 @@ fn credential_entries_share_region_and_keep_aws_secrets_hidden() {
       Press esc to go back
     "###);
 
-    access_keys.enter_region(BedrockCredential::Environment, "us-west-1".to_string());
+    access_keys.enter_region(BedrockCredential::Environment, "us-west-1");
     insta::assert_snapshot!(render_visible(&access_keys), @r###"
     > Set up Amazon Bedrock
 
@@ -519,11 +531,11 @@ fn credential_entries_share_region_and_keep_aws_secrets_hidden() {
     "###);
 
     for view in [
-        BedrockView::ProfileEntry(String::new()),
-        BedrockView::ApiKeyEntry(String::new()),
+        BedrockView::ProfileEntry(ProviderInput::default()),
+        BedrockView::ApiKeyEntry(ProviderInput::default()),
         BedrockView::RegionEntry {
             credential: BedrockCredential::Environment,
-            value: String::new(),
+            value: ProviderInput::default(),
         },
         BedrockView::AccessKeyEntry {
             values: Default::default(),
@@ -544,10 +556,10 @@ fn credential_entries_share_region_and_keep_aws_secrets_hidden() {
         },
         BedrockCredential::ApiKey("bedrock-api-key".to_string()),
     ] {
-        access_keys.enter_region(credential, "us-west-1".to_string());
+        access_keys.enter_region(credential, "us-west-1");
         assert!(matches!(
             &access_keys.view,
-            BedrockView::RegionEntry { value, .. } if value == "us-west-1"
+            BedrockView::RegionEntry { value, .. } if value.value().as_deref() == Some("us-west-1")
         ));
     }
 }
@@ -616,11 +628,11 @@ fn localized_bedrock_views_preserve_credentials_choices_and_cell_widths() {
                 ]
             );
 
-            state.view = BedrockView::ProfileEntry(profile.to_string());
+            state.view = BedrockView::ProfileEntry(profile.into());
             assert!(render_visible(&state).contains(&format!("{profile_label}{profile}")));
             state.view = BedrockView::RegionEntry {
                 credential: BedrockCredential::Profile(profile.to_string()),
-                value: region.to_string(),
+                value: region.into(),
             };
             assert!(render_visible(&state).contains(&format!("{region_label}{region}")));
             let Some(BedrockAction::Configure(
@@ -639,7 +651,7 @@ fn localized_bedrock_views_preserve_credentials_choices_and_cell_widths() {
                 "session/opaque-y".to_string(),
             ];
             state.view = BedrockView::AccessKeyEntry {
-                values: values.clone(),
+                values: values.each_ref().map(|value| value.as_str().into()),
                 selected_field: 1,
             };
             let visible = render_visible(&state);
@@ -653,8 +665,11 @@ fn localized_bedrock_views_preserve_credentials_choices_and_cell_widths() {
             else {
                 panic!("access keys")
             };
-            assert_eq!(retained, &values);
-            state.view = BedrockView::ApiKeyEntry("opaque/api-key-z".to_string());
+            assert_eq!(
+                retained.each_ref().map(ProviderInput::value),
+                values.clone().map(Some)
+            );
+            state.view = BedrockView::ApiKeyEntry("opaque/api-key-z".into());
             assert!(render_visible(&state).contains(&format!("{api_label}{}z", "•".repeat(15))));
             state.view = BedrockView::EnvironmentInstructions;
             let visible = render_visible_at(&state, Rect::new(0, 0, 110, 40));

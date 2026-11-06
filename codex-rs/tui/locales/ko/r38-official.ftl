@@ -1,0 +1,31 @@
+# 공식 0.167에서 추가된 UI 문구. 호출부의 앞뒤 공백을 보존한다.
+legacy-r38-sign-in-another-way-indented = { "  다른 방법으로 로그인" }
+legacy-r38-sign-in-another-way = 다른 방법으로 로그인
+legacy-r38-other-provider-description = API 키 또는 다른 제공자 사용
+legacy-r38-use-google-cloud = Google Cloud Vertex AI 사용
+legacy-r38-google-cloud-description = Google Cloud 자격 증명으로 연결
+legacy-r38-review-requests = { " 요청 검토" }
+legacy-r38-gcp-title = > Google Cloud Vertex AI 설정
+legacy-r38-gcp-project-guidance = Vertex AI에서 사용할 Google Cloud 프로젝트 ID를 입력하세요.
+legacy-r38-gcp-project-label = { "  프로젝트 ID: " }
+legacy-r38-gcp-location-guidance = global을 사용하려면 Enter를 누르거나 Vertex AI 위치를 입력하세요.
+legacy-r38-gcp-location-label = { "  위치(선택): " }
+legacy-r38-gcp-credentials-guidance = Codex가 실행 중인 호스트의 절대 파일 경로를 입력하거나 Enter를 눌러 애플리케이션 기본 사용자 인증 정보(ADC)를 사용하세요.
+legacy-r38-gcp-credentials-label = { "  자격 증명 파일(선택): " }
+legacy-r38-gcp-configuring = 자격 증명 확인 및 설정 저장 중…
+legacy-r38-gcp-adc-guidance = { "  Google Cloud CLI로 ADC를 설정하려면 다음 명령을 실행하세요" }
+legacy-r38-gcp-set-up = { " 설정" }
+legacy-r38-gcp-project-required = Google Cloud 프로젝트 ID를 입력하세요.
+legacy-r38-gcp-configured = ✓ Google Cloud Vertex AI 설정 완료
+legacy-r38-provider-continue-footer = { " 새 대화에서 계속 · " }
+legacy-r38-provider-fresh-footer = { " 새로 시작 · " }
+legacy-r38-provider-other-footer = { " 다른 대화" }
+legacy-r38-provider-continue-title = 새 대화에서 계속
+legacy-r38-provider-mismatch-title = 모델 제공자 불일치
+legacy-r38-provider-unavailable-title = 모델 제공자 사용 불가
+legacy-r38-provider-policy-title = 정책에 의해 차단된 모델 제공자
+
+dialogs-provider-mismatch = 이 대화는 { $provider }을(를) 사용하지만 현재 Codex는 { $current }을(를) 사용하므로 이 대화는 읽기 전용입니다.
+dialogs-provider-not-configured = 이 대화에서 사용하는 모델 제공자 “{ $provider }”가 더 이상 구성되어 있지 않습니다. 계속하려면 이 제공자의 설정을 복원하세요.
+dialogs-provider-policy-conflict = 이 대화는 모델 제공자 “{ $provider }”을(를) 사용하지만 조직에서는 “{ $required }”을(를) 요구합니다. 관리자에게 문의하거나 필요한 제공자로 새 대화를 시작하세요.
+dialogs-provider-configuration-location = { $address }의 설정

@@ -15,12 +15,17 @@ use codex_connectors::ConnectorRuntimeContextKey;
 use codex_login::AuthChangeState;
 use codex_login::AuthManager;
 use codex_rmcp_client::ElicitationResponse;
+use codex_rmcp_client::RequestScope;
+use codex_rmcp_client::RmcpClient;
 use codex_rmcp_client::SendElicitation;
 use futures::FutureExt;
+use futures::future::BoxFuture;
+use futures::future::Shared;
 use rmcp::model::ElicitationAction;
 use rmcp::model::ProtocolVersion;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
+use uuid::Uuid;
 
 use crate::client_tool_catalog::ClientToolCatalog;
 use crate::client_tool_catalog::ToolCatalogSnapshot;
@@ -30,6 +35,40 @@ use crate::rmcp_client::StartupOutcomeError;
 use crate::rmcp_client::list_tools_for_client_uncached;
 use crate::server::McpServerConnectionIdentity;
 use crate::tool_catalog_cache::McpToolCatalogCacheContext;
+
+/// Opt-in resource lifecycle for negotiated stdio connections. Tool calls and resource reads
+/// carry a host-owned lease ID. Catalog requests remain independent of a particular lease.
+pub(crate) const LEASE_CAPABILITY: &str = "codex/connection-lease";
+pub(crate) const LEASE_META_KEY: &str = "codex/connectionLease";
+const LEASE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+
+#[derive(Clone)]
+pub(crate) struct ServerLease {
+    pub(crate) id: Uuid,
+    pub(crate) requests: RequestScope,
+    opened: Shared<BoxFuture<'static, Result<(), StartupOutcomeError>>>,
+}
+
+impl ServerLease {
+    async fn release(self, client: &RmcpClient, entry: &Arc<Entry>) {
+        if self.opened.await.is_err() {
+            return;
+        }
+        // MCP cancellation has no acknowledgement. The server owns any handler still
+        // winding down after it receives these cancellation writes and then release.
+        self.requests.cancel_and_wait().await;
+        if let Err(error) = client
+            .send_custom_request(
+                "codex/connection/release",
+                Some(serde_json::json!({"leaseId": self.id})),
+            )
+            .await
+        {
+            entry.remove_from_pool();
+            tracing::warn!(%error, "failed to release a server-side MCP lease");
+        }
+    }
+}
 
 /// Process-owned registry for compatible local stdio servers using MCP 2026-07-28.
 #[derive(Clone, Default)]
@@ -68,6 +107,7 @@ impl PartialEq for ConnectionKey {
 }
 
 struct Entry {
+    runtime: tokio::runtime::Handle,
     key: ConnectionKey,
     client: ManagedClientFuture,
     capabilities: Arc<Mutex<Option<serde_json::Value>>>,
@@ -154,6 +194,7 @@ pub(crate) struct ConnectionLease {
     owner: Mutex<Option<Arc<LeaseOwners>>>,
     cancellation: CancellationToken,
     slot: Arc<ConnectionSlot>,
+    server_lease: OnceLock<ServerLease>,
 }
 
 /// Tracks an acquisition without retaining its lease, including before startup completes.
@@ -211,6 +252,16 @@ pub(crate) enum ConnectionSharing {
     Shared(Arc<ConnectionLease>),
 }
 
+impl ConnectionSharing {
+    /// Identifies this chat to servers that negotiated per-chat leases.
+    pub(crate) fn server_lease(&self) -> Option<&ServerLease> {
+        match self {
+            Self::Shared(lease) => lease.server_lease.get(),
+            _ => None,
+        }
+    }
+}
+
 impl McpConnectionPool {
     pub(crate) async fn connect(
         &self,
@@ -242,6 +293,11 @@ impl McpConnectionPool {
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .clone();
+                let server_tracks_leases = shared_capabilities
+                    .as_ref()
+                    .and_then(|caps| caps.get("extensions"))
+                    .and_then(|caps| caps.get(LEASE_CAPABILITY))
+                    .is_some();
                 *capabilities
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner) = shared_capabilities;
@@ -258,6 +314,13 @@ impl McpConnectionPool {
                             .or_cancel(&cancellation)
                             .await
                             .unwrap_or(Err(StartupOutcomeError::Cancelled))?;
+                        if server_tracks_leases {
+                            lease
+                                .open_on_server(Arc::clone(&client.client))
+                                .or_cancel(&cancellation)
+                                .await
+                                .unwrap_or(Err(StartupOutcomeError::Cancelled))?;
+                        }
                         ConnectionSharing::Shared(lease)
                     } else {
                         lease.entry.remove_from_pool();
@@ -325,6 +388,7 @@ impl McpConnectionPool {
                     tokio::spawn(client.clone());
                     let owner = Arc::new(LeaseOwners);
                     let entry = Arc::new(Entry {
+                        runtime: tokio::runtime::Handle::current(),
                         key: key.clone(),
                         client,
                         capabilities: Arc::clone(&capabilities),
@@ -342,6 +406,7 @@ impl McpConnectionPool {
                     owner: Mutex::new(Some(owner)),
                     cancellation: lease_cancellation,
                     slot: Arc::clone(slot),
+                    server_lease: OnceLock::new(),
                 });
                 *state = SlotState::Acquired(Arc::downgrade(&lease.entry));
                 (lease, role)
@@ -363,36 +428,100 @@ impl ConnectionLease {
         &self.cancellation
     }
 
-    /// Returns the slot tracking shutdown when this chat releases the last lease.
+    /// Register a unique logical owner before publishing the chat's client. Release retains
+    /// the same future so cancellation during open cannot reorder the two lifecycle requests.
+    async fn open_on_server(&self, client: Arc<RmcpClient>) -> Result<(), StartupOutcomeError> {
+        let id = Uuid::new_v4();
+        let opened = async move {
+            client
+                .send_custom_request(
+                    "codex/connection/open",
+                    Some(serde_json::json!({"leaseId": id})),
+                )
+                .await
+                .map(|_| ())
+                .map_err(StartupOutcomeError::from)
+        }
+        .boxed()
+        .shared();
+        let opened = {
+            // Publish while we still own the lease so a racing unload will wait for this open.
+            let owner = self
+                .owner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if owner.is_none() {
+                return Err(StartupOutcomeError::Cancelled);
+            }
+            self.server_lease
+                .get_or_init(|| ServerLease {
+                    id,
+                    opened,
+                    requests: RequestScope::new(
+                        self.entry.runtime.clone(),
+                        self.cancellation.clone(),
+                    ),
+                })
+                .opened
+                .clone()
+        };
+        // Bound chat startup while preserving the actual reply for a racing release.
+        tokio::time::timeout(LEASE_REQUEST_TIMEOUT, opened)
+            .await
+            .map_err(|_| {
+                self.entry.remove_from_pool();
+                anyhow::anyhow!("timed out waiting for the MCP server to open a connection lease")
+            })?
+    }
+
+    /// Track this chat's server-side release or the final shutdown of the physical connection.
     pub(crate) fn release(&self) -> Option<&ConnectionSlot> {
         self.cancellation.cancel();
         let mut owner = self
             .owner
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        Arc::into_inner(owner.take()?)?;
-        self.entry.cancellation.cancel();
-        self.entry.remove_from_pool();
-        let client = self.entry.client.clone();
-        let runtime = tokio::runtime::Handle::try_current().ok()?;
+        let server_lease = if Arc::into_inner(owner.take()?).is_some() {
+            self.entry.cancellation.cancel();
+            self.entry.remove_from_pool();
+            None
+        } else {
+            Some(self.server_lease.get()?.clone())
+        };
+        let entry = Arc::clone(&self.entry);
         // The chat must be able to await its final release even when cancellation drops the lease.
         let tasks = self.slot.shutdown_tasks.get_or_init(TaskTracker::new);
         let shutdown_error = Arc::clone(&self.slot.shutdown_error);
-        drop(tasks.spawn_on(
-            async move {
-                let result = match client.await {
-                    Ok(client) => client.client.shutdown().await.map_err(anyhow::Error::from),
-                    Err(error) => error.wait_for_shutdown().await,
-                };
-                if let Err(error) = result {
-                    shutdown_error
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner)
-                        .get_or_insert_with(|| error.to_string());
+        let completion = tasks.token();
+        self.entry.runtime.spawn(async move {
+            let result = match (entry.client.clone().await, server_lease) {
+                (Ok(client), None) => client.client.shutdown().await.map_err(anyhow::Error::from),
+                (Ok(client), Some(lease)) => {
+                    let release = lease
+                        .release(&client.client, &entry)
+                        .or_cancel(&entry.cancellation);
+                    tokio::pin!(release);
+                    if tokio::time::timeout(LEASE_REQUEST_TIMEOUT, &mut release)
+                        .await
+                        .is_err()
+                    {
+                        // Let the chat unload. A late open reply or cancellation write
+                        // must still precede release while other chats own the connection.
+                        entry.remove_from_pool();
+                        drop(completion);
+                        let _ = release.await;
+                    }
+                    Ok(())
                 }
-            },
-            &runtime,
-        ));
+                (Err(error), _) => error.wait_for_shutdown().await,
+            };
+            if let Err(error) = result {
+                shutdown_error
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .get_or_insert_with(|| error.to_string());
+            }
+        });
         Some(&self.slot)
     }
 }
@@ -492,6 +621,7 @@ mod shutdown_failure_tests {
             };
             let owners = Arc::new(LeaseOwners);
             let entry = Arc::new(Entry {
+                runtime: tokio::runtime::Handle::current(),
                 key: tests::key(&tests::context(), &tests::config()),
                 client: futures::future::ready(Err(StartupOutcomeError::Failed {
                     error: "startup failed".to_string(),
@@ -514,6 +644,7 @@ mod shutdown_failure_tests {
                 owner: Mutex::new(Some(Arc::clone(&owners))),
                 cancellation: CancellationToken::new(),
                 slot: Arc::default(),
+                server_lease: OnceLock::new(),
             };
             let last_slot = Arc::new(ConnectionSlot::default());
             let last = ConnectionLease {
@@ -521,6 +652,7 @@ mod shutdown_failure_tests {
                 owner: Mutex::new(Some(owners)),
                 cancellation: CancellationToken::new(),
                 slot: Arc::clone(&last_slot),
+                server_lease: OnceLock::new(),
             };
             assert!(
                 first.release().is_none(),
