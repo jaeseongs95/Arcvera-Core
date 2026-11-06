@@ -9,8 +9,8 @@ import subprocess
 import tarfile
 
 OFFICIAL='086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a'
-PATCHED='a9f0a00dfbd68846928be67c743147bd1312afbb'
-PREVIOUS_PUBLIC='2371c8c09bf1e6f772ed0964ef01d8726af9dc8a'
+PATCHED='7472d9d8f409021e5d7099ef0ad5c5d1dbaf3deb'
+PREVIOUS_PUBLIC='1ae7ec25b89d282139c404a62d90268a9f626e7f'
 PREFIXES=['codex-rs', 'third_party', 'patches', '.cargo/config.toml', 'tools/windows-cli', '.gitattributes', 'docs/native-cli-r27.ko.md', 'docs/native-cli-cron.ko.md', 'docs/native-cli-r33-cache-observation.ko.md', 'docs/native-cli-r35.ko.md', 'docs/native-cli-r36.ko.md', 'docs/r36-cleanup.ko.md', 'docs/r36-cloud-ci.ko.md', 'docs/r36-fast-compaction.ko.md', 'docs/r37-agent-selection-cases.ko.md', 'docs/r37-cold-cleanup-cases.ko.md', 'docs/r37-config-cases.ko.md', 'docs/r37-daemon-cases.ko.md', 'docs/r37-memory-cases.ko.md', 'docs/r37-memory-transport-cases.ko.md', 'docs/r37-plugin-cache-cases.ko.md', 'docs/r37-replay-compact-cases.ko.md', 'sdk/python/src/openai_codex/generated/v2_all.py', 'docs/native-cli-r38.ko.md', 'docs/r38-daemon-test-cases.ko.md', 'docs/r38-plugin-cache-test-cases.ko.md', 'docs/r38-stop-hook-test-cases.ko.md', 'scripts/install/normalize_stop_hook_config.py', 'scripts/install/test_normalize_stop_hook_config.py', 'docs/r38-agent-main-return-test-cases.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'

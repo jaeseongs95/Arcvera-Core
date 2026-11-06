@@ -117092,7 +117092,7 @@ index 000000000..da9f5f05d
 +    }
 +}
 diff --git a/codex-rs/tui/src/daemon_startup.rs b/codex-rs/tui/src/daemon_startup.rs
-index 3ca231744..ff7c767f4 100644
+index 3ca231744..b3b376693 100644
 --- a/codex-rs/tui/src/daemon_startup.rs
 +++ b/codex-rs/tui/src/daemon_startup.rs
 @@ -17,6 +17,17 @@ use std::collections::BTreeMap;
@@ -117113,7 +117113,7 @@ index 3ca231744..ff7c767f4 100644
  /// Returns whether `codex_home` is on a Windows-mounted WSL filesystem.
  pub fn uses_wsl_drvfs(codex_home: &std::path::Path) -> bool {
      // The managed daemon writes an executable and Unix-style state beneath CODEX_HOME.
-@@ -157,7 +168,9 @@ pub(super) async fn compatibility_warning(
+@@ -157,7 +168,31 @@ pub(super) async fn compatibility_warning(
          // Connect even without overrides so startup can recover from an unreachable daemon.
          let client = app_server_connection::connect(target)
              .await
@@ -117121,10 +117121,32 @@ index 3ca231744..ff7c767f4 100644
 +            .map_err(|error| {
 +                format!("could not connect to check daemon feature settings: {error}")
 +            })?;
++        let AppServerClient::Remote(remote) = &client else {
++            unreachable!("local daemon connections are remote clients");
++        };
++        // Check the initial handshake before an empty override set can skip
++        // compatibility checks or any daemon configuration is requested.
++        if remote.server_version() != Some(env!("CARGO_PKG_VERSION")) {
++            let status = crate::status::remote_connection::remote_connection_status_value(
++                target,
++                remote.server_version(),
++            )
++            .expect("local daemon has a connection status");
++            let warning = crate::i18n::daemon_connection_mismatch_warning(
++                env!("CARGO_PKG_VERSION"),
++                remote.server_version(),
++                &status.address,
++            );
++            // Release only this client's transport, not the shared server.
++            if let Err(error) = client.shutdown().await {
++                tracing::warn!(%error, "could not close rejected shared server connection");
++            }
++            return Err(warning);
++        }
          if requested.is_empty() {
              let _ = client.shutdown().await;
              return Ok(());
-@@ -237,9 +250,9 @@ pub(super) async fn compatibility_warning(
+@@ -237,9 +272,9 @@ pub(super) async fn compatibility_warning(
      .await;
      match check {
          Ok(()) => Ok(None),
