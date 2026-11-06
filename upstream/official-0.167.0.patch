@@ -45466,7 +45466,7 @@ index 21cff3a7a..c95259ffb 100644
      fn daemon_app_server_human_lines_include_path_and_version() {
          assert_eq!(
 diff --git a/codex-rs/cli/tests/daemon_startup.rs b/codex-rs/cli/tests/daemon_startup.rs
-index 319a43eb4..021c72971 100644
+index 319a43eb4..6ee5def6b 100644
 --- a/codex-rs/cli/tests/daemon_startup.rs
 +++ b/codex-rs/cli/tests/daemon_startup.rs
 @@ -3,6 +3,8 @@
@@ -45478,7 +45478,7 @@ index 319a43eb4..021c72971 100644
  use std::collections::VecDeque;
  use std::fs;
  use std::process::Command;
-@@ -56,6 +58,16 @@ async fn incompatible_daemon_can_run_embedded() -> Result<()> {
+@@ -56,6 +58,26 @@ async fn incompatible_daemon_can_run_embedded() -> Result<()> {
      daemon_startup("mismatch-embedded").await
  }
  
@@ -45492,20 +45492,38 @@ index 319a43eb4..021c72971 100644
 +    daemon_startup("version-mismatch-embedded").await
 +}
 +
++#[tokio::test]
++async fn version_unknown_explicit_local_daemon_can_run_embedded_and_quit() -> Result<()> {
++    #[cfg(windows)]
++    if codex_app_server_daemon::is_elevated()? {
++        eprintln!("requires a non-elevated Windows runner for local-daemon peer verification");
++        return Ok(());
++    }
++    daemon_startup("version-unknown-embedded").await
++}
++
  #[tokio::test]
  #[cfg(unix)]
  async fn incompatible_daemon_can_restart_with_confirmed_settings() -> Result<()> {
-@@ -159,6 +171,19 @@ async fn bedrock_onboarding_leaves_a_running_daemon_untouched() -> Result<()> {
+@@ -159,6 +181,27 @@ async fn bedrock_onboarding_leaves_a_running_daemon_untouched() -> Result<()> {
  }
  
  async fn daemon_startup(command: &str) -> Result<()> {
-+    let version_mismatch = command == "version-mismatch-embedded";
++    let unknown_version = command == "version-unknown-embedded";
++    let version_mismatch = command == "version-mismatch-embedded" || unknown_version;
 +    let upstream_version = env!("CARGO_PKG_VERSION")
 +        .split_once('+')
 +        .map_or(env!("CARGO_PKG_VERSION"), |(version, _)| version);
 +    let mismatched_daemon_version = format!("{upstream_version}+native-r28.test");
-+    let version_mismatch_warning =
-+        format!("Backgroundserverversion{mismatched_daemon_version}doesnotmatchthisCLI");
++    let reported_daemon_version = if unknown_version {
++        "unknown"
++    } else {
++        mismatched_daemon_version.as_str()
++    };
++    let version_mismatch_warning = format!(
++        "reportsversion{reported_daemon_version},whichdoesnotmatchthisCLI{}",
++        env!("CARGO_PKG_VERSION")
++    );
 +    // All provider traffic in the version fixture stays local; no turn is submitted.
 +    let model_server = if version_mismatch {
 +        Some(wiremock::MockServer::start().await)
@@ -45515,7 +45533,7 @@ index 319a43eb4..021c72971 100644
      #[cfg(windows)]
      let elevated = codex_app_server_daemon::is_elevated()?;
      #[cfg(not(windows))]
-@@ -195,11 +220,16 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -195,11 +238,16 @@ async fn daemon_startup(command: &str) -> Result<()> {
           notice.model_migrations.\"gpt-5.6-terra\" = \"gpt-6-sol\"\n\
           [projects.{}]\ntrust_level = \"{}\"\n",
              if command == "discovered" {
@@ -45535,7 +45553,7 @@ index 319a43eb4..021c72971 100644
              },
              serde_json::to_string(&workspace_path)?,
              if command.starts_with("agents-untrusted") {
-@@ -238,6 +268,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -238,6 +286,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
          home.path().display().to_string(),
      );
      env.insert("TERM".into(), "xterm-256color".into());
@@ -45545,7 +45563,7 @@ index 319a43eb4..021c72971 100644
      let mut args = vec!["--no-alt-screen".to_string()];
      let mut steps: VecDeque<(&str, &[u8])> = VecDeque::new();
      if matches!(
-@@ -276,6 +309,55 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -276,6 +327,60 @@ async fn daemon_startup(command: &str) -> Result<()> {
              )?;
          }
      }
@@ -45565,11 +45583,16 @@ index 319a43eb4..021c72971 100644
 +                .context("missing initialize request")??;
 +            let request: serde_json::Value = serde_json::from_str(initialize.to_text()?)?;
 +            ensure!(request["method"] == "initialize", "{request}");
-+            // Same upstream version, different build metadata: exercise the full-version guard.
++            // Exercise different full-build metadata or a valid user agent without a version.
++            let user_agent = if unknown_version {
++                "codex_cli_rs".to_string()
++            } else {
++                format!("codex_cli_rs/{mismatched_daemon_version}")
++            };
 +            let response = serde_json::json!({
 +                "id": request["id"],
 +                "result": {
-+                    "userAgent": format!("codex_cli_rs/{mismatched_daemon_version}"),
++                    "userAgent": user_agent,
 +                    "codexHome": fake_home,
 +                },
 +            });
@@ -45601,7 +45624,7 @@ index 319a43eb4..021c72971 100644
      let pid_file = home.path().join("app-server-daemon/daemon.pid");
      let result = async {
          let mut existing_daemon = if matches!(command, "bedrock-running" | "discovered" | "agents-no-daemon")
-@@ -343,6 +425,13 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -343,6 +448,13 @@ async fn daemon_startup(command: &str) -> Result<()> {
          } else if command == "restrictive-job" {
              steps.push_back(("GPT-5.6-Terra", b"\x14"));
              "Runningwithoutthesharedbackgroundserver:thisWindowslauncher"
@@ -45615,7 +45638,7 @@ index 319a43eb4..021c72971 100644
          } else if mismatch {
              args.extend(if disabling && !persisted {
                  ["--disable".into(), "auth_elicitation".into()]
-@@ -430,6 +519,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -430,6 +542,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
          let writer = session.writer_sender();
          let mut stdout = spawned.stdout_rx;
          let mut output = String::new();
@@ -45623,7 +45646,7 @@ index 319a43eb4..021c72971 100644
          let mut initial_agents_screen = String::new();
          let mut screen = vt100::Parser::new(
              /*rows*/ 40, /*cols*/ 120, /*scrollback_len*/ 0,
-@@ -446,6 +536,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -446,6 +559,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
          let result = tokio::time::timeout(timeout, async {
              while let Some(bytes) = stdout.recv().await {
                  output.push_str(&String::from_utf8_lossy(&bytes));
@@ -45633,9 +45656,13 @@ index 319a43eb4..021c72971 100644
                  screen.process(&bytes);
                  for (query, reply) in &mut queries {
                      if !query.is_empty() && output.contains(*query) {
-@@ -471,6 +564,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -470,7 +586,13 @@ async fn daemon_startup(command: &str) -> Result<()> {
+                     .collect();
                  if let Some((ready, input)) = steps.front()
                      && text.contains(ready)
++                    && (!version_mismatch
++                        || *input != b"1"
++                        || text.contains("Runwithoutdaemonthistime"))
                  {
 +                    if version_mismatch && *input == b"1" {
 +                        ensure!(text.contains("Runwithoutdaemonthistime"), "{text}");
@@ -45643,7 +45670,7 @@ index 319a43eb4..021c72971 100644
                      if command == "agents-untrusted" && *ready == "Notasksyet" {
                          if !text.contains("enteropennnew") {
                              continue;
-@@ -573,6 +669,11 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -573,6 +695,11 @@ async fn daemon_startup(command: &str) -> Result<()> {
                              insta::assert_snapshot!("restrictive_launcher_warning", warning.trim());
                          }
                      }
@@ -45655,7 +45682,7 @@ index 319a43eb4..021c72971 100644
                      return Ok::<_, anyhow::Error>(());
                  }
              }
-@@ -582,7 +683,10 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -582,7 +709,10 @@ async fn daemon_startup(command: &str) -> Result<()> {
              )
          })
          .await;
@@ -45667,7 +45694,7 @@ index 319a43eb4..021c72971 100644
              let status = tokio::time::timeout(Duration::from_secs(/*secs*/ 5), exit).await??;
              ensure!(status != 0, "incompatible daemon launch must fail");
          }
-@@ -593,18 +697,50 @@ async fn daemon_startup(command: &str) -> Result<()> {
+@@ -593,18 +723,50 @@ async fn daemon_startup(command: &str) -> Result<()> {
      }
      .await;
      // Always stop the detached daemon, including on timeout or failed assertions.
@@ -82838,7 +82865,7 @@ index 000000000..e75508e1a
 +cloud-cli-help-diff-attempt = { "Attempt number to display (1-based)" }
 diff --git a/codex-rs/tui/locales/en/controls.ftl b/codex-rs/tui/locales/en/controls.ftl
 new file mode 100644
-index 000000000..c1137e75e
+index 000000000..638257745
 --- /dev/null
 +++ b/codex-rs/tui/locales/en/controls.ftl
 @@ -0,0 +1,164 @@
@@ -83002,7 +83029,7 @@ index 000000000..c1137e75e
 +controls-memory-command-hint = /memory enable on|off · /memory edit <correction> · /memory read on|off · /memory generate on|off
 +controls-memory-usage = Usage: /memory view | enable on|off | edit <correction> | read on|off | generate on|off | scope project|global
 +daemon-auto-selected-mismatch = The selected shared server executable { $managed_path } differs from this CLI { $cli_path }. This session will use this CLI's bundled server; the shared installation was preserved. To explicitly change the selection, run `codex app-server daemon update --from-cli --yes --no-force`.
-+daemon-implicit-version-mismatch = The shared server at { $endpoint } reports version { $server }, which does not match this CLI { $client } or could not be verified. Automatic attachment was refused. Current CLI executable: { $cli_path }; its bundled backend is available with --no-daemon. The shared server was not changed or restarted. The socket does not identify the running server executable path. To explicitly select this CLI's server, run `codex app-server daemon update --from-cli --yes --no-force`.
++daemon-implicit-version-mismatch = The shared server at { $endpoint } reports version { $server }, which does not match this CLI { $client } or could not be verified. The connection was refused. Current CLI executable: { $cli_path }; its bundled backend is available with --no-daemon. The shared server was not changed or restarted. The socket does not identify the running server executable path. To explicitly select this CLI's server, run `codex app-server daemon update --from-cli --yes --no-force`.
 +daemon-version-manage-hint = Use /daemon to manage the local background server.
 +daemon-version-update-warning = Updating may interrupt active or queued work.
 +daemon-running-embedded = Running this CLI's bundled backend without the shared background server: { $reason }.
@@ -85529,7 +85556,7 @@ index 000000000..e526eba68
 +cloud-cli-help-diff-attempt = { "표시할 시도 번호입니다 (1부터 시작)." }
 diff --git a/codex-rs/tui/locales/ko/controls.ftl b/codex-rs/tui/locales/ko/controls.ftl
 new file mode 100644
-index 000000000..4f88b230c
+index 000000000..03c3fe3be
 --- /dev/null
 +++ b/codex-rs/tui/locales/ko/controls.ftl
 @@ -0,0 +1,164 @@
@@ -85693,7 +85720,7 @@ index 000000000..4f88b230c
 +controls-memory-command-hint = /memory enable on|off · /memory edit <정정 내용> · /memory read on|off · /memory generate on|off
 +controls-memory-usage = 사용법: /memory view | enable on|off | edit <정정 내용> | read on|off | generate on|off | scope project|global
 +daemon-auto-selected-mismatch = 선택된 공유 서버 실행 파일 { $managed_path }은(는) 현재 CLI { $cli_path }와 다릅니다. 이번 대화는 현재 CLI에 포함된 서버를 사용하며 공유 설치본은 보존했습니다. 명시적으로 선택을 바꾸려면 `codex app-server daemon update --from-cli --yes --no-force`를 실행하세요.
-+daemon-implicit-version-mismatch = 공유 서버 { $endpoint }에서 확인한 버전 { $server }이(가) 현재 CLI { $client }와 다르거나 확인되지 않아 자동 연결을 거부했습니다. 현재 CLI 실행 파일: { $cli_path }; --no-daemon으로 이 CLI에 포함된 백엔드를 사용할 수 있습니다. 공유 서버는 변경하거나 다시 시작하지 않았습니다. 소켓 경로만으로 실행 중인 서버 실행 파일 경로는 확인할 수 없습니다. 명시적으로 이 CLI의 서버를 선택하려면 `codex app-server daemon update --from-cli --yes --no-force`를 실행하세요.
++daemon-implicit-version-mismatch = 공유 서버 { $endpoint }에서 확인한 버전 { $server }이(가) 현재 CLI { $client }와 다르거나 확인되지 않아 연결을 거부했습니다. 현재 CLI 실행 파일: { $cli_path }; --no-daemon으로 이 CLI에 포함된 백엔드를 사용할 수 있습니다. 공유 서버는 변경하거나 다시 시작하지 않았습니다. 소켓 경로만으로 실행 중인 서버 실행 파일 경로는 확인할 수 없습니다. 명시적으로 이 CLI의 서버를 선택하려면 `codex app-server daemon update --from-cli --yes --no-force`를 실행하세요.
 +daemon-version-manage-hint = /daemon으로 로컬 백그라운드 서버를 관리할 수 있습니다.
 +daemon-version-update-warning = 업데이트하면 진행 중이거나 대기 중인 작업이 중단될 수 있습니다.
 +daemon-running-embedded = 현재 CLI에 포함된 백엔드로 실행합니다. 공유 백그라운드 서버를 사용하지 않는 이유: { $reason }.
@@ -120241,7 +120268,7 @@ index 000000000..f80e68e25
 +}
 diff --git a/codex-rs/tui/src/i18n.rs b/codex-rs/tui/src/i18n.rs
 new file mode 100644
-index 000000000..b413b76cb
+index 000000000..4c2da1fc6
 --- /dev/null
 +++ b/codex-rs/tui/src/i18n.rs
 @@ -0,0 +1,420 @@
@@ -120384,12 +120411,12 @@ index 000000000..b413b76cb
 +        for (locale, refused, unknown_path) in [
 +            (
 +                Locale::English,
-+                "Automatic attachment was refused",
++                "The connection was refused",
 +                "does not identify the running server executable path",
 +            ),
 +            (
 +                Locale::Korean,
-+                "자동 연결을 거부했습니다",
++                "연결을 거부했습니다",
 +                "실행 중인 서버 실행 파일 경로는 확인할 수 없습니다",
 +            ),
 +        ] {
