@@ -5633,9 +5633,67 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
         saved_config.model_provider_id = "missing_provider".into();
         let thread_id = create_history_rollout(
             &saved_config,
-            ThreadHistoryMode::Paginated,
+            ThreadHistoryMode::Legacy,
             "Saved provider chat",
         )?;
+        {
+            let state_db = crate::init_state_db_for_app_server_target(
+                &saved_config,
+                &crate::AppServerTarget::Embedded,
+            )
+            .await?
+            .expect("embedded fixture state DB");
+            let store = codex_thread_store::LocalThreadStore::new(
+                codex_thread_store::LocalThreadStoreConfig::from_config(&saved_config),
+                Some(state_db),
+            );
+            let migration = Box::pin(store.migrate_rollouts(
+                codex_thread_store::RolloutMigrationOptions {
+                    mode: codex_thread_store::RolloutMigrationMode::Apply,
+                    thread_ids: vec![thread_id],
+                    max_mib_per_second: None,
+                },
+            ))
+            .await?;
+            assert!(migration.outcomes.iter().any(|outcome| {
+                outcome.thread_id == Some(thread_id)
+                    && outcome.status == codex_thread_store::RolloutMigrationStatus::Migrated
+            }));
+            let summary = store
+                .list_turns(codex_thread_store::ListTurnsParams {
+                    thread_id,
+                    include_archived: false,
+                    cursor: None,
+                    page_size: 100,
+                    sort_direction: codex_thread_store::SortDirection::Desc,
+                    items_view: codex_thread_store::StoredTurnItemsView::Summary,
+                })
+                .await?;
+            assert!(
+                summary
+                    .turns
+                    .iter()
+                    .flat_map(|turn| &turn.items)
+                    .any(|item| {
+                        let payload: codex_app_server_protocol::ThreadItemPayload =
+                            serde_json::from_slice(&item.item_json)
+                                .expect("projected fixture item");
+                        match payload {
+                            codex_app_server_protocol::ThreadItemPayload::UserMessage {
+                                content,
+                                ..
+                            } => content.iter().any(|input| {
+                                matches!(
+                                    input,
+                                    codex_app_server_protocol::UserInput::Text { text, .. }
+                                        if text == "Saved provider chat"
+                                )
+                            }),
+                            _ => false,
+                        }
+                    })
+            );
+        }
         let (mut server, requests, proxy) = start_recording_app_server_with_history(
             &app.config,
             HistoryCapabilities::ItemsListFails,
