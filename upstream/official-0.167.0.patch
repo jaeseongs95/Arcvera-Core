@@ -51539,7 +51539,7 @@ index c9c3836c1..7ea68521a 100644
              }),
          ),
 diff --git a/codex-rs/codex-mcp/src/rmcp_client.rs b/codex-rs/codex-mcp/src/rmcp_client.rs
-index 38acb6060..bd971f714 100644
+index 38acb6060..f6a7f1118 100644
 --- a/codex-rs/codex-mcp/src/rmcp_client.rs
 +++ b/codex-rs/codex-mcp/src/rmcp_client.rs
 @@ -338,36 +338,75 @@ impl ManagedClientStartup {
@@ -51776,7 +51776,7 @@ index 38acb6060..bd971f714 100644
              } else {
                  let Some(environment) = resolved_environment.as_ref() else {
                      unreachable!(
-@@ -1612,6 +1683,91 @@ mod tests {
+@@ -1612,6 +1683,92 @@ mod tests {
      use rmcp::model::MetaObject;
      use rmcp::transport::auth::AuthError;
  
@@ -51831,7 +51831,8 @@ index 38acb6060..bd971f714 100644
 +            };
 +            // Poll startup alongside the listener so fixture/auth/path errors are
 +            // reported immediately instead of being hidden by an accept timeout.
-+            let mut task = startup.start(None);
++            let mut task =
++                startup.start(/*sharing_declined*/ None, /*publish_apps*/ None);
 +            let (peer, _) = tokio::select! {
 +                biased;
 +                outcome = &mut task => match outcome {

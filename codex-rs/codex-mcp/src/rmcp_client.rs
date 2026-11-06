@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! RMCP client lifecycle for MCP server connections.
 //!
 //! This module owns startup of individual RMCP clients: building the transport,
@@ -1735,7 +1735,8 @@ mod tests {
             };
             // Poll startup alongside the listener so fixture/auth/path errors are
             // reported immediately instead of being hidden by an accept timeout.
-            let mut task = startup.start(None);
+            let mut task =
+                startup.start(/*sharing_declined*/ None, /*publish_apps*/ None);
             let (peer, _) = tokio::select! {
                 biased;
                 outcome = &mut task => match outcome {
