@@ -231,9 +231,23 @@ async fn reload_plugins_preserves_busy_turn_and_captured_step() -> anyhow::Resul
     let home = session.codex_home().await;
     let file = home.join(CONFIG_TOML_FILE);
     std::fs::create_dir_all(&home)?;
+    let source = tempfile::tempdir()?;
+    std::fs::create_dir_all(source.path().join(".codex-plugin"))?;
+    std::fs::write(
+        source.path().join(".codex-plugin/plugin.json"),
+        r#"{"name":"sample"}"#,
+    )?;
+    std::fs::write(
+        source.path().join(".mcp.json"),
+        r#"{"mcpServers":{"reloaded":{"type":"http","url":"https://reloaded.example/mcp"}}}"#,
+    )?;
+    codex_core_plugins::store::PluginStore::new(home.to_path_buf()).install(
+        AbsolutePathBuf::try_from(source.path().to_path_buf())?,
+        codex_plugin::PluginId::parse("sample@test")?,
+    )?;
     std::fs::write(
         file,
-        "[mcp_servers.reloaded]\nurl = 'https://reloaded.example/mcp'\nenabled = false\n",
+        "[plugins.\"sample@test\"]\nenabled = true\n[plugins.\"sample@test\".mcp_servers.reloaded]\nenabled = false\n",
     )?;
     session.reload_plugins().await?;
     assert!(Arc::ptr_eq(
@@ -252,6 +266,12 @@ async fn reload_plugins_preserves_busy_turn_and_captured_step() -> anyhow::Resul
     assert!(!Arc::ptr_eq(&old_step.mcp, &next_step.mcp));
     assert!(!codex_mcp::configured_mcp_servers(old_step.mcp.config()).contains_key("reloaded"));
     assert!(codex_mcp::configured_mcp_servers(next_step.mcp.config()).contains_key("reloaded"));
+    assert!(
+        !codex_mcp::configured_mcp_servers(next_step.mcp.config())
+            .get("reloaded")
+            .expect("reloaded plugin MCP server should be configured")
+            .enabled
+    );
     session.abort_all_tasks(TurnAbortReason::Interrupted).await;
     Ok(())
 }

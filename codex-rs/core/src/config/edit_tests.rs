@@ -51,8 +51,11 @@ fn ui_language_persists_across_fresh_reads_without_changing_other_global_setting
         assert_eq!(read_user_ui_language(home.path()).unwrap(), language);
     }
     let unchanged = std::fs::read(&path).unwrap();
-    for invalid in ["", "KO", "kr", "en ko"] {
-        assert!(UiLanguage::parse(invalid).is_err());
+    for invalid in ["", "ko--KR", "kr", "en ko"] {
+        assert!(
+            UiLanguage::parse(invalid).is_err(),
+            "unexpectedly accepted invalid tag: {invalid:?}"
+        );
         assert_eq!(std::fs::read(&path).unwrap(), unchanged);
     }
 }
