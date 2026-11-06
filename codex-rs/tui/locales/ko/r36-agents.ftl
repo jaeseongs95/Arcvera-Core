@@ -7,3 +7,4 @@ r37-agents-click = 클릭
 r37-agents-click-expand = 클릭 펼치기
 r37-agents-click-collapse = 클릭 접기
 r37-agents-click-open = 클릭 대화 이동
+r38-agents-main = 메인 에이전트

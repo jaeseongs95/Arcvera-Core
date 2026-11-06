@@ -880,3 +880,14 @@ cli-feature-under-development-warning = Under-development features enabled: { $f
 cli-aliases = Aliases: { $value }
 
 cli-help-first-installation-only = Install only if no installation, settings, or recovery state exists under the lifecycle lock.
+
+cli-plugin-reload-requested = Reloaded plugin configuration for { $thread }. MCP reconnect requested for the next capture; server readiness is not yet confirmed.
+
+cli-plugin-reload-partial-warnings = { $message } Partial refresh warnings:
+    { $warnings }
+
+cli-plugin-reload-invalid-ack = Plugin reload returned an invalid acknowledgement for { $thread }.
+
+cli-plugin-reload-failed = Plugin reload failed for { $thread }: { $error }
+
+cli-plugin-reload-stale = Stale plugin reload after conversation/backend change or reconnect; no request was sent. Run /reload_plugin again in the displayed conversation.

@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Opportunistic attachment may fall back; automatic startup requires a shared server.
 
 use crate::legacy_core::config::ConfigBuilder;
@@ -208,7 +208,9 @@ async fn daemon_feature_compatibility_respects_required_and_optional_attachment(
                 let warning = result?.expect("optional attachment should fall back");
                 assert_eq!(
                     warning,
-                    format!("Running without the shared background server: {reason}.")
+                    format!(
+                        "Running this CLI's bundled backend without the shared background server: {reason}."
+                    )
                 );
             } else {
                 let error = result.unwrap_err();
@@ -313,7 +315,12 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
                     ))
                     .await
                     .unwrap();
-                while let Some(Ok(_)) = socket.next().await {}
+                while let Some(Ok(message)) = socket.next().await {
+                    if let Message::Text(text) = message {
+                        let message: serde_json::Value = serde_json::from_str(&text).unwrap();
+                        assert_eq!(message["method"], "initialized");
+                    }
+                }
             }
         });
         let mut target = if scenario == "explicit endpoint" {
@@ -326,6 +333,7 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
         };
         let original_target = target.clone();
         let mut state_db = None;
+        let mut startup_warning = Some("previous startup warning".to_string());
         let result = start_app_server(
             &mut target,
             Arg0DispatchPaths::default(),
@@ -339,10 +347,56 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
             &mut state_db,
             Arc::new(EnvironmentManager::default_for_tests()),
             Default::default(),
+            &mut startup_warning,
         )
         .await;
         reject_handshake.abort();
-        if scenario.contains("version") {
+        if scenario == "version mismatch" || scenario == "unknown version" {
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+            daemon_startup::emit_startup_warning(
+                startup_warning,
+                &crate::app_event_sender::AppEventSender::new(tx),
+            );
+            let Some(crate::app_event::AppEvent::InsertHistoryCell(cell)) = rx.recv().await else {
+                panic!("fallback must deliver the runtime refusal to the startup history");
+            };
+            let visible = cell
+                .transcript_lines(1000)
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n");
+            for expected in [
+                "previous startup warning",
+                "does not match this CLI",
+                env!("CARGO_PKG_VERSION"),
+                "codex app-server daemon update --from-cli --yes --no-force",
+            ] {
+                assert!(visible.contains(expected), "{visible}");
+            }
+            assert!(
+                visible.contains(&std::env::current_exe()?.display().to_string()),
+                "{visible}"
+            );
+            assert!(visible.contains("its bundled backend"), "{visible}");
+            let server = if scenario == "unknown version" {
+                crate::i18n::message("status-unknown-version", &[])
+            } else {
+                "0.166.0+native-r28.20261029".to_string()
+            };
+            assert!(visible.contains(&server), "{visible}");
+            let AppServerTarget::LocalDaemon {
+                endpoint: RemoteAppServerEndpoint::WebSocket { websocket_url, .. },
+                ..
+            } = &original_target
+            else {
+                panic!("version fixtures use a local WebSocket endpoint");
+            };
+            assert!(visible.contains(websocket_url), "{visible}");
+        } else {
+            assert_eq!(startup_warning.as_deref(), Some("previous startup warning"));
+        }
+        if scenario == "required version mismatch" {
             let client = result?;
             assert_eq!(target, original_target);
             assert!(state_db.is_none());
@@ -353,11 +407,7 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
             if scenario.starts_with("required") {
                 let message = result.err().unwrap().to_string();
                 assert!(message.contains("rerun the same command with --no-daemon"));
-                if scenario == "required version mismatch" {
-                    assert!(message.contains("does not match this CLI"));
-                } else {
-                    assert!(message.contains("failed to connect to remote app server"));
-                }
+                assert!(message.contains("failed to connect to remote app server"));
             }
             assert_eq!(target, original_target);
             assert!(state_db.is_none());
@@ -477,8 +527,7 @@ fn daemon_exclusion_warning_snapshot() {
 }
 
 #[tokio::test]
-async fn local_daemon_version_metadata_does_not_override_protocol_handshake()
--> color_eyre::Result<()> {
+async fn local_daemon_version_metadata_limits_only_implicit_attachment() -> color_eyre::Result<()> {
     use futures::SinkExt;
     use futures::StreamExt;
     use serde_json::json;
@@ -534,7 +583,7 @@ async fn local_daemon_version_metadata_does_not_override_protocol_handshake()
                 }
             };
             let result = app_server_connection::connect(&target).await;
-            let accepted = true;
+            let accepted = explicit_remote || version == Some(env!("CARGO_PKG_VERSION"));
             assert_eq!(
                 result.is_ok(),
                 accepted,
@@ -558,69 +607,91 @@ async fn local_daemon_version_metadata_does_not_override_protocol_handshake()
 }
 
 #[tokio::test]
-async fn explicit_default_socket_accepts_other_build_on_initial_and_reconnect()
--> color_eyre::Result<()> {
+async fn default_socket_version_policy_applies_on_initial_and_reconnect() -> color_eyre::Result<()>
+{
     use futures::SinkExt;
     use futures::StreamExt;
     use serde_json::json;
     use tokio_tungstenite::tungstenite::Message;
 
-    let home = TempDir::new()?;
-    let directory = home.path().join("control");
-    codex_uds::prepare_private_socket_directory(&directory).await?;
-    let socket_path = AbsolutePathBuf::from_absolute_path_checked(directory.join("server.sock"))?;
-    let mut listener = codex_uds::UnixListener::bind(socket_path.as_path()).await?;
-    let target = app_server_target_for_launch(
-        Some(RemoteAppServerEndpoint::UnixSocket {
-            socket_path: socket_path.clone(),
-        }),
-        Some(socket_path),
-        false,
-        false,
-        None,
-    )?;
-    assert!(matches!(
-        &target,
-        AppServerTarget::LocalDaemon {
-            allow_embedded_fallback: false,
-            ..
-        }
-    ));
-    assert!(!target.uses_remote_workspace());
-    let server = tokio::spawn(async move {
-        for _ in 0..2 {
-            let stream = listener.accept().await?;
-            let mut socket = tokio_tungstenite::accept_async(stream).await?;
-            let Some(Ok(Message::Text(request))) = socket.next().await else {
-                panic!("initialize request missing");
-            };
-            let request: serde_json::Value = serde_json::from_str(&request)?;
-            assert_eq!(request["method"], "initialize");
-            socket
-                .send(Message::Text(
-                    json!({
-                        "id": request["id"],
-                        "result": {"userAgent":"daemon-test/0.165.0+native-r28.20261029"}
-                    })
-                    .to_string()
-                    .into(),
-                ))
-                .await?;
-            while let Some(Ok(message)) = socket.next().await {
-                if let Message::Text(text) = message {
-                    let message: serde_json::Value = serde_json::from_str(&text)?;
-                    // Reconnection only closes this client; never mutate or stop the server.
-                    assert_eq!(message["method"], "initialized");
+    for implicit in [false, true] {
+        for versions in [
+            [Some(env!("CARGO_PKG_VERSION")); 2],
+            [Some("0.165.0+native-r28.20261029"); 2],
+            [None; 2],
+            [
+                Some(env!("CARGO_PKG_VERSION")),
+                Some("0.165.0+native-r28.20261029"),
+            ],
+            [Some(env!("CARGO_PKG_VERSION")), None],
+        ] {
+            let home = TempDir::new()?;
+            let directory = home.path().join("control");
+            codex_uds::prepare_private_socket_directory(&directory).await?;
+            let socket_path =
+                AbsolutePathBuf::from_absolute_path_checked(directory.join("server.sock"))?;
+            let mut listener = codex_uds::UnixListener::bind(socket_path.as_path()).await?;
+            let target = app_server_target_for_launch(
+                (!implicit).then(|| RemoteAppServerEndpoint::UnixSocket {
+                    socket_path: socket_path.clone(),
+                }),
+                Some(socket_path),
+                implicit,
+                false,
+                None,
+            )?;
+            assert!(matches!(
+                &target,
+                AppServerTarget::LocalDaemon { allow_embedded_fallback, .. }
+                    if *allow_embedded_fallback == implicit
+            ));
+            assert!(!target.uses_remote_workspace());
+            let server = tokio::spawn(async move {
+                for version in versions {
+                    let stream = listener.accept().await?;
+                    let mut socket = tokio_tungstenite::accept_async(stream).await?;
+                    let Some(Ok(Message::Text(request))) = socket.next().await else {
+                        panic!("initialize request missing");
+                    };
+                    let request: serde_json::Value = serde_json::from_str(&request)?;
+                    assert_eq!(request["method"], "initialize");
+                    socket
+                        .send(Message::Text(
+                            json!({
+                                "id": request["id"],
+                                "result": {"userAgent": version.map_or_else(
+                                    || "daemon-test".to_string(),
+                                    |version| format!("daemon-test/{version}"),
+                                )}
+                            })
+                            .to_string()
+                            .into(),
+                        ))
+                        .await?;
+                    while let Some(Ok(message)) = socket.next().await {
+                        if let Message::Text(text) = message {
+                            let message: serde_json::Value = serde_json::from_str(&text)?;
+                            // Reconnection only closes this client; never mutate or stop the server.
+                            assert_eq!(message["method"], "initialized");
+                        }
+                    }
+                }
+                Ok::<_, color_eyre::Report>(())
+            });
+            for version in versions {
+                let result = app_server_connection::connect(&target).await;
+                let accepted = !implicit || version == Some(env!("CARGO_PKG_VERSION"));
+                assert_eq!(result.is_ok(), accepted, "{version:?} implicit={implicit}");
+                if let Ok(client) = result {
+                    assert!(matches!(&client, AppServerClient::Remote(_)));
+                    client.shutdown().await?;
+                } else {
+                    let message = result.err().unwrap().to_string();
+                    assert!(message.contains("does not match this CLI"), "{message}");
                 }
             }
+            tokio::time::timeout(std::time::Duration::from_secs(5), server).await???;
         }
-        Ok::<_, color_eyre::Report>(())
-    });
-    for _ in 0..2 {
-        let client = app_server_connection::connect(&target).await?;
-        assert!(matches!(&client, AppServerClient::Remote(_)));
-        client.shutdown().await?;
     }
-    tokio::time::timeout(std::time::Duration::from_secs(5), server).await???;
     Ok(())
 }
