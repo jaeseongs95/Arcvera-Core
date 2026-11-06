@@ -14,10 +14,24 @@ use codex_app_server_client::RemoteAppServerEndpoint;
 #[cfg(windows)]
 use codex_utils_absolute_path::AbsolutePathBuf;
 
+/// Only this refusal is safe to forward as a connection diagnostic to the UI.
+/// Its message is built from the sanitized endpoint and version metadata below.
+#[derive(Debug, thiserror::Error)]
+#[error("{warning}")]
+pub(crate) struct LocalVersionMismatch {
+    warning: String,
+}
+
+impl LocalVersionMismatch {
+    pub(crate) fn embedded_warning(&self) -> String {
+        crate::i18n::message("daemon-running-embedded", &[("reason", &self.warning)])
+    }
+}
+
 pub(crate) async fn connect(target: &AppServerTarget) -> color_eyre::Result<AppServerClient> {
     let client = match target {
         AppServerTarget::Embedded => {
-            color_eyre::eyre::bail!("embedded sessions have no remote connection")
+            color_eyre::eyre::bail!("embedded sessions have no remote connection");
         }
         #[cfg(windows)]
         AppServerTarget::LocalDaemon {
@@ -75,7 +89,7 @@ pub(crate) async fn connect(target: &AppServerTarget) -> color_eyre::Result<AppS
             if let Err(error) = client.shutdown().await {
                 tracing::warn!(%error, "could not close rejected shared server connection");
             }
-            color_eyre::eyre::bail!(warning);
+            return Err(LocalVersionMismatch { warning }.into());
         }
     }
     Ok(client)

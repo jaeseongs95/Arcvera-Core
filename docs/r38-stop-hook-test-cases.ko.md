@@ -99,3 +99,58 @@ NOT_RUN이다. 모든 fixture는 자체 빌드 영역의 임시 폴더에만 만
 
 이 산출물은 아직 독립 helper다. R38 installer 연결과 운영 설정 교정의 완료를
 뜻하지 않는다.
+
+## 추가 요청: reload_plugin 진단과 표시 — 실행 전 계획
+
+추가 요구 PR-R1: unsupported Stop handler 속성 경고에 hook 자체가 유지되고 해당
+handler의 `additionalContextLimit`만 제거하면 된다는 안내를 넣는다. 경고 원문·경로는
+유지하고 경고 억제·전체 hook 비활성·자동 설정 수정은 하지 않는다.
+PR-R2: slash 명령의 결과·partial warnings·invalid acknowledgement·실패·stale 안내를
+기존 i18n message API와 두 `cli.ftl`로 제공한다. 서버 diagnostic/path는 번역하지 않는다.
+PR-R3: 기존 embedded-server fixture로 실제 reload의 경고 전달·재연결 요청과 파일
+불변을 검사하고, fixture에서 대상 속성만 명시 제거한 다음 reload의 경고 해소와 hook
+유지를 검사한다. MCP readiness와 reconnect 요청을 같은 것으로 판정하지 않는다.
+
+공통 전제: canonical R38 소스만 편집하며 운영 설정·R37·daemon·인증·다른 세션
+로그는 접근하지 않는다. 이번 추가작업은 실행시험·Cargo·빌드·commit·push 금지이므로
+아래 사례를 작성해도 실제 결과는 NOT_RUN으로 남긴다. 기존 helper 시험 결과를 이
+추가 변경의 시험 결과로 전용하지 않는다. 기존 파일의 CRLF/LF를 각각 유지한다.
+
+| 사례 | 요구 | 전제·입력 | 절차 | 기대 결과 / oracle | 실제 |
+| --- | --- | --- | --- | --- | --- |
+| PR01 | PR-R1 | discovery의 Stop command handler에 unsupported 속성 | 기존 discovery 단위사례 확장 | handler/entry command 유지, 경로와 기존 diagnostic 및 속성만 제거하라는 안내 존재 | NOT_RUN |
+| PR02 | PR-R2 | EN/KO locale, 원시 서버 경고와 Windows 경로 | 같은 결과 formatter에 warning 유무 입력 | 각 locale 결과·partial 안내, 경고 원문/경로 byte-equivalent 문자열 유지, 준비 미확인 명시 | NOT_RUN |
+| PR03 | PR-R3 | 자체 hooks.json에 Stop handler 속성8192, 다른 event·command·env·timeout | 기존 실제 embedded fixture로 targeted reload 후 hooks/list | 원 thread ACK/reconnect 요청 true, warning 전달, readiness 단정 없음, 설정 bytes 동일, hook list에 Stop handler 유지 | NOT_RUN |
+| PR04 | PR-R3 | PR03과 동일 fixture의 해당 속성만 명시 제거 | 두번째 targeted reload와 hooks/list | 해당 warning 해소, 원 thread ACK/reconnect 요청 true, 교정본 bytes 불변, 다른 모든 JSON 값과 Stop command 유지 | NOT_RUN |
+| PR05 | PR-R2 | unsupported backend·invalid ACK·stale 화면 소유권 | 기존 실패/stale 사례와 message catalog 기대값 보강 | 각 locale 안내와 오류 원인 보존, stale일 때 RPC 0, reconnect 요청을 readiness로 표현하지 않음 | NOT_RUN |
+| PR06 | PR-R2 | 자연어 session-control ReloadPlugins 경로 | slash와 동일 formatter 재사용 | 결과·경고·invalid ACK·오류가 같은 locale 계약을 따름 | NOT_RUN |
+
+예정 필터: `codex-hooks unsupported_event_warns_and_ignores_additional_context_limit`,
+`codex-tui app::tests::plugin_reload_tests` 및 카탈로그 기존 parity 검사. 이번 작업에서
+해당 명령을 실행하지 않는다. 기존 `start_recording_app_server_with_history`는
+실제 embedded server로 요청을 전달하므로 새 서버 harness를 만들지 않는다.
+
+작성한 구체 필터는 `reload_plugin_reports_unsupported_stop_setting_without_removing_the_hook`
+(PR03/04, 직접 ACK·slash 표시를 교정 전후 각각 확인),
+`reload_plugin_messages_localize_without_translating_server_diagnostics`(PR02/05),
+기존 `reload_plugin_routes_captured_thread_and_unsupported_backend_fails_closed`와
+`reload_plugin_and_fast_queued_before_screen_or_backend_replacement_sends_zero_rpcs`다.
+PR01은 기존 discovery 필터에 handler entry/command와 구체 교정 안내 assertion을
+추가했다. PR06은 자연어 경로가 동일 formatter를 쓰도록 수정했으며 별도 자연어 RPC
+실행은 하지 않았다. invalid ACK의 메시지는 카탈로그 사례이고 서버가 잘못된 ACK를
+반환하는 실서버 fixture는 추가하지 않았다.
+
+새 actual fixture는 app 소유 TempDir와 `codex_home` 일치를 먼저 검사한다.
+직접 ACK 확인과 slash 표시 확인으로 교정 전후 총 4회의 reload와 2회의 hooks/list를
+요청하도록 작성했다. JSON 교정은 fixture handler의 대상 key 하나만 명시 제거한다.
+공유 history helper는 80열로 줄을 나누므로 원시 진단 문자열 assertion에는 같은 실제
+history cell의 4096열 렌더링을 사용한다. 좁은 화면의 시각 레이아웃 시험은 별도다.
+
+작성 시 정적 확인은 소유 파일 `git diff --check` exit 0이며, 이번 추가 변경의
+컴파일·시험·실제 앱 검증은 실행하지 않았다. 기존 helper의 PASS/SKIP와 이 추가
+요구의 NOT_RUN을 합산하지 않는다. 운영 hooks.json의 경고가 해소됐다고 보고하지 않는다.
+
+
+## 재로드 추가 요구의 Windows 개발 결과
+
+`codex-hooks additional_context_limit` 2개와 통합 4차 `codex-tui reload_plugin` 6개, catalog 8개가 exit0이다. PR01·PR02와 실제 embedded server의 PR03·PR04는 해당 원시 assertion을 확인했다. Stop handler의 동일 identity·command·timeout·enabled 상태, 원 thread ACK, 설정 bytes 불변과 대상 속성 제거 후 해당 warning 해소를 확인했다. PR05의 unsupported/stale 경계는 기존 실제 경로이고 invalid ACK는 catalog 검사다. PR06은 같은 formatter 재사용을 정적으로 확인했으며 별도 자연어 RPC와 잘못된 ACK를 보내는 실서버 시험은 NOT_RUN이다. 이 차이를 전체 경로 PASS로 확대하지 않는다. 운영 hooks.json은 수정하지 않았다.

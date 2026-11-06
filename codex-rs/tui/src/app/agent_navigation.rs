@@ -182,6 +182,7 @@ impl AgentNavigationState {
                 finished_at: detail.and_then(|detail| detail.finished_at),
             });
         }
+        summary.show_main = !summary.is_empty();
         summary
     }
 

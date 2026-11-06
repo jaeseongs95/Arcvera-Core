@@ -880,3 +880,14 @@ cli-feature-under-development-warning = 개발 중인 기능을 활성화했습�
 cli-aliases = 별칭: { $value }
 
 cli-help-first-installation-only = 수명 관리 잠금 안에서 설치·설정·복구 상태가 모두 없는 경우에만 설치
+
+cli-plugin-reload-requested = { $thread } 대화의 플러그인 설정을 다시 읽었습니다. 다음 캡처에서 MCP 재연결을 요청했으며, 서버 준비 완료는 아직 확인하지 않았습니다.
+
+cli-plugin-reload-partial-warnings = { $message } 일부 새로고침 경고:
+    { $warnings }
+
+cli-plugin-reload-invalid-ack = { $thread } 대화의 플러그인 다시 읽기 응답이 원래 대화와 일치하지 않거나 재연결 요청을 확인하지 않았습니다.
+
+cli-plugin-reload-failed = { $thread } 대화의 플러그인 다시 읽기에 실패했습니다: { $error }
+
+cli-plugin-reload-stale = 대화·백엔드 변경 또는 재연결 전의 플러그인 다시 읽기 요청이므로 전송하지 않았습니다. 표시된 대화에서 /reload_plugin을 다시 실행하세요.

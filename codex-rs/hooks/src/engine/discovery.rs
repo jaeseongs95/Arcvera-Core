@@ -695,7 +695,7 @@ fn append_matcher_groups(
                     } else {
                         if additional_context_limit.is_some() {
                             warnings.push(format!(
-                                "ignoring additionalContextLimit for {event_name:?} hook in {}: this event cannot emit additionalContext",
+                                "ignoring additionalContextLimit for {event_name:?} hook in {}: this event cannot emit additionalContext; the {event_name:?} hook remains configured. Remove only additionalContextLimit from this {event_name:?} hook handler; keep the hook and its command.",
                                 source.path.display()
                             ));
                         }
@@ -1434,7 +1434,7 @@ mod tests {
     #[test]
     fn unsupported_event_warns_and_ignores_additional_context_limit() {
         let source_path = source_path();
-        let (handler, _, warnings) = discover_command(
+        let (handler, entry, warnings) = discover_command(
             HookEventName::Stop,
             /*additional_context_limit*/ Some(4_096),
         );
@@ -1443,6 +1443,17 @@ mod tests {
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].contains("ignoring additionalContextLimit for Stop hook"));
         assert!(warnings[0].contains(&source_path.display().to_string()));
+        assert!(warnings[0].contains("the Stop hook remains configured"));
+        assert!(
+            warnings[0].contains("Remove only additionalContextLimit from this Stop hook handler")
+        );
+        assert_eq!(
+            entry.handler,
+            HookListEntryHandler::Command {
+                command: "echo hello".to_string(),
+                r#async: false,
+            }
+        );
     }
 
     #[test]

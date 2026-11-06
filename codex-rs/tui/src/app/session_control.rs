@@ -270,16 +270,23 @@ impl App {
                 )
             }
             Command::ReloadPlugins => {
-                let response = app_server
-                    .reload_plugins(thread)
-                    .await
-                    .map_err(|error| format!("플러그인 다시 읽기 실패: {error:#}"))?;
+                let response = app_server.reload_plugins(thread).await.map_err(|error| {
+                    crate::i18n::message(
+                        "cli-plugin-reload-failed",
+                        &[
+                            ("thread", &thread.to_string()),
+                            ("error", &format!("{error:#}")),
+                        ],
+                    )
+                })?;
                 if response.thread_id != thread.to_string() || !response.mcp_reconnect_requested {
-                    return Err("플러그인 다시 읽기 응답이 원래 대화와 일치하지 않거나 재연결을 확인하지 않았습니다.".into());
+                    return Err(crate::i18n::message(
+                        "cli-plugin-reload-invalid-ack",
+                        &[("thread", &thread.to_string())],
+                    ));
                 }
-                Ok(
-                    json!({"result":response,"message":"플러그인 설정을 다시 읽고 다음 캡처의 연결 갱신을 요청했습니다. 서버 준비 완료는 아직 확인하지 않았습니다."}),
-                )
+                let message = Self::plugin_reload_result_message(thread, &response.warnings);
+                Ok(json!({"result":response,"message":message}))
             }
             Command::CleanupAgentsPreview => {
                 let response: codex_app_server_protocol::ThreadCleanupCompletedResponse =

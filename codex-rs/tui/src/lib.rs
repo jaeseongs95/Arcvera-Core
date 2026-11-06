@@ -31,6 +31,8 @@ pub use app::ExitReason;
 pub use app::ResumableThread;
 use app_server_session::AppServerSession;
 use app_server_session::ThreadParamsMode;
+pub use cleanup_agents_command::CleanupAgentsCommandOptions;
+pub use cleanup_agents_command::run_cleanup_agents_command;
 use codex_app_server_client::AppServerClient;
 use codex_app_server_client::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY;
 use codex_app_server_client::InProcessAppServerClient;
@@ -77,8 +79,6 @@ use codex_utils_oss::get_default_model_for_oss_provider;
 use color_eyre::eyre::WrapErr;
 use crossterm::SynchronizedUpdate;
 use cwd_prompt::CwdPromptAction;
-pub use cleanup_agents_command::CleanupAgentsCommandOptions;
-pub use cleanup_agents_command::run_cleanup_agents_command;
 pub use daemon_startup::uses_wsl_drvfs;
 pub use session_archive_commands::DeleteConfirmation;
 pub use session_archive_commands::SessionArchiveAction;
@@ -603,6 +603,7 @@ async fn start_app_server(
     state_db: &mut Option<StateDbHandle>,
     environment_manager: Arc<EnvironmentManager>,
     embedded_network_policy: codex_app_server_client::EmbeddedNetworkPolicy,
+    daemon_startup_warning: &mut Option<String>,
 ) -> color_eyre::Result<AppServerClient> {
     let connection = if matches!(target, AppServerTarget::Embedded) {
         None
@@ -622,6 +623,17 @@ async fn start_app_server(
                 ) =>
             {
                 tracing::debug!(%err, "local daemon connection failed; starting embedded app server");
+                if let Some(refusal) =
+                    err.downcast_ref::<app_server_connection::LocalVersionMismatch>()
+                {
+                    let warning = refusal.embedded_warning();
+                    if let Some(existing) = daemon_startup_warning {
+                        existing.push('\n');
+                        existing.push_str(&warning);
+                    } else {
+                        *daemon_startup_warning = Some(warning);
+                    }
+                }
                 *target = AppServerTarget::Embedded;
                 *state_db = init_state_db_for_app_server_target(&config, target).await?;
             }
@@ -685,6 +697,7 @@ pub(crate) async fn start_app_server_for_picker(
         &mut state_db,
         environment_manager,
         embedded_network_policy,
+        &mut None,
     )
     .await?;
     Ok(
@@ -713,6 +726,7 @@ pub(crate) async fn start_embedded_app_server_for_picker(
         &mut state_db,
         Arc::new(EnvironmentManager::default_for_tests()),
         Default::default(),
+        &mut None,
     ))
     .await?;
     Ok(AppServerSession::new(
@@ -1239,7 +1253,7 @@ async fn run_ratatui_app(
     environment_manager: Arc<EnvironmentManager>,
     embedded_network_policy: codex_app_server_client::EmbeddedNetworkPolicy,
     managed_worktree: Option<ManagedTuiWorktree>,
-    daemon_startup_warning: Option<String>,
+    mut daemon_startup_warning: Option<String>,
     managed_daemon: bool,
     launch_telemetry: daemon_telemetry::Launch<
         impl FnOnce(&AppServerTarget, bool) -> terminal_size_telemetry::LaunchTags,
@@ -1297,6 +1311,7 @@ async fn run_ratatui_app(
                 &mut state_db,
                 environment_manager.clone(),
                 embedded_network_policy.clone(),
+                &mut daemon_startup_warning,
             ),
         )
         .await;
@@ -1878,6 +1893,7 @@ async fn run_ratatui_app(
                     &mut state_db,
                     environment_manager.clone(),
                     embedded_network_policy.clone(),
+                    &mut daemon_startup_warning,
                 ),
             )
             .await
@@ -1999,6 +2015,7 @@ async fn run_ratatui_app(
                     &mut state_db,
                     environment_manager.clone(),
                     embedded_network_policy.clone(),
+                    &mut daemon_startup_warning,
                 )
                 .await?;
                 app_server = AppServerSession::new(

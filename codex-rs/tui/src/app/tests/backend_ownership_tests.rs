@@ -146,6 +146,7 @@ async fn startup_fallback_requires_no_established_backend() -> Result<()> {
             &mut state_db,
             Arc::clone(&app.environment_manager),
             policy,
+            &mut None,
         )
         .await;
         if matches!(selection, SessionSelection::StartFresh) {

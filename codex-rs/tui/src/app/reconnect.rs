@@ -130,6 +130,12 @@ pub(super) async fn reconnect(
         let result = tokio::time::timeout_at(deadline, attempt).await;
         match result {
             Ok(Ok(connected)) => return Ok(connected),
+            Ok(Err(error)) if error.is::<crate::app_server_connection::LocalVersionMismatch>() => {
+                // This typed diagnostic contains only the sanitized local
+                // refusal. Do not retry onto another backend or hide it behind
+                // a transport timeout; the existing failure UI displays it.
+                return Err(error);
+            }
             Ok(Err(_)) => {}
             Err(_) => break,
         }
@@ -139,6 +145,25 @@ pub(super) async fn reconnect(
 }
 
 impl App {
+    pub(super) fn finish_failed_reconnect(&mut self, error: color_eyre::Report) {
+        if self.pending_startup_thread_start {
+            self.pending_startup_thread_start = false;
+            self.chat_widget.cancel_startup_submission();
+            self.chat_widget
+                .set_initial_user_message_submit_suppressed(/*suppressed*/ true);
+            if let Some(message) = self.chat_widget.initial_user_message.take() {
+                self.chat_widget.restore_user_message_to_composer(message);
+            }
+        }
+        self.reconnect.failed = true;
+        self.chat_widget.reconnect_failed();
+        self.chat_widget.add_error_message(error.to_string());
+        if let Ok(mut state) = self.agents_overview.view_state.lock() {
+            state.connection_notice =
+                Some(crate::i18n::static_message("picker-center-notice-failed"));
+        }
+    }
+
     pub(crate) fn is_offline(&self) -> bool {
         self.reconnect.offline
     }

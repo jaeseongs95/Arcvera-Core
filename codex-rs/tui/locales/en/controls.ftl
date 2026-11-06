@@ -161,4 +161,4 @@ daemon-auto-selected-mismatch = The selected shared server executable { $managed
 daemon-implicit-version-mismatch = The shared server at { $endpoint } reports version { $server }, which does not match this CLI { $client } or could not be verified. Automatic attachment was refused. Current CLI executable: { $cli_path }; its bundled backend is available with --no-daemon. The shared server was not changed or restarted. The socket does not identify the running server executable path. To explicitly select this CLI's server, run `codex app-server daemon update --from-cli --yes --no-force`.
 daemon-version-manage-hint = Use /daemon to manage the local background server.
 daemon-version-update-warning = Updating may interrupt active or queued work.
-daemon-running-embedded = Running without the shared background server: { $reason }.
+daemon-running-embedded = Running this CLI's bundled backend without the shared background server: { $reason }.
