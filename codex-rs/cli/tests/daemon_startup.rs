@@ -688,8 +688,8 @@ async fn daemon_startup(command: &str) -> Result<()> {
                     } else if bedrock_onboarding || command == "restrictive-job" {
                         ensure!(!pid_file.exists());
                         if command == "restrictive-job" && !elevated {
-                            let contents = screen.screen().contents();
-                            let warning = contents.lines()
+                            // Read physical rows: contents() joins the full-width transcript header to the next row.
+                            let warning = screen.screen().rows(0, screen.screen().size().1)
                                 .find(|line| line.contains("Running without the shared background server:"))
                                 .context("missing rendered fallback warning")?;
                             insta::assert_snapshot!("restrictive_launcher_warning", warning.trim());
