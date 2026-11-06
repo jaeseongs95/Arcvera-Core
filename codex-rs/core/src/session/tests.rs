@@ -14009,5 +14009,63 @@ async fn strict_context_commit_validates_before_publishing_any_settings() {
     assert!(session.active_turn.lock().await.is_none());
 }
 
+#[test_case(ModelOrigin::Bundled; "bundled catalog limit")]
+#[test_case(ModelOrigin::Provider; "provider catalog limit")]
+#[test_case(ModelOrigin::ExplicitConfig; "explicit catalog limit")]
+#[test_case(ModelOrigin::Synthetic; "unmatched synthetic metadata")]
+#[tokio::test]
+async fn context_window_override_uses_catalog_origin(origin: ModelOrigin) {
+    let (mut session, _) = make_session_and_context().await;
+    let before = session.thread_settings_snapshot().await;
+    let mut metadata = model_info::model_info_from_slug(&before.model);
+    metadata.context_window = Some(128_000);
+    metadata.max_context_window = Some(128_000);
+    // An absent entry exercises the real resolver's fallback, including its numeric defaults.
+    let models = if origin == ModelOrigin::Synthetic {
+        Vec::new()
+    } else {
+        vec![metadata]
+    };
+    session.services.models_manager =
+        Arc::new(codex_models_manager::manager::StaticModelsManager::new(
+            None,
+            codex_protocol::openai_models::ModelsResponse { models },
+            origin,
+        ));
+    let resolved = session
+        .services
+        .models_manager
+        .get_model_info(
+            &before.model,
+            &session.get_config().await.to_models_manager_config(),
+        )
+        .await;
+    assert_eq!(resolved.origin, origin);
+    assert!(
+        resolved
+            .resolved_context_window()
+            .is_some_and(|maximum| maximum >= 64_000)
+    );
+    let result = session
+        .update_settings(SessionSettingsUpdate {
+            model_context_window: Some(Some(64_000)),
+            ..Default::default()
+        })
+        .await;
+    if origin == ModelOrigin::Synthetic {
+        assert!(matches!(
+            result,
+            Err(crate::config::ConstraintError::InvalidValue {
+                field_name: "model_context_window",
+                allowed,
+                ..
+            }) if allowed == "a model with a known context limit"
+        ));
+        assert_eq!(session.thread_settings_snapshot().await, before);
+    } else {
+        assert_eq!(result.unwrap().snapshot.model_context_window, Some(64_000));
+    }
+}
+
 #[path = "idle_control_followup_tests.rs"]
 mod idle_control_followup_tests;

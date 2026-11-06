@@ -139,6 +139,7 @@ use codex_protocol::models::InternalChatMessageMetadataPassthrough;
 use codex_protocol::models::PermissionProfile;
 use codex_protocol::models::SandboxEnforcement;
 use codex_protocol::openai_models::ModelInfo;
+use codex_protocol::openai_models::ModelOrigin;
 use codex_protocol::openai_models::ModelPreset;
 use codex_protocol::permissions::FileSystemSandboxPolicy;
 use codex_protocol::permissions::FileSystemSandboxPolicyContext;
@@ -2484,7 +2485,7 @@ impl Session {
             .step_settings
             .resolve_model_info(self.services.models_manager.as_ref(), &overrides)
             .await;
-        let maximum = (!model.used_fallback_model_metadata)
+        let maximum = (model.origin != ModelOrigin::Synthetic)
             .then(|| model.max_context_window.or(model.context_window))
             .flatten();
         let usable = requested.saturating_mul(model.effective_context_window_percent) / 100;
