@@ -191,8 +191,8 @@ mod tests {
 
     #[tokio::test]
     async fn localized_provider_errors_keep_provider_names_opaque() {
-        let (chat, _events, _operations) =
-            crate::chatwidget::tests::make_chatwidget_manual(None).await;
+        let (chat, _sender, _events, _operations) =
+            crate::chatwidget::tests::make_chatwidget_manual_with_sender().await;
         let provider = "opaque://{ $provider }/한글-e\u{301}";
         let current = "other://{ $current }/기본";
         let errors = [
