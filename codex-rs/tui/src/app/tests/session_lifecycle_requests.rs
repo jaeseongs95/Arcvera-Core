@@ -5657,14 +5657,53 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
             };
             Box::pin(app.resume_target_session(&mut tui, &mut server, target)).await?;
         }
-        assert!(app.chat_widget.has_provider_error());
-        let notice = std::iter::from_fn(|| events.try_recv().ok())
+        let history_messages = std::iter::from_fn(|| events.try_recv().ok())
             .filter_map(|event| match event {
                 AppEvent::InsertHistoryCell(cell) => {
                     Some(lines_to_single_string(&cell.display_lines(/*width*/ 200)))
                 }
                 _ => None,
             })
+            .collect::<Vec<_>>();
+        let safe_requests = requests
+            .lock()
+            .expect("request recorder lock")
+            .iter()
+            .filter(|request| {
+                matches!(
+                    request.method.as_str(),
+                    "thread/start"
+                        | "thread/resume"
+                        | "thread/read"
+                        | "thread/turns/list"
+                        | "thread/items/list"
+                )
+            })
+            .map(|request| {
+                let field = |name: &str| {
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get(name))
+                        .and_then(serde_json::Value::as_str)
+                };
+                serde_json::json!({
+                    "method": request.method.as_str(),
+                    "threadId": field("threadId"),
+                    "modelProvider": field("modelProvider"),
+                    "model": field("model"),
+                    "historyMode": field("historyMode"),
+                })
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            app.chat_widget.has_provider_error(),
+            "route={} target_thread={thread_id} displayed_thread={:?} safe_requests={safe_requests:?} fixture_history={history_messages:?}",
+            if reopen_via_overview { "overview" } else { "resume_target" },
+            app.chat_widget.thread_id(),
+        );
+        let notice = history_messages
+            .into_iter()
             .find(|message| message.contains("Showing up to 100 recent prompts"))
             .expect("provider error should preserve the partial-history notice");
         insta::allow_duplicates! {

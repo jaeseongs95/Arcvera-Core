@@ -29,6 +29,7 @@ async fn expanded_agent_footer_keeps_draft_and_cursor_during_scroll_and_small_la
                 false,
             );
         }
+        app.sync_active_agent_label();
         app.chat_widget
             .handle_key_event(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT));
         app.chat_widget
@@ -117,6 +118,7 @@ async fn subagent_status_events_update_real_bottom_buffer_and_root_switch_clears
     assert!(!empty.contains("/subagents"));
 
     app.upsert_agent_picker_thread(child, None, None, false);
+    app.sync_agent_picker_thread(child);
     assert!(render_bottom(&app).1.contains("idle 1"));
     let channel = app.ensure_thread_channel(child);
     let store = Arc::clone(&channel.store);

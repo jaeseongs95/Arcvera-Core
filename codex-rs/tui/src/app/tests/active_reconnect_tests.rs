@@ -1135,6 +1135,7 @@ async fn reconnect_allows_slow_hydration_but_bounds_a_stalled_server() -> Result
                     &test_path_buf("/tmp/project").display().to_string(),
                     "/tmp/project"
                 )
+                .replace(CODEX_CLI_VERSION, "<VERSION>")
             );
             session.shutdown().await?;
             assert!((15..120).contains(&elapsed), "{elapsed}");

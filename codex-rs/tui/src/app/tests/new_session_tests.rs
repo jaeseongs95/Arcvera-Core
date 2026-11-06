@@ -185,10 +185,10 @@ async fn widget_replacement_preserves_mention_usage_with_history_disabled() -> R
     app.replace_chat_widget(ChatWidget::new_with_app_event(init));
     app.chat_widget.set_skills_from_response(&skills);
     app.chat_widget.insert_str("$stat");
-    insta::assert_snapshot!(normalize_snapshot_paths(render_bottom_popup(
-        &app.chat_widget,
-        /*width*/ 80
-    )));
+    insta::assert_snapshot!(
+        normalize_snapshot_paths(render_bottom_popup(&app.chat_widget, /*width*/ 80))
+            .replace(crate::version::CODEX_CLI_VERSION, "<VERSION>")
+    );
     assert!(
         !app.local_settings
             .codex_home

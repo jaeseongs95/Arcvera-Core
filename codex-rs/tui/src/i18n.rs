@@ -347,9 +347,11 @@ mod tests {
             assert_eq!(text_for(Locale::Korean, english), korean, "{english:?}");
             assert_eq!(text_for(Locale::English, english), english, "{english:?}");
         }
+        // "global" is an existing UI scope label; provider data bypasses this API.
+        assert_eq!(text_for(Locale::Korean, "global"), "전역");
+        assert_eq!(text_for(Locale::English, "global"), "global");
         for opaque in [
             "my-project",
-            "global",
             "  gcloud auth application-default login",
             r"D:\자격 증명\provider.json",
             "server error { $provider }",
