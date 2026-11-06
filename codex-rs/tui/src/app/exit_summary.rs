@@ -94,7 +94,7 @@ impl AppExitInfo {
         {
             let turn_interrupted = matches!(self.exit_reason, ExitReason::TurnInterrupted);
             let message = match self.exit_reason {
-                ExitReason::UserRequested | ExitReason::Archived(_) | ExitReason::ThreadRemoved => {
+                ExitReason::UserRequested => {
                     crate::i18n::static_message("controls-exit-disconnected")
                 }
                 ExitReason::Fatal(_) => {
@@ -135,12 +135,7 @@ impl AppExitInfo {
         if !self.token_usage.is_zero() {
             lines.push(self.token_usage.ui_summary(false));
         }
-        if let ExitReason::Archived(thread_id) = self.exit_reason {
-            lines.push(crate::i18n::message(
-                "controls-exit-archived",
-                &[("value", thread_id.to_string().as_str())],
-            ));
-        } else if let Some(thread) = self.resume_hint {
+        if let Some(thread) = self.resume_hint {
             lines.push(crate::i18n::static_message("controls-exit-continue").to_string());
             lines.push(format!(
                 "  {}",

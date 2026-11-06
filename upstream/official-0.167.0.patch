@@ -92354,7 +92354,7 @@ index ba6e3f8af..1a5fcd0be 100644
                  parent_thread_id,
                  user_message,
 diff --git a/codex-rs/tui/src/app/exit_summary.rs b/codex-rs/tui/src/app/exit_summary.rs
-index 4cc843d9b..ab5140777 100644
+index 4cc843d9b..943249160 100644
 --- a/codex-rs/tui/src/app/exit_summary.rs
 +++ b/codex-rs/tui/src/app/exit_summary.rs
 @@ -52,8 +52,13 @@ impl App {
@@ -92373,13 +92373,11 @@ index 4cc843d9b..ab5140777 100644
                  );
              Some(DisconnectInfo { command, stop_hint })
          });
-@@ -88,18 +93,20 @@ impl AppExitInfo {
-         {
+@@ -89,17 +94,19 @@ impl AppExitInfo {
              let turn_interrupted = matches!(self.exit_reason, ExitReason::TurnInterrupted);
              let message = match self.exit_reason {
--                ExitReason::UserRequested => {
+                 ExitReason::UserRequested => {
 -                    "Disconnected from this task. Any running work continues."
-+                ExitReason::UserRequested | ExitReason::Archived(_) | ExitReason::ThreadRemoved => {
 +                    crate::i18n::static_message("controls-exit-disconnected")
 +                }
 +                ExitReason::Fatal(_) => {
@@ -92399,7 +92397,7 @@ index 4cc843d9b..ab5140777 100644
              lines.push(format!(
                  "  {}",
                  color_command(escape_command(&resume_command)),
-@@ -107,42 +114,100 @@ impl AppExitInfo {
+@@ -107,42 +114,95 @@ impl AppExitInfo {
              if !turn_interrupted {
                  let mut agents_command = disconnect.command;
                  agents_command.push("agents".to_string());
@@ -92434,14 +92432,8 @@ index 4cc843d9b..ab5140777 100644
 -            lines.push(self.token_usage.to_string());
 +            lines.push(self.token_usage.ui_summary(false));
          }
--        if let Some(thread) = self.resume_hint {
+         if let Some(thread) = self.resume_hint {
 -            lines.push("To continue this session, run:".to_string());
-+        if let ExitReason::Archived(thread_id) = self.exit_reason {
-+            lines.push(crate::i18n::message(
-+                "controls-exit-archived",
-+                &[("value", thread_id.to_string().as_str())],
-+            ));
-+        } else if let Some(thread) = self.resume_hint {
 +            lines.push(crate::i18n::static_message("controls-exit-continue").to_string());
              lines.push(format!(
                  "  {}",
@@ -100004,7 +99996,7 @@ index 000000000..359b88dfe
 +    Ok(())
 +}
 diff --git a/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs b/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs
-index 53563c33e..c73969625 100644
+index 53563c33e..4b1c957e0 100644
 --- a/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs
 +++ b/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs
 @@ -366,11 +366,14 @@ async fn same_thread_retry_keeps_subscription_and_restores_draft() -> Result<()>
@@ -100163,7 +100155,41 @@ index 53563c33e..c73969625 100644
                      } else if history_capabilities == HistoryCapabilities::ConfigReadFails
                          && request.method == "config/read"
                      {
-@@ -1196,17 +1303,34 @@ async fn external_transport_registers_dynamic_tools_and_finds_task_mentions() ->
+@@ -1074,6 +1181,15 @@ async fn delete_current_thread_navigates_only_after_success() -> Result<()> {
+         assert_eq!(app.active_thread_id, Some(thread_id));
+         assert!(app.side_threads.contains_key(&side_id));
+         assert!(!app.chat_widget.has_active_view());
++        let exit_info = app.exit_info(ExitReason::UserRequested);
++        assert_eq!(exit_info.thread_id, Some(thread_id));
++        assert_eq!(
++            exit_info
++                .resume_hint
++                .as_ref()
++                .map(|thread| thread.thread_id),
++            Some(thread_id)
++        );
+         assert_eq!(recorded_params(&requests, "thread/delete").len(), 1);
+         let (tx, mut events) = tokio::sync::mpsc::unbounded_channel();
+         app.app_event_tx = AppEventSender::new(tx);
+@@ -1115,6 +1231,17 @@ async fn delete_current_thread_navigates_only_after_success() -> Result<()> {
+         );
+         assert!(app.chat_widget.composer_is_empty());
+         assert!(app.chat_widget.has_active_view());
++        let exit_info = app.exit_info(ExitReason::UserRequested);
++        assert_eq!(exit_info.thread_id, None);
++        assert_eq!(exit_info.resume_hint, None);
++        assert!(exit_info.disconnect_info.is_none());
++        assert!(
++            exit_info
++                .format_exit_messages(false)
++                .iter()
++                .all(|line| !line.contains("codex resume")),
++            "deleted threads must not be advertised for resuming"
++        );
+         assert_eq!(
+             recorded_params(&requests, "thread/delete"),
+             vec![
+@@ -1196,17 +1323,34 @@ async fn external_transport_registers_dynamic_tools_and_finds_task_mentions() ->
          assert_eq!(params["dynamicTools"][0]["name"], "codex_tui");
          assert_eq!(
              params["dynamicTools"][0]["tools"].as_array().map(Vec::len),
@@ -100207,7 +100233,43 @@ index 53563c33e..c73969625 100644
      }
      let target_id = started.session.thread_id;
      app_server
-@@ -1465,6 +1589,50 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
+@@ -1308,6 +1452,17 @@ async fn archive_current_thread_reports_success_only_after_archiving() -> Result
+     );
+ 
+     assert!(app.chat_widget.active_view_is(AGENTS_OVERVIEW_VIEW_ID));
++    let exit_info = app.exit_info(ExitReason::UserRequested);
++    assert_eq!(exit_info.thread_id, None);
++    assert_eq!(exit_info.resume_hint, None);
++    assert!(exit_info.disconnect_info.is_none());
++    assert!(
++        exit_info
++            .format_exit_messages(false)
++            .iter()
++            .all(|line| !line.contains("codex resume")),
++        "archived threads must not be advertised for direct resuming"
++    );
+     app_server.shutdown().await?;
+     Ok(())
+ }
+@@ -1406,6 +1561,17 @@ async fn archive_current_thread_returns_to_agents() -> Result<()> {
+         assert!(!app.agents_overview.threads.contains_key(&thread_id));
+         assert!(app.thread_event_channels.is_empty());
+         assert!(app.side_threads.is_empty());
++        let exit_info = app.exit_info(ExitReason::UserRequested);
++        assert_eq!(exit_info.thread_id, None);
++        assert_eq!(exit_info.resume_hint, None);
++        assert!(exit_info.disconnect_info.is_none());
++        assert!(
++            exit_info
++                .format_exit_messages(false)
++                .iter()
++                .all(|line| !line.contains("codex resume")),
++            "archived threads must not be advertised for direct resuming"
++        );
+         assert_eq!(
+             recorded_params(&requests, "thread/unsubscribe"),
+             vec![serde_json::json!({"threadId": side_id.to_string()})]
+@@ -1465,6 +1631,50 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
  
      let started = Box::pin(app_server.start_thread(&app.config)).await?;
      let thread_id = started.session.thread_id;
@@ -100258,7 +100320,7 @@ index 53563c33e..c73969625 100644
      assert!(started.task_tools_available);
      assert!(app_server.task_tools_available(thread_id));
      let startup = crate::app_server_session::start_thread_with_request_handle(
-@@ -1498,7 +1666,9 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
+@@ -1498,7 +1708,9 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
          .find(|server| server.name == "codex_tui")
          .expect("local daemon must connect to the TUI MCP server")
          .tools;
@@ -100269,7 +100331,7 @@ index 53563c33e..c73969625 100644
      for tool in crate::dynamic_tools::DELEGATION_TOOLS {
          assert!(tools.contains_key(tool));
      }
-@@ -1641,7 +1811,11 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
+@@ -1641,7 +1853,11 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
      drop(events);
      let mut events = new_rx;
      assert!(app.app_event_tx.app_event_tx.is_closed());
@@ -100282,7 +100344,7 @@ index 53563c33e..c73969625 100644
      let previous = std::mem::replace(
          &mut app_server,
          replacement.with_thread_tool_transport(transport),
-@@ -1832,7 +2006,7 @@ async fn local_mcp_respects_configured_servers_and_managed_requirements() -> Res
+@@ -1832,7 +2048,7 @@ async fn local_mcp_respects_configured_servers_and_managed_requirements() -> Res
          } else {
              assert_eq!(
                  start["dynamicTools"][0]["tools"].as_array().map(Vec::len),
@@ -100291,7 +100353,7 @@ index 53563c33e..c73969625 100644
              );
              assert!(start["config"]["mcp_servers.codex_tui"].is_null());
          }
-@@ -5232,6 +5406,47 @@ async fn command_center_read_only_open_requests_and_failure_preservation() -> Re
+@@ -5232,6 +5448,47 @@ async fn command_center_read_only_open_requests_and_failure_preservation() -> Re
              LoaderOverrides::default(),
          )
          .await?;
@@ -100339,7 +100401,7 @@ index 53563c33e..c73969625 100644
          app.app_server_target = AppServerTarget::LocalDaemon {
              allow_embedded_fallback: true,
              endpoint: crate::resolve_remote_addr("ws://127.0.0.1:4500")?,
-@@ -5322,7 +5537,9 @@ async fn command_center_read_only_open_requests_and_failure_preservation() -> Re
+@@ -5322,7 +5579,9 @@ async fn command_center_read_only_open_requests_and_failure_preservation() -> Re
                  assert!(!recorded_params(&requests, "thread/items/list").is_empty());
                  assert_eq!(
                      turns.iter().map(|turn| turn.id.clone()).collect::<Vec<_>>(),
@@ -125102,7 +125164,7 @@ index b54764227..025a0628e 100644
  
  › 1. Update now (runs `npm install -g @openai/codex`)                           
 diff --git a/codex-rs/tui/src/startup_orchestration.rs b/codex-rs/tui/src/startup_orchestration.rs
-index 43331cdae..1c72f41fe 100644
+index 43331cdae..7c83a5aee 100644
 --- a/codex-rs/tui/src/startup_orchestration.rs
 +++ b/codex-rs/tui/src/startup_orchestration.rs
 @@ -7,11 +7,42 @@ use super::*;
@@ -125148,12 +125210,10 @@ index 43331cdae..1c72f41fe 100644
  ) -> std::io::Result<AppExitInfo> {
      if cli.no_daemon && explicit_remote_endpoint.is_some() {
          return Err(std::io::Error::other(
-@@ -607,7 +638,8 @@ pub(super) async fn run_main_inner(
-     {
+@@ -608,6 +639,7 @@ pub(super) async fn run_main_inner(
          daemon_exclusion = Some(daemon_startup::WSL_DRVFS_EXCLUSION);
      }
--    let mut managed_daemon = false;
-+    let mut managed_daemon = cli.managed_daemon;
+     let mut managed_daemon = false;
 +    let mut cli_daemon_mismatch_warning = None;
      if auto_start_daemon && daemon_exclusion.is_none() {
          let output = startup_draft

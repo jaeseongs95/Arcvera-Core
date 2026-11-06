@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "sourceCommit": "1e1ca88d101369b5b2d25c3f522fd4af34ca2a2e",
+  "sourceCommit": "e11e7e60c4d1f251c5718d5a86ed0235a9f14b13",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -63738,10 +63738,10 @@
     {
       "path": "codex-rs/tui/src/app/exit_summary.rs",
       "gitMode": "100644",
-      "gitBlob": "ab5140777a030720d6ce281c1fda0ff55559ced3",
-      "sourceSha256": "dc6b9640068b00c27ce044076cdae89f7605b3586bb61d92585b4c6fdae199cd",
-      "publishedSha256": "d0c2330003cd38e801f224f03d6ab318d62b6a431a3293fa8cfb389dae24c6cb",
-      "bytes": 8778,
+      "gitBlob": "943249160e17e9d9c13ac1151d715351dc23b08c",
+      "sourceSha256": "151cc09cca6ac18f7d8e5df541acb2b97b4c11afc8b5173fe995c89a358f55b7",
+      "publishedSha256": "1c598f3912764ec6ce80d7da2d30f4a05eba3fa5b82b2b28038874a56b2246b0",
+      "bytes": 8484,
       "modified": true,
       "noticeOnly": true
     },
@@ -65908,10 +65908,10 @@
     {
       "path": "codex-rs/tui/src/app/tests/session_lifecycle_requests.rs",
       "gitMode": "100644",
-      "gitBlob": "c739696257eb2a0485bb9a7f53dbcd611fcce97b",
-      "sourceSha256": "21f33b6a7de34e4df57269de02cded3ecc4d5d56526effa8483efbb885d97e41",
-      "publishedSha256": "24ffb851f506413594e68cb58f2ccc7f58ec830b39a572e5ee875f2ee0b6bb09",
-      "bytes": 232093,
+      "gitBlob": "4b1c957e0f7c6e26c4ea934441aed3efb872793c",
+      "sourceSha256": "4126e76713c44af80f5a18a32e0a946071afa1ff08401f7f30fa285c6b24fdd9",
+      "publishedSha256": "161a48b226e0f833f33a56fe366a6ab8dceede957508d12da3ca6b3c82f2128b",
+      "bytes": 233760,
       "modified": true,
       "noticeOnly": true
     },
@@ -85918,10 +85918,10 @@
     {
       "path": "codex-rs/tui/src/startup_orchestration.rs",
       "gitMode": "100644",
-      "gitBlob": "1c72f41fe80069c4e0c17e1ca24e41a5a3ccd5eb",
-      "sourceSha256": "a26fa2d32c0e059e2efc952dc3a3bb75217b0bbc859967d28ff83f9d460f098a",
-      "publishedSha256": "774b0ac9eb52cc1244b5a1b823ef9ee2a5b578f7595fad986793120718d60c65",
-      "bytes": 44288,
+      "gitBlob": "7c83a5aee0d0913e5fe602cd58e91471b92b1132",
+      "sourceSha256": "96f415f5348e79d4378c771bc8c707555472933c2b6b63c7bd4b739a8d050940",
+      "publishedSha256": "b59f7d2cf2dabcd2d79b276670c1e6433ba5abfe466bba3dc3e636dc2a054c3e",
+      "bytes": 44275,
       "modified": true,
       "noticeOnly": true
     },

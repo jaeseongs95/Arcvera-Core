@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use super::*;
 use crate::app_event::TranscriptExportDestination;
 use crate::bottom_pane::BottomPaneView;
@@ -1182,6 +1182,15 @@ async fn delete_current_thread_navigates_only_after_success() -> Result<()> {
         assert_eq!(app.active_thread_id, Some(thread_id));
         assert!(app.side_threads.contains_key(&side_id));
         assert!(!app.chat_widget.has_active_view());
+        let exit_info = app.exit_info(ExitReason::UserRequested);
+        assert_eq!(exit_info.thread_id, Some(thread_id));
+        assert_eq!(
+            exit_info
+                .resume_hint
+                .as_ref()
+                .map(|thread| thread.thread_id),
+            Some(thread_id)
+        );
         assert_eq!(recorded_params(&requests, "thread/delete").len(), 1);
         let (tx, mut events) = tokio::sync::mpsc::unbounded_channel();
         app.app_event_tx = AppEventSender::new(tx);
@@ -1223,6 +1232,17 @@ async fn delete_current_thread_navigates_only_after_success() -> Result<()> {
         );
         assert!(app.chat_widget.composer_is_empty());
         assert!(app.chat_widget.has_active_view());
+        let exit_info = app.exit_info(ExitReason::UserRequested);
+        assert_eq!(exit_info.thread_id, None);
+        assert_eq!(exit_info.resume_hint, None);
+        assert!(exit_info.disconnect_info.is_none());
+        assert!(
+            exit_info
+                .format_exit_messages(false)
+                .iter()
+                .all(|line| !line.contains("codex resume")),
+            "deleted threads must not be advertised for resuming"
+        );
         assert_eq!(
             recorded_params(&requests, "thread/delete"),
             vec![
@@ -1433,6 +1453,17 @@ async fn archive_current_thread_reports_success_only_after_archiving() -> Result
     );
 
     assert!(app.chat_widget.active_view_is(AGENTS_OVERVIEW_VIEW_ID));
+    let exit_info = app.exit_info(ExitReason::UserRequested);
+    assert_eq!(exit_info.thread_id, None);
+    assert_eq!(exit_info.resume_hint, None);
+    assert!(exit_info.disconnect_info.is_none());
+    assert!(
+        exit_info
+            .format_exit_messages(false)
+            .iter()
+            .all(|line| !line.contains("codex resume")),
+        "archived threads must not be advertised for direct resuming"
+    );
     app_server.shutdown().await?;
     Ok(())
 }
@@ -1531,6 +1562,17 @@ async fn archive_current_thread_returns_to_agents() -> Result<()> {
         assert!(!app.agents_overview.threads.contains_key(&thread_id));
         assert!(app.thread_event_channels.is_empty());
         assert!(app.side_threads.is_empty());
+        let exit_info = app.exit_info(ExitReason::UserRequested);
+        assert_eq!(exit_info.thread_id, None);
+        assert_eq!(exit_info.resume_hint, None);
+        assert!(exit_info.disconnect_info.is_none());
+        assert!(
+            exit_info
+                .format_exit_messages(false)
+                .iter()
+                .all(|line| !line.contains("codex resume")),
+            "archived threads must not be advertised for direct resuming"
+        );
         assert_eq!(
             recorded_params(&requests, "thread/unsubscribe"),
             vec![serde_json::json!({"threadId": side_id.to_string()})]

@@ -639,7 +639,7 @@ pub(super) async fn run_main_inner(
     {
         daemon_exclusion = Some(daemon_startup::WSL_DRVFS_EXCLUSION);
     }
-    let mut managed_daemon = cli.managed_daemon;
+    let mut managed_daemon = false;
     let mut cli_daemon_mismatch_warning = None;
     if auto_start_daemon && daemon_exclusion.is_none() {
         let output = startup_draft
