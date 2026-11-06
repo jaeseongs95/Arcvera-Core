@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "sourceCommit": "ba4f8b0dfa5a5feb320cf2cfa72c4b807db0c033",
+  "sourceCommit": "c68b24d0566a40c3d1937eeb55142a5d98f103d8",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -65908,10 +65908,10 @@
     {
       "path": "codex-rs/tui/src/app/tests/session_lifecycle_requests.rs",
       "gitMode": "100644",
-      "gitBlob": "936c1638a0849e49d246a94a4a288c097204c8c1",
-      "sourceSha256": "e6f1d4ef3e3183c2d935123ca8e34629493c8e093af9549ac7c2fab68f67fc32",
-      "publishedSha256": "ee0ae8da1736b266969fb67f4cb8b43ac9c8e107a26b2e21758359488cf636bc",
-      "bytes": 235295,
+      "gitBlob": "3c82e54a224b776c4a53361ddec3f071b02599fc",
+      "sourceSha256": "e633a51da4b28da63406f1a58f6f920cbed68ef2c9b8dcdcd69771d3f456ee7b",
+      "publishedSha256": "8e61299379fcea3222fbe57d08d8e30105d028b51eb76e97fc81e245dbe6540b",
+      "bytes": 235724,
       "modified": true,
       "noticeOnly": true
     },

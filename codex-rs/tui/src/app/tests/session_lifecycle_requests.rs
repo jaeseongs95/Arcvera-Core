@@ -5614,7 +5614,10 @@ mod backend_ownership_tests;
 #[tokio::test]
 async fn provider_error_preserves_partial_history_notice() -> Result<()> {
     for reopen_via_overview in [false, true] {
-        let (mut app, _home) = Box::pin(make_history_test_app()).await?;
+        let (mut app, mut events, _op_rx) = Box::pin(make_test_app_with_channels()).await;
+        let _home = tempdir()?;
+        app.config.codex_home = _home.path().to_path_buf().abs();
+        app.config.sqlite = SqliteConfig::new_for_testing(_home.path().abs());
         std::fs::write(
             app.config.codex_home.join("config.toml"),
             "[tui]\nresume_cwd = 'current'\n",
@@ -5643,8 +5646,6 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
             LoaderOverrides::default(),
         )
         .await?;
-        let (sender, mut events) = tokio::sync::mpsc::unbounded_channel();
-        app.app_event_tx = AppEventSender::new(sender);
         let mut tui = crate::tui::test_support::make_test_tui()?;
         if reopen_via_overview {
             Box::pin(app.select_agents_overview_thread(&mut tui, &mut server, thread_id)).await?;
@@ -5681,19 +5682,21 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
                 )
             })
             .map(|request| {
-                let field = |name: &str| {
-                    request
-                        .params
-                        .as_ref()
-                        .and_then(|params| params.get(name))
-                        .and_then(serde_json::Value::as_str)
+                let param = |name: &str| {
+                    request.params.as_ref().and_then(|params| params.get(name))
                 };
+                let field = |name: &str| param(name).and_then(serde_json::Value::as_str);
                 serde_json::json!({
                     "method": request.method.as_str(),
                     "threadId": field("threadId"),
                     "modelProvider": field("modelProvider"),
                     "model": field("model"),
                     "historyMode": field("historyMode"),
+                    "itemsView": field("itemsView"),
+                    "includeTurns": param("includeTurns").and_then(serde_json::Value::as_bool),
+                    "excludeTurns": param("excludeTurns").and_then(serde_json::Value::as_bool),
+                    "cursorIsNull": param("cursor").map(serde_json::Value::is_null),
+                    "limit": param("limit").and_then(serde_json::Value::as_u64),
                 })
             })
             .collect::<Vec<_>>();
