@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use super::*;
 use crate::agent::api::AgentInfo;
 use codex_protocol::error::CodexErrorDetails;
@@ -112,7 +112,20 @@ impl LocalAgentControl {
     /// persisted spawn-edge state.
     pub(crate) async fn shutdown_live_agent(&self, agent_id: ThreadId) -> CodexResult<String> {
         let state = self.runtime.upgrade()?;
-        let thread = state.get_thread(agent_id).await?;
+        let thread = match state.get_thread(agent_id).await {
+            Ok(thread) => thread,
+            Err(error) if matches!(error.details(), CodexErrorDetails::ThreadNotFound(_)) => {
+                // Retire only an absent runtime while blocking successor registration.
+                let threads = state.threads.write().await;
+                if !threads.contains_key(&agent_id) {
+                    self.forget_v2_residency(agent_id);
+                    self.runtime.registry.release_spawned_thread(agent_id);
+                    self.runtime.mailboxes.remove(agent_id);
+                }
+                return Err(error);
+            }
+            Err(error) => return Err(error),
+        };
         if thread.is_running() {
             thread
                 .session

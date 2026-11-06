@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "sourceCommit": "e9605b57c64680d55b8f16f655992bf1c8a61b0a",
+  "sourceCommit": "4d0aec732e1ee702214684401c901f79062711a8",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -27408,10 +27408,10 @@
     {
       "path": "codex-rs/core/src/agent/control/legacy.rs",
       "gitMode": "100644",
-      "gitBlob": "9e57d2ee93e6a073e111b1bd040d0a7088822f04",
-      "sourceSha256": "a9f78a7f70132d9101fae552666f9a95ef2155367b05886540f321d12b5415b6",
-      "publishedSha256": "c50f5872fe3918df50a9c4f559667726470cf36f15b0a067397829b51db77f6b",
-      "bytes": 14124,
+      "gitBlob": "59fac3af68e46785f7eed04f5545805ba23c9bfd",
+      "sourceSha256": "40d16d572433b3bc78a1b632cba263455ab5dabf465579c3658f1801bd7e8ca9",
+      "publishedSha256": "c2264190bf537d21fb15509d583d1cf772effbdcfffd3e5ea056864a0687e626",
+      "bytes": 14776,
       "modified": true,
       "noticeOnly": true
     },
@@ -28258,10 +28258,10 @@
     {
       "path": "codex-rs/core/src/config/edit_tests.rs",
       "gitMode": "100644",
-      "gitBlob": "dc861cad794364427526062d5c6e6e34ed4990a9",
-      "sourceSha256": "0087a329d33e6d1661f6436ee1713fd1679203b39758d74fe37369e2da93e2ff",
-      "publishedSha256": "e51fd4b2d6692300b058906ee4d493ac62753bedb6443dd8835cd9002c1f8461",
-      "bytes": 56798,
+      "gitBlob": "f90fbe1b7081569b197685b09c99c3105a748f26",
+      "sourceSha256": "1ef641c5b79f4bd8153598183178d989b33da531cd86ad932b61b4295255effa",
+      "publishedSha256": "f9f2a660453fdcd5bab32b1182fe30414dd888653200559dffcf015a291dfd0c",
+      "bytes": 56886,
       "modified": true,
       "noticeOnly": true
     },
@@ -30958,10 +30958,10 @@
     {
       "path": "codex-rs/core/src/session/config_refresh_tests.rs",
       "gitMode": "100644",
-      "gitBlob": "189adce510b98f5245867d81fcaf96169061f3f6",
-      "sourceSha256": "7af388ea1c92f36a3740e7e8bfe9f1e4316211ae29c051474451984e3c0bbf37",
-      "publishedSha256": "3c56ea2101ed9701a0f0fa9352a48f72513a28b7d8f3ef1296282d098b9acb00",
-      "bytes": 16092,
+      "gitBlob": "a5f4e5a3b7b97d5967b0155a2dcaa5ae824e3e73",
+      "sourceSha256": "2d0c313ed59f4b8a8839368715abab4bce46b452061b36320f81fc6dbf8c49d0",
+      "publishedSha256": "6617c3266e88b080f74b6289127ddb1ad68c38ccbf82a0e166eb6cc9d469d82b",
+      "bytes": 16921,
       "modified": true,
       "noticeOnly": true
     },

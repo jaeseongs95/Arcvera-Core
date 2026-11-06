@@ -53629,10 +53629,10 @@ index 0426ca39d..fd360ecd6 100644
          self.session_id()
      }
 diff --git a/codex-rs/core/src/agent/control/legacy.rs b/codex-rs/core/src/agent/control/legacy.rs
-index 743bb752b..9e57d2ee9 100644
+index 743bb752b..59fac3af6 100644
 --- a/codex-rs/core/src/agent/control/legacy.rs
 +++ b/codex-rs/core/src/agent/control/legacy.rs
-@@ -4,46 +4,137 @@ use codex_protocol::error::CodexErrorDetails;
+@@ -4,46 +4,150 @@ use codex_protocol::error::CodexErrorDetails;
  use codex_thread_store::PersistContext;
  
  impl LocalAgentControl {
@@ -53744,7 +53744,20 @@ index 743bb752b..9e57d2ee9 100644
      pub(crate) async fn shutdown_live_agent(&self, agent_id: ThreadId) -> CodexResult<String> {
          let state = self.runtime.upgrade()?;
 -        let result = if let Ok(thread) = state.get_thread(agent_id).await {
-+        let thread = state.get_thread(agent_id).await?;
++        let thread = match state.get_thread(agent_id).await {
++            Ok(thread) => thread,
++            Err(error) if matches!(error.details(), CodexErrorDetails::ThreadNotFound(_)) => {
++                // Retire only an absent runtime while blocking successor registration.
++                let threads = state.threads.write().await;
++                if !threads.contains_key(&agent_id) {
++                    self.forget_v2_residency(agent_id);
++                    self.runtime.registry.release_spawned_thread(agent_id);
++                    self.runtime.mailboxes.remove(agent_id);
++                }
++                return Err(error);
++            }
++            Err(error) => return Err(error),
++        };
 +        if thread.is_running() {
              thread
                  .session
@@ -53799,7 +53812,7 @@ index 743bb752b..9e57d2ee9 100644
          result
      }
  
-@@ -125,3 +216,126 @@ impl LocalAgentControl {
+@@ -125,3 +229,126 @@ impl LocalAgentControl {
          result
      }
  }
@@ -56919,10 +56932,10 @@ index 5318db9f9..848ac1404 100644
          self.edits
              .push(ConfigEdit::SetNoticeHideFullAccessWarning(acknowledged));
 diff --git a/codex-rs/core/src/config/edit_tests.rs b/codex-rs/core/src/config/edit_tests.rs
-index 6050631af..dc861cad7 100644
+index 6050631af..f90fbe1b7 100644
 --- a/codex-rs/core/src/config/edit_tests.rs
 +++ b/codex-rs/core/src/config/edit_tests.rs
-@@ -13,6 +13,89 @@ use std::os::unix::fs::symlink;
+@@ -13,6 +13,92 @@ use std::os::unix::fs::symlink;
  use tempfile::tempdir;
  use toml::Value as TomlValue;
  
@@ -56964,8 +56977,11 @@ index 6050631af..dc861cad7 100644
 +        assert_eq!(read_user_ui_language(home.path()).unwrap(), language);
 +    }
 +    let unchanged = std::fs::read(&path).unwrap();
-+    for invalid in ["", "KO", "kr", "en ko"] {
-+        assert!(UiLanguage::parse(invalid).is_err());
++    for invalid in ["", "ko--KR", "kr", "en ko"] {
++        assert!(
++            UiLanguage::parse(invalid).is_err(),
++            "unexpectedly accepted invalid tag: {invalid:?}"
++        );
 +        assert_eq!(std::fs::read(&path).unwrap(), unchanged);
 +    }
 +}
@@ -58122,10 +58138,10 @@ index 65aa29397..c778b3dae 100644
  async fn sampling_retry_logs_stream_error_context() {
      let (_session, turn_context) = make_session_and_context().await;
 diff --git a/codex-rs/core/src/session/config_refresh_tests.rs b/codex-rs/core/src/session/config_refresh_tests.rs
-index b58455836..189adce51 100644
+index b58455836..a5f4e5a3b 100644
 --- a/codex-rs/core/src/session/config_refresh_tests.rs
 +++ b/codex-rs/core/src/session/config_refresh_tests.rs
-@@ -203,6 +203,146 @@ async fn hook_refresh_retries_current_plugin_policy_after_owner_replacement() ->
+@@ -203,6 +203,166 @@ async fn hook_refresh_retries_current_plugin_policy_after_owner_replacement() ->
      Ok(())
  }
  
@@ -58157,9 +58173,23 @@ index b58455836..189adce51 100644
 +    let home = session.codex_home().await;
 +    let file = home.join(CONFIG_TOML_FILE);
 +    std::fs::create_dir_all(&home)?;
++    let source = tempfile::tempdir()?;
++    std::fs::create_dir_all(source.path().join(".codex-plugin"))?;
++    std::fs::write(
++        source.path().join(".codex-plugin/plugin.json"),
++        r#"{"name":"sample"}"#,
++    )?;
++    std::fs::write(
++        source.path().join(".mcp.json"),
++        r#"{"mcpServers":{"reloaded":{"type":"http","url":"https://reloaded.example/mcp"}}}"#,
++    )?;
++    codex_core_plugins::store::PluginStore::new(home.to_path_buf()).install(
++        AbsolutePathBuf::try_from(source.path().to_path_buf())?,
++        codex_plugin::PluginId::parse("sample@test")?,
++    )?;
 +    std::fs::write(
 +        file,
-+        "[mcp_servers.reloaded]\nurl = 'https://reloaded.example/mcp'\nenabled = false\n",
++        "[plugins.\"sample@test\"]\nenabled = true\n[plugins.\"sample@test\".mcp_servers.reloaded]\nenabled = false\n",
 +    )?;
 +    session.reload_plugins().await?;
 +    assert!(Arc::ptr_eq(
@@ -58178,6 +58208,12 @@ index b58455836..189adce51 100644
 +    assert!(!Arc::ptr_eq(&old_step.mcp, &next_step.mcp));
 +    assert!(!codex_mcp::configured_mcp_servers(old_step.mcp.config()).contains_key("reloaded"));
 +    assert!(codex_mcp::configured_mcp_servers(next_step.mcp.config()).contains_key("reloaded"));
++    assert!(
++        !codex_mcp::configured_mcp_servers(next_step.mcp.config())
++            .get("reloaded")
++            .expect("reloaded plugin MCP server should be configured")
++            .enabled
++    );
 +    session.abort_all_tasks(TurnAbortReason::Interrupted).await;
 +    Ok(())
 +}
