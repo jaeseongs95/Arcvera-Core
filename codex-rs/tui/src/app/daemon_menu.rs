@@ -47,9 +47,16 @@ impl App {
             .remote_connection
             .as_ref()
             .filter(|_| matches!(self.app_server_target, AppServerTarget::LocalDaemon { .. }))
-            .map(|connection| format!("Running daemon: {}", connection.version))
-            .unwrap_or_else(|| "Not connected to the local background server.".to_string());
-        let mut header = vec![Line::from("Daemon".bold()), Line::from(status.dim())];
+            .map(|connection| {
+                crate::i18n::message("r39-daemon-running", &[("version", &connection.version)])
+            })
+            .unwrap_or_else(|| {
+                crate::i18n::text("Not connected to the local background server.").to_string()
+            });
+        let mut header = vec![
+            Line::from(crate::i18n::text("Daemon").bold()),
+            Line::from(status.dim()),
+        ];
         let unavailable = if matches!(self.app_server_target, AppServerTarget::Remote { .. }) {
             Some(
                 "Manage this server on its host. Local daemon updates are unavailable for remote connections.",
@@ -60,7 +67,7 @@ impl App {
             None
         };
         if let Some(guidance) = unavailable {
-            header.push(Line::from(guidance.dim()));
+            header.push(Line::from(crate::i18n::text(guidance).dim()));
         }
         let has_package = self.daemon_cli_executable.as_ref().is_some_and(|path| {
             codex_install_context::InstallContext::from_exe(
@@ -80,12 +87,12 @@ impl App {
         ]
         .into_iter()
         .map(|(source, name)| SelectionItem {
-            name: name.to_string(),
+            name: crate::i18n::text(name).to_string(),
             is_disabled: unavailable.is_some(),
             disabled_reason: (unavailable.is_none()
                 && source == DaemonUpdateSource::ThisCli
                 && !has_package)
-                .then(|| "This CLI has no local package to copy".to_string()),
+                .then(|| crate::i18n::text("This CLI has no local package to copy").to_string()),
             actions: vec![Box::new(move |tx| {
                 tx.send(AppEvent::ConfirmDaemonUpdate(source));
             })],
@@ -94,7 +101,7 @@ impl App {
         })
         .collect();
         items.push(SelectionItem {
-            name: "Restart background server".to_string(),
+            name: crate::i18n::text("Restart background server").to_string(),
             is_disabled: !self
                 .chat_widget
                 .remote_connection
@@ -108,7 +115,7 @@ impl App {
                 .as_ref()
                 .filter(|connection| connection.is_local_daemon && !connection.is_managed_daemon)
                 .map(|_| {
-                    "Codex hasn't verified it manages this server. Restart it where it was started."
+                    crate::i18n::text("Codex hasn't verified it manages this server. Restart it where it was started.")
                         .to_string()
                 }),
             actions: vec![Box::new(|tx| tx.send(AppEvent::ConfirmDaemonRestart))],
@@ -134,18 +141,20 @@ impl App {
         }
         self.chat_widget.show_selection_view(SelectionViewParams {
             header: Box::new(DaemonMenuHeader(vec![
-                Line::from("Restart background server?".bold()),
-                Line::from("Active or queued work in other chats may be interrupted."),
-                Line::from("Codex will reconnect automatically."),
+                Line::from(crate::i18n::text("Restart background server?").bold()),
+                Line::from(crate::i18n::text(
+                    "Active or queued work in other chats may be interrupted.",
+                )),
+                Line::from(crate::i18n::text("Codex will reconnect automatically.")),
             ])),
             items: vec![
                 SelectionItem {
-                    name: "Cancel".to_string(),
+                    name: crate::i18n::text("Cancel").to_string(),
                     dismiss_on_select: true,
                     ..Default::default()
                 },
                 SelectionItem {
-                    name: "Restart".to_string(),
+                    name: crate::i18n::text("Restart").to_string(),
                     actions: vec![Box::new(|tx| tx.send(AppEvent::RunDaemonRestart))],
                     require_explicit_confirmation: true,
                     dismiss_on_select: true,
@@ -164,27 +173,36 @@ impl App {
             return;
         }
         let mut explanation = match source {
-            DaemonUpdateSource::PublicStable => "Install the latest public stable release. Restore production updates; keep your automatic-update setting.".to_string(),
+            DaemonUpdateSource::PublicStable => crate::i18n::text("Install the latest public stable release. Restore production updates; keep your automatic-update setting.").to_string(),
             DaemonUpdateSource::ThisCli => {
                 let version = codex_install_context::InstallContext::current()
                     .package_manifest()
                     .map_or_else(|| CODEX_CLI_VERSION.to_string(), |manifest| manifest.version.to_string());
-                format!("Use this CLI package v{version} from {}. Copy the complete package and pin it against automatic updates.", executable.display())
+                crate::i18n::message("r39-daemon-use-package", &[("version", &version), ("path", &executable.display().to_string())])
             }
         };
-        explanation.push_str("\nThis may restart the daemon and interrupt active or queued work.\nCodex exits to update in this terminal. Relaunch it afterward.");
-        let mut header = vec![Line::from("Update daemon and exit Codex?".bold())];
+        explanation.push_str("\n");
+        explanation.push_str(crate::i18n::text(
+            "This may restart the daemon and interrupt active or queued work.",
+        ));
+        explanation.push_str("\n");
+        explanation.push_str(crate::i18n::text(
+            "Codex exits to update in this terminal. Relaunch it afterward.",
+        ));
+        let mut header = vec![Line::from(
+            crate::i18n::text("Update daemon and exit Codex?").bold(),
+        )];
         header.extend(explanation.lines().map(|line| Line::from(line.to_owned())));
         self.chat_widget.show_selection_view(SelectionViewParams {
             header: Box::new(DaemonMenuHeader(header)),
             items: vec![
                 SelectionItem {
-                    name: "Cancel".to_string(),
+                    name: crate::i18n::text("Cancel").to_string(),
                     dismiss_on_select: true,
                     ..Default::default()
                 },
                 SelectionItem {
-                    name: "Update and exit".to_string(),
+                    name: crate::i18n::text("Update and exit").to_string(),
                     actions: vec![Box::new(move |tx| {
                         tx.send(AppEvent::RunDaemonUpdate(source))
                     })],

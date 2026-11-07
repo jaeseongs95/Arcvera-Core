@@ -10,6 +10,7 @@ pub(crate) use render::EFFECTS_VIEW_ID;
 pub(crate) use render::copy_on_select;
 pub(crate) use render::effects;
 pub(crate) use render::effects_with_toggle_states;
+pub(crate) use render::mouse_scroll_speed;
 pub(crate) use render::notification_condition;
 pub(crate) use render::resume_directory;
 pub(crate) use render::right_click_paste;
@@ -58,6 +59,7 @@ pub(crate) enum ConfigEditor {
     StatusLine,
     TerminalTitle,
     Keyboard,
+    MouseScrollSpeed,
     SessionPickerLayout,
     ResumeDirectory,
     CopyOnSelect,
@@ -138,6 +140,7 @@ impl ConfigEditorHandoff {
 impl ConfigEditor {
     fn value(self, tui: &Tui, status: ConfigPanelStatus) -> ConfigSettingValue {
         let label = match self {
+            Self::MouseScrollSpeed => format!("{}×", tui.mouse_scroll_speed.unwrap_or(1.0)),
             Self::Theme => tui
                 .theme
                 .clone()
@@ -423,6 +426,13 @@ fn settings(tui: &Tui, status: ConfigPanelStatus) -> Vec<ConfigSetting> {
                 setting: ConfigToggle::PasteDetection,
                 enabled: ConfigToggle::PasteDetection.enabled(tui),
             },
+        },
+        ConfigSetting {
+            section: ConfigSection::Input,
+            label: crate::i18n::text("Mouse scroll speed"),
+            description: crate::i18n::text("Adjust mouse wheel speed for transcript scrolling"),
+            keywords: "mouse scroll wheel speed sensitivity",
+            value: ConfigEditor::MouseScrollSpeed.value(tui, status),
         },
         ConfigSetting {
             section: ConfigSection::Sessions,

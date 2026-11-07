@@ -1059,6 +1059,12 @@ client_request_definitions! {
         serialization: thread_id(params.thread_id),
         response: v2::ThreadReadResponse,
     },
+    /// Content-free inventory of an already-loaded thread's local context.
+    ThreadContextRead => "thread/context/read" {
+        params: v2::ThreadContextReadParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ThreadContextReadResponse,
+    },
     #[experimental("thread/readState/update")]
     ThreadReadStateUpdate => "thread/readState/update" {
         params: v2::ThreadReadStateUpdateParams,

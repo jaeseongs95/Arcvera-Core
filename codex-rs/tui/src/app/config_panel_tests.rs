@@ -146,6 +146,89 @@ async fn config_toggle_save_uses_host_config_and_applies_live_while_offline() ->
 }
 
 #[tokio::test]
+async fn mouse_scroll_speed_editor_saves_reloads_and_respects_overrides() -> Result<()> {
+    for overridden in [false, true] {
+        let root = tempfile::tempdir()?;
+        let home = root.path().join("home");
+        std::fs::create_dir_all(&home)?;
+        std::fs::write(
+            home.join("config.toml"),
+            "[tui]\nmouse_scroll_speed = 2.25\nanimations = false\n",
+        )?;
+        let loader_overrides = LoaderOverrides::without_managed_config_for_tests();
+        let config = ConfigBuilder::default()
+            .codex_home(home.clone())
+            .harness_overrides(ConfigOverrides {
+                cwd: Some(std::fs::canonicalize(root.path())?),
+                ..Default::default()
+            })
+            .loader_overrides(loader_overrides.clone())
+            .build()
+            .await?;
+        let (mut app, mut rx, _ops) = crate::app::tests::make_test_app_with_channels().await;
+        app.config = config.clone();
+        app.local_settings = LocalSettings::from(&config);
+        app.launch_cwd = config.cwd.to_path_buf();
+        app.loader_overrides = loader_overrides.clone();
+        let mut tui = crate::tui::test_support::make_test_tui()?;
+        let init = app.chatwidget_init_for_forked_or_resumed_thread(
+            &mut tui, config, /*initial_user_message*/ None,
+        );
+        app.chat_widget = ChatWidget::new_with_app_event(init);
+        if overridden {
+            app.cli_kv_overrides = vec![("tui.mouse_scroll_speed".into(), 1.5.into())];
+        }
+
+        let handoff = ConfigEditorHandoff::new(
+            ConfigEditor::MouseScrollSpeed,
+            crate::key_hint::plain(KeyCode::Enter),
+        );
+        handoff.mark_activation_inactive();
+        app.chat_widget.open_config_editor(
+            handoff,
+            crate::config_panel::ResumeCurrentAvailability::Available,
+        );
+        // The custom 2.25× row remains current; 0.5× is four choices above it.
+        for _ in 0..4 {
+            app.chat_widget.handle_key_event(KeyCode::Up.into());
+        }
+        app.chat_widget.handle_key_event(KeyCode::Enter.into());
+        let preference = next_config_preference(&mut rx)?;
+        assert_eq!(preference, ConfigPreference::MouseScrollSpeed(0.5));
+        app.save_config_preference(&mut tui, preference).await;
+
+        let expected = Some(if overridden { 1.5 } else { 0.5 });
+        assert_eq!(app.local_settings.tui.mouse_scroll_speed, expected);
+        assert_eq!(
+            app.chat_widget.local_settings.tui.mouse_scroll_speed,
+            expected
+        );
+        assert_eq!(
+            app.chat_widget.config_panel_tui.mouse_scroll_speed,
+            expected
+        );
+        assert!(!app.local_settings.tui.animations);
+        let saved: toml::Value =
+            toml::from_str(&std::fs::read_to_string(home.join("config.toml"))?)?;
+        assert_eq!(saved["tui"]["mouse_scroll_speed"].as_float(), Some(0.5));
+        assert_eq!(saved["tui"]["animations"].as_bool(), Some(false));
+
+        let reloaded = ConfigBuilder::default()
+            .codex_home(home)
+            .harness_overrides(ConfigOverrides {
+                cwd: Some(std::fs::canonicalize(root.path())?),
+                ..Default::default()
+            })
+            .loader_overrides(loader_overrides)
+            .build()
+            .await?;
+        assert_eq!(reloaded.tui_mouse_scroll_speed, Some(0.5));
+        assert!(!LocalSettings::from(&reloaded).tui.animations);
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn effects_editor_refresh_preserves_pending_toggles() -> Result<()> {
     let (mut app, mut rx, _ops) = crate::app::tests::make_test_app_with_channels().await;
     let mut tui = crate::tui::test_support::make_test_tui()?;

@@ -270,7 +270,7 @@ impl HistoryCell for PlanUpdateCell {
         let mut lines = vec![clipped_line(
             Line::from(vec![
                 "• ".dim(),
-                "Updated Plan".bold(),
+                crate::i18n::text("Updated Plan").bold(),
                 format!(" · {completed}/{total} complete").dim(),
             ]),
             width,
@@ -338,7 +338,7 @@ impl HistoryCell for PlanUpdateCell {
         };
 
         let mut lines = vec![HyperlinkLine::new(
-            vec!["• ".dim(), "Updated Plan".bold()].into(),
+            vec!["• ".dim(), crate::i18n::text("Updated Plan").bold()].into(),
         )];
 
         let mut indented_lines = vec![];
@@ -353,7 +353,7 @@ impl HistoryCell for PlanUpdateCell {
 
         if self.plan.is_empty() {
             indented_lines.push(HyperlinkLine::new(Line::from(
-                "(no steps provided)".dim().italic(),
+                crate::i18n::text("(no steps provided)").dim().italic(),
             )));
         } else {
             for PlanItemArg { step, status } in self.plan.iter() {
@@ -374,7 +374,7 @@ impl HistoryCell for PlanUpdateCell {
     }
 
     fn raw_lines(&self) -> Vec<Line<'static>> {
-        let mut lines = vec![Line::from("Updated Plan")];
+        let mut lines = vec![Line::from(crate::i18n::text("Updated Plan"))];
         if let Some(explanation) = self
             .explanation
             .as_ref()
@@ -384,7 +384,7 @@ impl HistoryCell for PlanUpdateCell {
             lines.extend(raw_lines_from_source(explanation));
         }
         if self.plan.is_empty() {
-            lines.push(Line::from("(no steps provided)"));
+            lines.push(Line::from(crate::i18n::text("(no steps provided)")));
         } else {
             for PlanItemArg { step, status } in &self.plan {
                 lines.push(Line::from(format!("{status:?}: {step}")));

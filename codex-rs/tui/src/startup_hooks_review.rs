@@ -230,29 +230,29 @@ fn selection_view_params(
 ) -> SelectionViewParams {
     let count = review_needed_count(entry);
     let count_line = match count {
-        1 => "1 hook is new or changed.".to_string(),
-        count => format!("{count} hooks are new or changed."),
+        1 => crate::i18n::text("1 hook is new or changed.").to_string(),
+        count => crate::i18n::message("r39-hooks-review-count", &[("count", &count.to_string())]),
     };
     let mut header = ColumnRenderable::new();
-    header.push(Line::from("Hooks need review".bold()));
+    header.push(Line::from(crate::i18n::text("Hooks need review").bold()));
     header.push(Paragraph::new(Line::from(count_line).yellow()).wrap(Wrap { trim: false }));
     header.push(
         Paragraph::new(Line::from(
-            "Hooks can run outside the sandbox after you trust them.".dim(),
+            crate::i18n::text("Hooks can run outside the sandbox after you trust them.").dim(),
         ))
         .wrap(Wrap { trim: false }),
     );
     if let Some(error) = trust_all_error {
         header.push(Paragraph::new(Line::from(error.to_string()).red()).wrap(Wrap { trim: false }));
     } else if trusting_all {
-        header.push(Line::from("Trusting hooks...".dim()));
+        header.push(Line::from(crate::i18n::text("Trusting hooks...").dim()));
     }
 
     let mut hints = Vec::new();
     if !trusting_all {
         for (action, label) in [
-            (ListAction::Accept, "confirm"),
-            (ListAction::Cancel, "skip"),
+            (ListAction::Accept, crate::i18n::text("confirm")),
+            (ListAction::Cancel, crate::i18n::text("skip")),
         ] {
             if let Some(hint) = keymap.list.primary_hint(action) {
                 if !hints.is_empty() {
@@ -293,7 +293,7 @@ fn review_is_needed(bypass_hook_trust: bool, entry: &HooksListEntry) -> bool {
 
 fn selection_item(name: &str, is_disabled: bool) -> SelectionItem {
     SelectionItem {
-        name: name.to_string(),
+        name: crate::i18n::text(name).to_string(),
         dismiss_on_select: true,
         is_disabled,
         ..Default::default()

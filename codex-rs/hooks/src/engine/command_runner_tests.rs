@@ -31,6 +31,7 @@ use super::CommandHookRuntime;
 use super::CommandShell;
 use super::ConfiguredHandler;
 use super::MAX_CONCURRENT_ASYNC_HOOKS;
+use super::MAX_HOOK_OUTPUT_BYTES;
 use super::build_command;
 use super::default_shell_program;
 use super::run_command;
@@ -340,6 +341,69 @@ time.sleep(30)
     assert!(temp.path().join("output-drained").exists());
     assert_eq!(result.exit_code, None);
     assert_eq!(result.error, Some("hook timed out after 2s".to_string()));
+}
+
+#[tokio::test]
+async fn hook_preserves_output_at_each_stream_limit() {
+    let temp = tempdir().expect("create temp dir");
+    let handler = write_handler(
+        &temp,
+        &format!(
+            "import sys\nsys.stdout.buffer.write(b'x' * {MAX_HOOK_OUTPUT_BYTES})\n\
+             sys.stderr.buffer.write(b'y' * {MAX_HOOK_OUTPUT_BYTES})\n"
+        ),
+    );
+    let ConfiguredHandlerKind::Command { command, env, .. } = &handler.kind else {
+        panic!("expected command hook");
+    };
+    let (runtime, _result_receiver) = runtime();
+
+    let result = run_command(&runtime, &handler, command, env, "{}", temp.path()).await;
+
+    assert_eq!(result.exit_code, Some(0));
+    assert_eq!(result.error, None);
+    assert_eq!(result.stdout, "x".repeat(MAX_HOOK_OUTPUT_BYTES));
+    assert_eq!(result.stderr, "y".repeat(MAX_HOOK_OUTPUT_BYTES));
+}
+
+#[tokio::test]
+async fn hook_rejects_output_over_limit_without_returning_partial_json() {
+    for stream in ["stdout", "stderr"] {
+        let temp = tempdir().expect("create temp dir");
+        let handler = write_handler(
+            &temp,
+            &format!(
+                "import sys\nimport time\n\
+                 sys.stdout.buffer.write(b'{{\"continue\":true}}\\n')\n\
+                 sys.stdout.buffer.flush()\n\
+                 sys.{stream}.buffer.write(b'x' * {})\n\
+                 sys.{stream}.buffer.flush()\n\
+                 time.sleep(30)\n",
+                MAX_HOOK_OUTPUT_BYTES + 1,
+            ),
+        );
+        let ConfiguredHandlerKind::Command { command, env, .. } = &handler.kind else {
+            panic!("expected command hook");
+        };
+        let (runtime, _result_receiver) = runtime();
+
+        let result = timeout(
+            Duration::from_secs(5),
+            run_command(&runtime, &handler, command, env, "{}", temp.path()),
+        )
+        .await
+        .expect("output overflow must fail before the hook timeout");
+
+        assert_eq!(result.exit_code, None);
+        assert_eq!(
+            result.error,
+            Some(format!(
+                "hook {stream} exceeded the {MAX_HOOK_OUTPUT_BYTES}-byte output limit"
+            )),
+        );
+        assert!(result.stdout.is_empty());
+        assert!(result.stderr.is_empty());
+    }
 }
 
 #[tokio::test]

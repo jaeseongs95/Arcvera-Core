@@ -304,6 +304,10 @@ pub(crate) enum AppEvent {
         thread_id: Option<ThreadId>,
         args: String,
     },
+    ContextCompositionLoaded {
+        key: crate::app_server_session::ContextInspectionKey,
+        outcome: crate::app_server_session::ContextInspectionOutcome,
+    },
     CronCommand {
         thread_id: Option<ThreadId>,
         args: String,

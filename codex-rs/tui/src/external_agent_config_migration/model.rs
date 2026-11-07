@@ -39,8 +39,10 @@ pub(crate) fn external_agent_config_migration_groups(
     let mut groups = Vec::new();
     if !tools_and_setup.is_empty() {
         groups.push(ExternalAgentConfigMigrationGroupModel {
-            label: "Tools & setup".to_string(),
-            description: "Settings, instructions, integrations, agents, commands, and skills",
+            label: crate::i18n::text("Tools & setup").to_string(),
+            description: crate::i18n::text(
+                "Settings, instructions, integrations, agents, commands, and skills",
+            ),
             item_indices: tools_and_setup,
         });
     }
@@ -52,11 +54,14 @@ pub(crate) fn external_agent_config_migration_groups(
             .len();
         groups.push(ExternalAgentConfigMigrationGroupModel {
             label: if project_count == 1 {
-                "Current project".to_string()
+                crate::i18n::text("Current project").to_string()
             } else {
-                format!("Projects ({project_count})")
+                crate::i18n::message(
+                    "r39-import-projects",
+                    &[("count", &project_count.to_string())],
+                )
             },
-            description: "Add Codex files alongside your existing project files",
+            description: crate::i18n::text("Add Codex files alongside your existing project files"),
             item_indices: projects,
         });
     }
@@ -67,8 +72,11 @@ pub(crate) fn external_agent_config_migration_groups(
             .map(|details| details.sessions.len())
             .sum::<usize>();
         groups.push(ExternalAgentConfigMigrationGroupModel {
-            label: format!("Chat sessions ({session_count})"),
-            description: "Last 30 days of chats",
+            label: crate::i18n::message(
+                "r39-import-sessions",
+                &[("count", &session_count.to_string())],
+            ),
+            description: crate::i18n::text("Last 30 days of chats"),
             item_indices: chat_sessions,
         });
     }
@@ -79,16 +87,16 @@ pub(crate) fn external_agent_config_migration_item_label(
     item: &ExternalAgentConfigMigrationItem,
 ) -> &'static str {
     match item.item_type {
-        ExternalAgentConfigMigrationItemType::AgentsMd => "Instructions",
-        ExternalAgentConfigMigrationItemType::Config => "Settings",
-        ExternalAgentConfigMigrationItemType::Skills => "Skills",
-        ExternalAgentConfigMigrationItemType::Plugins => "Plugins",
-        ExternalAgentConfigMigrationItemType::McpServerConfig => "MCP servers",
-        ExternalAgentConfigMigrationItemType::Subagents => "Agents",
-        ExternalAgentConfigMigrationItemType::Hooks => "Hooks",
-        ExternalAgentConfigMigrationItemType::Commands => "Slash commands",
-        ExternalAgentConfigMigrationItemType::Memory => "Memory",
-        ExternalAgentConfigMigrationItemType::Sessions => "Recent chat sessions",
+        ExternalAgentConfigMigrationItemType::AgentsMd => crate::i18n::text("Instructions"),
+        ExternalAgentConfigMigrationItemType::Config => crate::i18n::text("Settings"),
+        ExternalAgentConfigMigrationItemType::Skills => crate::i18n::text("Skills"),
+        ExternalAgentConfigMigrationItemType::Plugins => crate::i18n::text("Plugins"),
+        ExternalAgentConfigMigrationItemType::McpServerConfig => crate::i18n::text("MCP servers"),
+        ExternalAgentConfigMigrationItemType::Subagents => crate::i18n::text("Agents"),
+        ExternalAgentConfigMigrationItemType::Hooks => crate::i18n::text("Hooks"),
+        ExternalAgentConfigMigrationItemType::Commands => crate::i18n::text("Slash commands"),
+        ExternalAgentConfigMigrationItemType::Memory => crate::i18n::text("Memory"),
+        ExternalAgentConfigMigrationItemType::Sessions => crate::i18n::text("Recent chat sessions"),
     }
 }
 
@@ -96,16 +104,16 @@ pub(crate) fn external_agent_config_migration_type_label(
     item_type: ExternalAgentConfigMigrationItemType,
 ) -> &'static str {
     match item_type {
-        ExternalAgentConfigMigrationItemType::AgentsMd => "Instructions",
-        ExternalAgentConfigMigrationItemType::Config => "Settings",
-        ExternalAgentConfigMigrationItemType::Skills => "Skills",
-        ExternalAgentConfigMigrationItemType::Plugins => "Plugins",
-        ExternalAgentConfigMigrationItemType::McpServerConfig => "MCP servers",
-        ExternalAgentConfigMigrationItemType::Subagents => "Agents",
-        ExternalAgentConfigMigrationItemType::Hooks => "Hooks",
-        ExternalAgentConfigMigrationItemType::Commands => "Slash commands",
-        ExternalAgentConfigMigrationItemType::Memory => "Memory",
-        ExternalAgentConfigMigrationItemType::Sessions => "Chat sessions",
+        ExternalAgentConfigMigrationItemType::AgentsMd => crate::i18n::text("Instructions"),
+        ExternalAgentConfigMigrationItemType::Config => crate::i18n::text("Settings"),
+        ExternalAgentConfigMigrationItemType::Skills => crate::i18n::text("Skills"),
+        ExternalAgentConfigMigrationItemType::Plugins => crate::i18n::text("Plugins"),
+        ExternalAgentConfigMigrationItemType::McpServerConfig => crate::i18n::text("MCP servers"),
+        ExternalAgentConfigMigrationItemType::Subagents => crate::i18n::text("Agents"),
+        ExternalAgentConfigMigrationItemType::Hooks => crate::i18n::text("Hooks"),
+        ExternalAgentConfigMigrationItemType::Commands => crate::i18n::text("Slash commands"),
+        ExternalAgentConfigMigrationItemType::Memory => crate::i18n::text("Memory"),
+        ExternalAgentConfigMigrationItemType::Sessions => crate::i18n::text("Chat sessions"),
     }
 }
 
@@ -224,7 +232,11 @@ pub(crate) fn external_agent_config_migration_item_detail(
         ExternalAgentConfigMigrationItemType::Memory => {
             let memory = &details.memory;
             let count = memory.len();
-            let noun = if count == 1 { "memory" } else { "memories" };
+            let noun = if count == 1 {
+                crate::i18n::text("memory")
+            } else {
+                crate::i18n::text("memories")
+            };
             let names = memory
                 .iter()
                 .map(String::as_str)
@@ -254,7 +266,12 @@ fn format_counted_details<'a>(
     count: usize,
     names: impl Iterator<Item = &'a str>,
 ) -> String {
-    let suffix = if count == 1 { "" } else { "s" };
+    let suffix = if count == 1 || crate::i18n::locale() == crate::i18n::Locale::Korean {
+        ""
+    } else {
+        "s"
+    };
+    let noun = crate::i18n::text(noun);
     match names.take(4).collect::<Vec<_>>() {
         names if names.is_empty() => format!("{count} {noun}{suffix}"),
         names => format!("{count} {noun}{suffix}: {}", names.join(", ")),

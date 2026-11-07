@@ -58,13 +58,20 @@ impl ChatWidget {
                 Some(auto_review_denials::action_summary(action))
             }
             GuardianAssessmentAction::ApplyPatch { files, .. } => Some(if files.len() == 1 {
-                format!("apply_patch touching {}", files[0].render_for_ui())
+                crate::i18n::message(
+                    "r39-auto-review-patch-file",
+                    &[("file", &files[0].render_for_ui())],
+                )
             } else {
-                format!("apply_patch touching {} files", files.len())
+                crate::i18n::message(
+                    "r39-auto-review-patch-files",
+                    &[("count", &files.len().to_string())],
+                )
             }),
-            GuardianAssessmentAction::NetworkAccess { target, .. } => {
-                Some(format!("network access to {target}"))
-            }
+            GuardianAssessmentAction::NetworkAccess { target, .. } => Some(crate::i18n::message(
+                "r39-auto-review-network",
+                &[("target", target)],
+            )),
             GuardianAssessmentAction::McpToolCall {
                 server,
                 tool_name,
@@ -72,11 +79,14 @@ impl ChatWidget {
                 ..
             } => {
                 let label = connector_name.as_deref().unwrap_or(server.as_str());
-                Some(format!("MCP {tool_name} on {label}"))
+                Some(crate::i18n::message(
+                    "r39-auto-review-mcp",
+                    &[("tool_name", tool_name), ("label", label)],
+                ))
             }
-            GuardianAssessmentAction::RequestPermissions { reason, .. } => {
-                Some(permission_request_summary("permission request", reason))
-            }
+            GuardianAssessmentAction::RequestPermissions { reason, .. } => Some(
+                permission_request_summary(crate::i18n::text("permission request"), reason),
+            ),
         };
         let guardian_command = |action: &GuardianAssessmentAction| match action {
             GuardianAssessmentAction::Command { command, .. } => shlex::split(command)
@@ -165,9 +175,9 @@ impl ChatWidget {
             } else {
                 match &ev.action {
                     GuardianAssessmentAction::WriteStdin { .. } => {
-                        history_cell::new_guardian_timed_out_action_request(format!(
-                            "codex could {}",
-                            auto_review_denials::action_summary(&ev.action)
+                        history_cell::new_guardian_timed_out_action_request(crate::i18n::message(
+                            "r39-guardian-could-action",
+                            &[("summary", &auto_review_denials::action_summary(&ev.action))],
                         ))
                     }
                     GuardianAssessmentAction::ApplyPatch { files, .. } => {
@@ -179,17 +189,22 @@ impl ChatWidget {
                     }
                     GuardianAssessmentAction::McpToolCall {
                         server, tool_name, ..
-                    } => history_cell::new_guardian_timed_out_action_request(format!(
-                        "codex could call MCP tool {server}.{tool_name}"
+                    } => history_cell::new_guardian_timed_out_action_request(crate::i18n::message(
+                        "r39-guardian-could-mcp",
+                        &[("server", server), ("tool_name", tool_name)],
                     )),
                     GuardianAssessmentAction::NetworkAccess { target, .. } => {
-                        history_cell::new_guardian_timed_out_action_request(format!(
-                            "codex could access {target}"
+                        history_cell::new_guardian_timed_out_action_request(crate::i18n::message(
+                            "r39-guardian-could-network",
+                            &[("target", target)],
                         ))
                     }
                     GuardianAssessmentAction::RequestPermissions { reason, .. } => {
                         history_cell::new_guardian_timed_out_action_request(
-                            permission_request_summary("codex could request permissions", reason),
+                            permission_request_summary(
+                                crate::i18n::text("codex could request permissions"),
+                                reason,
+                            ),
                         )
                     }
                     GuardianAssessmentAction::Command { .. } => unreachable!(),
@@ -215,9 +230,9 @@ impl ChatWidget {
         } else {
             match &ev.action {
                 GuardianAssessmentAction::WriteStdin { .. } => {
-                    history_cell::new_guardian_denied_action_request(format!(
-                        "codex to {}",
-                        auto_review_denials::action_summary(&ev.action)
+                    history_cell::new_guardian_denied_action_request(crate::i18n::message(
+                        "r39-guardian-denied-action",
+                        &[("summary", &auto_review_denials::action_summary(&ev.action))],
                     ))
                 }
                 GuardianAssessmentAction::ApplyPatch { files, .. } => {
@@ -229,17 +244,19 @@ impl ChatWidget {
                 }
                 GuardianAssessmentAction::McpToolCall {
                     server, tool_name, ..
-                } => history_cell::new_guardian_denied_action_request(format!(
-                    "codex to call MCP tool {server}.{tool_name}"
+                } => history_cell::new_guardian_denied_action_request(crate::i18n::message(
+                    "r39-guardian-denied-mcp",
+                    &[("server", server), ("tool_name", tool_name)],
                 )),
                 GuardianAssessmentAction::NetworkAccess { target, .. } => {
-                    history_cell::new_guardian_denied_action_request(format!(
-                        "codex to access {target}"
+                    history_cell::new_guardian_denied_action_request(crate::i18n::message(
+                        "r39-guardian-denied-network",
+                        &[("target", target)],
                     ))
                 }
                 GuardianAssessmentAction::RequestPermissions { reason, .. } => {
                     history_cell::new_guardian_denied_action_request(permission_request_summary(
-                        "codex to request permissions",
+                        crate::i18n::text("codex to request permissions"),
                         reason,
                     ))
                 }
@@ -452,8 +469,11 @@ impl ChatWidget {
         let summary = Notification::user_input_request_summary(&ev.questions);
         let title = match (question_count, summary.as_deref()) {
             (1, Some(summary)) => summary.to_string(),
-            (1, None) => "Question requested".to_string(),
-            (count, _) => format!("{count} questions requested"),
+            (1, None) => crate::i18n::text("Question requested").to_string(),
+            (count, _) => crate::i18n::message(
+                "r39-questions-requested-count",
+                &[("count", &count.to_string())],
+            ),
         };
         self.notify(Notification::PlanModePrompt { title });
         self.bottom_pane.push_user_input_request(ev);

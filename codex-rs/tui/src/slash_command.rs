@@ -103,7 +103,7 @@ impl SlashCommand {
         }
         crate::i18n::text(match self {
             SlashCommand::Context => {
-                "show or set this chat's context window: /context [tokens|reset]"
+                "show context composition or set the window: /context [inspect|tokens|reset]"
             }
             SlashCommand::Cron => "schedule per-chat prompts while this CLI is running",
             SlashCommand::Config => "configure Codex preferences",

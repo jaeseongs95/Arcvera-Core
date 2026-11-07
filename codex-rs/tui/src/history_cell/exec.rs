@@ -40,9 +40,12 @@ impl HistoryCell for UnifiedExecInteractionCell {
         let waited_only = self.stdin.is_empty();
 
         let mut header_spans = if waited_only {
-            vec!["• Waited for background terminal".bold()]
+            vec![crate::i18n::text("• Waited for background terminal").bold()]
         } else {
-            vec!["↳ ".dim(), "Interacted with background terminal".bold()]
+            vec![
+                "↳ ".dim(),
+                crate::i18n::text("Interacted with background terminal").bold(),
+            ]
         };
         if let Some(command) = &self.command_display
             && !command.is_empty()
@@ -82,11 +85,14 @@ impl HistoryCell for UnifiedExecInteractionCell {
                 .as_ref()
                 .filter(|command| !command.is_empty())
             {
-                out.push(Line::from(format!(
-                    "Waited for background terminal: {command}"
+                out.push(Line::from(crate::i18n::message(
+                    "r39-terminal-waited-command",
+                    &[("command", command)],
                 )));
             } else {
-                out.push(Line::from("Waited for background terminal"));
+                out.push(Line::from(crate::i18n::text(
+                    "Waited for background terminal",
+                )));
             }
             return out;
         }
@@ -96,11 +102,14 @@ impl HistoryCell for UnifiedExecInteractionCell {
             .as_ref()
             .filter(|command| !command.is_empty())
         {
-            out.push(Line::from(format!(
-                "Interacted with background terminal: {command}"
+            out.push(Line::from(crate::i18n::message(
+                "r39-terminal-interacted-command",
+                &[("command", command)],
             )));
         } else {
-            out.push(Line::from("Interacted with background terminal"));
+            out.push(Line::from(crate::i18n::text(
+                "Interacted with background terminal",
+            )));
         }
         out.extend(raw_lines_from_source(&self.stdin));
         out
@@ -140,11 +149,15 @@ impl HistoryCell for UnifiedExecProcessesCell {
         let wrap_width = width as usize;
         let max_processes = 16usize;
         let mut out: Vec<Line<'static>> = Vec::new();
-        out.push(vec!["Background terminals".bold()].into());
+        out.push(vec![crate::i18n::text("Background terminals").bold()].into());
         out.push("".into());
 
         if self.processes.is_empty() {
-            out.push("  • No background terminals running.".italic().into());
+            out.push(
+                crate::i18n::text("  • No background terminals running.")
+                    .italic()
+                    .into(),
+            );
             return out;
         }
 
@@ -230,7 +243,10 @@ impl HistoryCell for UnifiedExecProcessesCell {
 
         let remaining = self.processes.len().saturating_sub(shown);
         if remaining > 0 {
-            let more_text = format!("... and {remaining} more running");
+            let more_text = crate::i18n::message(
+                "r39-terminal-more-running",
+                &[("count", &remaining.to_string())],
+            );
             if wrap_width <= prefix_width {
                 out.push(Line::from(prefix.dim()));
             } else {

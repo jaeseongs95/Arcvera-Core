@@ -17,6 +17,7 @@ type Sources<'a> = &'a [(&'a str, &'a str)];
 
 const EN: Sources<'static> = &[
     ("core", include_str!("../../locales/en/core.ftl")),
+    ("r39-i18n", include_str!("../../locales/en/r39-i18n.ftl")),
     ("legacy", include_str!("../../locales/en/legacy.ftl")),
     ("cloud", include_str!("../../locales/en/cloud.ftl")),
     ("dialogs", include_str!("../../locales/en/dialogs.ftl")),
@@ -40,6 +41,7 @@ const EN: Sources<'static> = &[
 ];
 const KO: Sources<'static> = &[
     ("core", include_str!("../../locales/ko/core.ftl")),
+    ("r39-i18n", include_str!("../../locales/ko/r39-i18n.ftl")),
     ("legacy", include_str!("../../locales/ko/legacy.ftl")),
     ("cloud", include_str!("../../locales/ko/cloud.ftl")),
     ("dialogs", include_str!("../../locales/ko/dialogs.ftl")),
@@ -513,5 +515,64 @@ mod tests {
         args.set("count", 2_i64);
         assert_eq!(catalogs.render(Locale::English, "tasks", &args), "2 tasks");
         assert_eq!(catalogs.render(Locale::Korean, "tasks", &args), "작업 2개");
+    }
+
+    #[test]
+    fn r39_named_ui_messages_preserve_opaque_values_and_leading_layout() {
+        let opaque = "D:\\한글 {name} { $path } 🧪";
+        for (locale, prefix) in [
+            (Locale::English, "Viewed image "),
+            (Locale::Korean, "이미지 보기 "),
+        ] {
+            assert_eq!(
+                message_for(locale, "r39-viewed-image", &[("path", opaque)]),
+                format!("{prefix}{opaque}")
+            );
+        }
+        assert_eq!(
+            message_for(
+                Locale::English,
+                "r39-questions-answered-suffix",
+                &[("answered", "1"), ("total", "2")]
+            ),
+            " 1/2 answered"
+        );
+        assert_eq!(
+            message_for(
+                Locale::Korean,
+                "r39-questions-answered-suffix",
+                &[("answered", "1"), ("total", "2")]
+            ),
+            " 1/2개 응답"
+        );
+        let changed = message_for(
+            Locale::Korean,
+            "r39-mode-model-changed",
+            &[("model", opaque), ("effort", " 높음"), ("mode", "계획")],
+        );
+        assert_eq!(
+            changed,
+            format!("계획 모드의 모델을 {opaque} 높음(으)로 변경했습니다.")
+        );
+    }
+
+    #[test]
+    fn r39_exact_display_literals_are_present_in_the_real_legacy_dictionary() {
+        for (english, korean) in [
+            ("Mouse scroll speed", "마우스 스크롤 감도"),
+            (
+                "Current chat context composition",
+                "현재 대화의 컨텍스트 구성",
+            ),
+            ("Remap Shortcut", "단축키 재지정"),
+            ("Hooks need review", "훅 검토 필요"),
+            (
+                "Clipboard busy; try again",
+                "클립보드가 사용 중입니다. 다시 시도하세요",
+            ),
+        ] {
+            assert_eq!(legacy_text(english), Some(korean));
+        }
+        assert_eq!(legacy_text("opaque user/model/server text {name}"), None);
     }
 }

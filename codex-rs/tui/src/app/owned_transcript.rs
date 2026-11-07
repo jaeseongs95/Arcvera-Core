@@ -259,7 +259,7 @@ impl App {
             .has_active_interaction()
         {
             Some(
-                ratatui::text::Line::from("Selecting text · esc cancel")
+                ratatui::text::Line::from(crate::i18n::text("Selecting text · esc cancel"))
                     .dim()
                     .into(),
             )

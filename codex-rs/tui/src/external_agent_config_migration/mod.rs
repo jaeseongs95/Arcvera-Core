@@ -46,10 +46,10 @@ enum ActionMenuOption {
 impl ActionMenuOption {
     fn label(self) -> &'static str {
         match self {
-            Self::Proceed => "Import selected",
-            Self::Customize => "Customize selection",
-            Self::Skip => "Cancel",
-            Self::Back => "Review selection",
+            Self::Proceed => crate::i18n::text("Import selected"),
+            Self::Customize => crate::i18n::text("Customize selection"),
+            Self::Skip => crate::i18n::text("Cancel"),
+            Self::Back => crate::i18n::text("Review selection"),
         }
     }
 }
@@ -590,10 +590,10 @@ impl ExternalAgentConfigMigrationScreen {
     fn section_title(cwd: Option<&std::path::Path>) -> Line<'static> {
         match cwd {
             Some(cwd) => Line::from(vec![
-                "Current project: ".bold(),
+                crate::i18n::text("Current project: ").bold(),
                 cwd.display().to_string().dim(),
             ]),
-            None => Line::from("Home".bold()),
+            None => Line::from(crate::i18n::text("Home").bold()),
         }
     }
 

@@ -746,18 +746,23 @@ impl ChatWidget {
         if previous_mode != next_mode
             && (previous_model != next_model || previous_effort != next_effort)
         {
-            let mut message = format!("Model changed to {next_model}");
-            if !next_model.starts_with("codex-auto-") {
-                let reasoning_label = match next_effort.as_ref() {
-                    None | Some(ReasoningEffortConfig::None) => "default",
-                    Some(effort) => effort.as_str(),
+            let effort = if next_model.starts_with("codex-auto-") {
+                String::new()
+            } else {
+                let label = match next_effort.as_ref() {
+                    None | Some(ReasoningEffortConfig::None) => crate::i18n::text("default"),
+                    Some(effort) => crate::i18n::text(effort.as_str()),
                 };
-                message.push(' ');
-                message.push_str(reasoning_label);
-            }
-            message.push_str(" for ");
-            message.push_str(next_mode.display_name());
-            message.push_str(" mode.");
+                format!(" {label}")
+            };
+            let message = crate::i18n::message(
+                "r39-mode-model-changed",
+                &[
+                    ("model", next_model),
+                    ("effort", &effort),
+                    ("mode", crate::i18n::text(next_mode.display_name())),
+                ],
+            );
             self.add_info_message(message, /*hint*/ None);
         }
         self.request_redraw();

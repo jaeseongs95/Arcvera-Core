@@ -23,7 +23,11 @@ impl TranscriptView {
         if let Some(mode) = &self.copy_mode {
             return Some(TranscriptFooter {
                 text: vec![
-                    Line::from(format!("Copy {}", mode.label.to_lowercase())).bold(),
+                    Line::from(crate::i18n::message(
+                        "r39-copy-format",
+                        &[("format", &mode.label.to_lowercase())],
+                    ))
+                    .bold(),
                     navigation_line("↑/↓/j/k select · g/G ends · enter copy · esc close"),
                 ]
                 .into(),
@@ -139,14 +143,19 @@ impl TranscriptView {
             if status.width() > usize::from(width) {
                 status = if self.is_loading_history() {
                     let loading = if navigation.is_empty() {
-                        if "↑ Loading…".width() <= usize::from(width) {
-                            "Loading…"
+                        if "↑ ".width() + crate::i18n::text("Loading…").width()
+                            <= usize::from(width)
+                        {
+                            crate::i18n::text("Loading…")
                         } else {
                             "…"
                         }
-                    } else if "↑ Loading… · ".width() + navigation.width() <= usize::from(width)
+                    } else if "↑ ".width()
+                        + crate::i18n::text("Loading… · ").width()
+                        + navigation_line(navigation).width()
+                        <= usize::from(width)
                     {
-                        "Loading… · "
+                        crate::i18n::text("Loading… · ")
                     } else {
                         "… "
                     };
@@ -155,15 +164,15 @@ impl TranscriptView {
                     spans.extend(navigation_line(navigation).spans);
                     Line::from(spans)
                 } else if self.history == TranscriptHistoryState::Failed {
-                    let mut spans = vec!["Retry: ".dim()];
+                    let mut spans = vec![crate::i18n::text("Retry: ").dim()];
                     spans.extend(key_label_spans(&JumpTarget::Beginning.hint_label()));
                     Line::from(spans)
                 } else if self.history == TranscriptHistoryState::Deferred {
                     Line::from(crate::i18n::text("Waiting for history to be saved")).dim()
                 } else if navigation.is_empty() {
-                    Line::from("New activity").dim()
+                    Line::from(crate::i18n::text("New activity")).dim()
                 } else if self.unseen_activity {
-                    let mut spans = vec!["New · ".dim()];
+                    let mut spans = vec![crate::i18n::text("New · ").dim()];
                     spans.extend(navigation_line(navigation).spans);
                     Line::from(spans)
                 } else {
@@ -197,7 +206,10 @@ impl TranscriptView {
     ) -> Line<'static> {
         if self.is_loading_history() {
             let mut spans = vec!["↑ ".fg(accent_color())];
-            spans.extend(shimmer_text("Loading earlier messages…", motion));
+            spans.extend(shimmer_text(
+                crate::i18n::text("Loading earlier messages…"),
+                motion,
+            ));
             if self.unseen_activity {
                 spans.push(" · New activity".dim());
             }
@@ -215,12 +227,14 @@ impl TranscriptView {
         }
         let history = match self.history {
             TranscriptHistoryState::Failed => {
-                let mut spans = vec!["Retry history: ".dim()];
+                let mut spans = vec![crate::i18n::text("Retry history: ").dim()];
                 spans.extend(key_label_spans(&JumpTarget::Beginning.hint_label()));
                 spans.push(".  ".dim());
                 spans
             }
-            TranscriptHistoryState::Partial => vec!["Earlier messages available.  ".dim()],
+            TranscriptHistoryState::Partial => {
+                vec![crate::i18n::text("Earlier messages available.  ").dim()]
+            }
             TranscriptHistoryState::Deferred => {
                 vec![crate::i18n::text("Waiting for history to be saved.  ").dim()]
             }
@@ -231,9 +245,9 @@ impl TranscriptView {
         };
         let activity = if self.unseen_activity {
             if history.is_empty() && navigation.is_empty() {
-                "New activity"
+                crate::i18n::text("New activity")
             } else {
-                "New activity · "
+                crate::i18n::text("New activity · ")
             }
         } else {
             ""
@@ -306,7 +320,7 @@ pub(super) fn navigation_line(navigation: &str) -> Line<'static> {
         .find(|action| hint.ends_with(*action));
         if let Some(action) = action {
             spans.extend(key_label_spans(&hint[..hint.len() - action.len()]));
-            spans.push(action.dim());
+            spans.push(crate::i18n::text(action).to_owned().dim());
         } else if hint == "esc" {
             spans.extend(key_label_spans(hint));
         } else {
@@ -319,3 +333,32 @@ pub(super) fn navigation_line(navigation: &str) -> Line<'static> {
 #[cfg(test)]
 #[path = "footer_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod r39_localization_tests {
+    use super::*;
+    use crate::i18n::{Locale, with_locale};
+
+    #[test]
+    fn translated_navigation_preserves_key_spans_and_unknown_input() {
+        let english = with_locale(Locale::English, || navigation_line("enter/esc latest"));
+        let korean = with_locale(Locale::Korean, || navigation_line("enter/esc latest"));
+        assert_eq!(english.spans.len(), korean.spans.len());
+        for (en, ko) in english.spans.iter().zip(&korean.spans) {
+            if en.content == " latest" {
+                assert_eq!(ko.content, " 최신 위치");
+            } else {
+                assert_eq!(en.content, ko.content);
+            }
+            assert_eq!(en.style, ko.style);
+        }
+        for locale in [Locale::English, Locale::Korean] {
+            with_locale(locale, || {
+                assert_eq!(
+                    navigation_line("opaque-{name} button").to_string(),
+                    "opaque-{name} button"
+                )
+            });
+        }
+    }
+}

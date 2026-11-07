@@ -5417,6 +5417,27 @@ impl Session {
         state.clone_history()
     }
 
+    pub(crate) async fn context_snapshot(
+        &self,
+    ) -> codex_protocol::context_snapshot::ThreadContextSnapshot {
+        let ((items, revision, usage), window_number, base_instruction_bytes) = {
+            let state = self.state.lock().await;
+            (
+                state.history.context_inventory_snapshot(),
+                self.current_window_from_state(&state).1,
+                state.session_configuration.base_instructions.len() as u64,
+            )
+        };
+        // Capture Arc-backed history and scalar metadata atomically; scan only after unlock.
+        crate::context_snapshot::summarize(
+            &items,
+            revision,
+            usage,
+            window_number,
+            base_instruction_bytes,
+        )
+    }
+
     /// Captures the history lifetime without exposing mutable session state.
     pub(crate) async fn history_reset(&self) -> (u64, CancellationToken) {
         let state = self.state.lock().await;

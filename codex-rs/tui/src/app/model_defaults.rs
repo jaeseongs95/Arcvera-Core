@@ -78,8 +78,10 @@ impl App {
             Err(err) => {
                 let error = crate::config_update::format_config_error(&err);
                 tracing::error!(error = %error, "failed to persist model selection");
-                self.chat_widget
-                    .add_error_message(format!("Failed to save default model: {error}"));
+                self.chat_widget.add_error_message(crate::i18n::message(
+                    "r39-ui-06db1f5e9c23",
+                    &[("error", &format!("{error}"))],
+                ));
             }
         }
     }

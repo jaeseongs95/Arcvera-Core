@@ -55,17 +55,26 @@ pub(crate) fn action_summary(action: &GuardianAssessmentAction) -> String {
                 &format!("{stdin:?}"),
                 /*max_graphemes*/ 80,
             );
-            format!("send input to terminal {process_id}: {stdin}")
+            crate::i18n::message(
+                "r39-auto-review-stdin",
+                &[("process_id", process_id), ("stdin", &stdin)],
+            )
         }
         GuardianAssessmentAction::ApplyPatch { files, .. } => {
             if files.len() == 1 {
-                format!("apply_patch touching {}", files[0].render_for_ui())
+                crate::i18n::message(
+                    "r39-auto-review-patch-file",
+                    &[("file", &files[0].render_for_ui())],
+                )
             } else {
-                format!("apply_patch touching {} files", files.len())
+                crate::i18n::message(
+                    "r39-auto-review-patch-files",
+                    &[("count", &files.len().to_string())],
+                )
             }
         }
         GuardianAssessmentAction::NetworkAccess { target, .. } => {
-            format!("network access to {target}")
+            crate::i18n::message("r39-auto-review-network", &[("target", target)])
         }
         GuardianAssessmentAction::McpToolCall {
             server,
@@ -74,12 +83,17 @@ pub(crate) fn action_summary(action: &GuardianAssessmentAction) -> String {
             ..
         } => {
             let label = connector_name.as_deref().unwrap_or(server.as_str());
-            format!("MCP {tool_name} on {label}")
+            crate::i18n::message(
+                "r39-auto-review-mcp",
+                &[("tool_name", tool_name), ("label", label)],
+            )
         }
         GuardianAssessmentAction::RequestPermissions { reason, .. } => reason
             .as_deref()
-            .map(|reason| format!("permission request: {reason}"))
-            .unwrap_or_else(|| "permission request".to_string()),
+            .map(|reason| {
+                crate::i18n::message("r39-auto-review-permission-reason", &[("reason", reason)])
+            })
+            .unwrap_or_else(|| crate::i18n::text("permission request").to_string()),
     }
 }
 

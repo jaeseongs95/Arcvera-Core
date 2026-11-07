@@ -313,48 +313,48 @@ pub(super) fn history(
 
 pub(super) fn label(key: &str) -> &str {
     match key {
-        "user" => "Tasks",
-        "subagent" => "Subagents",
-        "image_generation" => "Image generation",
-        "automation" => "Automations",
-        "guardian_review" => "Auto review",
-        "guardian_classifier" => "Auto review classifier",
-        "thread_title" => "Thread title",
-        "system" => "System",
-        "automated_review" => "Auto review",
-        "agent_identity" => "Workspace agents",
-        "memory_consolidation" => "Memory consolidation",
-        "cli" => "CLI",
-        "desktop_app" => "Desktop app",
-        "vscode" => "VS Code",
-        "web" => "Web",
-        "work_web" => "Work web",
-        "work_desktop" => "Work desktop",
-        "work_mobile" => "Work mobile",
-        "mobile" => "Mobile",
-        "slack" => "Slack",
-        "linear" => "Linear",
-        "jetbrains" => "JetBrains",
-        "sdk" => "SDK",
-        "exec" => "Exec",
-        "github" => "GitHub",
-        "codex" => "Codex",
-        "work" => "Work",
-        "code_review" | "github_code_review" => "Code review",
-        "start-user" | "start-composer" => "User messages",
-        "start-goal" => "Goals",
-        "start-composer_queue" => "Queued messages",
-        "start-composer_queue_run_now" => "Queued messages run now",
-        "start-automation_cron_scheduled" => "Scheduled automations",
-        "start-automation_cron_run_now" => "Automations run now",
-        "start-automation_heartbeat_scheduled" => "Scheduled follow-ups",
-        "start-automation_heartbeat_run_now" => "Follow-ups run now",
-        "start-app_tool_create_thread" => "Agent-created tasks",
-        "start-app_tool_send_message" => "Agent follow-ups",
-        "unknown" | "start-unknown" => "Unknown",
-        "fast" => "Fast",
-        "standard" => "Standard",
-        "other" | "start-other" => "Other",
+        "user" => crate::i18n::text("Tasks"),
+        "subagent" => crate::i18n::text("Subagents"),
+        "image_generation" => crate::i18n::text("Image generation"),
+        "automation" => crate::i18n::text("Automations"),
+        "guardian_review" => crate::i18n::text("Auto review"),
+        "guardian_classifier" => crate::i18n::text("Auto review classifier"),
+        "thread_title" => crate::i18n::text("Thread title"),
+        "system" => crate::i18n::text("System"),
+        "automated_review" => crate::i18n::text("Auto review"),
+        "agent_identity" => crate::i18n::text("Workspace agents"),
+        "memory_consolidation" => crate::i18n::text("Memory consolidation"),
+        "cli" => crate::i18n::text("CLI"),
+        "desktop_app" => crate::i18n::text("Desktop app"),
+        "vscode" => crate::i18n::text("VS Code"),
+        "web" => crate::i18n::text("Web"),
+        "work_web" => crate::i18n::text("Work web"),
+        "work_desktop" => crate::i18n::text("Work desktop"),
+        "work_mobile" => crate::i18n::text("Work mobile"),
+        "mobile" => crate::i18n::text("Mobile"),
+        "slack" => crate::i18n::text("Slack"),
+        "linear" => crate::i18n::text("Linear"),
+        "jetbrains" => crate::i18n::text("JetBrains"),
+        "sdk" => crate::i18n::text("SDK"),
+        "exec" => crate::i18n::text("Exec"),
+        "github" => crate::i18n::text("GitHub"),
+        "codex" => crate::i18n::text("Codex"),
+        "work" => crate::i18n::text("Work"),
+        "code_review" | "github_code_review" => crate::i18n::text("Code review"),
+        "start-user" | "start-composer" => crate::i18n::text("User messages"),
+        "start-goal" => crate::i18n::text("Goals"),
+        "start-composer_queue" => crate::i18n::text("Queued messages"),
+        "start-composer_queue_run_now" => crate::i18n::text("Queued messages run now"),
+        "start-automation_cron_scheduled" => crate::i18n::text("Scheduled automations"),
+        "start-automation_cron_run_now" => crate::i18n::text("Automations run now"),
+        "start-automation_heartbeat_scheduled" => crate::i18n::text("Scheduled follow-ups"),
+        "start-automation_heartbeat_run_now" => crate::i18n::text("Follow-ups run now"),
+        "start-app_tool_create_thread" => crate::i18n::text("Agent-created tasks"),
+        "start-app_tool_send_message" => crate::i18n::text("Agent follow-ups"),
+        "unknown" | "start-unknown" => crate::i18n::text("Unknown"),
+        "fast" => crate::i18n::text("Fast"),
+        "standard" => crate::i18n::text("Standard"),
+        "other" | "start-other" => crate::i18n::text("Other"),
         _ => key,
     }
 }
@@ -362,3 +362,20 @@ pub(super) fn label(key: &str) -> &str {
 #[cfg(test)]
 #[path = "normalize_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod r39_localization_tests {
+    use super::*;
+    use crate::i18n::{Locale, with_locale};
+
+    #[test]
+    fn analytics_labels_preserve_unknown_raw_keys_even_when_they_match_ui_text() {
+        for locale in [Locale::English, Locale::Korean] {
+            with_locale(locale, || {
+                assert_eq!(label("opaque-{name}"), "opaque-{name}");
+                assert_eq!(label("Tasks"), "Tasks");
+                assert_ne!(label("user"), "user");
+            });
+        }
+    }
+}

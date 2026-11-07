@@ -6,6 +6,8 @@
 //! truncating long paths for terminal output, grouping repeated values, and
 //! keeping the `--all` expansion behavior out of check construction.
 
+use codex_tui::i18n::message;
+use codex_tui::i18n::text;
 use std::collections::BTreeSet;
 use std::env;
 
@@ -49,7 +51,7 @@ pub(super) fn detail_lines(check: &DoctorCheck, options: HumanOutputOptions) -> 
     let mut details = details
         .into_iter()
         .map(|detail| attach_issue_metadata(detail, check))
-        .map(|detail| humanize_detail(detail, options))
+        .map(|detail| humanize_detail(detail, options, check.category != "mcp"))
         .collect::<Vec<_>>();
     details.extend(issue_remedies(check));
     details
@@ -105,11 +107,13 @@ pub(super) fn rollout_summary(value: &str) -> Option<String> {
     let files = files.trim().parse::<u64>().ok()?;
     let total_bytes = total_bytes.trim().parse::<u64>().ok()?;
     let average_bytes = average_bytes.trim().parse::<u64>().ok()?;
-    Some(format!(
-        "{} files · {} (avg {})",
-        format_count(files),
-        format_bytes(total_bytes),
-        format_bytes(average_bytes)
+    Some(message(
+        "r39-doctor-rollout-summary",
+        &[
+            ("count", &format_count(files)),
+            ("total", &format_bytes(total_bytes)),
+            ("average", &format_bytes(average_bytes)),
+        ],
     ))
 }
 
@@ -205,7 +209,7 @@ fn install_details(parsed: &[ParsedDetail], options: HumanOutputOptions) -> Vec<
         detail.value == "ignored inherited package-manager launch env for cargo-built binary"
     }) {
         out.push(HumanDetail::Bullet(
-            "ignored inherited package-manager launch env for cargo-built binary".to_string(),
+            text("ignored inherited package-manager launch env for cargo-built binary").to_string(),
         ));
     }
 
@@ -216,17 +220,22 @@ fn install_details(parsed: &[ParsedDetail], options: HumanOutputOptions) -> Vec<
     let package_root = value(parsed, "managed package root").unwrap_or("not set");
     out.push(HumanDetail::Row {
         label: "managed by".to_string(),
-        value: format!(
-            "npm: {} · bun: {} · pnpm: {} · Vite+: {} · package root {}",
-            yes_no(managed_by_npm),
-            yes_no(managed_by_bun),
-            yes_no(managed_by_pnpm),
-            yes_no(managed_by_vite_plus),
-            if is_falsy(package_root) {
-                "—".to_string()
-            } else {
-                package_root.to_string()
-            }
+        value: message(
+            "r39-doctor-managed-by",
+            &[
+                ("npm", yes_no(managed_by_npm)),
+                ("bun", yes_no(managed_by_bun)),
+                ("pnpm", yes_no(managed_by_pnpm)),
+                ("vite", yes_no(managed_by_vite_plus)),
+                (
+                    "root",
+                    &if is_falsy(package_root) {
+                        "—".to_string()
+                    } else {
+                        package_root.to_string()
+                    },
+                ),
+            ],
         ),
         expected: None,
     });
@@ -240,7 +249,7 @@ fn install_details(parsed: &[ParsedDetail], options: HumanOutputOptions) -> Vec<
             total.min(3)
         };
         out.push(HumanDetail::Row {
-            label: format!("PATH entries ({total})"),
+            label: message("r39-doctor-path-entries", &[("count", &total.to_string())]),
             value: path_entries[0].clone(),
             expected: None,
         });
@@ -254,7 +263,7 @@ fn install_details(parsed: &[ParsedDetail], options: HumanOutputOptions) -> Vec<
         );
         if shown < total {
             out.push(HumanDetail::Continuation(
-                "… (full list with --all)".to_string(),
+                text("… (full list with --all)").to_string(),
             ));
         }
     }
@@ -297,7 +306,7 @@ fn git_details(parsed: &[ParsedDetail], options: HumanOutputOptions) -> Vec<Huma
             total.min(3)
         };
         out.push(HumanDetail::Row {
-            label: format!("PATH entries ({total})"),
+            label: message("r39-doctor-path-entries", &[("count", &total.to_string())]),
             value: path_entries[0].clone(),
             expected: None,
         });
@@ -311,7 +320,7 @@ fn git_details(parsed: &[ParsedDetail], options: HumanOutputOptions) -> Vec<Huma
         );
         if shown < total {
             out.push(HumanDetail::Continuation(
-                "… (full list with --all)".to_string(),
+                text("… (full list with --all)").to_string(),
             ));
         }
     }
@@ -497,13 +506,20 @@ fn push_feature_flags(
     let overrides = list_items(value(parsed, "feature flag overrides").unwrap_or("none"));
     let override_count = overrides.len();
     let hint = if !options.show_all && enabled_count > 0 {
-        " (full list with --all)"
+        text(" (full list with --all)")
     } else {
         ""
     };
     out.push(HumanDetail::Row {
         label: "feature flags".to_string(),
-        value: format!("{enabled_count} enabled · {override_count} overridden{hint}"),
+        value: message(
+            "r39-doctor-feature-count",
+            &[
+                ("enabled", &enabled_count.to_string()),
+                ("overridden", &override_count.to_string()),
+                ("hint", hint),
+            ],
+        ),
         expected: None,
     });
 
@@ -536,7 +552,7 @@ fn push_list_row(
         .collect::<Vec<_>>()
         .join(", ");
     if limit < items.len() {
-        value.push_str(", … (full list with --all)");
+        value.push_str(text(", … (full list with --all)"));
     }
     out.push(HumanDetail::Row {
         label: label.to_string(),
@@ -552,7 +568,12 @@ fn push_database_row(out: &mut Vec<HumanDetail>, parsed: &[ParsedDetail], label:
     let integrity = value(parsed, &format!("{label} integrity"));
     let value = integrity.map_or_else(
         || path.to_string(),
-        |integrity| format!("{path} · integrity {integrity}"),
+        |integrity| {
+            message(
+                "r39-doctor-db-integrity",
+                &[("path", path), ("integrity", integrity)],
+            )
+        },
     );
     out.push(HumanDetail::Row {
         label: label.to_string(),
@@ -605,14 +626,23 @@ fn push_remaining(
     }
 }
 
-fn humanize_detail(detail: HumanDetail, options: HumanOutputOptions) -> HumanDetail {
+fn humanize_detail(
+    detail: HumanDetail,
+    options: HumanOutputOptions,
+    localize_label: bool,
+) -> HumanDetail {
     match detail {
         HumanDetail::Row {
             label,
             value,
             expected,
         } => HumanDetail::Row {
-            label,
+            // MCP row labels may be user-configured server names. Keep them opaque.
+            label: if localize_label {
+                localized_detail_label(label)
+            } else {
+                label
+            },
             value: humanize_value(&value, options),
             expected,
         },
@@ -621,6 +651,51 @@ fn humanize_detail(detail: HumanDetail, options: HumanOutputOptions) -> HumanDet
         }
         HumanDetail::Bullet(value) => HumanDetail::Bullet(humanize_value(&value, options)),
         HumanDetail::Remedy(value) => HumanDetail::Remedy(value),
+    }
+}
+
+fn localized_detail_label(label: String) -> String {
+    match label.as_str() {
+        "os"
+        | "OS language"
+        | "version"
+        | "install method"
+        | "commit"
+        | "executable"
+        | "context"
+        | "managed by"
+        | "selected git"
+        | "exec path"
+        | "repo detected"
+        | "repo root"
+        | ".git entry"
+        | "branch"
+        | "title source"
+        | "title items"
+        | "activity item"
+        | "project source"
+        | "project value"
+        | "model"
+        | "config.toml parse"
+        | "config.toml read"
+        | "MCP servers"
+        | "legacy alias"
+        | "log dir"
+        | "sqlite home"
+        | "state DB"
+        | "log DB"
+        | "goals DB"
+        | "memories DB"
+        | "active rollouts"
+        | "archived rollouts"
+        | "feature flags"
+        | "overrides"
+        | "enabled flags"
+        | "auth.json path (file backend/fallback)"
+        | "linux helper"
+        | "optional reachability"
+        | "startup update check" => text(&label).to_string(),
+        _ => label,
     }
 }
 
@@ -780,7 +855,11 @@ fn override_names(items: &[String]) -> Vec<String> {
 }
 
 fn yes_no(value: &str) -> &'static str {
-    if value == "true" { "yes" } else { "no" }
+    if value == "true" {
+        text("yes")
+    } else {
+        text("no")
+    }
 }
 
 pub(super) fn is_falsy(value: &str) -> bool {

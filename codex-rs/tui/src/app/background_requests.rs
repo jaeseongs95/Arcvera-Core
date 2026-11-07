@@ -747,8 +747,10 @@ impl App {
         let statuses = match result {
             Ok(statuses) => statuses,
             Err(err) => {
-                self.chat_widget
-                    .add_error_message(format!("Failed to load MCP inventory: {err}"));
+                self.chat_widget.add_error_message(crate::i18n::message(
+                    "r39-ui-07608b58189d",
+                    &[("err", &format!("{err}"))],
+                ));
                 return;
             }
         };
@@ -1012,7 +1014,7 @@ pub(super) async fn fetch_additional_plugin_remote_sections(
                 let message = format!("{err:#}");
                 section_errors.push(PluginRemoteSectionError {
                     section_id: section_id.to_string(),
-                    label: label.to_string(),
+                    label: crate::i18n::text(label).to_string(),
                     message: plugin_remote_section_error_message(label, &message),
                 });
             }
@@ -1034,24 +1036,28 @@ fn plugin_remote_section_error_message(label: &str, err: &str) -> String {
 fn plugin_remote_section_error_next_step(label: &str, err: &str) -> &'static str {
     let err = err.to_ascii_lowercase();
     if err.contains("api key auth is not supported") {
-        "Sign in with ChatGPT auth; API key auth cannot load remote plugin catalogs"
+        crate::i18n::text(
+            "Sign in with ChatGPT auth; API key auth cannot load remote plugin catalogs",
+        )
     } else if err.contains("authentication required")
         || err.contains("not signed in")
         || err.contains("not logged in")
     {
-        "Sign in to ChatGPT, then try loading this section again"
+        crate::i18n::text("Sign in to ChatGPT, then try loading this section again")
     } else if err.contains("codex plugins are disabled")
         || err.contains("plugin sharing is disabled")
         || err.contains("plugin sharing is not enabled")
         || err.contains("feature disabled")
     {
-        "Ask a workspace admin to enable Codex plugins or plugin sharing"
+        crate::i18n::text("Ask a workspace admin to enable Codex plugins or plugin sharing")
     } else if err.contains("workspace") && (err.contains("access") || err.contains("mismatch")) {
-        "Switch to the matching workspace or ask the sharer for access"
+        crate::i18n::text("Switch to the matching workspace or ask the sharer for access")
     } else if err.contains("not found") || err.contains("status 404") {
-        "Check that you are signed in to the correct workspace and still have access"
+        crate::i18n::text(
+            "Check that you are signed in to the correct workspace and still have access",
+        )
     } else if err.contains("old build") || err.contains("update codex") || err.contains("stale") {
-        "Update Codex, then try opening the shared plugin again"
+        crate::i18n::text("Update Codex, then try opening the shared plugin again")
     } else if err.contains("service unavailable")
         || err.contains("temporarily unavailable")
         || err.contains("status 503")
@@ -1059,11 +1065,11 @@ fn plugin_remote_section_error_next_step(label: &str, err: &str) -> &'static str
         || err.contains("request")
         || err.contains("status")
     {
-        "Try again later; local plugin functionality is still available"
+        crate::i18n::text("Try again later; local plugin functionality is still available")
     } else if err.contains("disabled by admin") || err.contains("admin disabled") {
-        "Ask a workspace admin to confirm plugin access"
+        crate::i18n::text("Ask a workspace admin to confirm plugin access")
     } else if label == "Shared with me" && err.contains("plugin") && err.contains("disabled") {
-        "Ask the sharer or a workspace admin to confirm plugin access"
+        crate::i18n::text("Ask the sharer or a workspace admin to confirm plugin access")
     } else {
         ""
     }
@@ -1072,8 +1078,11 @@ fn plugin_remote_section_error_next_step(label: &str, err: &str) -> &'static str
 fn plugin_sharing_disabled_remote_section_error() -> PluginRemoteSectionError {
     PluginRemoteSectionError {
         section_id: "shared-with-me".to_string(),
-        label: "Shared with me".to_string(),
-        message: "Enable plugin sharing for this Codex session to load shared plugins".to_string(),
+        label: crate::i18n::text("Shared with me").to_string(),
+        message: crate::i18n::text(
+            "Enable plugin sharing for this Codex session to load shared plugins",
+        )
+        .to_string(),
     }
 }
 
@@ -1731,5 +1740,31 @@ mod tests {
         assert_eq!(params.tags, None);
         assert_eq!(params.include_logs, false);
         assert_eq!(params.extra_log_files, None);
+    }
+}
+
+#[cfg(test)]
+mod r39_localization_tests {
+    use super::*;
+    use crate::i18n::{Locale, with_locale};
+
+    #[test]
+    fn plugin_section_display_translation_keeps_raw_label_branch_and_error_payload() {
+        let raw_label = "Shared with me";
+        let error = "opaque-{name}-한글 plugin disabled";
+        with_locale(Locale::Korean, || {
+            let output = plugin_remote_section_error_message(raw_label, error);
+            assert_eq!(
+                output,
+                format!(
+                    "{error} 공유자 또는 작업 공간 관리자에게 플러그인 접근 권한을 확인해 달라고 요청하세요"
+                )
+            );
+            assert_eq!(raw_label, "Shared with me");
+            assert_eq!(
+                plugin_sharing_disabled_remote_section_error().section_id,
+                "shared-with-me"
+            );
+        });
     }
 }

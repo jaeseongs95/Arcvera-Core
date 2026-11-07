@@ -36,13 +36,15 @@ impl App {
             .is_some()
         {
             let items = vec![SelectionItem {
-                name: "Return to command center".to_string(),
+                name: crate::i18n::text("Return to command center").to_string(),
                 dismiss_on_select: true,
                 ..Default::default()
             }];
             self.chat_widget.show_selection_view(SelectionViewParams {
                 header: Box::new(AgentsOverviewErrorHeader(vec![
-                    Line::from(title.unwrap_or("Unable to complete action").bold()),
+                    Line::from(
+                        crate::i18n::text(title.unwrap_or("Unable to complete action")).bold(),
+                    ),
                     Line::from(message.clone().dim()),
                 ])),
                 items,
@@ -50,7 +52,7 @@ impl App {
             });
         }
         self.chat_widget.add_error_message(match title {
-            Some(title) => format!("{title}: {message}"),
+            Some(title) => format!("{}: {message}", crate::i18n::text(title)),
             None => message,
         });
     }

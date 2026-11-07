@@ -1293,6 +1293,13 @@ impl CodexThread {
         self.session.conversation_history_snapshot().await
     }
 
+    /// Content-free inventory of this loaded thread, without model calls or history loading.
+    pub async fn context_snapshot(
+        &self,
+    ) -> codex_protocol::context_snapshot::ThreadContextSnapshot {
+        self.session.context_snapshot().await
+    }
+
     /// Returns the current user-authorization revision for Guardian.
     pub async fn guardian_authorization_version(&self) -> GuardianAuthorizationVersion {
         let history = self.conversation_history_snapshot().await;
