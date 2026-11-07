@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Managed checkout creation and handoff from blocking Git work to the TUI event loop.
 //!
 //! Source-only blockers are checked before allocation. The completion event rechecks the
@@ -84,8 +85,9 @@ impl App {
                     .to_string(),
             );
         } else if self.pending_managed_worktree_creation {
-            self.chat_widget
-                .add_error_message("A worktree is already being created.".to_string());
+            self.chat_widget.add_error_message(
+                crate::i18n::text("A worktree is already being created.").to_string(),
+            );
         } else {
             // These source-only checks must precede allocation. The transition repeats them
             // after the background task, since the session can change while Git is running.

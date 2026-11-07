@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 use crate::WithTurnExtensionData;
 use crate::agent::AgentStatus;
 use crate::agent::api::AgentControl;
@@ -1292,6 +1292,13 @@ impl CodexThread {
     /// Shares an immutable view of the live parent model context and retained host facts.
     pub async fn conversation_history_snapshot(&self) -> Arc<dyn ConversationHistorySnapshot> {
         self.session.conversation_history_snapshot().await
+    }
+
+    /// Content-free inventory of this loaded thread, without model calls or history loading.
+    pub async fn context_snapshot(
+        &self,
+    ) -> codex_protocol::context_snapshot::ThreadContextSnapshot {
+        self.session.context_snapshot().await
     }
 
     /// Returns the current user-authorization revision for Guardian.

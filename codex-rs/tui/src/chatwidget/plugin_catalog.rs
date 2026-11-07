@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
@@ -129,11 +130,11 @@ impl MarketplaceProduct {
 
     fn label(self) -> Option<&'static str> {
         match self {
-            Self::OpenAiCurated => Some("OpenAI Curated"),
-            Self::Workspace => Some("Workspace"),
-            Self::SharedWithMe => Some("Shared with me"),
-            Self::SharedWithMeLink => Some("Shared with me (link)"),
-            Self::Local => Some("Local"),
+            Self::OpenAiCurated => Some(crate::i18n::text("OpenAI Curated")),
+            Self::Workspace => Some(crate::i18n::text("Workspace")),
+            Self::SharedWithMe => Some(crate::i18n::text("Shared with me")),
+            Self::SharedWithMeLink => Some(crate::i18n::text("Shared with me (link)")),
+            Self::Local => Some(crate::i18n::text("Local")),
             Self::Other => None,
         }
     }
@@ -213,8 +214,8 @@ impl RemoteMarketplaceSection {
         let tab = if remote_sections_loading {
             remote_section_loading_tab(
                 self.loading_tab_id,
-                self.label,
-                self.loading_item_description,
+                crate::i18n::text(self.label),
+                crate::i18n::text(self.loading_item_description),
             )
         } else if remote_sections_loaded {
             if let Some(section_error) = plugin_remote_section_error(section_errors, self.id) {
@@ -224,9 +225,9 @@ impl RemoteMarketplaceSection {
             } else {
                 remote_section_empty_tab(
                     self.id,
-                    self.label,
-                    self.empty_item_name,
-                    self.empty_item_description,
+                    crate::i18n::text(self.label),
+                    crate::i18n::text(self.empty_item_name),
+                    crate::i18n::text(self.empty_item_description),
                 )
             }
         } else {
@@ -286,7 +287,7 @@ impl Renderable for DelayedLoadingHeader {
         }
 
         let mut lines = Vec::with_capacity(3);
-        lines.push(Line::from("Plugins".bold()));
+        lines.push(Line::from(crate::i18n::text("Plugins").bold()));
 
         let now = Instant::now();
         let elapsed = now.saturating_duration_since(self.started_at);
@@ -345,12 +346,18 @@ impl ChatWidget {
             header: Box::new(DelayedLoadingHeader::new(
                 self.frame_requester.clone(),
                 self.local_settings.tui.animations && self.local_settings.tui.effects.shimmer,
-                "Loading available plugins...".to_string(),
-                Some("This updates when the marketplace list is ready.".to_string()),
+                crate::i18n::text("Loading available plugins...").to_string(),
+                Some(
+                    crate::i18n::text("This updates when the marketplace list is ready.")
+                        .to_string(),
+                ),
             )),
             items: vec![SelectionItem {
-                name: "Loading plugins...".to_string(),
-                description: Some("This updates when the marketplace list is ready".to_string()),
+                name: crate::i18n::text("Loading plugins...").to_string(),
+                description: Some(
+                    crate::i18n::text("This updates when the marketplace list is ready")
+                        .to_string(),
+                ),
                 is_disabled: true,
                 ..Default::default()
             }],
@@ -364,13 +371,14 @@ impl ChatWidget {
             header: Box::new(DelayedLoadingHeader::new(
                 self.frame_requester.clone(),
                 self.local_settings.tui.animations && self.local_settings.tui.effects.shimmer,
-                "Adding marketplace...".to_string(),
+                crate::i18n::text("Adding marketplace...").to_string(),
                 /*note*/ None,
             )),
             items: vec![SelectionItem {
-                name: "Adding marketplace...".to_string(),
+                name: crate::i18n::text("Adding marketplace...").to_string(),
                 description: Some(
-                    "This updates when marketplace installation completes".to_string(),
+                    crate::i18n::text("This updates when marketplace installation completes")
+                        .to_string(),
                 ),
                 is_disabled: true,
                 ..Default::default()
@@ -386,9 +394,20 @@ impl ChatWidget {
         marketplace_display_name: String,
     ) -> SelectionViewParams {
         let header = Paragraph::new(vec![
-            Line::from("Plugins".bold()),
-            Line::from(format!("Remove {marketplace_display_name} marketplace?").dim()),
-            Line::from("This removes the configured marketplace from Codex.".dim()),
+            Line::from(crate::i18n::text("Plugins").bold()),
+            Line::from(
+                crate::i18n::message(
+                    "r39-plugins-remove-question",
+                    &[(
+                        "marketplace_display_name",
+                        marketplace_display_name.as_str(),
+                    )],
+                )
+                .dim(),
+            ),
+            Line::from(
+                crate::i18n::text("This removes the configured marketplace from Codex.").dim(),
+            ),
         ])
         .wrap(Wrap { trim: false });
 
@@ -403,19 +422,21 @@ impl ChatWidget {
             header: Box::new(header),
             footer_hint: Some(Line::from(vec![
                 Span::from(key_hint::plain(KeyCode::Enter)),
-                " select".dim(),
+                crate::i18n::text(" select").dim(),
                 " · ".into(),
                 Span::from(key_hint::plain(KeyCode::Esc)),
-                " close".dim(),
+                crate::i18n::text(" close").dim(),
             ])),
             items: vec![
                 SelectionItem {
-                    name: "Remove marketplace".to_string(),
+                    name: crate::i18n::text("Remove marketplace").to_string(),
                     description: Some(
-                        "Remove this marketplace from the available plugin list".to_string(),
+                        crate::i18n::text("Remove this marketplace from the available plugin list")
+                            .to_string(),
                     ),
                     selected_description: Some(
-                        "Remove this marketplace from the available plugin list".to_string(),
+                        crate::i18n::text("Remove this marketplace from the available plugin list")
+                            .to_string(),
                     ),
                     actions: vec![Box::new(move |tx| {
                         tx.send(AppEvent::OpenMarketplaceRemoveLoading {
@@ -430,9 +451,13 @@ impl ChatWidget {
                     ..Default::default()
                 },
                 SelectionItem {
-                    name: "Back to plugins".to_string(),
-                    description: Some("Keep this marketplace installed".to_string()),
-                    selected_description: Some("Keep this marketplace installed".to_string()),
+                    name: crate::i18n::text("Back to plugins").to_string(),
+                    description: Some(
+                        crate::i18n::text("Keep this marketplace installed").to_string(),
+                    ),
+                    selected_description: Some(
+                        crate::i18n::text("Keep this marketplace installed").to_string(),
+                    ),
                     actions: vec![Box::new(move |tx| {
                         tx.send(AppEvent::OpenPluginsList {
                             cwd: cwd_for_cancel.clone(),
@@ -458,11 +483,17 @@ impl ChatWidget {
     ) -> SelectionViewParams {
         SelectionViewParams {
             view_id: Some(PLUGINS_SELECTION_VIEW_ID),
-            title: Some("Plugins".to_string()),
-            subtitle: Some(format!("Removing {marketplace_display_name}...")),
+            title: Some(crate::i18n::text("Plugins").to_string()),
+            subtitle: Some(crate::i18n::message(
+                "r39-plugins-removing",
+                &[("marketplace_display_name", marketplace_display_name)],
+            )),
             items: vec![SelectionItem {
-                name: "Removing marketplace...".to_string(),
-                description: Some("This updates when marketplace removal completes".to_string()),
+                name: crate::i18n::text("Removing marketplace...").to_string(),
+                description: Some(
+                    crate::i18n::text("This updates when marketplace removal completes")
+                        .to_string(),
+                ),
                 is_disabled: true,
                 ..Default::default()
             }],
@@ -475,8 +506,8 @@ impl ChatWidget {
         marketplace_name: Option<&str>,
     ) -> SelectionViewParams {
         let loading_text = marketplace_name
-            .map(|name| format!("Upgrading {name} marketplace..."))
-            .unwrap_or_else(|| "Upgrading marketplaces...".to_string());
+            .map(|name| crate::i18n::message("r39-plugins-upgrading", &[("name", name)]))
+            .unwrap_or_else(|| crate::i18n::text("Upgrading marketplaces...").to_string());
         SelectionViewParams {
             view_id: Some(PLUGINS_SELECTION_VIEW_ID),
             header: Box::new(DelayedLoadingHeader::new(
@@ -487,7 +518,10 @@ impl ChatWidget {
             )),
             items: vec![SelectionItem {
                 name: loading_text,
-                description: Some("This updates when marketplace upgrade completes".to_string()),
+                description: Some(
+                    crate::i18n::text("This updates when marketplace upgrade completes")
+                        .to_string(),
+                ),
                 is_disabled: true,
                 ..Default::default()
             }],
@@ -504,12 +538,17 @@ impl ChatWidget {
             header: Box::new(DelayedLoadingHeader::new(
                 self.frame_requester.clone(),
                 self.local_settings.tui.animations && self.local_settings.tui.effects.shimmer,
-                format!("Loading details for {plugin_display_name}..."),
+                crate::i18n::message(
+                    "r39-plugins-details-loading",
+                    &[("plugin_display_name", plugin_display_name)],
+                ),
                 /*note*/ None,
             )),
             items: vec![SelectionItem {
-                name: "Loading plugin details...".to_string(),
-                description: Some("This updates when plugin details load".to_string()),
+                name: crate::i18n::text("Loading plugin details...").to_string(),
+                description: Some(
+                    crate::i18n::text("This updates when plugin details load").to_string(),
+                ),
                 is_disabled: true,
                 ..Default::default()
             }],
@@ -523,11 +562,17 @@ impl ChatWidget {
     ) -> SelectionViewParams {
         SelectionViewParams {
             view_id: Some(PLUGINS_SELECTION_VIEW_ID),
-            title: Some("Plugins".to_string()),
-            subtitle: Some(format!("Installing {plugin_display_name}...")),
+            title: Some(crate::i18n::text("Plugins").to_string()),
+            subtitle: Some(crate::i18n::message(
+                "r39-plugins-installing",
+                &[("plugin_display_name", plugin_display_name)],
+            )),
             items: vec![SelectionItem {
-                name: "Installing plugin...".to_string(),
-                description: Some("This updates when plugin installation completes".to_string()),
+                name: crate::i18n::text("Installing plugin...").to_string(),
+                description: Some(
+                    crate::i18n::text("This updates when plugin installation completes")
+                        .to_string(),
+                ),
                 is_disabled: true,
                 ..Default::default()
             }],
@@ -541,11 +586,16 @@ impl ChatWidget {
     ) -> SelectionViewParams {
         SelectionViewParams {
             view_id: Some(PLUGINS_SELECTION_VIEW_ID),
-            title: Some("Plugins".to_string()),
-            subtitle: Some(format!("Uninstalling {plugin_display_name}...")),
+            title: Some(crate::i18n::text("Plugins").to_string()),
+            subtitle: Some(crate::i18n::message(
+                "r39-plugins-uninstalling",
+                &[("plugin_display_name", plugin_display_name)],
+            )),
             items: vec![SelectionItem {
-                name: "Uninstalling plugin...".to_string(),
-                description: Some("This updates when the plugin removal completes".to_string()),
+                name: crate::i18n::text("Uninstalling plugin...").to_string(),
+                description: Some(
+                    crate::i18n::text("This updates when the plugin removal completes").to_string(),
+                ),
                 is_disabled: true,
                 ..Default::default()
             }],
@@ -556,10 +606,10 @@ impl ChatWidget {
     pub(super) fn plugins_error_popup_params(&self, err: &str) -> SelectionViewParams {
         SelectionViewParams {
             view_id: Some(PLUGINS_SELECTION_VIEW_ID),
-            title: Some("Plugins".to_string()),
-            subtitle: Some("Failed to load plugins.".to_string()),
+            title: Some(crate::i18n::text("Plugins").to_string()),
+            subtitle: Some(crate::i18n::text("Failed to load plugins.").to_string()),
             items: vec![SelectionItem {
-                name: "Plugin marketplace unavailable".to_string(),
+                name: crate::i18n::text("Plugin marketplace unavailable").to_string(),
                 description: Some(err.to_string()),
                 is_disabled: true,
                 ..Default::default()
@@ -571,15 +621,20 @@ impl ChatWidget {
     pub(super) fn marketplace_add_error_popup_params(&self) -> SelectionViewParams {
         let mut items = vec![
             SelectionItem {
-                name: "Marketplace add failed".to_string(),
-                description: Some("Failed to add marketplace from the provided source".to_string()),
+                name: crate::i18n::text("Marketplace add failed").to_string(),
+                description: Some(
+                    crate::i18n::text("Failed to add marketplace from the provided source")
+                        .to_string(),
+                ),
                 is_disabled: true,
                 ..Default::default()
             },
             SelectionItem {
-                name: "Try again".to_string(),
-                description: Some("Enter a marketplace source".to_string()),
-                selected_description: Some("Enter a marketplace source".to_string()),
+                name: crate::i18n::text("Try again").to_string(),
+                description: Some(crate::i18n::text("Enter a marketplace source").to_string()),
+                selected_description: Some(
+                    crate::i18n::text("Enter a marketplace source").to_string(),
+                ),
                 actions: vec![Box::new(|tx| {
                     tx.send(AppEvent::OpenMarketplaceAddPrompt);
                 })],
@@ -590,9 +645,11 @@ impl ChatWidget {
         if let PluginsCacheState::Ready(plugins_response) = self.plugins_cache_for_current_cwd() {
             let cwd = self.config.cwd.to_path_buf();
             items.push(SelectionItem {
-                name: "Back to plugins".to_string(),
-                description: Some("Return to the plugin list".to_string()),
-                selected_description: Some("Return to the plugin list".to_string()),
+                name: crate::i18n::text("Back to plugins").to_string(),
+                description: Some(crate::i18n::text("Return to the plugin list").to_string()),
+                selected_description: Some(
+                    crate::i18n::text("Return to the plugin list").to_string(),
+                ),
                 actions: vec![Box::new(move |tx| {
                     tx.send(AppEvent::OpenPluginsList {
                         cwd: cwd.clone(),
@@ -605,8 +662,8 @@ impl ChatWidget {
 
         SelectionViewParams {
             view_id: Some(PLUGINS_SELECTION_VIEW_ID),
-            title: Some("Plugins".to_string()),
-            subtitle: Some("Failed to add marketplace.".to_string()),
+            title: Some(crate::i18n::text("Plugins").to_string()),
+            subtitle: Some(crate::i18n::text("Failed to add marketplace.").to_string()),
             footer_hint: Some(plugin_detail_hint_line()),
             items,
             ..SelectionViewParams::picker()
@@ -622,15 +679,21 @@ impl ChatWidget {
         let marketplace_display_name = marketplace_display_name.to_string();
         let mut items = vec![
             SelectionItem {
-                name: "Marketplace removal failed".to_string(),
-                description: Some("Failed to remove the selected marketplace".to_string()),
+                name: crate::i18n::text("Marketplace removal failed").to_string(),
+                description: Some(
+                    crate::i18n::text("Failed to remove the selected marketplace").to_string(),
+                ),
                 is_disabled: true,
                 ..Default::default()
             },
             SelectionItem {
-                name: "Try again".to_string(),
-                description: Some("Review the confirmation prompt again".to_string()),
-                selected_description: Some("Review the confirmation prompt again".to_string()),
+                name: crate::i18n::text("Try again").to_string(),
+                description: Some(
+                    crate::i18n::text("Review the confirmation prompt again").to_string(),
+                ),
+                selected_description: Some(
+                    crate::i18n::text("Review the confirmation prompt again").to_string(),
+                ),
                 actions: vec![Box::new(move |tx| {
                     tx.send(AppEvent::OpenMarketplaceRemoveConfirm {
                         marketplace_name: marketplace_name.clone(),
@@ -644,9 +707,11 @@ impl ChatWidget {
         if let PluginsCacheState::Ready(plugins_response) = self.plugins_cache_for_current_cwd() {
             let cwd = self.config.cwd.to_path_buf();
             items.push(SelectionItem {
-                name: "Back to plugins".to_string(),
-                description: Some("Return to the plugin list".to_string()),
-                selected_description: Some("Return to the plugin list".to_string()),
+                name: crate::i18n::text("Back to plugins").to_string(),
+                description: Some(crate::i18n::text("Return to the plugin list").to_string()),
+                selected_description: Some(
+                    crate::i18n::text("Return to the plugin list").to_string(),
+                ),
                 actions: vec![Box::new(move |tx| {
                     tx.send(AppEvent::OpenPluginsList {
                         cwd: cwd.clone(),
@@ -659,8 +724,8 @@ impl ChatWidget {
 
         SelectionViewParams {
             view_id: Some(PLUGINS_SELECTION_VIEW_ID),
-            title: Some("Plugins".to_string()),
-            subtitle: Some("Failed to remove marketplace.".to_string()),
+            title: Some(crate::i18n::text("Plugins").to_string()),
+            subtitle: Some(crate::i18n::text("Failed to remove marketplace.").to_string()),
             footer_hint: Some(plugin_detail_hint_line()),
             items,
             ..SelectionViewParams::picker()
@@ -673,7 +738,7 @@ impl ChatWidget {
         plugins_response: Option<&PluginListResponse>,
     ) -> SelectionViewParams {
         let mut items = vec![SelectionItem {
-            name: "Plugin detail unavailable".to_string(),
+            name: crate::i18n::text("Plugin detail unavailable").to_string(),
             description: Some(err.to_string()),
             is_disabled: true,
             ..Default::default()
@@ -681,9 +746,11 @@ impl ChatWidget {
         if let Some(plugins_response) = plugins_response.cloned() {
             let cwd = self.config.cwd.to_path_buf();
             items.push(SelectionItem {
-                name: "Back to plugins".to_string(),
-                description: Some("Return to the plugin list".to_string()),
-                selected_description: Some("Return to the plugin list".to_string()),
+                name: crate::i18n::text("Back to plugins").to_string(),
+                description: Some(crate::i18n::text("Return to the plugin list").to_string()),
+                selected_description: Some(
+                    crate::i18n::text("Return to the plugin list").to_string(),
+                ),
                 actions: vec![Box::new(move |tx| {
                     tx.send(AppEvent::OpenPluginsList {
                         cwd: cwd.clone(),
@@ -696,8 +763,8 @@ impl ChatWidget {
 
         SelectionViewParams {
             view_id: Some(PLUGINS_SELECTION_VIEW_ID),
-            title: Some("Plugins".to_string()),
-            subtitle: Some("Failed to load plugin details.".to_string()),
+            title: Some(crate::i18n::text("Plugins").to_string()),
+            subtitle: Some(crate::i18n::text("Failed to load plugin details.").to_string()),
             footer_hint: Some(plugin_detail_hint_line()),
             items,
             ..SelectionViewParams::picker()
@@ -724,7 +791,7 @@ impl ChatWidget {
             .map(|(_, _, display_name)| {
                 PLUGIN_ROW_PREFIX_WIDTH + UnicodeWidthStr::width(display_name.as_str())
             })
-            .chain([UnicodeWidthStr::width("Add marketplace")])
+            .chain([UnicodeWidthStr::width(crate::i18n::text("Add marketplace"))])
             .max()
             .map(|width| width.min(/*other*/ 36));
         let installed_entries = all_entries
@@ -739,33 +806,45 @@ impl ChatWidget {
             all_entries,
             &preferred_local_sources,
             /*include_marketplace_names*/ true,
-            "No marketplace plugins available",
-            "No plugins are available in the discovered marketplaces",
+            crate::i18n::text("No marketplace plugins available"),
+            crate::i18n::text("No plugins are available in the discovered marketplaces"),
         );
 
         tabs.push(SelectionTab {
             id: ALL_PLUGINS_TAB_ID.to_string(),
-            label: "All Plugins".to_string(),
+            label: crate::i18n::text("All Plugins").to_string(),
             header: plugins_header(
-                "Browse plugins from available marketplaces.".to_string(),
-                format!("Installed {installed} of {total} available plugins."),
+                crate::i18n::text("Browse plugins from available marketplaces.").to_string(),
+                crate::i18n::message(
+                    "r39-plugins-installed-count",
+                    &[
+                        ("installed", &installed.to_string()),
+                        ("total", &total.to_string()),
+                    ],
+                ),
             ),
             items: all_items,
         });
 
         tabs.push(SelectionTab {
             id: INSTALLED_PLUGINS_TAB_ID.to_string(),
-            label: format!("Installed ({installed})"),
+            label: crate::i18n::message(
+                "r39-plugins-installed-tab",
+                &[("installed", &installed.to_string())],
+            ),
             header: plugins_header(
-                "Installed plugins.".to_string(),
-                format!("Showing {installed} installed plugins."),
+                crate::i18n::text("Installed plugins.").to_string(),
+                crate::i18n::message(
+                    "r39-plugins-showing-installed",
+                    &[("installed", &installed.to_string())],
+                ),
             ),
             items: self.plugin_selection_items(
                 installed_entries,
                 &preferred_local_sources,
                 /*include_marketplace_names*/ true,
-                "No installed plugins",
-                "No installed plugins",
+                crate::i18n::text("No installed plugins"),
+                crate::i18n::text("No installed plugins"),
             ),
         });
 
@@ -786,17 +865,20 @@ impl ChatWidget {
         let (curated_empty_name, curated_empty_description) =
             if curated_loading && !curated_has_entries {
                 (
-                    "Loading OpenAI Curated plugins...",
-                    OPENAI_CURATED_LOADING_DESCRIPTION,
+                    crate::i18n::text("Loading OpenAI Curated plugins..."),
+                    crate::i18n::text(OPENAI_CURATED_LOADING_DESCRIPTION),
                 )
             } else if let Some(section_error) = by_openai_section_error
                 && !curated_has_entries
             {
-                ("OpenAI Curated unavailable", section_error.message.as_str())
+                (
+                    crate::i18n::text("OpenAI Curated unavailable"),
+                    section_error.message.as_str(),
+                )
             } else {
                 (
-                    "No OpenAI Curated plugins available",
-                    "No OpenAI Curated plugins available",
+                    crate::i18n::text("No OpenAI Curated plugins available"),
+                    crate::i18n::text("No OpenAI Curated plugins available"),
                 )
             };
         let mut curated_items = self.plugin_selection_items(
@@ -808,8 +890,8 @@ impl ChatWidget {
         );
         if curated_loading && curated_has_entries {
             curated_items.push(remote_section_loading_item(
-                "OpenAI Curated",
-                OPENAI_CURATED_LOADING_DESCRIPTION,
+                crate::i18n::text("OpenAI Curated"),
+                crate::i18n::text(OPENAI_CURATED_LOADING_DESCRIPTION),
             ));
         }
         if let Some(section_error) = by_openai_section_error
@@ -822,10 +904,16 @@ impl ChatWidget {
         }
         tabs.push(SelectionTab {
             id: OPENAI_CURATED_TAB_ID.to_string(),
-            label: "OpenAI Curated".to_string(),
+            label: crate::i18n::text("OpenAI Curated").to_string(),
             header: plugins_header(
-                "OpenAI Curated marketplace.".to_string(),
-                format!("Installed {curated_installed} of {curated_total} OpenAI Curated plugins."),
+                crate::i18n::text("OpenAI Curated marketplace.").to_string(),
+                crate::i18n::message(
+                    "r39-plugins-curated-count",
+                    &[
+                        ("curated_installed", &curated_installed.to_string()),
+                        ("curated_total", &curated_total.to_string()),
+                    ],
+                ),
             ),
             items: curated_items,
         });
@@ -885,15 +973,20 @@ impl ChatWidget {
             }
             let header = if self.newly_installed_marketplace_tab_id.as_deref() == Some(&tab_id) {
                 plugins_header(
-                    format!("{label} installed successfully."),
-                    "Select the plugins you want to use and press Enter to install or view details."
+                    crate::i18n::message("r39-plugins-marketplace-installed", &[("label", label.as_str())]),
+                    crate::i18n::text("Select the plugins you want to use and press Enter to install or view details.")
                         .to_string(),
                 )
             } else {
                 plugins_header(
                     format!("{label}."),
-                    format!(
-                        "Installed {marketplace_installed} of {marketplace_total} {label} plugins."
+                    crate::i18n::message(
+                        "r39-plugins-marketplace-count",
+                        &[
+                            ("marketplace_installed", &marketplace_installed.to_string()),
+                            ("marketplace_total", &marketplace_total.to_string()),
+                            ("label", label.as_str()),
+                        ],
                     ),
                 )
             };
@@ -907,8 +1000,8 @@ impl ChatWidget {
                         entries,
                         &preferred_local_sources,
                         /*include_marketplace_names*/ false,
-                        "No plugins available in this marketplace",
-                        "No plugins available in this marketplace",
+                        crate::i18n::text("No plugins available in this marketplace"),
+                        crate::i18n::text("No plugins available in this marketplace"),
                     ),
                 },
             ));
@@ -932,7 +1025,7 @@ impl ChatWidget {
             initial_tab_id,
             is_searchable: true,
             search_toggle_key: Some(crate::key_hint::plain(KeyCode::Tab)),
-            search_placeholder: Some("Type to search plugins".to_string()),
+            search_placeholder: Some(crate::i18n::text("Type to search plugins").to_string()),
             col_width_mode: ColumnWidthMode::AutoAllRows,
             row_display: SelectionRowDisplay::SingleLine,
             name_column_width,
@@ -944,17 +1037,21 @@ impl ChatWidget {
     fn marketplace_add_tab(&self) -> SelectionTab {
         SelectionTab {
             id: ADD_MARKETPLACE_TAB_ID.to_string(),
-            label: "Add Marketplace".to_string(),
+            label: crate::i18n::text("Add Marketplace").to_string(),
             header: plugins_header(
-                "Add a marketplace from a Git repo or local root.".to_string(),
-                "Enter a source to make its plugins available in this menu.".to_string(),
+                crate::i18n::text("Add a marketplace from a Git repo or local root.").to_string(),
+                crate::i18n::text("Enter a source to make its plugins available in this menu.")
+                    .to_string(),
             ),
             items: vec![SelectionItem {
-                name: "Add marketplace".to_string(),
+                name: crate::i18n::text("Add marketplace").to_string(),
                 description: Some(
-                    "Enter owner/repo, a Git URL, or a local marketplace path".to_string(),
+                    crate::i18n::text("Enter owner/repo, a Git URL, or a local marketplace path")
+                        .to_string(),
                 ),
-                selected_description: Some("Press Enter to enter a marketplace source".to_string()),
+                selected_description: Some(
+                    crate::i18n::text("Press Enter to enter a marketplace source").to_string(),
+                ),
                 actions: vec![Box::new(|tx| {
                     tx.send(AppEvent::OpenMarketplaceAddPrompt);
                 })],
@@ -979,7 +1076,7 @@ impl ChatWidget {
         let detail_status_label = plugin_detail_status_label(&plugin.summary);
         let mut header = ColumnRenderable::new();
         header.push(
-            ratatui::widgets::Paragraph::new(Line::from("Plugins".bold()))
+            ratatui::widgets::Paragraph::new(Line::from(crate::i18n::text("Plugins").bold()))
                 .wrap(ratatui::widgets::Wrap { trim: false }),
         );
         header.push(
@@ -991,12 +1088,12 @@ impl ChatWidget {
         if !plugin.summary.installed {
             header.push(PluginDisclosureLine {
                 line: Line::from(vec![
-                    "Data shared with this app is subject to the app's ".into(),
-                    "terms of service".bold(),
-                    " and ".into(),
-                    "privacy policy".bold(),
+                    crate::i18n::text("Data shared with this app is subject to the app's ").into(),
+                    crate::i18n::text("terms of service").bold(),
+                    crate::i18n::text(" and ").into(),
+                    crate::i18n::text("privacy policy").bold(),
                     ". ".into(),
-                    "Learn more".cyan().underlined(),
+                    crate::i18n::text("Learn more").cyan().underlined(),
                     ".".into(),
                 ]),
             });
@@ -1011,9 +1108,9 @@ impl ChatWidget {
         let cwd = self.config.cwd.to_path_buf();
         let plugins_response = plugins_response.clone();
         let mut items = vec![SelectionItem {
-            name: "Back to plugins".to_string(),
-            description: Some("Return to the plugin list".to_string()),
-            selected_description: Some("Return to the plugin list".to_string()),
+            name: crate::i18n::text("Back to plugins").to_string(),
+            description: Some(crate::i18n::text("Return to the plugin list").to_string()),
+            selected_description: Some(crate::i18n::text("Return to the plugin list").to_string()),
             actions: vec![Box::new(move |tx| {
                 tx.send(AppEvent::OpenPluginsList {
                     cwd: cwd.clone(),
@@ -1026,9 +1123,10 @@ impl ChatWidget {
         if plugin.summary.installed {
             if plugin.summary.install_policy == PluginInstallPolicy::InstalledByDefault {
                 items.push(SelectionItem {
-                    name: "Installed by admin".to_string(),
+                    name: crate::i18n::text("Installed by admin").to_string(),
                     description: Some(
-                        "This plugin is installed by your workspace admin".to_string(),
+                        crate::i18n::text("This plugin is installed by your workspace admin")
+                            .to_string(),
                     ),
                     is_disabled: true,
                     ..Default::default()
@@ -1037,9 +1135,11 @@ impl ChatWidget {
                 let uninstall_cwd = self.config.cwd.to_path_buf();
                 let plugin_display_name = display_name;
                 items.push(SelectionItem {
-                    name: "Uninstall plugin".to_string(),
-                    description: Some("Remove this plugin now".to_string()),
-                    selected_description: Some("Remove this plugin now".to_string()),
+                    name: crate::i18n::text("Uninstall plugin").to_string(),
+                    description: Some(crate::i18n::text("Remove this plugin now").to_string()),
+                    selected_description: Some(
+                        crate::i18n::text("Remove this plugin now").to_string(),
+                    ),
                     actions: vec![Box::new(move |tx| {
                         tx.send(AppEvent::OpenPluginUninstallLoading {
                             plugin_display_name: plugin_display_name.clone(),
@@ -1054,9 +1154,12 @@ impl ChatWidget {
                 });
             } else {
                 items.push(SelectionItem {
-                    name: "Uninstall plugin".to_string(),
+                    name: crate::i18n::text("Uninstall plugin").to_string(),
                     description: Some(
-                        "This remote plugin did not provide an uninstall identity".to_string(),
+                        crate::i18n::text(
+                            "This remote plugin did not provide an uninstall identity",
+                        )
+                        .to_string(),
                     ),
                     is_disabled: true,
                     ..Default::default()
@@ -1064,16 +1167,20 @@ impl ChatWidget {
             }
         } else if plugin.summary.availability == PluginAvailability::DisabledByAdmin {
             items.push(SelectionItem {
-                name: "Install plugin".to_string(),
-                description: Some("This plugin is disabled by your workspace admin".to_string()),
+                name: crate::i18n::text("Install plugin").to_string(),
+                description: Some(
+                    crate::i18n::text("This plugin is disabled by your workspace admin")
+                        .to_string(),
+                ),
                 is_disabled: true,
                 ..Default::default()
             });
         } else if plugin.summary.install_policy == PluginInstallPolicy::NotAvailable {
             items.push(SelectionItem {
-                name: "Install plugin".to_string(),
+                name: crate::i18n::text("Install plugin").to_string(),
                 description: Some(
-                    "This plugin is not installable from this marketplace".to_string(),
+                    crate::i18n::text("This plugin is not installable from this marketplace")
+                        .to_string(),
                 ),
                 is_disabled: true,
                 ..Default::default()
@@ -1083,9 +1190,11 @@ impl ChatWidget {
             let plugin_name = plugin_request_name(&plugin.summary);
             let plugin_display_name = display_name;
             items.push(SelectionItem {
-                name: "Install plugin".to_string(),
-                description: Some("Install this plugin now".to_string()),
-                selected_description: Some("Install this plugin now".to_string()),
+                name: crate::i18n::text("Install plugin").to_string(),
+                description: Some(crate::i18n::text("Install this plugin now").to_string()),
+                selected_description: Some(
+                    crate::i18n::text("Install this plugin now").to_string(),
+                ),
                 actions: vec![Box::new(move |tx| {
                     tx.send(AppEvent::OpenPluginInstallLoading {
                         plugin_display_name: plugin_display_name.clone(),
@@ -1101,8 +1210,11 @@ impl ChatWidget {
             });
         } else {
             items.push(SelectionItem {
-                name: "Install plugin".to_string(),
-                description: Some("This plugin did not provide an install location".to_string()),
+                name: crate::i18n::text("Install plugin").to_string(),
+                description: Some(
+                    crate::i18n::text("This plugin did not provide an install location")
+                        .to_string(),
+                ),
                 is_disabled: true,
                 ..Default::default()
             });
@@ -1111,25 +1223,25 @@ impl ChatWidget {
         items.extend(plugin_metadata_items(plugin));
 
         items.push(SelectionItem {
-            name: "Skills".to_string(),
+            name: crate::i18n::text("Skills").to_string(),
             description: Some(plugin_skill_summary(plugin)),
             is_disabled: true,
             ..Default::default()
         });
         items.push(SelectionItem {
-            name: "Hooks".to_string(),
+            name: crate::i18n::text("Hooks").to_string(),
             description: Some(plugin_hook_summary(plugin)),
             is_disabled: true,
             ..Default::default()
         });
         items.push(SelectionItem {
-            name: "Apps".to_string(),
+            name: crate::i18n::text("Apps").to_string(),
             description: Some(plugin_app_summary(plugin)),
             is_disabled: true,
             ..Default::default()
         });
         items.push(SelectionItem {
-            name: "MCP Servers".to_string(),
+            name: crate::i18n::text("MCP Servers").to_string(),
             description: Some(plugin_mcp_summary(plugin)),
             is_disabled: true,
             ..Default::default()
@@ -1178,24 +1290,58 @@ impl ChatWidget {
                 && !disabled_by_admin;
             let selected_status_label = format!("{status_label:<status_label_width$}");
             let selected_description = if can_toggle_plugin && self.plugin_toggle_key_available() {
-                let toggle_action = if plugin.enabled { "disable" } else { "enable" };
-                if can_view_details {
-                    format!("{selected_status_label}   Tab to {toggle_action}; Enter view details")
+                let toggle_action = if plugin.enabled {
+                    crate::i18n::text("disable")
                 } else {
-                    format!("{selected_status_label}   Tab to {toggle_action}")
+                    crate::i18n::text("enable")
+                };
+                if can_view_details {
+                    crate::i18n::message(
+                        "r39-plugins-toggle-details",
+                        &[
+                            ("status", &selected_status_label),
+                            ("action", toggle_action),
+                        ],
+                    )
+                } else {
+                    crate::i18n::message(
+                        "r39-plugins-toggle",
+                        &[
+                            ("status", &selected_status_label),
+                            ("action", toggle_action),
+                        ],
+                    )
                 }
             } else if disabled_by_admin && can_view_details {
-                format!("{selected_status_label}   Press Enter to view plugin details")
+                crate::i18n::message(
+                    "r39-plugins-view-details",
+                    &[("status", &selected_status_label)],
+                )
             } else if disabled_by_admin {
-                format!("{selected_status_label}   Plugin details are unavailable")
+                crate::i18n::message(
+                    "r39-plugins-details-unavailable",
+                    &[("status", &selected_status_label)],
+                )
             } else if plugin.installed && can_view_details {
-                format!("{selected_status_label}   Press Enter to view plugin details")
+                crate::i18n::message(
+                    "r39-plugins-view-details",
+                    &[("status", &selected_status_label)],
+                )
             } else if plugin.installed {
-                format!("{selected_status_label}   Plugin details are unavailable")
+                crate::i18n::message(
+                    "r39-plugins-details-unavailable",
+                    &[("status", &selected_status_label)],
+                )
             } else if can_view_details {
-                format!("{selected_status_label}   Press Enter to install or view plugin details")
+                crate::i18n::message(
+                    "r39-plugins-install-or-details",
+                    &[("status", &selected_status_label)],
+                )
             } else {
-                format!("{selected_status_label}   Remote plugin details are not available yet")
+                crate::i18n::message(
+                    "r39-plugins-remote-details-pending",
+                    &[("status", &selected_status_label)],
+                )
             };
             let search_value = format!(
                 "{display_name} {} {} {} {} {}",
@@ -1240,7 +1386,8 @@ impl ChatWidget {
                     Vec::new()
                 };
             let is_disabled = !can_view_details && !plugin.installed;
-            let disabled_reason = is_disabled.then(|| "plugin details are unavailable".to_string());
+            let disabled_reason = is_disabled
+                .then(|| crate::i18n::text("plugin details are unavailable").to_string());
 
             items.push(SelectionItem {
                 name: display_name,
@@ -1288,33 +1435,45 @@ impl ChatWidget {
         let mut hints = Vec::new();
         if can_upgrade_marketplace {
             let upgrade = crate::key_hint::ctrl(KeyCode::Char('u')).display_label();
-            hints.push(format!("{upgrade} upgrade"));
+            hints.push(crate::i18n::message(
+                "r39-plugins-upgrade-hint",
+                &[("key", &upgrade)],
+            ));
         }
         if can_remove_marketplace {
             let remove = crate::key_hint::ctrl(KeyCode::Char('r')).display_label();
-            hints.push(format!("{remove} remove"));
+            hints.push(crate::i18n::message(
+                "r39-plugins-remove-hint",
+                &[("key", &remove)],
+            ));
         }
         let toggle_key_available = self.plugin_toggle_key_available();
         if (can_remove_marketplace || can_upgrade_marketplace) && toggle_key_available {
-            hints.push("tab toggle".to_string());
+            hints.push(crate::i18n::text("tab toggle").to_string());
         }
-        hints.extend(["←/→ tabs", "enter details"].map(str::to_string));
+        hints.extend(
+            [
+                crate::i18n::text("←/→ tabs"),
+                crate::i18n::text("enter details"),
+            ]
+            .map(str::to_string),
+        );
         if !can_remove_marketplace && !can_upgrade_marketplace && toggle_key_available {
-            hints.push("tab toggle".to_string());
+            hints.push(crate::i18n::text("tab toggle").to_string());
         }
-        hints.push("esc close".to_string());
+        hints.push(crate::i18n::text("esc close").to_string());
         Line::from(hints.join(" · "))
     }
 }
 
 pub(super) fn plugin_detail_hint_line() -> Line<'static> {
-    Line::from("esc close")
+    Line::from(crate::i18n::text("esc close"))
 }
 
 pub(super) fn plugins_header(subtitle: String, count_line: String) -> Box<dyn Renderable> {
     Box::new(
         Paragraph::new(vec![
-            Line::from("Plugins".bold()),
+            Line::from(crate::i18n::text("Plugins").bold()),
             Line::from(subtitle.dim()),
             Line::from(count_line.dim()),
         ])
@@ -1404,26 +1563,26 @@ fn preferred_local_plugin_sources(
 
 fn plugin_detail_status_label(plugin: &PluginSummary) -> &'static str {
     if plugin.availability == PluginAvailability::DisabledByAdmin {
-        return "Disabled by admin";
+        return crate::i18n::text("Disabled by admin");
     }
     if plugin.install_policy == PluginInstallPolicy::InstalledByDefault {
         return if plugin.installed {
-            "Installed by admin"
+            crate::i18n::text("Installed by admin")
         } else {
-            "Enabled by Admin"
+            crate::i18n::text("Enabled by Admin")
         };
     }
     if plugin.installed {
         if plugin.enabled {
-            "Installed"
+            crate::i18n::text("Installed")
         } else {
-            "Disabled"
+            crate::i18n::text("Disabled")
         }
     } else {
         match plugin.install_policy {
-            PluginInstallPolicy::NotAvailable => "Not installable",
-            PluginInstallPolicy::Available => "Can be installed",
-            PluginInstallPolicy::InstalledByDefault => "Installed by admin",
+            PluginInstallPolicy::NotAvailable => crate::i18n::text("Not installable"),
+            PluginInstallPolicy::Available => crate::i18n::text("Can be installed"),
+            PluginInstallPolicy::InstalledByDefault => crate::i18n::text("Installed by admin"),
         }
     }
 }
@@ -1431,20 +1590,20 @@ fn plugin_detail_status_label(plugin: &PluginSummary) -> &'static str {
 fn plugin_metadata_items(plugin: &PluginDetail) -> Vec<SelectionItem> {
     let mut items = Vec::new();
     items.push(SelectionItem {
-        name: "Source".to_string(),
+        name: crate::i18n::text("Source").to_string(),
         description: Some(plugin_source_summary(plugin)),
         is_disabled: true,
         ..Default::default()
     });
     items.push(SelectionItem {
-        name: "Auth".to_string(),
+        name: crate::i18n::text("Auth").to_string(),
         description: Some(plugin_auth_policy_summary(plugin.summary.auth_policy)),
         is_disabled: true,
         ..Default::default()
     });
     if let Some(version) = plugin_version_summary(&plugin.summary) {
         items.push(SelectionItem {
-            name: "Version".to_string(),
+            name: crate::i18n::text("Version").to_string(),
             description: Some(version),
             is_disabled: true,
             ..Default::default()
@@ -1452,7 +1611,7 @@ fn plugin_metadata_items(plugin: &PluginDetail) -> Vec<SelectionItem> {
     }
     if let Some(share_context) = &plugin.summary.share_context {
         items.push(SelectionItem {
-            name: "Sharing".to_string(),
+            name: crate::i18n::text("Sharing").to_string(),
             description: Some(plugin_share_context_summary(share_context)),
             is_disabled: true,
             ..Default::default()
@@ -1463,7 +1622,7 @@ fn plugin_metadata_items(plugin: &PluginDetail) -> Vec<SelectionItem> {
 
 fn plugin_source_summary(plugin: &PluginDetail) -> String {
     match &plugin.summary.source {
-        PluginSource::Local { .. } => "Local".to_string(),
+        PluginSource::Local { .. } => crate::i18n::text("Local").to_string(),
         PluginSource::Git { url, ref_name, .. } => match ref_name {
             Some(ref_name) => format!("Git · {url}@{ref_name}"),
             None => format!("Git · {url}"),
@@ -1479,29 +1638,38 @@ fn plugin_source_summary(plugin: &PluginDetail) -> String {
                 MarketplaceProduct::from_marketplace_name(&plugin.marketplace_name)
                     .label()
                     .unwrap_or(plugin.marketplace_name.as_str());
-            format!("Remote · {marketplace_label}")
+            crate::i18n::message(
+                "r39-plugins-remote-source",
+                &[("marketplace_label", marketplace_label)],
+            )
         }
     }
 }
 
 fn plugin_auth_policy_summary(auth_policy: PluginAuthPolicy) -> String {
     match auth_policy {
-        PluginAuthPolicy::OnInstall => "Auth on install".to_string(),
-        PluginAuthPolicy::OnUse => "Auth on use".to_string(),
+        PluginAuthPolicy::OnInstall => crate::i18n::text("Auth on install").to_string(),
+        PluginAuthPolicy::OnUse => crate::i18n::text("Auth on use").to_string(),
     }
 }
 
 fn plugin_version_summary(plugin: &PluginSummary) -> Option<String> {
     let mut parts = Vec::new();
     if let Some(local_version) = plugin.local_version.as_deref() {
-        parts.push(format!("local {local_version}"));
+        parts.push(crate::i18n::message(
+            "r39-plugins-local-version",
+            &[("version", local_version)],
+        ));
     }
     if let Some(remote_version) = plugin
         .share_context
         .as_ref()
         .and_then(|context| context.remote_version.as_deref())
     {
-        parts.push(format!("remote {remote_version}"));
+        parts.push(crate::i18n::message(
+            "r39-plugins-remote-version",
+            &[("version", remote_version)],
+        ));
     }
     (!parts.is_empty()).then(|| parts.join(" · "))
 }
@@ -1525,7 +1693,10 @@ fn plugin_share_context_summary(context: &PluginShareContext) -> String {
         parts.push(share_url.to_string());
     }
     if parts.is_empty() {
-        format!("Remote ID {}", context.remote_plugin_id)
+        crate::i18n::message(
+            "r39-plugins-remote-id",
+            &[("id", &context.remote_plugin_id)],
+        )
     } else {
         parts.join(" · ")
     }
@@ -1533,9 +1704,9 @@ fn plugin_share_context_summary(context: &PluginShareContext) -> String {
 
 fn plugin_share_discoverability_label(discoverability: PluginShareDiscoverability) -> &'static str {
     match discoverability {
-        PluginShareDiscoverability::Listed => "Listed",
-        PluginShareDiscoverability::Unlisted => "Workspace link",
-        PluginShareDiscoverability::Private => "Private",
+        PluginShareDiscoverability::Listed => crate::i18n::text("Listed"),
+        PluginShareDiscoverability::Unlisted => crate::i18n::text("Workspace link"),
+        PluginShareDiscoverability::Private => crate::i18n::text("Private"),
     }
 }
 
@@ -1544,18 +1715,33 @@ fn plugin_share_creator_summary(context: &PluginShareContext) -> Option<String> 
         context.creator_name.as_deref(),
         context.creator_account_user_id.as_deref(),
     ) {
-        (Some(name), Some(account_id)) => Some(format!("creator {name} ({account_id})")),
-        (Some(name), None) => Some(format!("creator {name}")),
-        (None, Some(account_id)) => Some(format!("creator account {account_id}")),
+        (Some(name), Some(account_id)) => Some(crate::i18n::message(
+            "r39-plugins-creator-account",
+            &[("name", name), ("account_id", account_id)],
+        )),
+        (Some(name), None) => Some(crate::i18n::message(
+            "r39-plugins-creator",
+            &[("name", name)],
+        )),
+        (None, Some(account_id)) => Some(crate::i18n::message(
+            "r39-plugins-creator-account-id",
+            &[("account_id", account_id)],
+        )),
         (None, None) => None,
     }
 }
 
 fn plugin_share_principals_summary(principals: &[PluginSharePrincipal]) -> String {
     match principals.len() {
-        0 => "No explicit principals".to_string(),
-        1 => format!("1 principal: {}", principals[0].name),
-        count => format!("{count} principals"),
+        0 => crate::i18n::text("No explicit principals").to_string(),
+        1 => crate::i18n::message(
+            "r39-plugins-one-principal",
+            &[("name", &principals[0].name)],
+        ),
+        count => crate::i18n::message(
+            "r39-plugins-principals-count",
+            &[("count", &count.to_string())],
+        ),
     }
 }
 
@@ -1704,7 +1890,7 @@ fn is_personal_marketplace_path(marketplace_path: &AbsolutePathBuf) -> bool {
 
 fn remote_section_loading_item(label: &str, description: &str) -> SelectionItem {
     SelectionItem {
-        name: format!("Loading {label} plugins..."),
+        name: crate::i18n::message("r39-plugins-section-loading-item", &[("label", label)]),
         description: Some(description.to_string()),
         is_disabled: true,
         ..Default::default()
@@ -1713,7 +1899,7 @@ fn remote_section_loading_item(label: &str, description: &str) -> SelectionItem 
 
 fn remote_section_error_item(label: &str, message: &str) -> SelectionItem {
     SelectionItem {
-        name: format!("{label} unavailable"),
+        name: crate::i18n::message("r39-plugins-section-unavailable", &[("label", label)]),
         description: Some(message.to_string()),
         is_disabled: true,
         ..Default::default()
@@ -1734,8 +1920,8 @@ fn remote_section_loading_tab(id: &str, label: &str, item_description: &str) -> 
         id: format!("{REMOTE_LOADING_TAB_ID_PREFIX}{id}"),
         label: label.to_string(),
         header: plugins_header(
-            format!("Loading {label} plugins."),
-            "Local plugin functionality is already available.".to_string(),
+            crate::i18n::message("r39-plugins-section-loading", &[("label", label)]),
+            crate::i18n::text("Local plugin functionality is already available.").to_string(),
         ),
         items: vec![remote_section_loading_item(label, item_description)],
     }
@@ -1752,7 +1938,7 @@ fn remote_section_empty_tab(
         label: label.to_string(),
         header: plugins_header(
             format!("{label}."),
-            "This section loaded successfully.".to_string(),
+            crate::i18n::text("This section loaded successfully.").to_string(),
         ),
         items: vec![SelectionItem {
             name: item_name.to_string(),
@@ -1768,8 +1954,11 @@ fn remote_section_error_tab(section_error: &PluginRemoteSectionError) -> Selecti
         id: format!("{REMOTE_ERROR_TAB_ID_PREFIX}{}", section_error.section_id),
         label: section_error.label.clone(),
         header: plugins_header(
-            format!("{} unavailable.", section_error.label),
-            "Local plugin functionality is still available.".to_string(),
+            crate::i18n::message(
+                "r39-plugins-section-error",
+                &[("label", &section_error.label)],
+            ),
+            crate::i18n::text("Local plugin functionality is still available.").to_string(),
         ),
         items: vec![remote_section_error_item(
             &section_error.label,
@@ -1875,22 +2064,22 @@ fn plugin_brief_description_without_marketplace(
 
 fn plugin_status_label(plugin: &PluginSummary) -> &'static str {
     if plugin.availability == PluginAvailability::DisabledByAdmin {
-        return "Disabled";
+        return crate::i18n::text("Disabled");
     }
     if !plugin.installed && plugin.install_policy == PluginInstallPolicy::InstalledByDefault {
-        return "Admin assigned";
+        return crate::i18n::text("Admin assigned");
     }
     if plugin.installed {
         if plugin.enabled {
-            "Installed"
+            crate::i18n::text("Installed")
         } else {
-            "Disabled"
+            crate::i18n::text("Disabled")
         }
     } else {
         match plugin.install_policy {
-            PluginInstallPolicy::NotAvailable => "Not installable",
-            PluginInstallPolicy::Available => "Available",
-            PluginInstallPolicy::InstalledByDefault => "Installed",
+            PluginInstallPolicy::NotAvailable => crate::i18n::text("Not installable"),
+            PluginInstallPolicy::Available => crate::i18n::text("Available"),
+            PluginInstallPolicy::InstalledByDefault => crate::i18n::text("Installed"),
         }
     }
 }
@@ -2003,7 +2192,7 @@ fn plugin_detail_description(plugin: &PluginDetail) -> Option<String> {
 
 fn plugin_skill_summary(plugin: &PluginDetail) -> String {
     if plugin.skills.is_empty() {
-        "No plugin skills".to_string()
+        crate::i18n::text("No plugin skills").to_string()
     } else {
         plugin
             .skills
@@ -2016,7 +2205,7 @@ fn plugin_skill_summary(plugin: &PluginDetail) -> String {
 
 fn plugin_app_summary(plugin: &PluginDetail) -> String {
     if plugin.apps.is_empty() {
-        "No plugin apps".to_string()
+        crate::i18n::text("No plugin apps").to_string()
     } else {
         plugin
             .apps
@@ -2029,7 +2218,7 @@ fn plugin_app_summary(plugin: &PluginDetail) -> String {
 
 fn plugin_hook_summary(plugin: &PluginDetail) -> String {
     if plugin.hooks.is_empty() {
-        "No plugin hooks".to_string()
+        crate::i18n::text("No plugin hooks").to_string()
     } else {
         let mut event_counts = Vec::<(codex_app_server_protocol::HookEventName, usize)>::new();
         for hook in &plugin.hooks {
@@ -2052,7 +2241,7 @@ fn plugin_hook_summary(plugin: &PluginDetail) -> String {
 
 fn plugin_mcp_summary(plugin: &PluginDetail) -> String {
     if plugin.mcp_servers.is_empty() {
-        "No plugin MCP servers".to_string()
+        crate::i18n::text("No plugin MCP servers").to_string()
     } else {
         plugin.mcp_servers.join(", ")
     }

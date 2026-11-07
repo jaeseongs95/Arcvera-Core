@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Renders doctor reports for terminal users.
 //!
 //! The renderer is intentionally separate from check construction so the JSON
@@ -7,6 +8,8 @@
 
 mod detail;
 
+use codex_tui::i18n::message;
+use codex_tui::i18n::text;
 use std::fmt::Write as _;
 
 use detail::HumanDetail;
@@ -79,14 +82,14 @@ pub(super) fn render_human_report(report: &DoctorReport, options: HumanOutputOpt
     let _ = writeln!(
         out,
         "{} {}",
-        bold("Codex Doctor", options),
+        bold(text("Codex Doctor"), options),
         dim(&header_suffix(report), options)
     );
     out.push('\n');
 
     let notes = notes_for_report(report);
     if !notes.is_empty() {
-        let _ = writeln!(out, "{}", bold("Notes", options));
+        let _ = writeln!(out, "{}", bold(text("Notes"), options));
         for note in &notes {
             write_note_row(&mut out, note, options);
         }
@@ -106,7 +109,7 @@ pub(super) fn render_human_report(report: &DoctorReport, options: HumanOutputOpt
         }
         wrote_group = true;
 
-        let _ = writeln!(out, "{}", bold(group.title, options));
+        let _ = writeln!(out, "{}", bold(text(group.title), options));
         for check in group_checks {
             write_check_row(&mut out, check, options);
         }
@@ -179,7 +182,10 @@ fn write_detail_line(
                 format!(
                     "{} {}",
                     detail_value(&value, status, options),
-                    dim(&format!("(expected {expected})"), options)
+                    dim(
+                        &message("r39-doctor-expected", &[("expected", &expected)]),
+                        options
+                    )
                 )
             } else {
                 detail_value(&value, status, options)
@@ -241,15 +247,20 @@ fn issue_summary(check: &DoctorCheck) -> String {
     match check.issues.as_slice() {
         [] => check.summary.clone(),
         [issue] => issue.cause.clone(),
-        issues => format!(
-            "{} issues - {}",
-            issues.len(),
-            issues
-                .iter()
-                .take(2)
-                .map(|issue| issue.cause.as_str())
-                .collect::<Vec<_>>()
-                .join("; ")
+        issues => message(
+            "r39-doctor-issue-count",
+            &[
+                ("count", &issues.len().to_string()),
+                (
+                    "causes",
+                    &issues
+                        .iter()
+                        .take(2)
+                        .map(|issue| issue.cause.as_str())
+                        .collect::<Vec<_>>()
+                        .join("; "),
+                ),
+            ],
         ),
     }
 }
@@ -353,20 +364,12 @@ fn style_update_note_summary(summary: &str, options: HumanOutputOptions) -> Stri
         return summary.to_string();
     }
 
-    let Some((version, rest)) = summary.split_once(" available") else {
+    let Some((available, parenthetical)) = summary.split_once(" (") else {
         return amber(summary, options);
     };
-    let Some((action, parenthetical)) = rest.split_once(" (") else {
-        return format!(
-            "{}{}",
-            amber(&format!("{version} available"), options),
-            amber(rest, options)
-        );
-    };
     format!(
-        "{}{} {}",
-        amber(&format!("{version} available"), options),
-        amber(action, options),
+        "{} {}",
+        amber(available, options),
         dim(&format!("({parenthetical}"), options)
     )
 }
@@ -419,6 +422,7 @@ fn count_label(
     options: HumanOutputOptions,
 ) -> String {
     let count = dim(&count.to_string(), options);
+    let label = text(label);
     let label = match status {
         DisplayStatus::Ok => green(label, options),
         DisplayStatus::Update => amber(label, options),
@@ -431,9 +435,9 @@ fn count_label(
 
 fn overall_status_label(status: CheckStatus) -> &'static str {
     match status {
-        CheckStatus::Ok => "ok",
-        CheckStatus::Warning => "degraded",
-        CheckStatus::Fail => "failed",
+        CheckStatus::Ok => text("ok"),
+        CheckStatus::Warning => text("degraded"),
+        CheckStatus::Fail => text("failed"),
     }
 }
 
@@ -455,16 +459,16 @@ fn write_footer(out: &mut String, options: HumanOutputOptions) {
             out,
             "{} {:<24} {} {}",
             cyan("--summary", options),
-            dim("compact output", options),
+            dim(text("compact output"), options),
             cyan("--all", options),
-            dim("expand truncated lists", options)
+            dim(text("expand truncated lists"), options)
         );
     } else {
         let _ = writeln!(
             out,
             "{}",
             dim(
-                "Run codex doctor without --summary for detailed diagnostics.",
+                text("Run codex doctor without --summary for detailed diagnostics."),
                 options
             )
         );
@@ -472,9 +476,9 @@ fn write_footer(out: &mut String, options: HumanOutputOptions) {
             out,
             "{} {:<28} {} {}",
             cyan("--all", options),
-            dim("expand truncated lists", options),
+            dim(text("expand truncated lists"), options),
             cyan("--json", options),
-            dim("redacted report", options)
+            dim(text("redacted report"), options)
         );
         return;
     }
@@ -482,7 +486,7 @@ fn write_footer(out: &mut String, options: HumanOutputOptions) {
         out,
         "{} {}",
         cyan("--json", options),
-        dim("redacted report", options)
+        dim(text("redacted report"), options)
     );
 }
 
@@ -541,18 +545,27 @@ fn update_note(check: &DoctorCheck, report: &DoctorReport) -> Option<DoctorNote>
     }
     let latest = detail::detail_value(check, "latest version")
         .or_else(|| detail::detail_value(check, "cached latest version"))
-        .unwrap_or_else(|| "newer version".to_string());
+        .unwrap_or_else(|| text("newer version").to_string());
     let dismissed = detail::detail_value(check, "dismissed version");
-    let mut parenthetical = format!("current {}", report.codex_version);
+    let mut parenthetical = message(
+        "r39-doctor-current-version",
+        &[("version", &report.codex_version)],
+    );
     if let Some(dismissed) = dismissed
         && !detail::is_falsy(&dismissed)
     {
-        parenthetical.push_str(&format!(", dismissed {dismissed}"));
+        parenthetical.push_str(&message(
+            "r39-doctor-dismissed-version",
+            &[("version", &dismissed)],
+        ));
     }
     Some(DoctorNote {
         status: DisplayStatus::Update,
         name: "updates".to_string(),
-        summary: format!("{latest} available ({parenthetical})"),
+        summary: message(
+            "r39-doctor-update-available",
+            &[("version", &latest), ("context", &parenthetical)],
+        ),
     })
 }
 
@@ -560,8 +573,8 @@ fn desktop_update_note(check: &DoctorCheck) -> Option<DoctorNote> {
     let status = detail::detail_value(check, "desktop update status")?;
     let build = detail::detail_value(check, "desktop latest build")?;
     let summary = match status.as_str() {
-        "ready to install" => format!("build {build} available (ready to install)"),
-        "available" => format!("build {build} available"),
+        "ready to install" => message("r39-doctor-build-ready", &[("build", &build)]),
+        "available" => message("r39-doctor-build-available", &[("build", &build)]),
         _ => return None,
     };
     Some(DoctorNote {
@@ -580,10 +593,12 @@ fn rollout_note(check: &DoctorCheck) -> Option<DoctorNote> {
     Some(DoctorNote {
         status: DisplayStatus::Warning,
         name: "rollouts".to_string(),
-        summary: format!(
-            "{} active files · {} on disk",
-            detail::format_count(files),
-            detail::format_bytes(bytes)
+        summary: message(
+            "r39-doctor-active-files",
+            &[
+                ("count", &detail::format_count(files)),
+                ("size", &detail::format_bytes(bytes)),
+            ],
         ),
     })
 }
@@ -597,7 +612,10 @@ fn sandbox_note(check: &DoctorCheck) -> Option<DoctorNote> {
     Some(DoctorNote {
         status: DisplayStatus::Warning,
         name: "sandbox".to_string(),
-        summary: format!("filesystem {filesystem} · network {network}"),
+        summary: message(
+            "r39-doctor-sandbox-note",
+            &[("filesystem", &filesystem), ("network", &network)],
+        ),
     })
 }
 
@@ -635,7 +653,7 @@ fn auth_reachability_note(report: &DoctorReport) -> Option<DoctorNote> {
         return Some(DoctorNote {
             status: DisplayStatus::Warning,
             name: "auth".to_string(),
-            summary: "mixed auth signals: ChatGPT login plus API key env var; HTTP reachability uses API-key mode".to_string(),
+            summary: text("mixed auth signals: ChatGPT login plus API key env var; HTTP reachability uses API-key mode").to_string(),
         });
     }
     None
@@ -645,12 +663,12 @@ fn display_summary(check: &DoctorCheck, options: HumanOutputOptions) -> String {
     match check.category.as_str() {
         "system" => system_summary(check),
         "runtime" => runtime_summary(check),
-        "install" if check.status == CheckStatus::Ok => "consistent".to_string(),
+        "install" if check.status == CheckStatus::Ok => text("consistent").to_string(),
         "search" => search_summary(check),
         "terminal" => terminal_summary(check),
         "title" => title_summary(check, options),
         "state" => state_summary(check),
-        "config" if check.status == CheckStatus::Ok => "loaded".to_string(),
+        "config" if check.status == CheckStatus::Ok => text("loaded").to_string(),
         "mcp" => mcp_summary(check),
         "sandbox" => sandbox_summary(check),
         "network" => network_summary(check),
@@ -668,7 +686,7 @@ fn runtime_summary(check: &DoctorCheck) -> String {
     if detail::detail_value(check, "current executable")
         .is_some_and(|path| path.contains("/target/debug/"))
     {
-        return "local debug build".to_string();
+        return text("local debug build").to_string();
     }
     detail::detail_value(check, "install method").unwrap_or_else(|| check.summary.clone())
 }
@@ -710,7 +728,14 @@ fn title_summary(check: &DoctorCheck, options: HumanOutputOptions) -> String {
     match (source, project) {
         (Some(source), Some(project)) => {
             let separator = if options.ascii { " | " } else { " · " };
-            format!("{source}{separator}project {project}")
+            message(
+                "r39-doctor-title-project",
+                &[
+                    ("source", &source),
+                    ("separator", separator),
+                    ("project", &project),
+                ],
+            )
         }
         (Some(source), None) => source,
         _ => check.summary.clone(),
@@ -727,7 +752,7 @@ fn state_summary(check: &DoctorCheck) -> String {
     .into_iter()
     .all(|label| detail::detail_value(check, label).is_some_and(|value| value == "ok"));
     if check.status == CheckStatus::Ok && databases_ok {
-        "databases healthy".to_string()
+        text("databases healthy").to_string()
     } else {
         check.summary.clone()
     }
@@ -747,13 +772,18 @@ fn mcp_summary(check: &DoctorCheck) -> String {
         .map(|(transport, count)| format!("{count} {transport}"))
         .collect::<Vec<_>>();
     if transports.is_empty() {
-        format!("{count} servers · {disabled} disabled")
+        message(
+            "r39-doctor-mcp-servers",
+            &[("count", &count), ("disabled", &disabled)],
+        )
     } else {
-        format!(
-            "{} server ({}) · {} disabled",
-            count,
-            transports.join(", "),
-            disabled
+        message(
+            "r39-doctor-mcp-transports",
+            &[
+                ("count", &count),
+                ("transports", &transports.join(", ")),
+                ("disabled", &disabled),
+            ],
         )
     }
 }
@@ -763,9 +793,14 @@ fn sandbox_summary(check: &DoctorCheck) -> String {
     let filesystem = detail::detail_value(check, "filesystem sandbox");
     let network = detail::detail_value(check, "network sandbox");
     match (approval, filesystem, network) {
-        (Some(approval), Some(filesystem), Some(network)) => {
-            format!("{filesystem} fs + {network} network · approval {approval}")
-        }
+        (Some(approval), Some(filesystem), Some(network)) => message(
+            "r39-doctor-sandbox-summary",
+            &[
+                ("filesystem", &filesystem),
+                ("network", &network),
+                ("approval", &approval),
+            ],
+        ),
         _ => check.summary.clone(),
     }
 }
@@ -774,9 +809,9 @@ fn network_summary(check: &DoctorCheck) -> String {
     detail::detail_value(check, "proxy env vars")
         .map(|value| {
             if value == "none" {
-                "no proxy env vars".to_string()
+                text("no proxy env vars").to_string()
             } else {
-                "proxy env vars present".to_string()
+                text("proxy env vars present").to_string()
             }
         })
         .unwrap_or_else(|| check.summary.clone())
@@ -788,7 +823,10 @@ fn websocket_summary(check: &DoctorCheck) -> String {
     let timeout = detail::detail_value(check, "connect timeout")
         .map(|value| value.replace("000 ms", "s").replace(" ms", "ms"));
     match (status, timeout) {
-        (Some(status), Some(timeout)) => format!("connected ({status}) · {timeout} timeout"),
+        (Some(status), Some(timeout)) => message(
+            "r39-doctor-websocket-summary",
+            &[("status", &status), ("timeout", &timeout)],
+        ),
         _ => check.summary.clone(),
     }
 }
@@ -797,7 +835,10 @@ fn app_server_summary(check: &DoctorCheck) -> String {
     let status = detail::detail_value(check, "status");
     let mode = detail::detail_value(check, "mode");
     match (status, mode) {
-        (Some(status), Some(mode)) => format!("{status} ({mode} mode)"),
+        (Some(status), Some(mode)) => message(
+            "r39-doctor-app-server-summary",
+            &[("status", &status), ("mode", &mode)],
+        ),
         _ => check.summary.clone(),
     }
 }

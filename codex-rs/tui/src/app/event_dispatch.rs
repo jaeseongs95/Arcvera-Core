@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! AppEvent dispatch for the TUI app.
 //!
 //! This module contains the exhaustive `AppEvent` dispatcher and exit-mode handling. Large domain
@@ -140,7 +140,7 @@ impl App {
                 self.chat_widget.clear_windows_sandbox_setup_status();
             }
             self.chat_widget.add_info_message(
-                "Windows sandbox setup requires local connections and executors.".to_string(),
+                crate::i18n::text("Windows sandbox setup requires local connections and executors.").to_string(),
                 /*hint*/ None,
             );
             return Ok(AppRunControl::Continue);
@@ -192,6 +192,7 @@ impl App {
             AppEvent::DesktopCronRequest(_) | AppEvent::DesktopCronCancelReply(_) => unreachable!("예약 제어는 화면 필터 전에 처리합니다."),
             AppEvent::MemoryCommand { thread_id, args } => self.handle_memory_command(app_server, thread_id, args).await,
             AppEvent::ContextCommand { thread_id, args } => self.handle_context_command(app_server, thread_id, args).await,
+            AppEvent::ContextCompositionLoaded { key, outcome } => self.finish_context_inspection(app_server, key, outcome),
             AppEvent::CronToolCall(request) => {
                 if request.params.tool == crate::session_control::NAME {
                     self.handle_session_control_tool_call(app_server, *request).await;
@@ -290,7 +291,7 @@ impl App {
             AppEvent::StartManagedWorktree { mode, name } => {
                 if self.pending_start_managed_worktree.is_some() {
                     self.chat_widget
-                        .add_error_message("A worktree is already being created.".to_string());
+                        .add_error_message(crate::i18n::text("A worktree is already being created.").to_string());
                 } else {
                     self.pending_start_managed_worktree = Some((mode, name));
                 }
@@ -342,13 +343,10 @@ impl App {
             }
             AppEvent::ManagedWorktreeRemoved { root, result } => match result {
                 Ok(()) => self.chat_widget.add_info_message(
-                    format!("Removed worktree at {}. Thread history was kept.", root.display()),
+                    crate::i18n::message("r39-worktree-removed", &[("path", &root.display().to_string())]),
                     /*hint*/ None,
                 ),
-                Err(error) => self.chat_widget.add_error_message(format!(
-                    "Could not remove worktree at {}: {error}",
-                    root.display()
-                )),
+                Err(error) => self.chat_widget.add_error_message(crate::i18n::message("r39-worktree-remove-failed", &[("path", &root.display().to_string()), ("error", &error.to_string())])),
             },
             AppEvent::ChangeWorkingDirectory {
                 thread_id,
@@ -359,7 +357,7 @@ impl App {
                     || !self.chat_widget.can_change_working_directory(thread_id)
                 {
                     self.chat_widget.add_error_message(
-                        "Changing directories requires an idle primary session without queued input."
+                        crate::i18n::text("Changing directories requires an idle primary session without queued input.")
                             .to_string(),
                     );
                 } else if crate::uses_remote_workspace_or_environment(
@@ -367,7 +365,7 @@ impl App {
                     self.environment_manager.as_ref(),
                 ) {
                     self.chat_widget.add_error_message(
-                        "Changing directories is not supported for remote workspaces or remote execution environments."
+                        crate::i18n::text("Changing directories is not supported for remote workspaces or remote execution environments.")
                             .to_string(),
                     );
                 } else {
@@ -386,11 +384,8 @@ impl App {
                         }
                         Ok(_) => self
                             .chat_widget
-                            .add_error_message(format!("Not a directory: {}", cwd.display())),
-                        Err(error) => self.chat_widget.add_error_message(format!(
-                            "Cannot access directory {}: {error}",
-                            cwd.display()
-                        )),
+                            .add_error_message(crate::i18n::message("r39-not-directory", &[("path", &cwd.display().to_string())])),
+                        Err(error) => self.chat_widget.add_error_message(crate::i18n::message("r39-directory-access-failed", &[("path", &cwd.display().to_string()), ("error", &error.to_string())])),
                     }
                 }
             }
@@ -509,7 +504,7 @@ impl App {
             AppEvent::ExportTranscript { destination } => {
                 if let Err(error) = self.export_transcript(tui, app_server, destination).await {
                     self.chat_widget
-                        .add_error_message(format!("Export failed: {error}"));
+                        .add_error_message(crate::i18n::message("r39-ui-a6d7ef525134", &[("error", &format!("{error}"))]));
                 }
                 if self.chat_widget.no_modal_or_popup_active() {
                     self.chat_widget
@@ -523,7 +518,7 @@ impl App {
             AppEvent::SelectTranscriptCopy { guard } => {
                 self.refresh_owned_transcript(tui)?;
                 if !self.transcript_view.begin_copy_mode(&self.transcript_cells, Some(guard)) {
-                    self.chat_widget.add_info_message("Nothing to copy".into(), /*hint*/ None);
+                    self.chat_widget.add_info_message(crate::i18n::text("Nothing to copy").into(), /*hint*/ None);
                 }
                 tui.frame_requester().schedule_frame();
             }
@@ -594,7 +589,7 @@ impl App {
                     }
                     Ok(ExternalAgentConfigMigrationFlowOutcome::NoItems) => {
                         self.chat_widget.add_info_message(
-                            crate::external_agent_config_migration::flow::EXTERNAL_AGENT_CONFIG_MIGRATION_NO_ITEMS_MESSAGE
+                            crate::i18n::text(crate::external_agent_config_migration::flow::EXTERNAL_AGENT_CONFIG_MIGRATION_NO_ITEMS_MESSAGE)
                                 .to_string(),
                             /*hint*/ None,
                         );
@@ -624,9 +619,7 @@ impl App {
                             .await;
                     }
                     Ok(None) => {
-                        self.chat_widget.add_error_message(format!(
-                            "No saved chat found matching '{id_or_name}'."
-                        ));
+                        self.chat_widget.add_error_message(crate::i18n::message("r39-ui-941947c5e711", &[("id_or_name", &format!("{id_or_name}"))]));
                     }
                     Err(err)
                         if err
@@ -666,7 +659,7 @@ impl App {
                 if let Some(thread_id) = self.chat_widget.thread_id() {
                     if self.pending_server_profiles.contains_key(&thread_id) {
                         self.chat_widget.add_error_message(
-                            "Wait for permissions to update before forking.".into(),
+                            crate::i18n::text("Wait for permissions to update before forking.").into(),
                         );
                         return Ok(AppRunControl::Continue);
                     }
@@ -713,7 +706,7 @@ impl App {
                                         None
                                     }
                                     Err(err) => {
-                                        Some(format!("Failed to name the forked session: {err}"))
+                                        Some(crate::i18n::message("r39-fork-name-failed", &[("error", &err.to_string())]))
                                     }
                                 }
                             } else {
@@ -739,21 +732,17 @@ impl App {
                                         self.chat_widget.add_error_message(err);
                                     }
                                     self.chat_widget.add_info_message(
-                                        "Fork created. You can continue here.".to_string(),
+                                        crate::i18n::text("Fork created. You can continue here.").to_string(),
                                         /*hint*/ None,
                                     );
                                 }
                                 Err(err) => {
-                                    self.chat_widget.add_error_message(format!(
-                                        "Failed to attach to forked app-server thread: {err}"
-                                    ));
+                                    self.chat_widget.add_error_message(crate::i18n::message("r39-ui-3f4694e06d21", &[("err", &format!("{err}"))]));
                                 }
                             }
                         }
                         Err(err) => {
-                            self.chat_widget.add_error_message(format!(
-                                "Failed to fork current session through the app server: {err}"
-                            ));
+                            self.chat_widget.add_error_message(crate::i18n::message("r39-ui-4fd8110001ac", &[("err", &format!("{err}"))]));
                         }
                     }
                     if from_locked_thread || from_agents_overview {
@@ -765,7 +754,7 @@ impl App {
                     }
                 } else {
                     self.chat_widget.add_error_message(
-                        "A thread must contain at least one turn before it can be forked."
+                        crate::i18n::text("A thread must contain at least one turn before it can be forked.")
                             .to_string(),
                     );
                 }
@@ -789,7 +778,7 @@ impl App {
                         || prompt.text.trim_start().starts_with(['/', '!']))
                 {
                     self.chat_widget.add_error_message(
-                        "This remote prompt contains local image paths or command syntax that cannot be restored safely. Write a new message and reattach any images.".into(),
+                        crate::i18n::text("This remote prompt contains local image paths or command syntax that cannot be restored safely. Write a new message and reattach any images.").into(),
                     );
                     tui.frame_requester().schedule_frame();
                     return Ok(AppRunControl::Continue);
@@ -797,7 +786,7 @@ impl App {
                 if self.pending_server_profiles.contains_key(&thread_id) {
                     self.chat_widget.restore_user_message_to_composer(prompt);
                     self.chat_widget.add_error_message(
-                        "Wait for permissions to update before editing this prompt.".into(),
+                        crate::i18n::text("Wait for permissions to update before editing this prompt.").into(),
                     );
                     tui.frame_requester().schedule_frame();
                     return Ok(AppRunControl::Continue);
@@ -1100,16 +1089,16 @@ impl App {
                     }) || self.running_side_thread_id().await.is_some()) =>
             {
                 self.chat_widget.show_selection_view(SelectionViewParams {
-                    title: Some("Quit and stop running sessions?".into()),
-                    subtitle: Some("Quitting this TUI will stop its running sessions.".into()),
+                    title: Some(crate::i18n::text("Quit and stop running sessions?").into()),
+                    subtitle: Some(crate::i18n::text("Quitting this TUI will stop its running sessions.").into()),
                     items: vec![
                         SelectionItem {
-                            name: "Stay in Codex".into(),
+                            name: crate::i18n::text("Stay in Codex").into(),
                             dismiss_on_select: true,
                             ..Default::default()
                         },
                         SelectionItem {
-                            name: "Stop sessions and quit".into(),
+                            name: crate::i18n::text("Stop sessions and quit").into(),
                             actions: vec![Box::new(move |tx| {
                                 tx.send(AppEvent::ConfirmedEmbeddedExit(mode))
                             })],
@@ -1146,7 +1135,7 @@ impl App {
                             .await
                     {
                         self.chat_widget
-                            .add_error_message(format!("Failed to interrupt task: {error}"));
+                            .add_error_message(crate::i18n::message("r39-ui-cc3ea6f20a83", &[("error", &format!("{error}"))]));
                     }
                 }
                 RunningTaskExitAction::Exit => {
@@ -1162,7 +1151,7 @@ impl App {
                             .await
                     {
                         self.chat_widget
-                            .add_error_message(format!("Failed to pause task goal: {error}"));
+                            .add_error_message(crate::i18n::message("r39-ui-bd9c8ad04e3c", &[("error", &format!("{error}"))]));
                         return Ok(AppRunControl::Continue);
                     }
                     let turn_id = self
@@ -1176,7 +1165,7 @@ impl App {
                         }
                         Err(error) => {
                             self.chat_widget
-                                .add_error_message(format!("Failed to interrupt task: {error}"));
+                                .add_error_message(crate::i18n::message("r39-ui-cc3ea6f20a83", &[("error", &format!("{error}"))]));
                         }
                     }
                 }
@@ -1191,7 +1180,7 @@ impl App {
                 Err(err) => {
                     tracing::error!("failed to logout: {err}");
                     self.chat_widget
-                        .add_error_message(format!("Logout failed: {err}"));
+                        .add_error_message(crate::i18n::message("r39-ui-48ead77e033c", &[("err", &format!("{err}"))]));
                 }
             },
             AppEvent::FatalExitRequest(message) => {
@@ -1317,9 +1306,9 @@ impl App {
                                 if method == "turn/start"
                         ) || unsupported_permissions)
                         && chat_widget
-                            .handle_turn_start_rejection(format!("Failed to start turn: {err:#}"));
+                            .handle_turn_start_rejection(crate::i18n::message("r39-turn-start-failed", &[("error", &format!("{err:#}"))]));
                     if is_realtime_conversation {
-                        let message = format!("Voice conversation failed: {err:#}");
+                        let message = crate::i18n::message("r39-voice-failed", &[("error", &format!("{err:#}"))]);
                         if is_realtime_stop {
                             if chat_widget.thread_id() == realtime_stop_thread_id {
                                 chat_widget.reset_realtime_conversation();
@@ -1430,13 +1419,13 @@ impl App {
                 // Enter alternate screen using TUI helper and build pager lines
                 let _ = tui.enter_alt_screen();
                 let pager_lines: Vec<ratatui::text::Line<'static>> = if text.trim().is_empty() {
-                    vec!["No changes detected.".italic().into()]
+                    vec![crate::i18n::text("No changes detected.").italic().into()]
                 } else {
                     text.lines().map(ansi_escape_line).collect()
                 };
                 self.overlay = Some(Overlay::new_static_with_lines(
                     pager_lines,
-                    "D I F F".to_string(),
+                    crate::i18n::text("D I F F").to_string(),
                     self.keymap.pager.clone(),
                 ));
                 tui.frame_requester().schedule_frame();
@@ -1780,7 +1769,7 @@ impl App {
             AppEvent::StartMcpLogin { name, thread_id } => {
                 if self.pending_mcp_login_start.is_some() {
                     self.chat_widget.add_info_message(
-                        "MCP sign-in is starting. Wait for it to finish before trying again.".to_string(),
+                        crate::i18n::text("MCP sign-in is starting. Wait for it to finish before trying again.").to_string(),
                         /*hint*/ None,
                     );
                     return Ok(AppRunControl::Continue);
@@ -2514,10 +2503,10 @@ impl App {
                     let error = format_config_error(&err);
                     tracing::error!(error = %error, "failed to persist conversation model");
                     self.chat_widget
-                        .add_error_message(format!("Failed to save default model: {error}"));
+                        .add_error_message(crate::i18n::message("r39-ui-06db1f5e9c23", &[("error", &format!("{error}"))]));
                 } else {
                     self.chat_widget.add_info_message(
-                        format!("Model changed to {model} {effort} for this conversation"),
+                        crate::i18n::message("r39-ui-39fc6b404ef3", &[("model", &format!("{model}")), ("effort", &format!("{effort}"))]),
                         /*hint*/ None,
                     );
                 }
@@ -2703,10 +2692,10 @@ impl App {
                                     ));
                             }
                                 self.chat_widget.add_plain_history_lines(vec![
-                                    Line::from(vec!["• ".dim(), "Sandbox ready".into()]),
+                                    Line::from(vec!["• ".dim(), crate::i18n::text("Sandbox ready").into()]),
                                     Line::from(vec![
                                         "  ".into(),
-                                        "Codex can now safely edit files and execute commands in your computer"
+                                        crate::i18n::text("Codex can now safely edit files and execute commands in your computer")
                                             .dark_gray(),
                                     ]),
                                 ]);
@@ -2901,7 +2890,7 @@ impl App {
                 {
                     tracing::warn!(%err, "failed to set permission profile on chat config");
                     self.chat_widget
-                        .add_error_message(format!("Failed to set permission profile: {err}"));
+                        .add_error_message(crate::i18n::message("r39-ui-0f448eac2c9e", &[("err", &format!("{err}"))]));
                     return Ok(AppRunControl::Continue);
                 }
                 self.runtime_approvals_reviewer_override = Some(self.config.approvals_reviewer);
@@ -3288,9 +3277,7 @@ impl App {
                     }
                     Err(err) => {
                         let path_display = path.inferred_native_path_string();
-                        self.chat_widget.add_error_message(format!(
-                            "Failed to update skill config for {path_display}: {err}"
-                        ));
+                        self.chat_widget.add_error_message(crate::i18n::message("r39-ui-00cf3b0b484b", &[("path_display", &format!("{path_display}")), ("err", &format!("{err}"))]));
                     }
                 }
             }
@@ -3323,9 +3310,7 @@ impl App {
                         self.chat_widget.update_connector_enabled(&id, enabled);
                     }
                     Err(err) => {
-                        self.chat_widget.add_error_message(format!(
-                            "Failed to update app config for {id}: {err}"
-                        ));
+                        self.chat_widget.add_error_message(crate::i18n::message("r39-ui-87f8f17e4c7e", &[("id", &format!("{id}")), ("err", &format!("{err}"))]));
                     }
                 }
             }
@@ -3465,7 +3450,7 @@ impl App {
                         lines.push(Line::from(""));
                     }
                     if let Some(reason) = request.reason {
-                        lines.push(Line::from(vec!["Reason: ".into(), reason.italic()]));
+                        lines.push(Line::from(vec![crate::i18n::text("Reason: ").into(), reason.italic()]));
                         lines.push(Line::from(""));
                     }
                     if let Some(rule_line) =
@@ -3485,7 +3470,7 @@ impl App {
                 ApprovalRequest::McpElicitation(request) => {
                     let _ = tui.enter_alt_screen();
                     let paragraph = Paragraph::new(vec![
-                        Line::from(vec!["Server: ".into(), request.server_name.bold()]),
+                        Line::from(vec![crate::i18n::text("Server: ").into(), request.server_name.bold()]),
                         Line::from(""),
                         Line::from(request.message),
                     ])
@@ -3565,7 +3550,7 @@ impl App {
                         tracing::error!(error = %err, "failed to persist terminal title items; keeping previous selection");
                         self.app_event_tx.send(AppEvent::FollowTranscript);
                         self.chat_widget.revert_terminal_title_setup_preview();
-                        let message = format!("Failed to save terminal title items: {err}");
+                        let message = crate::i18n::message("r39-ui-7a14757e51d2", &[("err", &format!("{err}"))]);
                         self.chat_widget.report_config_save_error(message);
                     }
                 }
@@ -3689,7 +3674,7 @@ impl App {
                 if self.current_displayed_thread_id() == Some(thread_id) {
                     if self.chat_widget.is_user_turn_pending_or_running() {
                         self.chat_widget.add_error_message(
-                            "Wait for the current task to finish before running /recap.".to_string(),
+                            crate::i18n::text("Wait for the current task to finish before running /recap.").to_string(),
                         );
                     } else {
                         self.request_recap(app_server, thread_id, RecapTrigger::Manual);
@@ -3893,8 +3878,10 @@ impl App {
             Ok(runtime_keymap) => runtime_keymap,
             Err(err) => {
                 self.app_event_tx.send(AppEvent::FollowTranscript);
-                self.chat_widget
-                    .add_error_message(format!("Failed to refresh shortcuts: {err}"));
+                self.chat_widget.add_error_message(crate::i18n::message(
+                    "r39-ui-c35583d7d1c1",
+                    &[("err", &format!("{err}"))],
+                ));
                 return;
             }
         };
@@ -3916,7 +3903,13 @@ impl App {
                     .return_to_keymap_picker(&context, &action, &runtime_keymap);
                 self.app_event_tx.send(AppEvent::FollowTranscript);
                 self.chat_widget.add_info_message(
-                    format!("Removed custom shortcut for `{context}.{action}`."),
+                    crate::i18n::message(
+                        "r39-ui-a6e62a9eefdd",
+                        &[
+                            ("context", &format!("{context}")),
+                            ("action", &format!("{action}")),
+                        ],
+                    ),
                     /*hint*/ None,
                 );
             }
@@ -4034,13 +4027,14 @@ impl App {
         app_server: &mut AppServerSession,
     ) -> Result<AppRunControl> {
         let Some(thread_id) = self.active_thread_id.or(self.chat_widget.thread_id()) else {
-            self.chat_widget
-                .add_error_message("A thread must start before it can be archived.".to_string());
+            self.chat_widget.add_error_message(
+                crate::i18n::text("A thread must start before it can be archived.").to_string(),
+            );
             return Ok(AppRunControl::Continue);
         };
         if self.side_threads.contains_key(&thread_id) {
             self.chat_widget.add_error_message(
-                "'/archive' is unavailable in side conversations. Press Ctrl+C to return to the main thread first."
+                crate::i18n::text("'/archive' is unavailable in side conversations. Press Ctrl+C to return to the main thread first.")
                     .to_string(),
             );
             return Ok(AppRunControl::Continue);
@@ -4071,8 +4065,10 @@ impl App {
                 AppRunControl::Continue
             }
             Err(err) => {
-                self.chat_widget
-                    .add_error_message(format!("Failed to archive current thread: {err}"));
+                self.chat_widget.add_error_message(crate::i18n::message(
+                    "r39-ui-55d0fa02c6b6",
+                    &[("err", &format!("{err}"))],
+                ));
                 AppRunControl::Continue
             }
         })
@@ -4084,13 +4080,14 @@ impl App {
         app_server: &mut AppServerSession,
     ) -> Result<AppRunControl> {
         let Some(thread_id) = self.active_thread_id.or(self.chat_widget.thread_id()) else {
-            self.chat_widget
-                .add_error_message("A thread must start before it can be deleted.".to_string());
+            self.chat_widget.add_error_message(
+                crate::i18n::text("A thread must start before it can be deleted.").to_string(),
+            );
             return Ok(AppRunControl::Continue);
         };
         if self.side_threads.contains_key(&thread_id) {
             self.chat_widget.add_error_message(
-                "'/delete' is unavailable in side conversations. Press Ctrl+C to return to the main thread first."
+                crate::i18n::text("'/delete' is unavailable in side conversations. Press Ctrl+C to return to the main thread first.")
                     .to_string(),
             );
             return Ok(AppRunControl::Continue);
@@ -4121,8 +4118,10 @@ impl App {
                 AppRunControl::Continue
             }
             Err(err) => {
-                self.chat_widget
-                    .add_error_message(format!("Failed to delete current thread: {err}"));
+                self.chat_widget.add_error_message(crate::i18n::message(
+                    "r39-ui-3edd895e25b6",
+                    &[("err", &format!("{err}"))],
+                ));
                 AppRunControl::Continue
             }
         })

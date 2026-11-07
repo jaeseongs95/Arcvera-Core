@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Informational, warning, update, and policy notice history cells.
 
 use super::*;
@@ -33,30 +33,32 @@ impl HistoryCell for UpdateAvailableHistoryCell {
         use ratatui_macros::text;
         let update_instruction = if let Some(update_action) = self.update_action {
             line![
-                "Run ",
+                crate::i18n::text("Run "),
                 update_action.command_str().fg(accent_color()),
-                " to update."
+                crate::i18n::text(" to update.")
             ]
         } else {
             line![
-                "See ",
+                crate::i18n::text("See "),
                 "https://github.com/openai/codex"
                     .fg(accent_color())
                     .underlined(),
-                " for installation options."
+                crate::i18n::text(" for installation options.")
             ]
         };
 
         let content = text![
             line![
                 "✨\u{200A}".bold().fg(accent_color()),
-                "Update available!".bold().fg(accent_color()),
+                crate::i18n::text("Update available!")
+                    .bold()
+                    .fg(accent_color()),
                 " ",
                 format!("{CODEX_CLI_VERSION} -> {}", self.latest_version).bold(),
             ],
             update_instruction,
             "",
-            "See full release notes:",
+            crate::i18n::text("See full release notes:"),
             "https://github.com/openai/codex/releases/latest"
                 .fg(accent_color())
                 .underlined(),
@@ -72,16 +74,20 @@ impl HistoryCell for UpdateAvailableHistoryCell {
 
     fn raw_lines(&self) -> Vec<Line<'static>> {
         let update_instruction = if let Some(update_action) = self.update_action {
-            format!("Run {} to update.", update_action.command_str())
+            crate::i18n::message(
+                "r39-update-command",
+                &[("command", update_action.command_str())],
+            )
         } else {
-            "See https://github.com/openai/codex for installation options.".to_string()
+            crate::i18n::text("See https://github.com/openai/codex for installation options.")
+                .to_string()
         };
         vec![
-            Line::from("Update available!"),
+            Line::from(crate::i18n::text("Update available!")),
             Line::from(format!("{CODEX_CLI_VERSION} -> {}", self.latest_version)),
             Line::from(update_instruction),
             Line::from(""),
-            Line::from("See full release notes:"),
+            Line::from(crate::i18n::text("See full release notes:")),
             Line::from("https://github.com/openai/codex/releases/latest"),
         ]
     }
@@ -156,7 +162,7 @@ const SAFETY_ACCESS_BLOCK_LEARN_MORE_URL: &str = "https://help.openai.com/en/art
 pub(crate) fn new_safety_access_block_event() -> SafetyAccessBlockCell {
     SafetyAccessBlockCell {
         title: "This content can't be shown",
-        explanation: Some("We take extra caution with requests involving biological research and applications that could pose safety risks.".into()),
+        explanation: Some(crate::i18n::text("We take extra caution with requests involving biological research and applications that could pose safety risks.").into()),
         body: "Eligible researchers can apply for Trusted Access.",
         actions: &[
             (
@@ -198,8 +204,9 @@ pub(crate) fn new_cyber_policy_error_event(
     };
     SafetyAccessBlockCell {
         title: "This content can’t be shown",
-        explanation: (notice == Notice::Apply)
-            .then(|| "We take extra care with some cybersecurity requests.".into()),
+        explanation: (notice == Notice::Apply).then(|| {
+            crate::i18n::text("We take extra care with some cybersecurity requests.").into()
+        }),
         body,
         actions,
     }
@@ -208,8 +215,8 @@ pub(crate) fn new_cyber_policy_error_event(
 impl SafetyAccessBlockCell {
     fn message(&self) -> String {
         match &self.explanation {
-            Some(explanation) => format!("{explanation} {}", self.body),
-            None => self.body.to_owned(),
+            Some(explanation) => format!("{explanation} {}", crate::i18n::text(self.body)),
+            None => crate::i18n::text(self.body).to_owned(),
         }
     }
 }
@@ -221,7 +228,11 @@ impl HistoryCell for SafetyAccessBlockCell {
 
     fn display_hyperlink_lines(&self, width: u16) -> Vec<HyperlinkLine> {
         let mut lines = vec![HyperlinkLine::new(
-            vec!["ⓘ ".fg(accent_color()), self.title.bold()].into(),
+            vec![
+                "ⓘ ".fg(accent_color()),
+                crate::i18n::text(self.title).bold(),
+            ]
+            .into(),
         )];
         let body = Line::from(vec!["  ".into(), self.message().dim()]);
         let wrap_width = width.saturating_sub(2).max(1) as usize;
@@ -236,7 +247,7 @@ impl HistoryCell for SafetyAccessBlockCell {
         for &(label, url) in self.actions {
             let source = crate::terminal_hyperlinks::annotate_web_urls_in_line(
                 vec![
-                    format!("  {label}: ").dim(),
+                    format!("  {}: ", crate::i18n::text(label)).dim(),
                     url.fg(accent_color()).underlined(),
                 ]
                 .into(),
@@ -256,11 +267,14 @@ impl HistoryCell for SafetyAccessBlockCell {
     }
 
     fn raw_lines(&self) -> Vec<Line<'static>> {
-        let mut lines = vec![Line::from(self.title), Line::from(self.message())];
+        let mut lines = vec![
+            Line::from(crate::i18n::text(self.title)),
+            Line::from(self.message()),
+        ];
         lines.extend(
-            self.actions
-                .iter()
-                .map(|(label, target)| Line::from(format!("{label}: {target}"))),
+            self.actions.iter().map(|(label, target)| {
+                Line::from(format!("{}: {target}", crate::i18n::text(label)))
+            }),
         );
         lines
     }
@@ -376,7 +390,7 @@ impl HistoryCell for ThreadRecapLoadingCell {
                 )
                 .unwrap_or_else(|| "•".dim()),
                 " ".into(),
-                "Generating conversation recap".bold(),
+                crate::i18n::text("Generating conversation recap").bold(),
                 "…".dim(),
             ]
             .into(),
@@ -384,7 +398,9 @@ impl HistoryCell for ThreadRecapLoadingCell {
     }
 
     fn raw_lines(&self) -> Vec<Line<'static>> {
-        vec![Line::from("Generating conversation recap...")]
+        vec![Line::from(crate::i18n::text(
+            "Generating conversation recap...",
+        ))]
     }
 
     fn transcript_animation_tick(&self) -> Option<u64> {
@@ -433,17 +449,22 @@ impl HistoryCell for ThreadRecapHistoryCell {
         if let Some(action) = &self.next_action {
             body.extend(prefix_lines(
                 raw_lines_from_source(action),
-                "Next: ".bold().fg(accent_color()),
+                crate::i18n::text("Next: ").bold().fg(accent_color()),
                 "".into(),
             ));
         }
         let mut body = body.into_iter().map(Line::italic).collect::<Vec<_>>();
-        let prefix = Line::from(vec!["  ".into(), "↳ ".dim(), "Recap: ".bold()]).italic();
+        let prefix = Line::from(vec![
+            "  ".into(),
+            "↳ ".dim(),
+            crate::i18n::text("Recap: ").bold(),
+        ])
+        .italic();
         let mut options = if wrap_width <= prefix.width() {
             // Keep the text readable when the terminal cannot fit the hanging indent.
             body.insert(
                 /*index*/ 0,
-                Line::from(vec!["↳ ".dim(), "Recap:".bold()]).italic(),
+                Line::from(vec!["↳ ".dim(), crate::i18n::text("Recap:").bold()]).italic(),
             );
             RtOptions::new(wrap_width)
         } else {
@@ -478,10 +499,13 @@ impl HistoryCell for ThreadRecapHistoryCell {
     }
 
     fn raw_lines(&self) -> Vec<Line<'static>> {
-        let mut lines = vec![Line::from(RECAP_HEADING)];
+        let mut lines = vec![Line::from(crate::i18n::text(RECAP_HEADING))];
         lines.extend(raw_lines_from_source(&self.recap));
         if let Some(action) = &self.next_action {
-            lines.extend(raw_lines_from_source(&format!("Next: {action}")));
+            lines.extend(raw_lines_from_source(&crate::i18n::message(
+                "r39-recap-next",
+                &[("action", action)],
+            )));
         }
         lines
     }

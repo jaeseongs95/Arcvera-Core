@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Compose the owned transcript above the composer and route their selection gestures.
 //! Painting records the screen regions used by selection and pointer input.
 //! Input that depends on those regions refreshes the layout before using them.
@@ -260,7 +260,7 @@ impl App {
             .has_active_interaction()
         {
             Some(
-                ratatui::text::Line::from("Selecting text · esc cancel")
+                ratatui::text::Line::from(crate::i18n::text("Selecting text · esc cancel"))
                     .dim()
                     .into(),
             )

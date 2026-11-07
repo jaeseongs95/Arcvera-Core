@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 use codex_config::types::TuiKeymap;
 use crossterm::event::KeyEvent;
 use crossterm::event::KeyEventKind;
@@ -62,9 +63,12 @@ impl KeymapDebugView {
     fn lines_at(&self, width: u16, now: Instant) -> Vec<Line<'static>> {
         let wrap_width = usize::from(width.max(1));
         let mut lines = vec![
-            Line::from("Keypress Inspector".bold()),
+            Line::from(crate::i18n::text("Keypress Inspector").bold()),
             Line::from(
-                "Press any key to see what Codex receives. Esc is inspected; Ctrl+C closes.".dim(),
+                crate::i18n::text(
+                    "Press any key to see what Codex receives. Esc is inspected; Ctrl+C closes.",
+                )
+                .dim(),
             ),
         ];
         let hint = if self.should_show_delayed_hint(now) {
@@ -72,32 +76,40 @@ impl KeymapDebugView {
         } else {
             SHORT_MISSING_KEY_HINT
         };
-        push_wrapped_dim(&mut lines, hint.to_string(), wrap_width, "", "");
+        push_wrapped_dim(
+            &mut lines,
+            crate::i18n::text(hint).to_string(),
+            wrap_width,
+            "",
+            "",
+        );
 
         let Some(report) = &self.last_report else {
             lines.push(Line::from(""));
-            lines.push(Line::from("Waiting for a keypress...".cyan()));
+            lines.push(Line::from(
+                crate::i18n::text("Waiting for a keypress...").cyan(),
+            ));
             return lines;
         };
 
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            "Detected: ".dim(),
+            crate::i18n::text("Detected: ").dim(),
             report.detected.display_label().cyan(),
         ]));
         match &report.config_key {
             Ok(config_key) => {
                 lines.push(Line::from(vec![
-                    "Config key: ".dim(),
+                    crate::i18n::text("Config key: ").dim(),
                     config_key.clone().cyan(),
                 ]));
             }
             Err(error) => {
                 push_wrapped_dim(
                     &mut lines,
-                    format!("unsupported - {error}"),
+                    crate::i18n::message("r39-keymap-unsupported", &[("error", error)]),
                     wrap_width,
-                    "Config key: ",
+                    crate::i18n::text("Config key: "),
                     "            ",
                 );
             }
@@ -106,13 +118,13 @@ impl KeymapDebugView {
             &mut lines,
             report.raw_event.clone(),
             wrap_width,
-            "Raw event: ",
+            crate::i18n::text("Raw event: "),
             "           ",
         );
         lines.push(Line::from(""));
-        lines.push(Line::from("Assigned actions:".dim()));
+        lines.push(Line::from(crate::i18n::text("Assigned actions:").dim()));
         if report.matches.is_empty() {
-            lines.push(Line::from("  none".dim()));
+            lines.push(Line::from(crate::i18n::text("  none").dim()));
         } else {
             for matched_action in &report.matches {
                 let action = format!(
@@ -120,8 +132,8 @@ impl KeymapDebugView {
                     matched_action.context,
                     matched_action.action,
                     matched_action.label,
-                    matched_action.description,
-                    matched_action.source.label()
+                    crate::i18n::text(matched_action.description),
+                    crate::i18n::text(matched_action.source.label())
                 );
                 push_wrapped_dim(&mut lines, action, wrap_width, "  - ", "    ");
             }

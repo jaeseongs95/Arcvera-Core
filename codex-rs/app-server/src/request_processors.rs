@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 use crate::bespoke_event_handling::apply_bespoke_event_handling;
 use crate::command_exec::CommandExecManager;
 use crate::command_exec::StartCommandExecParams;
@@ -708,6 +708,7 @@ fn resolve_runtime_workspace_roots(workspace_roots: Vec<AbsolutePathBuf>) -> Vec
 pub(crate) mod config_errors;
 mod request_errors;
 mod subagent_processor;
+mod thread_context;
 mod thread_delete;
 mod thread_goal_processor;
 mod thread_lifecycle;

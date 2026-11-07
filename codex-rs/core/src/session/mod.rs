@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 pub(crate) mod startup;
 
 use crate::PromptCacheKey;
@@ -5416,6 +5416,27 @@ impl Session {
     pub(crate) async fn clone_history(&self) -> ContextManager {
         let state = self.state.lock().await;
         state.clone_history()
+    }
+
+    pub(crate) async fn context_snapshot(
+        &self,
+    ) -> codex_protocol::context_snapshot::ThreadContextSnapshot {
+        let ((items, revision, usage), window_number, base_instruction_bytes) = {
+            let state = self.state.lock().await;
+            (
+                state.history.context_inventory_snapshot(),
+                self.current_window_from_state(&state).1,
+                state.session_configuration.base_instructions.len() as u64,
+            )
+        };
+        // Capture Arc-backed history and scalar metadata atomically; scan only after unlock.
+        crate::context_snapshot::summarize(
+            &items,
+            revision,
+            usage,
+            window_number,
+            base_instruction_bytes,
+        )
     }
 
     /// Captures the history lifetime without exposing mutable session state.

@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Catalog and accessors for keymap actions shown by `/keymap`.
 //!
 //! The catalog declaration generates both the UI-facing descriptors and the
@@ -300,7 +300,7 @@ define_keymap_actions! {
 /// parsed back into an action name, because underscores and casing are part of
 /// the stable config contract.
 pub(super) fn action_label(action: &str) -> String {
-    action
+    let label = action
         .split('_')
         .map(|word| {
             let mut chars = word.chars();
@@ -310,7 +310,8 @@ pub(super) fn action_label(action: &str) -> String {
             format!("{}{}", first.to_ascii_uppercase(), chars.as_str())
         })
         .collect::<Vec<_>>()
-        .join(" ")
+        .join(" ");
+    crate::i18n::text(&label).to_string()
 }
 
 /// Format an action's active single-key and chord alternatives in config order.
@@ -345,7 +346,7 @@ pub(super) fn format_action_binding_summary(
                 .map(|prefix| format!("{prefix} {completion}"))
                 .collect::<Vec<_>>();
             if resolved.is_empty() {
-                format!("{spec} (inactive)")
+                crate::i18n::message("r39-keymap-inactive-binding", &[("binding", &spec)])
             } else {
                 format!("{spec} ({})", resolved.join(", "))
             }

@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Snapshot each configuration group and exercise shared panel interactions.
 
 use super::*;
@@ -359,6 +359,81 @@ fn copy_on_select_uses_editor_handoff_and_saves_choice() {
         rx.try_recv().expect("save choice event"),
         AppEvent::SaveConfigPreference(ConfigPreference::CopyOnSelect(CopyOnSelect::Always))
     ));
+}
+
+#[test]
+fn mouse_scroll_speed_uses_editor_handoff_and_saves_fractional_choice() {
+    let (mut panel, mut rx) = panel();
+    panel.handle_key_event(KeyCode::Char('/').into());
+    assert!(panel.handle_paste("mouse scroll speed".to_string()));
+    panel.handle_key_event(KeyCode::Enter.into());
+    assert!(matches!(
+        rx.try_recv().expect("open scroll editor event"),
+        AppEvent::OpenConfigEditor(handoff) if handoff.editor == ConfigEditor::MouseScrollSpeed
+    ));
+
+    let (tx, mut rx) = unbounded_channel();
+    let keymap = RuntimeKeymap::defaults().list;
+    let params = mouse_scroll_speed(&Tui::default(), &keymap);
+    assert!(params.allow_input_when_disconnected);
+    assert_eq!(params.initial_selected_idx, Some(2));
+    assert_eq!(
+        params
+            .items
+            .iter()
+            .map(|item| item.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["0.25×", "0.5×", "1×", "1.5×", "2×", "3×", "5×"]
+    );
+    let mut picker = ListSelectionView::new(params, AppEventSender::new(tx), keymap);
+    picker.handle_key_event(KeyCode::Up.into());
+    picker.handle_key_event(KeyCode::Enter.into());
+    assert!(matches!(
+        rx.try_recv().expect("save scroll choice event"),
+        AppEvent::SaveConfigPreference(ConfigPreference::MouseScrollSpeed(0.5))
+    ));
+    assert!(picker.is_complete());
+}
+
+#[test]
+fn mouse_scroll_speed_preserves_current_presets_and_custom_values() {
+    for speed in [0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 2.25, 3.0, 5.0] {
+        let tui = Tui {
+            mouse_scroll_speed: Some(speed),
+            ..Tui::default()
+        };
+        let (tx, mut rx) = unbounded_channel();
+        let keymap = RuntimeKeymap::defaults().list;
+        let params = mouse_scroll_speed(&tui, &keymap);
+        let current = params.initial_selected_idx.expect("current speed");
+        assert_eq!(params.items[current].name, format!("{speed}×"));
+        assert!(params.items[current].is_current);
+        assert_eq!(
+            params.items.iter().filter(|item| item.is_current).count(),
+            1
+        );
+        let mut picker = ListSelectionView::new(params, AppEventSender::new(tx), keymap);
+        picker.handle_key_event(KeyCode::Enter.into());
+        assert!(matches!(
+            rx.try_recv().expect("save current scroll choice"),
+            AppEvent::SaveConfigPreference(ConfigPreference::MouseScrollSpeed(saved)) if saved == speed
+        ));
+    }
+}
+
+#[test]
+fn mouse_scroll_speed_cancel_does_not_save() {
+    let (tx, mut rx) = unbounded_channel();
+    let keymap = RuntimeKeymap::defaults().list;
+    let mut picker = ListSelectionView::new(
+        mouse_scroll_speed(&Tui::default(), &keymap),
+        AppEventSender::new(tx),
+        keymap,
+    );
+    picker.handle_key_event(KeyCode::Up.into());
+    picker.handle_key_event(KeyCode::Esc.into());
+    assert!(picker.is_complete());
+    assert!(rx.try_recv().is_err());
 }
 
 #[test]

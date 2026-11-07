@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Permission and approval popup flows for `ChatWidget`.
 //!
 //! This module presents permission choices and confirmations in the shared picker;
@@ -74,11 +75,14 @@ impl ChatWidget {
                 continue;
             }
             let base_name = if preset.id == "auto" && windows_degraded_sandbox_enabled {
-                format!("{ASK_FOR_APPROVAL_LABEL} (non-admin sandbox)")
+                crate::i18n::message(
+                    "r39-permissions-non-admin-label",
+                    &[("label", crate::i18n::text(ASK_FOR_APPROVAL_LABEL))],
+                )
             } else if preset.id == "auto" {
-                ASK_FOR_APPROVAL_LABEL.to_string()
+                crate::i18n::text(ASK_FOR_APPROVAL_LABEL).to_string()
             } else {
-                preset.label.to_string()
+                crate::i18n::text(preset.label).to_string()
             };
             let base_description = Some(permission_preset_description(&preset).to_string());
             let approval_disabled_reason = match self
@@ -119,8 +123,8 @@ impl ChatWidget {
 
                 if guardian_approval_enabled {
                     items.push(SelectionItem {
-                        name: APPROVE_FOR_ME_LABEL.to_string(),
-                        description: Some(AUTO_REVIEW_DESCRIPTION.to_string()),
+                        name: crate::i18n::text(APPROVE_FOR_ME_LABEL).to_string(),
+                        description: Some(crate::i18n::text(AUTO_REVIEW_DESCRIPTION).to_string()),
                         is_current: current_review_policy == ApprovalsReviewer::AutoReview
                             && (Self::preset_matches_current(
                                 current_approval,
@@ -135,7 +139,7 @@ impl ChatWidget {
                                     .auto_review_required_for_model(self.current_model()))),
                         actions: self.permission_mode_actions(
                             &preset,
-                            APPROVE_FOR_ME_LABEL.to_string(),
+                            crate::i18n::text(APPROVE_FOR_ME_LABEL).to_string(),
                             ApprovalsReviewer::AutoReview,
                             /*profile_selection*/ None,
                             /*return_to_permissions*/ !include_read_only,
@@ -166,7 +170,7 @@ impl ChatWidget {
 
         let footer_note = show_elevate_sandbox_hint.then(|| {
             vec![
-                "The non-admin sandbox protects your files and prevents network access under most circumstances. However, it carries greater risk if prompt injected. To upgrade to the default sandbox, run ".dim(),
+                crate::i18n::text("The non-admin sandbox protects your files and prevents network access under most circumstances. However, it carries greater risk if prompt injected. To upgrade to the default sandbox, run ").dim(),
                 "/setup-default-sandbox".fg(accent_color()),
                 ".".dim(),
             ]
@@ -176,7 +180,7 @@ impl ChatWidget {
         self.bottom_pane.show_selection_view(SelectionViewParams {
             footer_note,
             items,
-            title: Some("Update Model Permissions".into()),
+            title: Some(crate::i18n::text("Update Model Permissions").into()),
             ..SelectionViewParams::picker()
         });
     }
@@ -184,19 +188,24 @@ impl ChatWidget {
     pub(crate) fn open_auto_review_denials_popup(&mut self) {
         if self.review.recent_auto_review_denials.is_empty() {
             self.add_info_message(
-                "No recent auto-review denials in this thread.".to_string(),
-                Some("Denials are recorded after auto-review rejects an action.".to_string()),
+                crate::i18n::text("No recent auto-review denials in this thread.").to_string(),
+                Some(
+                    crate::i18n::text("Denials are recorded after auto-review rejects an action.")
+                        .to_string(),
+                ),
             );
             return;
         }
         let Some(thread_id) = self.thread_id() else {
-            self.add_error_message("That thread is no longer available.".to_string());
+            self.add_error_message(
+                crate::i18n::text("That thread is no longer available.").to_string(),
+            );
             return;
         };
 
         let mut items = vec![SelectionItem {
-            name: "Action".to_string(),
-            description: Some("Rationale".to_string()),
+            name: crate::i18n::text("Action").to_string(),
+            description: Some(crate::i18n::text("Rationale").to_string()),
             is_disabled: true,
             search_value: Some(String::new()),
             ..Default::default()
@@ -211,7 +220,7 @@ impl ChatWidget {
                     let rationale = event
                         .rationale
                         .as_deref()
-                        .unwrap_or("Auto-review did not include a rationale");
+                        .unwrap_or(crate::i18n::text("Auto-review did not include a rationale"));
                     SelectionItem {
                         name: summary.clone(),
                         description: Some(rationale.to_string()),
@@ -232,8 +241,8 @@ impl ChatWidget {
         self.bottom_pane.show_selection_view(SelectionViewParams {
             header: Box::new(
                 Paragraph::new(vec![
-                    Line::from("Auto-review Denials".bold()),
-                    Line::from("Select a denied action to approve.".dim()),
+                    Line::from(crate::i18n::text("Auto-review Denials").bold()),
+                    Line::from(crate::i18n::text("Select a denied action to approve.").dim()),
                 ])
                 .wrap(Wrap { trim: false }),
             ),
@@ -248,7 +257,9 @@ impl ChatWidget {
 
     pub(crate) fn approve_recent_auto_review_denial(&mut self, thread_id: ThreadId, id: String) {
         let Some(event) = self.review.recent_auto_review_denials.take(&id) else {
-            self.add_error_message("That auto-review denial is no longer available.".to_string());
+            self.add_error_message(
+                crate::i18n::text("That auto-review denial is no longer available.").to_string(),
+            );
             return;
         };
 
@@ -257,9 +268,9 @@ impl ChatWidget {
             op: AppCommand::approve_guardian_denied_action(event),
         });
         self.add_info_message(
-            "Approval recorded for one retry of the selected auto-review denial.".to_string(),
+            crate::i18n::text("Approval recorded for one retry of the selected auto-review denial.").to_string(),
             Some(
-                "The model will see the approval context; the retry still goes through auto-review."
+                crate::i18n::text("The model will see the approval context; the retry still goes through auto-review.")
                     .to_string(),
             ),
         );
@@ -292,7 +303,7 @@ impl ChatWidget {
             tx.send(AppEvent::UpdateApprovalsReviewer(approvals_reviewer));
             tx.send(AppEvent::InsertHistoryCell(Box::new(
                 history_cell::new_info_event(
-                    format!("Permissions updated to {label}"),
+                    crate::i18n::message("r39-permissions-updated", &[("label", &label)]),
                     /*hint*/ None,
                 ),
             )));
@@ -428,7 +439,7 @@ impl ChatWidget {
         return_to_permissions: bool,
         profile_selection: Option<PermissionProfileSelection>,
     ) {
-        let selected_name = preset.label.to_string();
+        let selected_name = crate::i18n::text(preset.label).to_string();
         let approval = AskForApproval::from(preset.approval);
         let is_cyber_model = self.model_catalog.try_list_models().is_ok_and(|models| {
             models.iter().any(|model| {
@@ -436,30 +447,36 @@ impl ChatWidget {
                     && model.model_specialty.as_deref() == Some(MODEL_SPECIALTY_CYBER)
             })
         });
-        let title_line = Line::from("Enable full access?").bold();
+        let title_line = Line::from(crate::i18n::text("Enable full access?")).bold();
         let info_lines = if is_cyber_model {
             let recommendation = if auto_review_available(&self.config) {
-                "We strongly recommend selecting \"Approve for me\" instead, and customizing the reviewer policy for your use case."
+                crate::i18n::text(
+                    "We strongly recommend selecting \"Approve for me\" instead, and customizing the reviewer policy for your use case.",
+                )
             } else {
-                "We strongly recommend selecting \"Ask for approval\" instead."
+                crate::i18n::text("We strongly recommend selecting \"Ask for approval\" instead.")
             };
             vec![
                 Line::default(),
-                Line::from(
+                Line::from(crate::i18n::text(
                     "When Codex runs with full access, it can edit any file on your computer and run commands with network, without your approval.",
-                ),
+                )),
                 Line::default(),
                 Line::from(vec![
-                    "Cyber models carry a higher risk of dangerous actions.".red(),
-                    " Ensure proper safeguards are in place before granting full access. ".into(),
+                    crate::i18n::text("Cyber models carry a higher risk of dangerous actions.")
+                        .red(),
+                    crate::i18n::text(
+                        " Ensure proper safeguards are in place before granting full access. ",
+                    )
+                    .into(),
                     recommendation.into(),
                 ]),
             ]
         } else {
             vec![Line::from(vec![
-                "When Codex runs with full access, it can edit any file on your computer and run commands with network, without your approval. "
+                crate::i18n::text("When Codex runs with full access, it can edit any file on your computer and run commands with network, without your approval. ")
                     .into(),
-                "Exercise caution when enabling full access. This significantly increases the risk of data loss, leaks, or unexpected behavior."
+                crate::i18n::text("Exercise caution when enabling full access. This significantly increases the risk of data loss, leaks, or unexpected behavior.")
                     .red(),
             ])]
         };
@@ -493,15 +510,19 @@ impl ChatWidget {
 
         let items = vec![
             SelectionItem {
-                name: "Yes, continue anyway".to_string(),
-                description: Some("Apply full access for this session".to_string()),
+                name: crate::i18n::text("Yes, continue anyway").to_string(),
+                description: Some(
+                    crate::i18n::text("Apply full access for this session").to_string(),
+                ),
                 actions: accept_actions,
                 dismiss_on_select: true,
                 ..Default::default()
             },
             SelectionItem {
-                name: "Cancel".to_string(),
-                description: Some("Go back without enabling full access".to_string()),
+                name: crate::i18n::text("Cancel").to_string(),
+                description: Some(
+                    crate::i18n::text("Go back without enabling full access").to_string(),
+                ),
                 actions: deny_actions,
                 dismiss_on_select: true,
                 ..Default::default()

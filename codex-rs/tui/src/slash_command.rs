@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 use strum::IntoEnumIterator;
 use strum_macros::AsRefStr;
 use strum_macros::EnumIter;
@@ -104,7 +104,7 @@ impl SlashCommand {
         }
         crate::i18n::text(match self {
             SlashCommand::Context => {
-                "show or set this chat's context window: /context [tokens|reset]"
+                "show context composition or set the window: /context [inspect|tokens|reset]"
             }
             SlashCommand::Cron => "schedule per-chat prompts while this CLI is running",
             SlashCommand::Config => "configure Codex preferences",

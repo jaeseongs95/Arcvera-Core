@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Terminal history, desktop handoff, and clear-screen UI helpers for the TUI app.
 //!
 //! This module owns rendering the fresh session header, clearing inline or alternate-screen UI
@@ -306,8 +306,10 @@ impl App {
 
     pub(super) fn open_url_in_browser(&mut self, url: String) {
         if let Err(err) = webbrowser::open(&url) {
-            self.chat_widget
-                .add_error_message(format!("Failed to open browser for {url}: {err}"));
+            self.chat_widget.add_error_message(crate::i18n::message(
+                "r39-ui-ce958c35dfe9",
+                &[("url", &format!("{url}")), ("err", &format!("{err}"))],
+            ));
         }
     }
 

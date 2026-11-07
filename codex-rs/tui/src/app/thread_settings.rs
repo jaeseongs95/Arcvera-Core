@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Thread settings sync between TUI-local state and app-server thread state.
 
 use super::App;
@@ -32,6 +32,21 @@ impl App {
             );
             return;
         };
+        if args.trim() == "inspect" {
+            if !app_server.start_context_inspection(
+                thread_id,
+                self.chat_widget.connector_scope_generation(),
+                self.app_event_tx.clone(),
+            ) {
+                self.chat_widget.add_error_message(
+                    crate::i18n::text(
+                        "A context composition request is already pending for this connection.",
+                    )
+                    .to_string(),
+                );
+            }
+            return;
+        }
         let model_context_window = match parse_context_window_argument(&args) {
             Ok(value) => value,
             Err(message) => {
@@ -82,6 +97,35 @@ impl App {
                 "{} {error:#}",
                 crate::i18n::text("Failed to set context window:")
             )),
+        }
+    }
+
+    pub(super) fn finish_context_inspection(
+        &mut self,
+        app_server: &mut AppServerSession,
+        key: crate::app_server_session::ContextInspectionKey,
+        outcome: crate::app_server_session::ContextInspectionOutcome,
+    ) {
+        use crate::app_server_session::ContextInspectionOutcome;
+        if !app_server.accept_context_inspection(key, &outcome)
+            || !key.matches_view(
+                self.active_thread_id,
+                self.chat_widget.connector_scope_generation(),
+            )
+        {
+            return;
+        }
+        match outcome {
+            ContextInspectionOutcome::Completed(Ok(response)) if response.thread_id == key.thread_id.to_string() => {
+                self.chat_widget.add_info_message(render_context_composition(&response.snapshot), Some("/context inspect".to_string()));
+            }
+            ContextInspectionOutcome::Completed(Err(error)) => self.chat_widget.add_error_message(format!(
+                "{} {error}", crate::i18n::text("Failed to read context composition:")
+            )),
+            ContextInspectionOutcome::TimedOut => self.chat_widget.add_error_message(crate::i18n::text(
+                "Context composition request timed out; waiting for the existing request to finish."
+            ).to_string()),
+            ContextInspectionOutcome::Completed(Ok(_)) | ContextInspectionOutcome::Drained => {},
         }
     }
 
@@ -322,6 +366,105 @@ impl App {
     }
 }
 
+fn render_context_composition(
+    snapshot: &codex_protocol::context_snapshot::ThreadContextSnapshot,
+) -> String {
+    use codex_protocol::context_snapshot::ContextBasePlacement;
+    let text = crate::i18n::text;
+    let mut lines = vec![
+        text("Current chat context composition").to_string(),
+        text("Retained local history only; this is not the exact next model request.").to_string(),
+        format!(
+            "{}: {}",
+            text("History revision"),
+            snapshot.history_revision
+        ),
+        format!(
+            "{}: {}",
+            text("Context window generation"),
+            snapshot.window_number
+        ),
+        format!("{}: {}", text("History items"), snapshot.item_count),
+    ];
+    let roles = &snapshot.roles;
+    let items = &snapshot.items;
+    let sources = &snapshot.message_sources;
+    for (heading, counts) in [
+        (
+            "Message roles",
+            vec![
+                ("System", roles.system),
+                ("Developer", roles.developer),
+                ("User", roles.user),
+                ("Assistant", roles.assistant),
+                ("Other", roles.other),
+            ],
+        ),
+        (
+            "Item types",
+            vec![
+                ("Messages", items.messages),
+                ("Agent messages", items.agent_messages),
+                ("Tool calls", items.tool_calls),
+                ("Tool outputs", items.tool_outputs),
+                ("Tool declarations", items.tool_declarations),
+                ("Reasoning items", items.reasoning),
+                ("Compaction items", items.compaction),
+                ("Configuration items", items.configuration),
+                ("Other", items.other),
+            ],
+        ),
+        (
+            "Message part sources",
+            vec![
+                ("Developer instructions", sources.developer_instructions),
+                ("Skills", sources.skills),
+                ("AGENTS.md instructions", sources.agents_md),
+                ("Harness context", sources.harness),
+                ("Hook context", sources.hooks),
+                ("Tool context", sources.tool),
+                ("User", sources.user),
+                ("Unknown source", sources.unknown),
+            ],
+        ),
+    ] {
+        lines.push(format!("{}:", text(heading)));
+        lines.extend(
+            counts
+                .into_iter()
+                .map(|(label, count)| format!("  {}: {count}", text(label))),
+        );
+    }
+    lines.push(format!(
+        "{}: {} ({})",
+        text("Configured base instructions (UTF-8 bytes)"),
+        snapshot.base_instructions.utf8_bytes,
+        text(match snapshot.base_instructions.placement {
+            ContextBasePlacement::History => "Already included in history",
+            ContextBasePlacement::OutsideHistory => "Outside retained history",
+        })
+    ));
+    let tracked = snapshot.tracked_usage.as_ref().map_or_else(
+        || text("Not captured").to_string(),
+        |usage| usage.total_tokens.to_string(),
+    );
+    lines.push(format!(
+        "{}: {tracked}",
+        text("Tracked token usage (source unverified)")
+    ));
+    lines.push(format!(
+        "{}: {}",
+        text("Server-measured tokens"),
+        text("Not captured")
+    ));
+    lines.push(format!(
+        "{}: {}",
+        text("Next request tool declarations"),
+        text("Not captured")
+    ));
+    lines.join("\n")
+}
+
 fn parse_context_window_argument(args: &str) -> Result<Option<Option<i64>>, &'static str> {
     match args.trim() {
         "" => Ok(None),
@@ -331,7 +474,7 @@ fn parse_context_window_argument(args: &str) -> Result<Option<Option<i64>>, &'st
             .ok()
             .filter(|tokens| *tokens > 0)
             .map(|tokens| Some(Some(tokens)))
-            .ok_or("Usage: /context [positive integer tokens|reset]"),
+            .ok_or("Usage: /context [inspect|positive integer tokens|reset]"),
     }
 }
 

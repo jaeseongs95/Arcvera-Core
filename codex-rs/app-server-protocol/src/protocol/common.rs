@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 #[cfg(test)]
 use std::path::Path;
 use std::path::PathBuf;
@@ -1059,6 +1059,12 @@ client_request_definitions! {
         params: v2::ThreadReadParams,
         serialization: thread_id(params.thread_id),
         response: v2::ThreadReadResponse,
+    },
+    /// Content-free inventory of an already-loaded thread's local context.
+    ThreadContextRead => "thread/context/read" {
+        params: v2::ThreadContextReadParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ThreadContextReadResponse,
     },
     #[experimental("thread/readState/update")]
     ThreadReadStateUpdate => "thread/readState/update" {

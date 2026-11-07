@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Entry points for the configuration browser and its existing child editors.
 
 use super::ChatWidget;
@@ -35,6 +36,12 @@ impl ChatWidget {
             ConfigEditor::StatusLine => self.open_status_line_setup(),
             ConfigEditor::TerminalTitle => self.open_terminal_title_setup(),
             ConfigEditor::Keyboard => self.open_keymap_picker(),
+            ConfigEditor::MouseScrollSpeed => {
+                let keymap = self.bottom_pane.list_keymap();
+                let params =
+                    crate::config_panel::mouse_scroll_speed(&self.local_settings.tui, &keymap);
+                self.bottom_pane.show_selection_view(params);
+            }
             ConfigEditor::SessionPickerLayout => {
                 let keymap = self.bottom_pane.list_keymap();
                 let params =

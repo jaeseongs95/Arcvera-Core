@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 pub mod account;
 mod agent_path;
 pub mod auth;
@@ -22,6 +23,7 @@ pub mod approvals;
 pub mod capabilities;
 mod codex_error_info;
 pub mod config_types;
+pub mod context_snapshot;
 mod guardian_transcript;
 pub use guardian_transcript::TranscriptFormat;
 pub mod dynamic_tools;

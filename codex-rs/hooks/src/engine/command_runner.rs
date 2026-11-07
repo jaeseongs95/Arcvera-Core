@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::ffi::OsString;
@@ -22,6 +23,8 @@ use codex_utils_pty::Command;
 use codex_utils_pty::JobObject;
 use futures::future::try_join;
 use serde_json::Value;
+use tokio::io::AsyncRead;
+use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 #[cfg(not(unix))]
 use tokio::process::Command;
@@ -52,6 +55,8 @@ use codex_protocol::protocol::HookOutputEntry;
 use codex_protocol::protocol::HookOutputEntryKind;
 
 const MAX_CONCURRENT_ASYNC_HOOKS: usize = 8;
+// Match the per-stream capture budget of environment command hooks.
+const MAX_HOOK_OUTPUT_BYTES: usize = 1024 * 1024;
 
 /// Owns command execution and bounded asynchronous work for one session.
 #[derive(Clone)]
@@ -321,11 +326,24 @@ pub(crate) async fn run_command(
         }
         Ok(())
     };
+    let mut stdout = child.stdout.take();
+    let mut stderr = child.stderr.take();
     let wait_with_output = async {
-        child
-            .wait_with_output()
-            .await
-            .map_err(|err| ("wait_error", err.to_string()))
+        let (status, stdout, stderr) = tokio::try_join!(
+            async {
+                child
+                    .wait()
+                    .await
+                    .map_err(|err| ("wait_error", err.to_string()))
+            },
+            read_hook_output(&mut stdout, "stdout"),
+            read_hook_output(&mut stderr, "stderr"),
+        )?;
+        Ok(std::process::Output {
+            status,
+            stdout,
+            stderr,
+        })
     };
 
     // Drain output while sending input so neither pipe can block the other, and
@@ -378,6 +396,35 @@ pub(crate) async fn run_command(
             },
         ),
     }
+}
+
+async fn read_hook_output<R: AsyncRead + Unpin>(
+    stream: &mut Option<R>,
+    name: &str,
+) -> Result<Vec<u8>, (&'static str, String)> {
+    let mut output = Vec::new();
+    if let Some(stream) = stream {
+        let mut buffer = [0; 8192];
+        loop {
+            let count = stream.read(&mut buffer).await.map_err(|err| {
+                (
+                    "output_read_error",
+                    format!("failed to read hook {name}: {err}"),
+                )
+            })?;
+            if count == 0 {
+                break;
+            }
+            if count > MAX_HOOK_OUTPUT_BYTES - output.len() {
+                return Err((
+                    "output_limit_error",
+                    format!("hook {name} exceeded the {MAX_HOOK_OUTPUT_BYTES}-byte output limit"),
+                ));
+            }
+            output.extend_from_slice(&buffer[..count]);
+        }
+    }
+    Ok(output)
 }
 
 // Needed only until command hooks move to the exec server, which owns process-tree cleanup.

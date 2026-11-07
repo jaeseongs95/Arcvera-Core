@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::future::Future;
@@ -1680,6 +1680,9 @@ impl MessageProcessor {
             }
             ClientRequest::ThreadRead { params, .. } => {
                 self.thread_processor.thread_read(&request_id, params).await
+            }
+            ClientRequest::ThreadContextRead { params, .. } => {
+                self.thread_processor.thread_context_read(params).await
             }
             ClientRequest::ThreadReadStateUpdate { params, .. } => {
                 self.thread_processor.thread_read_state_update(params).await

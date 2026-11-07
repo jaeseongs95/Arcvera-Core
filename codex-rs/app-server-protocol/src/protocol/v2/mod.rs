@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 mod shared;
 
 mod account;
@@ -37,6 +37,7 @@ mod rollout;
 mod subagent;
 mod thread;
 mod thread_attachment;
+mod thread_context;
 mod thread_data;
 mod thread_prediction;
 mod thread_sample;
@@ -82,6 +83,7 @@ pub use shared::*;
 pub use subagent::*;
 pub use thread::*;
 pub use thread_attachment::*;
+pub use thread_context::*;
 pub use thread_data::*;
 pub use thread_prediction::*;
 pub use thread_sample::*;

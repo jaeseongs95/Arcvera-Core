@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Render the configuration catalog and its child choice picker.
 
 use super::ConfigPanel;
@@ -158,6 +158,44 @@ pub(crate) fn notification_condition(
                 actions: vec![Box::new(move |tx| {
                     tx.send(AppEvent::SaveConfigPreference(
                         ConfigPreference::NotificationCondition(condition),
+                    ));
+                })],
+                dismiss_on_select: true,
+                ..Default::default()
+            })
+            .collect(),
+        ..SelectionViewParams::picker()
+    }
+}
+
+pub(crate) fn mouse_scroll_speed(
+    tui: &codex_config::types::Tui,
+    keymap: &ListKeymap,
+) -> SelectionViewParams {
+    let current = tui.mouse_scroll_speed.unwrap_or(1.0);
+    let mut speeds: Vec<f64> = vec![0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0];
+    // Preserve a valid custom config value instead of presenting a different current setting.
+    if !speeds.contains(&current) {
+        speeds.push(current);
+        speeds.sort_by(f64::total_cmp);
+    }
+    SelectionViewParams {
+        title: Some(crate::i18n::text("Mouse scroll speed").to_string()),
+        subtitle: Some(
+            crate::i18n::text("Choose a multiplier; 1× moves one transcript row per wheel event")
+                .to_string(),
+        ),
+        footer_hint: Some(picker_hint_line_for_keymap(keymap)),
+        initial_selected_idx: speeds.iter().position(|speed| *speed == current),
+        allow_input_when_disconnected: true,
+        items: speeds
+            .into_iter()
+            .map(|speed| SelectionItem {
+                name: format!("{speed}×"),
+                is_current: speed == current,
+                actions: vec![Box::new(move |tx| {
+                    tx.send(AppEvent::SaveConfigPreference(
+                        ConfigPreference::MouseScrollSpeed(speed),
                     ));
                 })],
                 dismiss_on_select: true,

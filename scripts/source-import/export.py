@@ -9,8 +9,8 @@ import subprocess
 import tarfile
 
 OFFICIAL='086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a'
-PATCHED='230567050d3f4bdce4315a2b3e0393bbe17431a6'
-PREVIOUS_PUBLIC='1662744ae8a5437a37eba56a5c893a1562d36a03'
+PATCHED='e96b4bde8adf9eb9159add18362e87c98dcda80e'
+PREVIOUS_PUBLIC='a874db1ffbcba436502f0bd1c98d210d3513c078'
 PREFIXES=['codex-rs', 'third_party', 'patches', '.cargo/config.toml', 'tools/windows-cli', '.gitattributes', 'docs/native-cli-r27.ko.md', 'docs/native-cli-cron.ko.md', 'docs/native-cli-r33-cache-observation.ko.md', 'docs/native-cli-r35.ko.md', 'docs/native-cli-r36.ko.md', 'docs/r36-cleanup.ko.md', 'docs/r36-cloud-ci.ko.md', 'docs/r36-fast-compaction.ko.md', 'docs/r37-agent-selection-cases.ko.md', 'docs/r37-cold-cleanup-cases.ko.md', 'docs/r37-config-cases.ko.md', 'docs/r37-daemon-cases.ko.md', 'docs/r37-memory-cases.ko.md', 'docs/r37-memory-transport-cases.ko.md', 'docs/r37-plugin-cache-cases.ko.md', 'docs/r37-replay-compact-cases.ko.md', 'sdk/python/src/openai_codex/generated/v2_all.py', 'docs/native-cli-r38.ko.md', 'docs/r38-daemon-test-cases.ko.md', 'docs/r38-plugin-cache-test-cases.ko.md', 'docs/r38-stop-hook-test-cases.ko.md', 'scripts/install/normalize_stop_hook_config.py', 'scripts/install/test_normalize_stop_hook_config.py', 'docs/r38-agent-main-return-test-cases.ko.md']
 PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
@@ -541,6 +541,82 @@ NOTICE_OVERRIDES.update({path: ('R38', '2026-11-06') for path in (
 def sha(data):return hashlib.sha256(data).hexdigest()
 def git(repository,*args):return subprocess.check_output(['git','-c','core.autocrlf=false','-C',str(repository),*args])
 def encode(value):return (json.dumps(value,ensure_ascii=False,indent=2)+'\n').encode()
+
+NOTICE_OVERRIDES.update({path: ('R39', '2026-11-07') for path in (
+    'codex-rs/app-server-protocol/src/protocol/common.rs',
+    'codex-rs/app-server-protocol/src/protocol/v2/mod.rs',
+    'codex-rs/app-server-protocol/src/protocol/v2/thread_context.rs',
+    'codex-rs/app-server/src/message_processor.rs',
+    'codex-rs/app-server/src/request_processors.rs',
+    'codex-rs/app-server/src/request_processors/thread_context.rs',
+    'codex-rs/cli/src/doctor/output.rs',
+    'codex-rs/cli/src/doctor/output/detail.rs',
+    'codex-rs/cli/src/state_db_recovery.rs',
+    'codex-rs/core/src/codex_thread.rs',
+    'codex-rs/core/src/context_manager/history.rs',
+    'codex-rs/core/src/context_snapshot.rs',
+    'codex-rs/core/src/lib.rs',
+    'codex-rs/core/src/session/mod.rs',
+    'codex-rs/hooks/src/engine/command_runner.rs',
+    'codex-rs/hooks/src/engine/command_runner_tests.rs',
+    'codex-rs/protocol/src/context_snapshot.rs',
+    'codex-rs/protocol/src/lib.rs',
+    'codex-rs/tui/locales/en/r39-i18n.ftl',
+    'codex-rs/tui/locales/ko/r39-i18n.ftl',
+    'codex-rs/tui/src/analytics/hints.rs',
+    'codex-rs/tui/src/analytics/normalize.rs',
+    'codex-rs/tui/src/analytics/plan_panel.rs',
+    'codex-rs/tui/src/app/agents_overview_errors.rs',
+    'codex-rs/tui/src/app/background_requests.rs',
+    'codex-rs/tui/src/app/clipboard.rs',
+    'codex-rs/tui/src/app/config_panel.rs',
+    'codex-rs/tui/src/app/config_panel_tests.rs',
+    'codex-rs/tui/src/app/config_persistence.rs',
+    'codex-rs/tui/src/app/daemon_menu.rs',
+    'codex-rs/tui/src/app/event_dispatch.rs',
+    'codex-rs/tui/src/app/history_ui.rs',
+    'codex-rs/tui/src/app/managed_worktree_creation.rs',
+    'codex-rs/tui/src/app/model_defaults.rs',
+    'codex-rs/tui/src/app/owned_transcript.rs',
+    'codex-rs/tui/src/app/thread_settings.rs',
+    'codex-rs/tui/src/app_event.rs',
+    'codex-rs/tui/src/app_server_session.rs',
+    'codex-rs/tui/src/auto_review_denials.rs',
+    'codex-rs/tui/src/chatwidget/config_panel.rs',
+    'codex-rs/tui/src/chatwidget/connectors.rs',
+    'codex-rs/tui/src/chatwidget/permission_discovery.rs',
+    'codex-rs/tui/src/chatwidget/permission_popups.rs',
+    'codex-rs/tui/src/chatwidget/plugin_catalog.rs',
+    'codex-rs/tui/src/chatwidget/plugins.rs',
+    'codex-rs/tui/src/chatwidget/review_popups.rs',
+    'codex-rs/tui/src/chatwidget/settings.rs',
+    'codex-rs/tui/src/chatwidget/slash_command_args.rs',
+    'codex-rs/tui/src/chatwidget/tool_requests.rs',
+    'codex-rs/tui/src/config_panel/config_panel_tests.rs',
+    'codex-rs/tui/src/config_panel/mod.rs',
+    'codex-rs/tui/src/config_panel/render.rs',
+    'codex-rs/tui/src/config_panel/toggle.rs',
+    'codex-rs/tui/src/external_agent_config_migration/flow.rs',
+    'codex-rs/tui/src/external_agent_config_migration/mod.rs',
+    'codex-rs/tui/src/external_agent_config_migration/model.rs',
+    'codex-rs/tui/src/external_agent_config_migration/render.rs',
+    'codex-rs/tui/src/history_cell/exec.rs',
+    'codex-rs/tui/src/history_cell/mcp.rs',
+    'codex-rs/tui/src/history_cell/notices.rs',
+    'codex-rs/tui/src/history_cell/patches.rs',
+    'codex-rs/tui/src/history_cell/plans.rs',
+    'codex-rs/tui/src/history_cell/request_user_input.rs',
+    'codex-rs/tui/src/history_cell/session.rs',
+    'codex-rs/tui/src/i18n/catalog.rs',
+    'codex-rs/tui/src/keymap_setup.rs',
+    'codex-rs/tui/src/keymap_setup/actions.rs',
+    'codex-rs/tui/src/keymap_setup/capture.rs',
+    'codex-rs/tui/src/keymap_setup/debug.rs',
+    'codex-rs/tui/src/keymap_setup/picker.rs',
+    'codex-rs/tui/src/slash_command.rs',
+    'codex-rs/tui/src/startup_hooks_review.rs',
+    'codex-rs/tui/src/transcript_view/footer.rs',
+)})
 
 def notice(path):
     label,date=NOTICE_OVERRIDES.get(path,(LABEL,DATE))

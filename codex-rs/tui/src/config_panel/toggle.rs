@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Maps config-panel preference changes to persisted and effective TUI values.
 
 use crate::legacy_core::config::edit::ConfigEdit;
@@ -23,13 +24,14 @@ pub(crate) enum ConfigToggle {
     Tips,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum ConfigPreference {
     Toggle {
         setting: ConfigToggle,
         enabled: bool,
     },
     CopyOnSelect(CopyOnSelect),
+    MouseScrollSpeed(f64),
     NotificationCondition(NotificationCondition),
     RightClickPaste(RightClickPaste),
     SessionPickerLayout(SessionPickerViewMode),
@@ -40,6 +42,10 @@ impl ConfigPreference {
     pub(crate) fn edit(self) -> ConfigEdit {
         match self {
             Self::Toggle { setting, enabled } => setting.edit(enabled),
+            Self::MouseScrollSpeed(speed) => ConfigEdit::SetPath {
+                segments: vec!["tui".to_string(), "mouse_scroll_speed".to_string()],
+                value: toml_edit::value(speed),
+            },
             Self::CopyOnSelect(mode) => ConfigEdit::SetPath {
                 segments: vec!["tui".to_string(), "copy_on_select".to_string()],
                 value: toml_edit::value(match mode {
@@ -75,6 +81,7 @@ impl ConfigPreference {
     pub(crate) fn adopt(self, target: &mut Tui, source: &Tui) {
         match self {
             Self::Toggle { setting, .. } => setting.adopt(target, source),
+            Self::MouseScrollSpeed(_) => target.mouse_scroll_speed = source.mouse_scroll_speed,
             Self::CopyOnSelect(_) => target.copy_on_select = source.copy_on_select,
             Self::NotificationCondition(_) => {
                 target.notification_settings.condition = source.notification_settings.condition;

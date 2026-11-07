@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! App-server session facade used by the TUI event loop.
 //!
 //! This module owns the typed JSON-RPC calls needed by the TUI and keeps
@@ -340,6 +340,76 @@ pub(crate) struct AppServerBootstrap {
     pub(crate) allowed_approval_policies: Option<Vec<AskForApproval>>,
 }
 
+/// Identity of one content-free diagnostic request and the view that requested it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ContextInspectionKey {
+    backend_id: crate::backend_id::BackendId,
+    connection_id: uuid::Uuid,
+    request_generation: uuid::Uuid,
+    pub(crate) thread_id: ThreadId,
+    view_generation: crate::chatwidget::ConnectorScopeGeneration,
+}
+
+impl ContextInspectionKey {
+    pub(crate) fn matches_view(
+        &self,
+        thread_id: Option<ThreadId>,
+        generation: crate::chatwidget::ConnectorScopeGeneration,
+    ) -> bool {
+        thread_id == Some(self.thread_id) && generation == self.view_generation
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ContextInspectionOutcome {
+    Completed(std::result::Result<codex_app_server_protocol::ThreadContextReadResponse, String>),
+    TimedOut,
+    Drained,
+}
+
+struct PendingContextInspection {
+    key: ContextInspectionKey,
+    task: tokio::task::JoinHandle<()>,
+}
+
+impl Drop for PendingContextInspection {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
+}
+
+const CONTEXT_INSPECTION_UI_DEADLINE: std::time::Duration = std::time::Duration::from_secs(5);
+
+async fn run_context_inspection_request(
+    request: impl std::future::Future<
+        Output = std::result::Result<codex_app_server_protocol::ThreadContextReadResponse, String>,
+    >,
+    key: ContextInspectionKey,
+    app_event_tx: AppEventSender,
+    deadline: std::time::Duration,
+) {
+    tokio::pin!(request);
+    match tokio::time::timeout(deadline, &mut request).await {
+        Ok(result) => app_event_tx.send(AppEvent::ContextCompositionLoaded {
+            key,
+            outcome: ContextInspectionOutcome::Completed(result),
+        }),
+        Err(_) => {
+            app_event_tx.send(AppEvent::ContextCompositionLoaded {
+                key,
+                outcome: ContextInspectionOutcome::TimedOut,
+            });
+            // A dropped receiver does not cancel the remote wire request. Keep its one slot
+            // occupied until it drains or the connection owner drops this task.
+            let _ = request.await;
+            app_event_tx.send(AppEvent::ContextCompositionLoaded {
+                key,
+                outcome: ContextInspectionOutcome::Drained,
+            });
+        }
+    }
+}
+
 pub(crate) struct AppServerSession {
     backend_id: crate::backend_id::BackendId,
     connection_id: uuid::Uuid,
@@ -347,6 +417,7 @@ pub(crate) struct AppServerSession {
     runtime_tool_registration_generation: u64,
     runtime_tool_registration_lifetime: tokio_util::sync::CancellationToken,
     pending_runtime_tool_resume: Mutex<Option<(u64, uuid::Uuid, ThreadResumeParams)>>,
+    pending_context_inspection: Option<PendingContextInspection>,
     pending_compact: Option<(
         ThreadId,
         String,
@@ -536,6 +607,7 @@ impl AppServerSession {
             runtime_tool_registration_generation: 0,
             runtime_tool_registration_lifetime: tokio_util::sync::CancellationToken::new(),
             pending_runtime_tool_resume: Mutex::new(None),
+            pending_context_inspection: None,
             pending_compact: None,
             connection_owner,
             request_handle,
@@ -1051,6 +1123,7 @@ impl AppServerSession {
             self.connection_live
                 .store(false, std::sync::atomic::Ordering::Release);
             self.pending_compact = None;
+            self.pending_context_inspection = None;
         }
         if let Some(codex_app_server_client::AppServerEvent::ServerNotification(notification)) =
             &event
@@ -1708,6 +1781,72 @@ impl AppServerSession {
         }
     }
 
+    pub(crate) fn start_context_inspection(
+        &mut self,
+        thread_id: ThreadId,
+        view_generation: crate::chatwidget::ConnectorScopeGeneration,
+        app_event_tx: AppEventSender,
+    ) -> bool {
+        if self
+            .pending_context_inspection
+            .as_ref()
+            .is_some_and(|pending| !pending.task.is_finished())
+        {
+            return false;
+        }
+        let key = ContextInspectionKey {
+            backend_id: self.backend_id,
+            connection_id: self.connection_id,
+            request_generation: uuid::Uuid::new_v4(),
+            thread_id,
+            view_generation,
+        };
+        let request_id = self.next_request_id();
+        let request_handle = self.request_handle();
+        let task = tokio::spawn(async move {
+            let request = async move {
+                request_handle
+                    .request_typed(ClientRequest::ThreadContextRead {
+                        request_id,
+                        params: codex_app_server_protocol::ThreadContextReadParams {
+                            thread_id: thread_id.to_string(),
+                        },
+                    })
+                    .await
+                    .map_err(|error| error.to_string())
+            };
+            run_context_inspection_request(
+                request,
+                key,
+                app_event_tx,
+                CONTEXT_INSPECTION_UI_DEADLINE,
+            )
+            .await;
+        });
+        self.pending_context_inspection = Some(PendingContextInspection { key, task });
+        true
+    }
+
+    pub(crate) fn accept_context_inspection(
+        &mut self,
+        key: ContextInspectionKey,
+        outcome: &ContextInspectionOutcome,
+    ) -> bool {
+        if key.backend_id != self.backend_id
+            || key.connection_id != self.connection_id
+            || !self
+                .pending_context_inspection
+                .as_ref()
+                .is_some_and(|pending| pending.key == key)
+        {
+            return false;
+        }
+        if !matches!(outcome, ContextInspectionOutcome::TimedOut) {
+            self.pending_context_inspection = None;
+        }
+        true
+    }
+
     pub(crate) async fn thread_inject_items(
         &mut self,
         thread_id: ThreadId,
@@ -2267,7 +2406,8 @@ impl AppServerSession {
         client.resolve_server_request(request_id, result).await
     }
 
-    pub(crate) async fn shutdown(self) -> std::io::Result<()> {
+    pub(crate) async fn shutdown(mut self) -> std::io::Result<()> {
+        self.pending_context_inspection = None;
         self.connection_live
             .store(false, std::sync::atomic::Ordering::Release);
         match self.connection_owner {

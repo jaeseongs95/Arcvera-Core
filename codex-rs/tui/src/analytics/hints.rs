@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Two fixed hint rows keep report actions visible without changing chart geometry.
 
 use super::AnalyticsView;
@@ -98,7 +99,8 @@ impl AnalyticsView {
                     let mut part = Line::from(separator.dim());
                     part.spans.extend(key_label_spans(&key));
                     if !label.is_empty() {
-                        part.spans.push(format!(" {label}").dim());
+                        part.spans
+                            .push(format!(" {}", crate::i18n::text(label)).dim());
                     }
                     if line.width() + part.width() <= width {
                         line.spans.extend(part.spans);

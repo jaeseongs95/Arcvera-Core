@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Completed request-user-input transcript rendering.
 
 use super::*;
@@ -30,10 +31,19 @@ impl HistoryCell for RequestUserInputResultCell {
             .count();
         let unanswered = total.saturating_sub(answered);
 
-        let mut header = vec!["•".dim(), " ".into(), "Questions".bold()];
-        header.push(format!(" {answered}/{total} answered").dim());
+        let mut header = vec!["•".dim(), " ".into(), crate::i18n::text("Questions").bold()];
+        header.push(
+            crate::i18n::message(
+                "r39-questions-answered-suffix",
+                &[
+                    ("answered", &answered.to_string()),
+                    ("total", &total.to_string()),
+                ],
+            )
+            .dim(),
+        );
         if self.interrupted {
-            header.push(" (interrupted)".fg(accent_color()));
+            header.push(crate::i18n::text(" (interrupted)").fg(accent_color()));
         }
 
         let mut lines = vec![HyperlinkLine::new(header.into())];
@@ -52,7 +62,7 @@ impl HistoryCell for RequestUserInputResultCell {
                 Style::default(),
             );
             if answer_missing && let Some(last) = question_lines.last_mut() {
-                let suffix = " (unanswered)";
+                let suffix = crate::i18n::text(" (unanswered)");
                 last.line.spans.push(suffix.dim());
                 if let Some(source) = &mut last.source {
                     // The suffix is deliberately appended after wrapping, matching the existing UI.
@@ -80,7 +90,7 @@ impl HistoryCell for RequestUserInputResultCell {
                 lines.extend(wrap_with_prefix(
                     "••••••",
                     width,
-                    "    answer: ".dim(),
+                    crate::i18n::text("    answer: ").dim(),
                     "            ".dim(),
                     Style::default().fg(accent_color()),
                 ));
@@ -93,7 +103,7 @@ impl HistoryCell for RequestUserInputResultCell {
                 lines.extend(wrap_with_prefix(
                     &option,
                     width,
-                    "    answer: ".dim(),
+                    crate::i18n::text("    answer: ").dim(),
                     "            ".dim(),
                     Style::default().fg(accent_color()),
                 ));
@@ -101,13 +111,13 @@ impl HistoryCell for RequestUserInputResultCell {
             if let Some(note) = note {
                 let (label, continuation, style) = if question.options.is_some() {
                     (
-                        "    note: ".dim(),
+                        crate::i18n::text("    note: ").dim(),
                         "          ".dim(),
                         Style::default().fg(accent_color()),
                     )
                 } else {
                     (
-                        "    answer: ".dim(),
+                        crate::i18n::text("    answer: ").dim(),
                         "            ".dim(),
                         Style::default().fg(accent_color()),
                     )
@@ -117,7 +127,10 @@ impl HistoryCell for RequestUserInputResultCell {
         }
 
         if self.interrupted && unanswered > 0 {
-            let summary = format!("interrupted with {unanswered} unanswered");
+            let summary = crate::i18n::message(
+                "r39-questions-interrupted",
+                &[("count", &unanswered.to_string())],
+            );
             lines.extend(wrap_with_prefix(
                 &summary,
                 width,
@@ -145,9 +158,15 @@ impl HistoryCell for RequestUserInputResultCell {
                     .is_some_and(|answer| !answer.answers.is_empty())
             })
             .count();
-        let mut lines = vec![Line::from(format!("Questions {answered}/{total} answered"))];
+        let mut lines = vec![Line::from(crate::i18n::message(
+            "r39-questions-answered",
+            &[
+                ("answered", &answered.to_string()),
+                ("total", &total.to_string()),
+            ],
+        ))];
         if self.interrupted {
-            lines.push(Line::from("(interrupted)"));
+            lines.push(Line::from(crate::i18n::text("(interrupted)")));
         }
         for question in &self.questions {
             lines.push(Line::from(question.question.clone()));
@@ -157,20 +176,24 @@ impl HistoryCell for RequestUserInputResultCell {
                 .filter(|answer| !answer.answers.is_empty())
             {
                 if question.is_secret {
-                    lines.push(Line::from("answer: ******"));
+                    lines.push(Line::from(crate::i18n::text("answer: ******")));
                 } else {
                     let (options, note) = split_request_user_input_answer(answer);
-                    lines.extend(
-                        options
-                            .into_iter()
-                            .map(|option| Line::from(format!("answer: {option}"))),
-                    );
+                    lines.extend(options.into_iter().map(|option| {
+                        Line::from(crate::i18n::message(
+                            "r39-question-answer",
+                            &[("answer", &option)],
+                        ))
+                    }));
                     if let Some(note) = note {
-                        lines.push(Line::from(format!("note: {note}")));
+                        lines.push(Line::from(crate::i18n::message(
+                            "r39-question-note",
+                            &[("note", &note)],
+                        )));
                     }
                 }
             } else {
-                lines.push(Line::from("(unanswered)"));
+                lines.push(Line::from(crate::i18n::text("(unanswered)")));
             }
         }
         lines

@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Patch summaries and image-tool transcript helpers.
 
 use super::*;
@@ -106,9 +107,16 @@ impl HistoryCell for PatchFailureCell {
     }
 
     fn transcript_hyperlink_lines(&self, width: u16) -> Vec<HyperlinkLine> {
-        let mut lines = vec![Line::from("✘ Failed to apply patch".magenta().bold()).into()];
+        let mut lines = vec![
+            Line::from(
+                crate::i18n::text("✘ Failed to apply patch")
+                    .magenta()
+                    .bold(),
+            )
+            .into(),
+        ];
         let error = if self.stderr.trim().is_empty() {
-            "(error details unavailable)"
+            crate::i18n::text("(error details unavailable)")
         } else {
             &self.stderr
         };
@@ -128,7 +136,7 @@ impl HistoryCell for PatchFailureCell {
     }
 
     fn raw_lines(&self) -> Vec<Line<'static>> {
-        let mut lines = vec![Line::from("Failed to apply patch")];
+        let mut lines = vec![Line::from(crate::i18n::text("Failed to apply patch"))];
         lines.extend(plain_lines(ansi_escape(&self.stderr).lines));
         lines
     }
@@ -137,7 +145,11 @@ impl HistoryCell for PatchFailureCell {
         let mut lines: Vec<Line<'static>> = Vec::new();
 
         // Failure title
-        lines.push(Line::from("✘ Failed to apply patch".magenta().bold()));
+        lines.push(Line::from(
+            crate::i18n::text("✘ Failed to apply patch")
+                .magenta()
+                .bold(),
+        ));
 
         if !self.stderr.trim().is_empty() {
             let output = output_lines(
@@ -169,7 +181,7 @@ pub(crate) struct ViewImageHistoryCell {
 
 impl ViewImageHistoryCell {
     pub(crate) fn link_local_image(&mut self) {
-        let start = "Viewed image ".len();
+        let start = crate::width::display_width(crate::i18n::text("Viewed image "));
         let end = start + crate::width::display_width(&self.path_label);
         self.link = self
             .image_path()
@@ -189,7 +201,7 @@ impl HistoryCell for ViewImageHistoryCell {
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
         let line = vec![
             "• ".dim(),
-            "Viewed image ".bold(),
+            crate::i18n::text("Viewed image ").bold(),
             self.filename.replace(['\n', '\r', '\t'], " ").dim(),
         ]
         .into();
@@ -202,7 +214,8 @@ impl HistoryCell for ViewImageHistoryCell {
     fn display_hyperlink_lines(&self, width: u16) -> Vec<HyperlinkLine> {
         let mut lines = plain_hyperlink_lines(self.display_lines(width));
         if let ([line], Some(link)) = (lines.as_mut_slice(), &self.link) {
-            let start = crate::width::display_width("• Viewed image ");
+            let start = crate::width::display_width("• ")
+                + crate::width::display_width(crate::i18n::text("Viewed image "));
             if start < line.width() {
                 line.hyperlinks.push(link.with_columns(start..line.width()));
             }
@@ -219,7 +232,7 @@ impl HistoryCell for ViewImageHistoryCell {
             return Vec::new();
         }
         let mut line = HyperlinkLine::new(Line::from(vec![
-            "Viewed image ".bold(),
+            crate::i18n::text("Viewed image ").bold(),
             self.path_label.clone().dim(),
         ]));
         line.hyperlinks.extend(self.link.iter().cloned());
@@ -232,7 +245,10 @@ impl HistoryCell for ViewImageHistoryCell {
     }
 
     fn raw_lines(&self) -> Vec<Line<'static>> {
-        vec![Line::from(format!("Viewed image {}", self.path_label))]
+        vec![Line::from(crate::i18n::message(
+            "r39-viewed-image",
+            &[("path", &self.path_label)],
+        ))]
     }
 }
 
@@ -260,16 +276,27 @@ pub(crate) fn new_image_generation_call(
 ) -> ImageGenerationHistoryCell {
     let detail = revised_prompt.unwrap_or(call_id);
     let heading = if status == "failed" {
-        vec!["✗ ".red().bold(), "Image generation failed".bold()].into()
+        vec![
+            "✗ ".red().bold(),
+            crate::i18n::text("Image generation failed").bold(),
+        ]
+        .into()
     } else {
-        vec!["• ".dim(), "Generated Image:".bold()].into()
+        vec!["• ".dim(), crate::i18n::text("Generated Image:").bold()].into()
     };
     let mut lines: Vec<Line<'static>> = vec![heading, vec!["  └ ".dim(), detail.dim()].into()];
     if let Some(saved_path) = &saved_path {
         let saved_path = Url::from_file_path(saved_path.as_path())
             .map(|url| url.to_string())
             .unwrap_or_else(|_| saved_path.display().to_string());
-        lines.push(vec!["  └ ".dim(), "Saved to: ".dim(), saved_path.into()].into());
+        lines.push(
+            vec![
+                "  └ ".dim(),
+                crate::i18n::text("Saved to: ").dim(),
+                saved_path.into(),
+            ]
+            .into(),
+        );
     }
 
     ImageGenerationHistoryCell {
@@ -295,5 +322,46 @@ impl HistoryCell for ImageGenerationHistoryCell {
 
     fn image_path(&self) -> Option<AbsolutePathBuf> {
         self.saved_path.clone()
+    }
+}
+
+#[cfg(test)]
+mod r39_localization_tests {
+    use super::*;
+    use crate::i18n::{Locale, with_locale};
+
+    #[test]
+    fn translated_image_heading_keeps_link_columns_and_original_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("image 한글.png");
+        image::RgbaImage::new(1, 1).save(&path).unwrap();
+        let url = Url::from_file_path(path.canonicalize().unwrap())
+            .unwrap()
+            .to_string();
+        for (locale, prefix) in [
+            (Locale::English, "• Viewed image "),
+            (Locale::Korean, "• 이미지 보기 "),
+        ] {
+            with_locale(locale, || {
+                let mut cell = new_view_image_tool_call(
+                    "opaque-{id}".into(),
+                    LegacyAppPathString::from_path(&path),
+                );
+                cell.link_local_image();
+                for width in [40, 80] {
+                    let lines = cell.display_hyperlink_lines(width);
+                    let first = &lines[0];
+                    assert!(first.line.to_string().starts_with(prefix));
+                    let link = &first.hyperlinks[0];
+                    assert_eq!(link.columns.start, crate::width::display_width(prefix));
+                    assert_eq!(link.terminal_destination(), Some(url.clone()));
+                }
+                assert!(
+                    cell.raw_lines()[0]
+                        .to_string()
+                        .contains(&path.display().to_string())
+                );
+            });
+        }
     }
 }

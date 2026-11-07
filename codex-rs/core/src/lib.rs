@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Root of the `codex-core` library.
 
 // Prevent accidental direct writes to stdout/stderr in library code. All
@@ -93,6 +93,7 @@ pub mod config;
 pub mod connectors;
 pub mod context;
 mod context_manager;
+mod context_snapshot;
 mod current_time;
 pub mod cyber_access_program;
 mod elicitation;

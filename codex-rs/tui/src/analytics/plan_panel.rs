@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Five-hour and weekly period tables share grouping, with independent row expansion.
 use super::AnalyticsView;
 use super::data;
@@ -76,7 +77,13 @@ impl AnalyticsView {
         };
         let mut tables = Vec::new();
         let mut selections = Vec::new();
-        for (window, title) in ["5-hour limits", "Weekly limits"].into_iter().enumerate() {
+        for (window, title) in [
+            crate::i18n::text("5-hour limits"),
+            crate::i18n::text("Weekly limits"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let heading = format!(
                 "{} {title}",
                 if self.plan.window == window {
@@ -91,9 +98,9 @@ impl AnalyticsView {
                 if report.periods[window].is_empty() {
                     lines.push(
                         if report.coverage_complete {
-                            "No limit periods in this date range"
+                            crate::i18n::text("No limit periods in this date range")
                         } else {
-                            "Limit history isn't available yet"
+                            crate::i18n::text("Limit history isn't available yet")
                         }
                         .set_style(secondary_style())
                         .into(),
@@ -120,7 +127,7 @@ impl AnalyticsView {
                     let amount = period
                         .used
                         .map(|value| format!("{}%", data::amount(value / 100.0)))
-                        .unwrap_or_else(|| "Not available".into());
+                        .unwrap_or_else(|| crate::i18n::text("Not available").into());
                     let mut row = columns(label.into(), amount.into(), table_width);
                     if selected && self.plan.window == window {
                         super::styles::select_row(&mut row, table_width);
@@ -129,9 +136,11 @@ impl AnalyticsView {
                     if self.zoomed && self.plan.expanded[window].as_ref() == Some(&period.id) {
                         if !period.complete {
                             lines.push(
-                                "  Some usage is unavailable; this period may be incomplete"
-                                    .dim()
-                                    .into(),
+                                crate::i18n::text(
+                                    "  Some usage is unavailable; this period may be incomplete",
+                                )
+                                .dim()
+                                .into(),
                             );
                         }
                         if let Some(breakdown) = period.breakdowns.as_ref().and_then(|groups| {
@@ -155,7 +164,11 @@ impl AnalyticsView {
                                 ));
                             }
                         } else {
-                            lines.push("  Breakdown isn't available for this period".dim().into());
+                            lines.push(
+                                crate::i18n::text("  Breakdown isn't available for this period")
+                                    .dim()
+                                    .into(),
+                            );
                         }
                     }
                     if selected {
@@ -165,10 +178,12 @@ impl AnalyticsView {
             } else {
                 lines.push(
                     match &self.plan.report {
-                        data::Load::Unavailable => "Limit history isn't available yet",
+                        data::Load::Unavailable => {
+                            crate::i18n::text("Limit history isn't available yet")
+                        }
                         state => state
                             .message()
-                            .unwrap_or("Limit history isn't available yet"),
+                            .unwrap_or(crate::i18n::text("Limit history isn't available yet")),
                     }
                     .to_string()
                     .set_style(secondary_style())
@@ -208,9 +223,11 @@ impl AnalyticsView {
         };
         if group == 3 {
             lines.push(
-                "By turn start includes Tasks only; percentages use the full period limit"
-                    .dim()
-                    .into(),
+                crate::i18n::text(
+                    "By turn start includes Tasks only; percentages use the full period limit",
+                )
+                .dim()
+                .into(),
             );
         }
         if let Some(plan::Report {
@@ -222,21 +239,35 @@ impl AnalyticsView {
         }) = self.plan.report.ready()
         {
             if !*coverage_complete {
-                lines.push("Some periods aren't available yet".dim().into());
+                lines.push(
+                    crate::i18n::text("Some periods aren't available yet")
+                        .dim()
+                        .into(),
+                );
             }
             lines.push(
-                format!(
-                    "Usage as of {} UTC · * current at last update",
-                    as_of.format(self.clock_format.date_time_format())
+                crate::i18n::message(
+                    "r39-plan-usage-as-of",
+                    &[(
+                        "time",
+                        &as_of
+                            .format(self.clock_format.date_time_format())
+                            .to_string(),
+                    )],
                 )
                 .dim()
                 .into(),
             );
             if let Some(start) = coverage_start {
                 lines.push(
-                    format!(
-                        "Available since {} UTC",
-                        start.format(self.clock_format.date_time_format())
+                    crate::i18n::message(
+                        "r39-plan-available-since",
+                        &[(
+                            "time",
+                            &start
+                                .format(self.clock_format.date_time_format())
+                                .to_string(),
+                        )],
                     )
                     .dim()
                     .into(),
@@ -244,7 +275,7 @@ impl AnalyticsView {
             }
             if *approximate {
                 lines.push(
-                    "Amounts and period boundaries are approximate; recent activity may be delayed"
+                    crate::i18n::text("Amounts and period boundaries are approximate; recent activity may be delayed")
                         .dim()
                         .into(),
                 );

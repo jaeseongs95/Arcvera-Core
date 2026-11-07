@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Application-level events used to coordinate UI actions.
 //!
 //! `AppEvent` is the internal message bus between UI components and the top-level `App` loop.
@@ -304,6 +304,10 @@ pub(crate) enum AppEvent {
     ContextCommand {
         thread_id: Option<ThreadId>,
         args: String,
+    },
+    ContextCompositionLoaded {
+        key: crate::app_server_session::ContextInspectionKey,
+        outcome: crate::app_server_session::ContextInspectionOutcome,
     },
     CronCommand {
         thread_id: Option<ThreadId>,

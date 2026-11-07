@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Captures single keys, literal chords, and leader suffixes inside `/keymap`.
 //!
 //! Content is measured at the inset width, including wrapped action identifiers.
@@ -72,30 +73,35 @@ impl KeymapCaptureView {
     fn lines(&self, width: u16) -> Vec<Line<'static>> {
         let wrap_width = usize::from(width.max(1));
         let header = vec![
-            Line::from("Remap Shortcut".bold()),
+            Line::from(crate::i18n::text("Remap Shortcut").bold()),
             Line::from(vec![
-                "Action: ".dim(),
+                crate::i18n::text("Action: ").dim(),
                 self.label.clone().into(),
                 "  ".into(),
                 format!("{}.{}", self.context, self.action).dim(),
             ]),
             Line::from(vec![
-                "Current: ".dim(),
-                self.current_binding.clone().fg(accent_color()),
+                crate::i18n::text("Current: ").dim(),
+                crate::i18n::text(&self.current_binding)
+                    .to_string()
+                    .fg(accent_color()),
             ]),
         ];
         let mut lines = word_wrap_lines(&header, wrap_width);
 
         let instructions = match (self.capture_mode, self.first_stroke.as_deref()) {
-            (KeymapCaptureMode::SingleKey, _) => "Press the new key now. Esc cancels.".to_string(),
+            (KeymapCaptureMode::SingleKey, _) => {
+                crate::i18n::text("Press the new key now. Esc cancels.").to_string()
+            }
             (KeymapCaptureMode::Chord, None) => {
-                "Press the first key, then the second. Esc cancels.".to_string()
+                crate::i18n::text("Press the first key, then the second. Esc cancels.").to_string()
             }
             (KeymapCaptureMode::Chord, Some(first)) => {
-                format!("First key: {first}. Press the second key. Esc cancels.")
+                crate::i18n::message("r39-keymap-second-key", &[("key", first)])
             }
             (KeymapCaptureMode::LeaderChord, _) => {
-                "Press the key that follows the configured leader. Esc cancels.".to_string()
+                crate::i18n::text("Press the key that follows the configured leader. Esc cancels.")
+                    .to_string()
             }
         };
         lines.extend(
@@ -107,7 +113,7 @@ impl KeymapCaptureView {
         if let Some(error) = &self.error_message {
             lines.push(Line::from(""));
             let options = textwrap::Options::new(wrap_width)
-                .initial_indent("Error: ")
+                .initial_indent(crate::i18n::text("Error: "))
                 .subsequent_indent("       ");
             lines.extend(
                 textwrap::wrap(error, options)

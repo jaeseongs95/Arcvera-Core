@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Dispatch clipboard key actions in order and apply completions to their selection owner.
 
 use super::*;
@@ -34,8 +34,10 @@ impl App {
                 }
                 // Finish paste before the next key, but never wait on the copy worker's lock.
                 if tui.clipboard.is_busy() || self.pending_right_click_paste.is_some() {
-                    self.chat_widget
-                        .add_info_message("Clipboard busy; try again".into(), /*hint*/ None);
+                    self.chat_widget.add_info_message(
+                        crate::i18n::text("Clipboard busy; try again").into(),
+                        /*hint*/ None,
+                    );
                 } else {
                     match self.chat_widget.paste_image() {
                         Ok(()) => {}
@@ -48,8 +50,10 @@ impl App {
                         }
                         Err(err) => {
                             tracing::warn!("failed to paste image: {err}");
-                            self.chat_widget
-                                .add_error_message(format!("Failed to paste image: {err}"));
+                            self.chat_widget.add_error_message(crate::i18n::message(
+                                "r39-paste-image-failed",
+                                &[("error", &err.to_string())],
+                            ));
                         }
                     }
                 }

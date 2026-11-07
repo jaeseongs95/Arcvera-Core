@@ -192,7 +192,7 @@ class VerifierChecks(unittest.TestCase):
         self.assertEqual(EXPORT.notice('tools/windows-cli/update.vbs'),b"' Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n")
         self.assertEqual(EXPORT.notice('codex-rs/cli/src/bin/opendiy_codex_launcher.rs'),b'// Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.\n')
         self.assertEqual(EXPORT.notice('codex-rs/app-server-daemon/scripts/install/install.ps1'),b'')
-        self.assertEqual(EXPORT.notice('codex-rs/core/src/lib.rs'),b'// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.\n')
+        self.assertEqual(EXPORT.notice('codex-rs/core/src/lib.rs'),b'// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.\n')
     def test_runtime_markdown_prompts_do_not_receive_local_notices(self):
         for path in EXPORT.WINDOWS_INPUTS:
             with self.subTest(path=path):
@@ -255,13 +255,13 @@ class VerifierChecks(unittest.TestCase):
         self.assertEqual(EXPORT.notice('scripts/install/normalize_stop_hook_config.py'),b'# Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.\n')
         self.assertEqual(EXPORT.notice('codex-rs/app-server-daemon/src/prepare_install.rs'),b'// Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.\n')
 
-    def test_r38_0167_pins_and_runtime_prompt_catalog(self):
+    def test_r39_development_pins_and_preserved_runtime_prompt_catalog(self):
         self.assertEqual(EXPORT.OFFICIAL,'086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a')
-        self.assertEqual(EXPORT.PATCHED,'230567050d3f4bdce4315a2b3e0393bbe17431a6')
-        self.assertEqual(EXPORT.PREVIOUS_PUBLIC,'1662744ae8a5437a37eba56a5c893a1562d36a03')
+        self.assertEqual(EXPORT.PATCHED,'e96b4bde8adf9eb9159add18362e87c98dcda80e')
+        self.assertEqual(EXPORT.PREVIOUS_PUBLIC,'a874db1ffbcba436502f0bd1c98d210d3513c078')
         self.assertEqual(EXPORT.PATCH_PATH,'upstream/official-0.167.0.patch')
         catalog=__import__('json').loads((SCRIPT.resolve().parents[2]/EXPORT.WINDOWS_INPUTS_PATH).read_bytes())
-        self.assertEqual(catalog['sourceCommit'],'230567050d3f4bdce4315a2b3e0393bbe17431a6')
+        self.assertEqual(catalog['sourceCommit'],'e96b4bde8adf9eb9159add18362e87c98dcda80e')
         paths=[item['path'] for item in catalog['files']]
         self.assertEqual(len(paths),40)
         self.assertEqual(len(set(paths)),40)

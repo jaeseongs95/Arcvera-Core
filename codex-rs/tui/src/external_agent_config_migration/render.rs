@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Render import choices with shared picker focus while preserving import state.
 
 use super::*;
@@ -83,14 +84,24 @@ impl WidgetRef for &ExternalAgentConfigMigrationScreen {
         let error_height = u16::from(self.error.is_some());
         let intro_lines = match self.view {
             MigrationView::Summary => vec![
-                Line::from("Bring over supported setup from another coding agent."),
-                Line::from("Codex may add files to your current project folder."),
-                Line::from("Your existing setup will not be changed."),
+                Line::from(crate::i18n::text(
+                    "Bring over supported setup from another coding agent.",
+                )),
+                Line::from(crate::i18n::text(
+                    "Codex may add files to your current project folder.",
+                )),
+                Line::from(crate::i18n::text(
+                    "Your existing setup will not be changed.",
+                )),
             ],
             MigrationView::Customize => vec![
-                Line::from("Choose items to import."),
-                Line::from("Codex may add files to your current project folder."),
-                Line::from("Your existing setup will not be changed."),
+                Line::from(crate::i18n::text("Choose items to import.")),
+                Line::from(crate::i18n::text(
+                    "Codex may add files to your current project folder.",
+                )),
+                Line::from(crate::i18n::text(
+                    "Your existing setup will not be changed.",
+                )),
             ],
         };
         let intro_height = intro_lines.len() as u16;
@@ -123,8 +134,8 @@ impl WidgetRef for &ExternalAgentConfigMigrationScreen {
         .areas(inner_area);
 
         let title = match self.view {
-            MigrationView::Summary => "Import setup",
-            MigrationView::Customize => "Choose what to import",
+            MigrationView::Summary => crate::i18n::text("Import setup"),
+            MigrationView::Customize => crate::i18n::text("Choose what to import"),
         };
         let heading = Line::from(vec!["> ".into(), title.bold()]);
         heading.render(header_area, buf);
@@ -147,16 +158,23 @@ impl WidgetRef for &ExternalAgentConfigMigrationScreen {
             actions.len() + 1,
         ))
         .split(actions_area);
-        let item_label = if self.items.len() == 1 {
-            "item"
+        let actions_intro = if self.items.len() == 1 {
+            crate::i18n::message(
+                "r39-import-selected-one",
+                &[
+                    ("selected", &self.selected_count().to_string()),
+                    ("total", &self.items.len().to_string()),
+                ],
+            )
         } else {
-            "items"
+            crate::i18n::message(
+                "r39-import-selected-many",
+                &[
+                    ("selected", &self.selected_count().to_string()),
+                    ("total", &self.items.len().to_string()),
+                ],
+            )
         };
-        let actions_intro = format!(
-            "Selected {} of {} {item_label}.",
-            self.selected_count(),
-            self.items.len()
-        );
         Paragraph::new(actions_intro)
             .wrap(Wrap { trim: false })
             .render(action_areas[0], buf);
@@ -171,37 +189,37 @@ impl WidgetRef for &ExternalAgentConfigMigrationScreen {
 
         let footer = match self.view {
             MigrationView::Summary => Line::from(vec![
-                "Use ".dim(),
+                crate::i18n::text("Use ").dim(),
                 key_hint::plain(KeyCode::Up).into(),
                 "/".dim(),
                 key_hint::plain(KeyCode::Down).into(),
-                " to move, ".dim(),
+                crate::i18n::text(" to move, ").dim(),
                 key_hint::plain(KeyCode::Enter).into(),
-                " to select, ".dim(),
+                crate::i18n::text(" to select, ").dim(),
                 "c".fg(crate::style::accent_color()),
-                " to customize".dim(),
+                crate::i18n::text(" to customize").dim(),
             ]),
             MigrationView::Customize if self.focus == FocusArea::Actions => Line::from(vec![
-                "Press ".dim(),
+                crate::i18n::text("Press ").dim(),
                 key_hint::plain(KeyCode::Enter).into(),
-                " to continue, ".dim(),
+                crate::i18n::text(" to continue, ").dim(),
                 key_hint::plain(KeyCode::Up).into(),
                 "/".dim(),
                 key_hint::plain(KeyCode::Down).into(),
-                " to move, ".dim(),
+                crate::i18n::text(" to move, ").dim(),
                 "b".fg(crate::style::accent_color()),
-                " to go back".dim(),
+                crate::i18n::text(" to go back").dim(),
             ]),
             MigrationView::Customize => Line::from(vec![
-                "Use ".dim(),
+                crate::i18n::text("Use ").dim(),
                 key_hint::plain(KeyCode::Up).into(),
                 "/".dim(),
                 key_hint::plain(KeyCode::Down).into(),
-                " to move, ".dim(),
+                crate::i18n::text(" to move, ").dim(),
                 key_hint::plain(KeyCode::Char(' ')).into(),
-                " to toggle, ".dim(),
+                crate::i18n::text(" to toggle, ").dim(),
                 "b".fg(crate::style::accent_color()),
-                " to go back".dim(),
+                crate::i18n::text(" to go back").dim(),
             ]),
         };
         footer.render(footer_area, buf);

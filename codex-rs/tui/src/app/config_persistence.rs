@@ -1,4 +1,4 @@
-// Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Runtime configuration persistence helpers for the TUI app.
 //!
 //! This module owns the app-level glue between config.toml edits, in-memory `Config` refreshes,
@@ -117,7 +117,7 @@ impl App {
         build_config_on_runtime_worker(
             builder,
             base.application_network_policy.clone(),
-            format!("Failed to rebuild config for cwd {cwd_display}"),
+            crate::i18n::message("r39-config-rebuild-cwd", &[("path", &cwd_display)]),
         )
         .await
     }
@@ -172,8 +172,12 @@ impl App {
                     profile_id,
                     "failed to resolve selected permission profile"
                 );
-                self.chat_widget.add_error_message(format!(
-                    "Failed to set permission profile `{profile_id}`: {err}"
+                self.chat_widget.add_error_message(crate::i18n::message(
+                    "r39-ui-c536d29fc2ee",
+                    &[
+                        ("profile_id", &format!("{profile_id}")),
+                        ("err", &format!("{err}")),
+                    ],
                 ));
                 return false;
             }
@@ -207,8 +211,12 @@ impl App {
                 profile_id,
                 "failed to set selected permission profile on app config"
             );
-            self.chat_widget.add_error_message(format!(
-                "Failed to set permission profile `{profile_id}`: {err}"
+            self.chat_widget.add_error_message(crate::i18n::message(
+                "r39-ui-c536d29fc2ee",
+                &[
+                    ("profile_id", &format!("{profile_id}")),
+                    ("err", &format!("{err}")),
+                ],
             ));
             return false;
         }
@@ -232,8 +240,12 @@ impl App {
                 profile_id,
                 "failed to set selected permission profile on chat config"
             );
-            self.chat_widget.add_error_message(format!(
-                "Failed to set permission profile `{profile_id}`: {err}"
+            self.chat_widget.add_error_message(crate::i18n::message(
+                "r39-ui-c536d29fc2ee",
+                &[
+                    ("profile_id", &format!("{profile_id}")),
+                    ("err", &format!("{err}")),
+                ],
             ));
             return false;
         }
@@ -267,7 +279,10 @@ impl App {
             )));
         self.app_event_tx.send(AppEvent::InsertHistoryCell(Box::new(
             history_cell::new_info_event(
-                format!("Permissions updated to {display_label}"),
+                crate::i18n::message(
+                    "r39-permissions-updated-label",
+                    &[("label", &display_label)],
+                ),
                 /*hint*/ None,
             ),
         )));
@@ -288,7 +303,8 @@ impl App {
             self.chat_widget
                 .retain_input_after_failed_permission_selection();
             self.chat_widget.add_error_message(
-                "Wait for the task to connect before selecting permissions.".into(),
+                crate::i18n::text("Wait for the task to connect before selecting permissions.")
+                    .into(),
             );
             return;
         };
@@ -348,9 +364,9 @@ impl App {
                         .insert(thread_id, selection.clone());
                 }
                 self.chat_widget.add_info_message(
-                    format!(
-                        "Permission selection requested: {}",
-                        selection.display_label
+                    crate::i18n::message(
+                        "r39-permission-requested",
+                        &[("label", &selection.display_label)],
                     ),
                     /*hint*/ None,
                 );
@@ -359,14 +375,17 @@ impl App {
             Ok(false) => {
                 self.chat_widget
                     .retain_input_after_failed_permission_selection();
-                self.chat_widget
-                    .add_error_message("Permission selection requires a newer app server.".into());
+                self.chat_widget.add_error_message(
+                    crate::i18n::text("Permission selection requires a newer app server.").into(),
+                );
             }
             Err(error) => {
                 self.chat_widget
                     .retain_input_after_failed_permission_selection();
-                self.chat_widget
-                    .add_error_message(format!("Failed to select permissions: {error:#}"));
+                self.chat_widget.add_error_message(crate::i18n::message(
+                    "r39-ui-87effc581487",
+                    &[("error", &format!("{error:#}"))],
+                ));
             }
         }
     }
@@ -378,7 +397,8 @@ impl App {
             .is_some_and(|thread_id| self.pending_server_profiles.contains_key(&thread_id))
         {
             self.chat_widget.add_error_message(
-                "Wait for permissions to update before changing permissions.".into(),
+                crate::i18n::text("Wait for permissions to update before changing permissions.")
+                    .into(),
             );
             return true;
         }
@@ -393,8 +413,9 @@ impl App {
         {
             return false;
         }
-        self.chat_widget
-            .add_error_message("Wait for permissions to update before switching tasks.".into());
+        self.chat_widget.add_error_message(
+            crate::i18n::text("Wait for permissions to update before switching tasks.").into(),
+        );
         true
     }
 
@@ -525,8 +546,12 @@ impl App {
                     setting,
                     "failed to refresh effective config after an overridden write"
                 );
-                self.chat_widget.add_error_message(format!(
-                    "{setting} were saved, but Codex could not refresh the effective config: {err}"
+                self.chat_widget.add_error_message(crate::i18n::message(
+                    "r39-ui-7d62be06c850",
+                    &[
+                        ("setting", crate::i18n::text(setting)),
+                        ("err", &format!("{err}")),
+                    ],
                 ));
                 None
             }
@@ -593,8 +618,9 @@ impl App {
                 return Err(err).wrap_err("Failed to carry forward approval policy override");
             }
             tracing::warn!(%err, "failed to carry forward approval policy override");
-            self.chat_widget.add_error_message(format!(
-                "Failed to carry forward approval policy override: {err}"
+            self.chat_widget.add_error_message(crate::i18n::message(
+                "r39-ui-4be979c6fb0d",
+                &[("err", &format!("{err}"))],
             ));
         }
         let profile_override =
@@ -638,8 +664,9 @@ impl App {
                             .wrap_err("Failed to carry forward permission profile override");
                     }
                     tracing::warn!(%err, "failed to carry forward permission profile override");
-                    self.chat_widget.add_error_message(format!(
-                        "Failed to carry forward permission profile override: {err}"
+                    self.chat_widget.add_error_message(crate::i18n::message(
+                        "r39-ui-273278669a4c",
+                        &[("err", &format!("{err}"))],
                     ));
                 }
             }
@@ -662,7 +689,7 @@ impl App {
         if let Err(err) = config.permissions.approval_policy.set(policy.to_core()) {
             tracing::warn!(error = %err, "{log_message}");
             self.chat_widget
-                .add_error_message(format!("{user_message_prefix}: {err}"));
+                .add_error_message(format!("{}: {err}", crate::i18n::text(user_message_prefix)));
             return false;
         }
 
@@ -684,7 +711,9 @@ impl App {
                 "{log_message}: unsupported active permission profile"
             );
             self.chat_widget.add_error_message(format!(
-                "{user_message_prefix}: unsupported active permission profile `{}`",
+                "{}: {} `{}`",
+                crate::i18n::text(user_message_prefix),
+                crate::i18n::text("unsupported active permission profile"),
                 active_permission_profile.id
             ));
             return None;
@@ -699,7 +728,7 @@ impl App {
         {
             tracing::warn!(error = %err, "{log_message}");
             self.chat_widget
-                .add_error_message(format!("{user_message_prefix}: {err}"));
+                .add_error_message(format!("{}: {err}", crate::i18n::text(user_message_prefix)));
             return None;
         }
 
@@ -742,8 +771,12 @@ impl App {
                     feature = feature_key,
                     "failed to update constrained feature flags"
                 );
-                self.chat_widget.add_error_message(format!(
-                    "Failed to update experimental feature `{feature_key}`: {err}"
+                self.chat_widget.add_error_message(crate::i18n::message(
+                    "r39-ui-bcc7759cb2ba",
+                    &[
+                        ("feature_key", &format!("{feature_key}")),
+                        ("err", &format!("{err}")),
+                    ],
                 ));
                 continue;
             }
@@ -833,8 +866,10 @@ impl App {
             Err(err) => {
                 let error = crate::config_update::format_config_error(&err);
                 tracing::error!(error = %error, "failed to persist feature flags");
-                self.chat_widget
-                    .add_error_message(format!("Failed to update experimental features: {error}"));
+                self.chat_widget.add_error_message(crate::i18n::message(
+                    "r39-ui-40868c1c9ddd",
+                    &[("error", &format!("{error}"))],
+                ));
                 return;
             }
         };
@@ -844,8 +879,9 @@ impl App {
                 message,
                 "feature flag config write was overridden by effective config"
             );
-            self.chat_widget.add_error_message(format!(
-                "Experimental feature changes were saved but not applied: {message}"
+            self.chat_widget.add_error_message(crate::i18n::message(
+                "r39-ui-abe0d57d26fe",
+                &[("message", &format!("{message}"))],
             ));
             if let Some(effective_config) = self
                 .read_effective_config_after_overridden_write(
@@ -906,8 +942,10 @@ impl App {
                 error = %err,
                 "failed to set auto-review permission profile on chat config"
             );
-            self.chat_widget
-                .add_error_message(format!("Failed to enable Approve for me: {err}"));
+            self.chat_widget.add_error_message(crate::i18n::message(
+                "r39-ui-c422421540be",
+                &[("err", &format!("{err}"))],
+            ));
         }
         if permission_profile_override.is_some() {
             self.runtime_approvals_reviewer_override = Some(self.config.approvals_reviewer);
@@ -949,7 +987,10 @@ impl App {
 
         if let Some(label) = permissions_history_label {
             self.chat_widget.add_info_message(
-                format!("Permissions updated to {label}"),
+                crate::i18n::message(
+                    "r39-ui-0f7af3244f00",
+                    &[("label", crate::i18n::text(label))],
+                ),
                 /*hint*/ None,
             );
         }
@@ -974,8 +1015,10 @@ impl App {
             Err(err) => {
                 tracing::error!(error = %err, "failed to persist memory settings");
                 self.app_event_tx.send(AppEvent::FollowTranscript);
-                self.chat_widget
-                    .add_error_message(format!("Failed to save memory settings: {err}"));
+                self.chat_widget.add_error_message(crate::i18n::message(
+                    "r39-ui-f907ff343a6a",
+                    &[("err", &format!("{err}"))],
+                ));
                 return false;
             }
         };
@@ -986,8 +1029,9 @@ impl App {
                 "memory settings config write was overridden by effective config"
             );
             self.app_event_tx.send(AppEvent::FollowTranscript);
-            self.chat_widget.add_error_message(format!(
-                "Memory setting changes were saved but not applied: {message}"
+            self.chat_widget.add_error_message(crate::i18n::message(
+                "r39-ui-ba46bfd10073",
+                &[("message", &format!("{message}"))],
             ));
             let Some(effective_config) = self
                 .read_effective_config_after_overridden_write(app_server, "Memory setting changes")
@@ -1037,8 +1081,9 @@ impl App {
         if let Err(err) = app_server.thread_memory_mode_set(thread_id, mode).await {
             tracing::error!(error = %err, %thread_id, "failed to update thread memory mode");
             self.app_event_tx.send(AppEvent::FollowTranscript);
-            self.chat_widget.add_error_message(format!(
-                "Saved memory settings, but failed to update the current thread: {err}"
+            self.chat_widget.add_error_message(crate::i18n::message(
+                "r39-ui-bccb31f182f0",
+                &[("err", &format!("{err}"))],
             ));
         }
     }
@@ -1050,8 +1095,10 @@ impl App {
         self.app_event_tx.send(AppEvent::FollowTranscript);
         if let Err(err) = app_server.memory_reset().await {
             tracing::error!(error = %err, "failed to reset memories");
-            self.chat_widget
-                .add_error_message(format!("Failed to reset memories: {err}"));
+            self.chat_widget.add_error_message(crate::i18n::message(
+                "r39-ui-34dae5480f8b",
+                &[("err", &format!("{err}"))],
+            ));
             return;
         }
 
@@ -1186,7 +1233,10 @@ impl App {
                     });
         if explicitly_selected {
             self.add_agents_overview_error(
-                "Permission overrides are not supported when resuming a remote task.".into(),
+                crate::i18n::text(
+                    "Permission overrides are not supported when resuming a remote task.",
+                )
+                .into(),
             );
             return true;
         }
@@ -1271,8 +1321,9 @@ impl App {
                     error = %err,
                     "failed to sync effective approval policy after an overridden write"
                 );
-                self.chat_widget.add_error_message(format!(
-                    "Failed to refresh overridden Approve for me settings: {err}"
+                self.chat_widget.add_error_message(crate::i18n::message(
+                    "r39-ui-62be26d65466",
+                    &[("err", &format!("{err}"))],
                 ));
             } else {
                 self.chat_widget.set_approval_policy(policy);
@@ -1317,8 +1368,9 @@ impl App {
                 error = %err,
                 "failed to sync overridden Auto-review permission profile on chat config"
             );
-            self.chat_widget.add_error_message(format!(
-                "Failed to refresh overridden Approve for me settings: {err}"
+            self.chat_widget.add_error_message(crate::i18n::message(
+                "r39-ui-62be26d65466",
+                &[("err", &format!("{err}"))],
             ));
             return;
         }
@@ -1391,7 +1443,7 @@ impl App {
         {
             return true;
         }
-        self.chat_widget.add_error_message("Windows sandbox setup completed, but its mode was overridden by the effective configuration.".to_string());
+        self.chat_widget.add_error_message(crate::i18n::text("Windows sandbox setup completed, but its mode was overridden by the effective configuration.").to_string());
         false
     }
 }
@@ -1401,7 +1453,9 @@ pub(super) fn overridden_write_message(write_response: &ConfigWriteResponse) -> 
         .overridden_metadata
         .as_ref()
         .map(|metadata| metadata.message.as_str())
-        .unwrap_or("the effective config is overridden by a higher-priority layer")
+        .unwrap_or(crate::i18n::text(
+            "the effective config is overridden by a higher-priority layer",
+        ))
 }
 
 fn feature_enabled_from_effective_config(

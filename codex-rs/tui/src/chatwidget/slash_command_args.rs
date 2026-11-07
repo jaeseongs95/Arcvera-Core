@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Shared tokenization for slash commands with positional arguments and named settings.
 //!
 //! Values may follow their setting or use `=`, switches never consume a value, and boolean
@@ -58,7 +59,9 @@ pub(super) fn parse(
     boolean_settings: &[&str],
 ) -> Result<ParsedCommandArgs, String> {
     let mut words = shlex::split(args)
-        .ok_or_else(|| "Invalid command arguments. Check the quoting.".to_string())?
+        .ok_or_else(|| {
+            crate::i18n::text("Invalid command arguments. Check the quoting.").to_string()
+        })?
         .into_iter()
         .peekable();
     let mut parsed = ParsedCommandArgs::default();
@@ -88,11 +91,14 @@ pub(super) fn parse(
                     && existing_value != value
                 {
                     let name = argument.name.trim_start_matches("--");
-                    return Err(format!("Specify only one of --{name} or --no-{name}."));
+                    return Err(crate::i18n::message(
+                        "r39-command-exclusive-switches",
+                        &[("name", name)],
+                    ));
                 }
-                return Err(format!(
-                    "Command setting `{}` was provided more than once.",
-                    argument.name
+                return Err(crate::i18n::message(
+                    "r39-command-duplicate-setting",
+                    &[("name", &argument.name)],
                 ));
             }
             parsed.named.push(argument);
@@ -118,7 +124,9 @@ fn parse_named_argument(
             .filter(|value| !value.is_empty())
             .map(str::to_owned)
             .or_else(|| words.next_if(|value| !value.starts_with("--")))
-            .ok_or_else(|| format!("Command setting `{name}` requires a value."))?;
+            .ok_or_else(|| {
+                crate::i18n::message("r39-command-setting-requires-value", &[("name", name)])
+            })?;
         return Ok(NamedArgument {
             name: name.to_string(),
             value: NamedArgumentValue::Value(value),
@@ -126,7 +134,10 @@ fn parse_named_argument(
     }
     if switches.contains(&name) {
         if inline_value.is_some() {
-            return Err(format!("Command setting `{name}` does not take a value."));
+            return Err(crate::i18n::message(
+                "r39-command-setting-no-value",
+                &[("name", name)],
+            ));
         }
         return Ok(NamedArgument {
             name: name.to_string(),
@@ -138,7 +149,10 @@ fn parse_named_argument(
         let negative = format!("--no-{setting}");
         if name == positive || name == negative {
             if inline_value.is_some() {
-                return Err(format!("Command setting `{name}` does not take a value."));
+                return Err(crate::i18n::message(
+                    "r39-command-setting-no-value",
+                    &[("name", name)],
+                ));
             }
             return Ok(NamedArgument {
                 name: positive,
@@ -148,7 +162,10 @@ fn parse_named_argument(
             });
         }
     }
-    Err(format!("Unknown command setting `{name}`."))
+    Err(crate::i18n::message(
+        "r39-command-unknown-setting",
+        &[("name", name)],
+    ))
 }
 
 #[cfg(test)]

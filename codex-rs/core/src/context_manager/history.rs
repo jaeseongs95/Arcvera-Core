@@ -1,3 +1,4 @@
+// Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Parent model history and bounded host-owned context facts.
 //! Compaction replaces the model window and can activate thread-owned Guardian review.
 //! Snapshots include reviewer policy and retained facts atomically;
@@ -448,6 +449,17 @@ impl ContextManager {
 
     pub(crate) fn token_info(&self) -> Option<TokenUsageInfo> {
         self.token_info.clone()
+    }
+
+    /// Share only inventory inputs, leaving review history and retained host facts untouched.
+    pub(crate) fn context_inventory_snapshot(
+        &self,
+    ) -> (Arc<Vec<ResponseItemEnvelope>>, u64, Option<TokenUsageInfo>) {
+        (
+            Arc::clone(&self.items),
+            self.history_version,
+            self.token_info.clone(),
+        )
     }
 
     pub(crate) fn set_token_info(&mut self, info: Option<TokenUsageInfo>) {
