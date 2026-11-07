@@ -4588,9 +4588,6 @@ async fn manual_compact_retries_after_context_window_error() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-// TODO(ccunningham): Re-enable after the follow-up compaction behavior PR lands.
-// Current main behavior around non-context manual /compact failures is known-incorrect.
-#[ignore = "behavior change covered in follow-up compaction PR"]
 async fn manual_compact_non_context_failure_retries_then_emits_task_error() {
     skip_if_no_network!();
 
@@ -4611,7 +4608,8 @@ async fn manual_compact_non_context_failure_retries_then_emits_task_error() {
         "temporary compact failure two",
     );
 
-    mount_sse_sequence(&server, vec![user_turn, compact_failed_1, compact_failed_2]).await;
+    let responses_mock =
+        mount_sse_sequence(&server, vec![user_turn, compact_failed_1, compact_failed_2]).await;
 
     let mut model_provider = non_openai_model_provider(&server);
     model_provider.stream_max_retries = Some(1);
@@ -4638,26 +4636,37 @@ async fn manual_compact_non_context_failure_retries_then_emits_task_error() {
 
     codex.submit(Op::Compact).await.expect("trigger compact");
 
-    let reconnect_message = wait_for_event_match(&codex, |event| match event {
-        EventMsg::StreamError(stream_error) => Some(stream_error.message.clone()),
-        _ => None,
+    let mut compact_events = Vec::new();
+    wait_for_event(&codex, |event| {
+        match event {
+            EventMsg::StreamError(error) => {
+                compact_events.push(("reconnect", error.message.clone()));
+            }
+            EventMsg::Error(error) => {
+                compact_events.push(("error", error.message.clone()));
+            }
+            EventMsg::TurnComplete(_) => {
+                compact_events.push(("complete", String::new()));
+            }
+            _ => {}
+        }
+        matches!(event, EventMsg::TurnComplete(_))
     })
     .await;
-    assert!(
-        reconnect_message.contains("Reconnecting... 1/1"),
-        "expected reconnect stream error message, got {reconnect_message}"
+    assert_eq!(
+        compact_events
+            .iter()
+            .map(|(kind, _)| *kind)
+            .collect::<Vec<_>>(),
+        vec!["reconnect", "error", "complete"]
     );
-
-    let task_error_message = wait_for_event_match(&codex, |event| match event {
-        EventMsg::Error(err) => Some(err.message.clone()),
-        _ => None,
-    })
-    .await;
-    assert!(
-        task_error_message.contains("Error running local compact task"),
-        "expected local compact task error prefix, got {task_error_message}"
+    assert!(compact_events[0].1.contains("Reconnecting... 1/1"));
+    // Match the active failed-compaction/restart contract: retain the original cause.
+    assert_eq!(
+        compact_events[1].1,
+        "stream disconnected before completion: temporary compact failure two"
     );
-    wait_for_event(&codex, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    assert_eq!(responses_mock.requests().len(), 3);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

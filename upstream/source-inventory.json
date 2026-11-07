@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "sourceCommit": "73824497f1f530d9fb0c11dd2e1d81a2607f4c13",
+  "sourceCommit": "c4399dce957bb63fe1fdc276aa4306c06f6cf47f",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -34568,10 +34568,10 @@
     {
       "path": "codex-rs/core/tests/suite/compact.rs",
       "gitMode": "100644",
-      "gitBlob": "76d47e2dda1792d7d9296fab470a19b76e6b47bb",
-      "sourceSha256": "73594da6b6b440b1d7ed18882a3c96ec41c63b7942e24db44d583e4089510839",
-      "publishedSha256": "fa6ce632f069033f2461032646dfb27598eaab964ab49f7d8a1c9809d882a133",
-      "bytes": 226708,
+      "gitBlob": "133dc52c87688d3ae3221b5dd82a66e9961ed37c",
+      "sourceSha256": "b7b964d803c14e708246d13aa7ca921baad8b7b65a0565c81640c5be5474f3a6",
+      "publishedSha256": "ec0fc3835df6b04192baf5dd6bbb9cddf387484a42c0bb867393dbafc47bd719",
+      "bytes": 226821,
       "modified": true,
       "noticeOnly": true
     },

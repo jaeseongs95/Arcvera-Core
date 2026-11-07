@@ -54,9 +54,9 @@ def main():
     assert sha((ROOT/baseline['patchPath']).read_bytes())==baseline['patchSha256'],'patch changed'
     changed={item['path'] for item in baseline['modifiedFiles']}
     assert baseline['officialCommit']=='086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a'
-    assert baseline['patchedCommit']=='73824497f1f530d9fb0c11dd2e1d81a2607f4c13'
+    assert baseline['patchedCommit']=='c4399dce957bb63fe1fdc276aa4306c06f6cf47f'
     assert baseline['officialVersion']=='0.167.0'
-    assert baseline['previousPublicCommit']=='19329c42442cbab5e2568c89837cda280f1d578d'
+    assert baseline['previousPublicCommit']=='e54da9ee059278403684061bb86e1e7072c16165'
     assert baseline['patchPath']=='upstream/official-0.167.0.patch'
     assert inventory['sourceCommit']==baseline['patchedCommit']
     assert len(inventory['files'])==baseline['sourceFileCount']

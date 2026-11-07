@@ -2,9 +2,11 @@
 
 현재 버전은 `0.167.0+native-r39.20261107`입니다. 고정 R38에서 압축 변경과 관련 회귀 시험만 준비하며, 이전 버전의 PASS를 현재 후보 전체의 PASS로 계산하지 않습니다.
 
-고정 소스 `73824497f1f530d9fb0c11dd2e1d81a2607f4c13`에서 `codex-core --test all`의 `compact` 필터를 실제 실행해 통합 207개 통과·0개 실패·3개 제외를 확인했습니다. 같은 commit의 단위시험은 127개 통과·0개 실패·0개 제외입니다. 두 실행 모두 종료 코드와 guard 종료 코드는 0이며 실행 전후 소스 fingerprint가 같습니다. 제외 3개는 공식 0.167.0에서 상속한 것으로, Windows 조건부 제외인 멀티모달 검토 증거 보존 시험 두 항목과 수동 compact의 서버 오류 재시도·최종 오류 전달 시험 한 항목입니다. 제외 항목은 통과로 세지 않습니다.
+고정 소스 `c4399dce957bb63fe1fdc276aa4306c06f6cf47f`에서 `codex-core --test all`의 `compact` 필터를 실제 실행해 통합 208개 통과·0개 실패·2개 제외를 확인했습니다. 종료 코드와 guard 종료 코드는 0이며 실행 전후 소스 fingerprint가 같습니다. 제외된 두 항목은 같은 이름으로 등록된 멀티모달 검토 증거 보존 시험이며, 공식 0.167.0에서 상속한 Windows 조건부 제외입니다. 제외 항목은 통과로 세지 않습니다.
 
-수동 compact 실패 시험을 `--exact --ignored`로 별도 실행한 결과는 0개 통과·1개 실패, 종료 코드 101입니다. 재접속 안내 검사는 통과했지만 최종 오류가 `Error running local compact task`를 포함한다는 기존 assertion에서 실패했습니다. 실제 오류는 `stream disconnected before completion: temporary compact failure two`였습니다. 원 실패를 보존하고 오류 전달 계약과 문구 oracle를 대조하는 중이며, 이 실행을 통과로 계산하지 않습니다.
+이전 소스 `73824497f1f530d9fb0c11dd2e1d81a2607f4c13`의 통합시험은 207개 통과·3개 제외, 단위시험은 127개 통과·0개 실패·0개 제외였습니다. 당시 제외됐던 수동 compact 실패 시험을 `--exact --ignored`로 별도 실행한 결과는 0개 통과·1개 실패, 종료 코드 101입니다. 재접속 안내는 전달됐지만 `Error running local compact task` 접두사 assertion에서 실패했고, 실제 오류는 `stream disconnected before completion: temporary compact failure two`였습니다.
+
+공식 활성 회귀 `failed_compaction_preserves_history_after_restart`는 접두사 없이 원오류를 보존하도록 요구합니다. 이 계약과 충돌한 오래된 기대값을 보정하고 해당 시험의 제외를 해제했습니다. 재시도 안내 → 원오류 → 완료의 정확한 이벤트 순서와 요청 3건을 검사하며, 제품 오류 처리 코드는 바꾸지 않았습니다. 교정한 시험과 기존 오류·이력 보존 시험 2개가 모두 통과했고, 위 새 고정 소스의 전체 compact 통합시험에도 재활성화한 사례가 포함됩니다. 기대값이 달라진 전후 실행을 같은 oracle의 RED/GREEN 쌍으로 표현하지 않으며 원 실패를 보존합니다. 두 고정 소스 사이 변경은 통합시험 파일 1개입니다.
 
 최초 광역 실행의 단위 127개 통과와 통합 175개 통과·30개 실패·3개 제외, 후속 통합의 195개 통과·12개 실패·3개 제외는 각각 당시 후보의 기록으로 보존합니다. 새 요청 전용 지침의 ID 누락 회귀는 기존 ID 할당 함수로 수정했습니다. 완료 원문 재부착 기대값은 저장 원본·권한 text/ID/revision/순서·현재 입력 보존 검사와 분리해 보정했으며, Guardian의 정상/oversized retained instruction 사례와 압축 중 steer 사례도 실제 검증했습니다. 고정 commit의 단위시험, 실행 파일 및 패키지 검증은 별도 결과로 구분합니다.
 
