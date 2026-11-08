@@ -1,0 +1,50 @@
+name: R40 source27 Windows acceptance binaries
+
+on:
+  push:
+    branches:
+      - work/r40-source27-ci-20261109
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  three-exe:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '1'
+      CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.longpaths
+      GIT_CONFIG_VALUE_0: 'true'
+      RUST_MIN_STACK: '8388608'
+      LIBSQLITE3_FLAGS: SQLITE_DISABLE_INTRINSIC
+      INSTA_UPDATE: 'no'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: ./.github/actions/setup-msvc-env
+        with:
+          target: x86_64-pc-windows-msvc
+      - name: Build and identify the fixed source27 binaries
+        shell: pwsh
+        env:
+          CARGO_HOME: '${{ runner.temp }}/c'
+          CARGO_TARGET_DIR: '${{ runner.temp }}/t'
+        run: ./.github/scripts/r40-source27-windows.ps1
+      - name: Preserve build evidence and successful binaries
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          name: r40-source27-windows-x64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: r40-source27-artifact/
+          if-no-files-found: error
+          retention-days: 14
