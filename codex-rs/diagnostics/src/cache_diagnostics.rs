@@ -1,6 +1,7 @@
 //! Immutable, process-local cache observation choices. This extension never
 //! changes the shared logging settings understood by older installations.
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use std::fs;
 use std::io;
 use std::path::Path;

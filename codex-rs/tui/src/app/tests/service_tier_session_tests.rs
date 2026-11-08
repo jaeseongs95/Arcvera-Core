@@ -1,11 +1,12 @@
 //! Tier selection preserves user defaults and independent root conversations. Core
 //! intentionally propagates a root tier to its agent tree; that existing inheritance is unchanged.
 
-use super::session_lifecycle_requests::{
-    HistoryCapabilities, recorded_params, start_recording_app_server_with_history,
-};
+use super::session_lifecycle_requests::HistoryCapabilities;
+use super::session_lifecycle_requests::recorded_params;
+use super::session_lifecycle_requests::start_recording_app_server_with_history;
 use super::*;
-use crate::app_server_session::{ResumeModelSettings, ThreadParamsMode};
+use crate::app_server_session::ResumeModelSettings;
+use crate::app_server_session::ThreadParamsMode;
 use crate::chatwidget::tests::helpers::set_ultrafast_mode_test_catalog;
 use codex_protocol::config_types::SERVICE_TIER_DEFAULT_REQUEST_VALUE;
 use pretty_assertions::assert_eq;

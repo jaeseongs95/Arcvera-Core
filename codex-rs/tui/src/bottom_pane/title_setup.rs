@@ -667,7 +667,8 @@ mod tests {
 
     #[test]
     fn localized_title_setup_preserves_config_ids_and_preview_values() {
-        use crate::i18n::{Locale, with_locale};
+        use crate::i18n::Locale;
+        use crate::i18n::with_locale;
         for (locale, heading, item_name, prefix) in [
             (
                 Locale::English,

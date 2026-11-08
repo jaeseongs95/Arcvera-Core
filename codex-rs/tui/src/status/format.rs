@@ -126,7 +126,8 @@ fn display_label(label: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::i18n::{Locale, with_locale};
+    use crate::i18n::Locale;
+    use crate::i18n::with_locale;
 
     #[test]
     fn localized_labels_measure_and_draw_the_same_cell_width() {

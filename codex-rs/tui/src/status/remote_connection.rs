@@ -235,7 +235,8 @@ mod tests {
 
     #[test]
     fn localized_version_notices_preserve_versions_and_notice_identity() {
-        use crate::i18n::{Locale, with_locale};
+        use crate::i18n::Locale;
+        use crate::i18n::with_locale;
         for (locale, expected) in [
             (Locale::English, "older than"),
             (Locale::Korean, "이전 버전"),

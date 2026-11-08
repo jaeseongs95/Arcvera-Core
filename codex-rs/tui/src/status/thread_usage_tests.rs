@@ -71,7 +71,8 @@ fn thread_usage_model_names_match_desktop_display_names() {
 
 #[test]
 fn localized_thread_breakdown_keeps_unknown_server_values_opaque() {
-    use crate::i18n::{Locale, with_locale};
+    use crate::i18n::Locale;
+    use crate::i18n::with_locale;
     let group = ThreadUsageBreakdownGroup {
         model: Some("서버모델🧪{name}".to_string()),
         reasoning_effort: Some("high".to_string()),

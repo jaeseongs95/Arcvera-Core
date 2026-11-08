@@ -2245,7 +2245,8 @@ mod tests {
 
     #[test]
     fn cloud_catalog_keeps_dynamic_values_and_commands_opaque() {
-        use codex_tui::i18n::{Locale, message_for};
+        use codex_tui::i18n::Locale;
+        use codex_tui::i18n::message_for;
         let value = "서버 {error} \"quote\" 👩‍💻\n--json";
         for locale in [Locale::English, Locale::Korean] {
             let rendered = message_for(locale, "cloud-apply-failed", &[("error", value)]);

@@ -366,7 +366,8 @@ mod tests;
 #[cfg(test)]
 mod r39_localization_tests {
     use super::*;
-    use crate::i18n::{Locale, with_locale};
+    use crate::i18n::Locale;
+    use crate::i18n::with_locale;
 
     #[test]
     fn analytics_labels_preserve_unknown_raw_keys_even_when_they_match_ui_text() {

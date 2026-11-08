@@ -2411,7 +2411,8 @@ fn reset_timestamps_follow_clock_preference() {
 
 #[tokio::test]
 async fn localized_status_preserves_opaque_values_at_terminal_widths() {
-    use crate::i18n::{Locale, with_locale};
+    use crate::i18n::Locale;
+    use crate::i18n::with_locale;
     let temp_home = TempDir::new().expect("temp home");
     let mut config = test_config(&temp_home).await;
     config

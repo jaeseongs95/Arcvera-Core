@@ -33,7 +33,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::i18n::{Locale, with_locale};
+    use crate::i18n::Locale;
+    use crate::i18n::with_locale;
 
     #[test]
     fn localized_action_title_preserves_external_title_contract() {

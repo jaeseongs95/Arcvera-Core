@@ -1,19 +1,32 @@
 //! Exercise real local HTTP/WebSocket requests through the production parser and batch writer.
-use codex_api::{
-    AuthProvider, Provider, ResponseCreateWsRequest, ResponseEvent, ResponsesApiRequest,
-    ResponsesClient, ResponsesOptions, ResponsesWebsocketClient, ResponsesWsRequest, RetryConfig,
-};
+use codex_api::AuthProvider;
+use codex_api::Provider;
+use codex_api::ResponseCreateWsRequest;
+use codex_api::ResponseEvent;
+use codex_api::ResponsesApiRequest;
+use codex_api::ResponsesClient;
+use codex_api::ResponsesOptions;
+use codex_api::ResponsesWebsocketClient;
+use codex_api::ResponsesWsRequest;
+use codex_api::RetryConfig;
 use codex_client::ReqwestTransport;
-use codex_http_client::{HttpClientBuilder, HttpClientFactory, OutboundProxyPolicy};
-use futures::{SinkExt, StreamExt};
+use codex_http_client::HttpClientBuilder;
+use codex_http_client::HttpClientFactory;
+use codex_http_client::OutboundProxyPolicy;
+use futures::SinkExt;
+use futures::StreamExt;
 use http::HeaderMap;
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::instrument::WithSubscriber;
 use tracing_subscriber::prelude::*;
-use wiremock::matchers::{method, path};
-use wiremock::{Mock, MockServer, ResponseTemplate};
+use wiremock::Mock;
+use wiremock::MockServer;
+use wiremock::ResponseTemplate;
+use wiremock::matchers::method;
+use wiremock::matchers::path;
 
 struct NoAuth;
 impl AuthProvider for NoAuth {

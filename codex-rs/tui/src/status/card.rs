@@ -1088,7 +1088,8 @@ impl HistoryCell for Arc<StatusHistoryCell> {
 #[cfg(test)]
 mod localization_tests {
     use super::*;
-    use crate::i18n::{Locale, with_locale};
+    use crate::i18n::Locale;
+    use crate::i18n::with_locale;
 
     #[test]
     fn status_model_details_translate_typed_values_and_preserve_custom_effort() {

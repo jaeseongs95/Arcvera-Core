@@ -5909,9 +5909,10 @@ fn write_test_skill(codex_home: &Path, name: &str) -> std::io::Result<()> {
 
 #[tokio::test]
 async fn turn_start_if_idle_atomically_skips_busy_without_recording_or_steering() -> Result<()> {
-    use codex_app_server_protocol::{
-        ThreadReadParams, ThreadReadResponse, TurnStartIfIdleParams, TurnStartIfIdleResponse,
-    };
+    use codex_app_server_protocol::ThreadReadParams;
+    use codex_app_server_protocol::ThreadReadResponse;
+    use codex_app_server_protocol::TurnStartIfIdleParams;
+    use codex_app_server_protocol::TurnStartIfIdleResponse;
     let (release, gate) = oneshot::channel();
     let (server, _completions) = start_streaming_sse_server(vec![
         vec![

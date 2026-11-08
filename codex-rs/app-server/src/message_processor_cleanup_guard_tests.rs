@@ -1,29 +1,44 @@
 // Modified for OpenDIY Codex R30 (2026-10-31); see docs/r30-final-boundary-validation-20261031.ko.md.
 //! Host guards exercised through real cleanup ownership, terminal V2 runtimes and local storage.
 //! Opt-in only: `cargo test -p codex-app-server --features test-support cleanup_guard_tests --lib`.
-use super::message_processor_tracing_tests::{
-    build_test_processor_with_state_db, read_response_from,
-};
+use super::message_processor_tracing_tests::build_test_processor_with_state_db;
+use super::message_processor_tracing_tests::read_response_from;
 use super::*;
-use crate::outgoing_message::{OutgoingEnvelope, OutgoingMessage};
+use crate::outgoing_message::OutgoingEnvelope;
+use crate::outgoing_message::OutgoingMessage;
 use crate::transport::ConnectionOrigin;
-use anyhow::{Context, Result};
+use anyhow::Context;
+use anyhow::Result;
 use app_test_support::MockResponsesConfig;
-use codex_app_server_protocol::{
-    CompletedChildSnapshot, InitializeResponse, RequestId, ServerNotification,
-    ServerNotificationEnvelope, ThreadCleanupCompletedParams, ThreadCleanupCompletedResponse,
-    ThreadGoalSetParams, ThreadStartResponse,
-};
+use codex_app_server_protocol::CompletedChildSnapshot;
+use codex_app_server_protocol::InitializeResponse;
+use codex_app_server_protocol::RequestId;
+use codex_app_server_protocol::ServerNotification;
+use codex_app_server_protocol::ServerNotificationEnvelope;
+use codex_app_server_protocol::ThreadCleanupCompletedParams;
+use codex_app_server_protocol::ThreadCleanupCompletedResponse;
+use codex_app_server_protocol::ThreadGoalSetParams;
+use codex_app_server_protocol::ThreadStartResponse;
+use codex_core::CodexThread;
+use codex_core::StartThreadOptions;
+use codex_core::TurnInput;
 use codex_core::config::ConfigBuilder;
-use codex_core::{CodexThread, StartThreadOptions, TurnInput};
 use codex_features::Feature;
-use codex_goal_extension::{
-    GoalObjectiveUpdate, GoalService, GoalSetRequest, GoalTokenBudgetUpdate,
-};
+use codex_goal_extension::GoalObjectiveUpdate;
+use codex_goal_extension::GoalService;
+use codex_goal_extension::GoalSetRequest;
+use codex_goal_extension::GoalTokenBudgetUpdate;
 use codex_protocol::items::TurnItem;
-use codex_protocol::protocol::{AgentStatus, EventMsg, MultiAgentVersion, Op, ThreadGoalStatus};
+use codex_protocol::protocol::AgentStatus;
+use codex_protocol::protocol::EventMsg;
+use codex_protocol::protocol::MultiAgentVersion;
+use codex_protocol::protocol::Op;
+use codex_protocol::protocol::ThreadGoalStatus;
 use codex_protocol::user_input::UserInput;
-use codex_thread_store::{LocalThreadStore, ReadThreadParams, ThreadStore, ThreadStoreError};
+use codex_thread_store::LocalThreadStore;
+use codex_thread_store::ReadThreadParams;
+use codex_thread_store::ThreadStore;
+use codex_thread_store::ThreadStoreError;
 use futures::FutureExt;
 use serde_json::json;
 use tempfile::TempDir;

@@ -320,7 +320,9 @@ mod localization_tests {
     use super::*;
     use crate::chatwidget::tests::make_chatwidget_manual_with_sender;
     use crate::chatwidget::tests::render_bottom_popup;
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use crossterm::event::KeyCode;
+    use crossterm::event::KeyEvent;
+    use crossterm::event::KeyModifiers;
 
     #[tokio::test]
     async fn voice_device_picker_localizes_labels_and_preserves_selected_device_payload() {

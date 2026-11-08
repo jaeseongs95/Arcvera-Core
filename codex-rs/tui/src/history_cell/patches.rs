@@ -327,7 +327,8 @@ impl HistoryCell for ImageGenerationHistoryCell {
 #[cfg(test)]
 mod r39_localization_tests {
     use super::*;
-    use crate::i18n::{Locale, with_locale};
+    use crate::i18n::Locale;
+    use crate::i18n::with_locale;
 
     #[test]
     fn translated_image_heading_keeps_link_columns_and_original_path() {

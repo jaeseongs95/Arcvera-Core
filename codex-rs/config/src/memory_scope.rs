@@ -128,7 +128,8 @@ pub fn validate_scoped_memory_root(root: &Path) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{MemoriesConfig, MemoryScope};
+    use crate::types::MemoriesConfig;
+    use crate::types::MemoryScope;
 
     fn git(cwd: &Path, args: &[&str]) {
         let result = std::process::Command::new("git")

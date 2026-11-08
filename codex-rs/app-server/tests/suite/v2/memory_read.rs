@@ -190,9 +190,9 @@ async fn memory_fixture_turn(app: &mut TestAppServer, id: &str) -> Result<()> {
 #[tokio::test]
 async fn project_memory_isolates_clones_shares_worktrees_preserves_prefix_and_resume() -> Result<()>
 {
-    use codex_app_server_protocol::{
-        ThreadMemoryNoteAddResponse, ThreadResumeParams, ThreadResumeResponse,
-    };
+    use codex_app_server_protocol::ThreadMemoryNoteAddResponse;
+    use codex_app_server_protocol::ThreadResumeParams;
+    use codex_app_server_protocol::ThreadResumeResponse;
     let server = start_mock_server().await;
     let home = TempDir::new()?;
     let fixture = TempDir::new()?;
@@ -378,7 +378,8 @@ async fn project_memory_isolates_clones_shares_worktrees_preserves_prefix_and_re
 
 #[tokio::test]
 async fn project_opt_in_does_not_rebind_legacy_global_chat_on_resume() -> Result<()> {
-    use codex_app_server_protocol::{ThreadResumeParams, ThreadResumeResponse};
+    use codex_app_server_protocol::ThreadResumeParams;
+    use codex_app_server_protocol::ThreadResumeResponse;
     let server = start_mock_server().await;
     let home = TempDir::new()?;
     let repo = TempDir::new()?;

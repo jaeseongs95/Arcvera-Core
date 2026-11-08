@@ -1,5 +1,6 @@
 use super::*;
-use crate::local_stdio_transport::{CleanupFault, LocalChildProcess};
+use crate::local_stdio_transport::CleanupFault;
+use crate::local_stdio_transport::LocalChildProcess;
 use std::sync::atomic::AtomicUsize;
 
 fn fault_owner(key: LocalLaunchKey, fault: Arc<CleanupFault>) -> StdioServerProcessHandle {

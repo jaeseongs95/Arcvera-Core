@@ -1,7 +1,9 @@
 //! Bound committed display sources around the reader, including all frozen view owners.
 
 use super::*;
-use crate::history_window::{MAX_HISTORY_BYTES, MAX_HISTORY_ITEMS, MAX_HISTORY_TURNS};
+use crate::history_window::MAX_HISTORY_BYTES;
+use crate::history_window::MAX_HISTORY_ITEMS;
+use crate::history_window::MAX_HISTORY_TURNS;
 use std::sync::Weak;
 
 pub(super) struct HistoryCellWindow {

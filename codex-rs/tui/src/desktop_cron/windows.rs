@@ -1,27 +1,41 @@
 //! 윈도 클라이언트 통로 하나와 작성자 하나만 소유한다. 재연결·재전송은 없다.
 
+use super::CANCELLED;
+use super::PendingRequest;
+use super::WAITING;
 use super::wire;
-use super::{CANCELLED, PendingRequest, WAITING};
 use crate::app_event::AppEvent;
 use crate::app_event_sender::AppEventSender;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use std::io::{self, Write};
-use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
+use std::io::Write;
+use std::io::{self};
+use std::os::windows::io::AsRawHandle;
+use std::os::windows::io::FromRawHandle;
+use std::os::windows::io::OwnedHandle;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::AtomicU8;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeClient};
+use tokio::io::AsyncReadExt;
+use tokio::io::AsyncWriteExt;
+use tokio::net::windows::named_pipe::ClientOptions;
+use tokio::net::windows::named_pipe::NamedPipeClient;
 use tokio::sync::oneshot;
-use tokio::time::{Instant, timeout_at};
-use windows_sys::Win32::Foundation::{ERROR_NOT_FOUND, FILETIME, WAIT_OBJECT_0, WAIT_TIMEOUT};
+use tokio::time::Instant;
+use tokio::time::timeout_at;
+use windows_sys::Win32::Foundation::ERROR_NOT_FOUND;
+use windows_sys::Win32::Foundation::FILETIME;
+use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
+use windows_sys::Win32::Foundation::WAIT_TIMEOUT;
 use windows_sys::Win32::System::IO::CancelIoEx;
 use windows_sys::Win32::System::Pipes::GetNamedPipeServerProcessId;
-use windows_sys::Win32::System::Threading::{
-    GetProcessId, GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
-    PROCESS_SYNCHRONIZE, WaitForSingleObject,
-};
+use windows_sys::Win32::System::Threading::GetProcessId;
+use windows_sys::Win32::System::Threading::GetProcessTimes;
+use windows_sys::Win32::System::Threading::OpenProcess;
+use windows_sys::Win32::System::Threading::PROCESS_QUERY_LIMITED_INFORMATION;
+use windows_sys::Win32::System::Threading::PROCESS_SYNCHRONIZE;
+use windows_sys::Win32::System::Threading::WaitForSingleObject;
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -368,7 +382,8 @@ fn error_response(
 mod tests {
     use super::*;
     use serde::Deserialize;
-    use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
+    use tokio::net::windows::named_pipe::NamedPipeServer;
+    use tokio::net::windows::named_pipe::ServerOptions;
 
     #[derive(Deserialize)]
     #[serde(deny_unknown_fields)]

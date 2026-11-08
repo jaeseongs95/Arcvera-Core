@@ -1,8 +1,9 @@
 use std::path::Path;
 
 use anyhow::Result;
+use codex_config::ui_language::CLIENT_PREFERENCES_FILE;
 use codex_config::ui_language::UiLanguage;
-use codex_config::ui_language::{CLIENT_PREFERENCES_FILE, write_user_ui_language};
+use codex_config::ui_language::write_user_ui_language;
 use predicates::prelude::PredicateBooleanExt;
 use predicates::str::contains;
 use tempfile::TempDir;

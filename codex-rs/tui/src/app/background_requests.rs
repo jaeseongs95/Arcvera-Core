@@ -1746,7 +1746,8 @@ mod tests {
 #[cfg(test)]
 mod r39_localization_tests {
     use super::*;
-    use crate::i18n::{Locale, with_locale};
+    use crate::i18n::Locale;
+    use crate::i18n::with_locale;
 
     #[test]
     fn plugin_section_display_translation_keeps_raw_label_branch_and_error_payload() {

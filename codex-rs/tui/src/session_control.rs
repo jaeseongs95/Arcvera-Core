@@ -1,7 +1,9 @@
 //! Structured model entry into the existing client settings and thread controls.
 use codex_app_server_protocol::DynamicToolFunctionSpec;
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde::Deserialize;
+use serde::Serialize;
+use serde_json::Value;
+use serde_json::json;
 
 pub(crate) const NAME: &str = "session_control";
 const PREFIX: &str = "session_control:";

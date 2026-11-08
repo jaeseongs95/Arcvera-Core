@@ -9,7 +9,8 @@
 //! native FIFO output have separate operational lifetimes. A single oversized payload fails explicitly rather than
 //! silently dropping a prefix and presenting the suffix as the original item.
 
-use codex_app_server_protocol::{Turn, TurnItemsView};
+use codex_app_server_protocol::Turn;
+use codex_app_server_protocol::TurnItemsView;
 use serde::Serialize;
 use std::io::Write;
 

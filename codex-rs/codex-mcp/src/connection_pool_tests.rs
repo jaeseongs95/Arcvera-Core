@@ -450,7 +450,9 @@ async fn timed_out_release_finishes_after_late_reply_without_closing_another_cha
         assert!(Arc::ptr_eq(&first_lease.entry, &other_lease.entry));
         let entry = Arc::clone(&first_lease.entry);
         let entry_references = Arc::strong_count(&entry);
-        let slot = first_lease.release().expect("first release must start cleanup");
+        let slot = first_lease
+            .release()
+            .expect("first release must start cleanup");
         let release = peer.next("codex/connection/release").await;
         assert_eq!(release.message["params"]["leaseId"], first_id);
         let mut waiter = Box::pin(slot.wait_for_shutdown());
@@ -513,7 +515,9 @@ async fn timed_out_release_finishes_after_late_reply_without_closing_another_cha
             peer.frames.try_recv(),
             Err(mpsc::error::TryRecvError::Empty)
         ));
-        let final_slot = other_lease.release().expect("last owner must shut down the client");
+        let final_slot = other_lease
+            .release()
+            .expect("last owner must shut down the client");
         tokio::time::timeout(Duration::from_secs(1), final_slot.wait_for_shutdown())
             .await
             .expect("final client shutdown must finish")

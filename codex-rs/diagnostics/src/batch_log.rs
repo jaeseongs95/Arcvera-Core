@@ -5,21 +5,35 @@ use crate::cache_diagnostics::CacheMode;
 use crate::cache_diagnostics::Settings as CacheSettings;
 use chrono::Local;
 use serde::Deserialize;
-use serde_json::{Map, Value, json};
-use std::fs::{self, OpenOptions};
-use std::io::{self, Write};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::mpsc::{self, Receiver, SyncSender};
-use std::sync::{Arc, Mutex};
+use serde_json::Map;
+use serde_json::Value;
+use serde_json::json;
+use std::fs::OpenOptions;
+use std::fs::{self};
+use std::io::Write;
+use std::io::{self};
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::SyncSender;
+use std::sync::mpsc::{self};
 use std::thread;
-use std::time::{Duration, Instant};
-use tracing::{
-    Subscriber,
-    field::{Field, Visit},
-    span::{Attributes, Id, Record},
-};
-use tracing_subscriber::{Layer, layer::Context, registry::LookupSpan};
+use std::time::Duration;
+use std::time::Instant;
+use tracing::Subscriber;
+use tracing::field::Field;
+use tracing::field::Visit;
+use tracing::span::Attributes;
+use tracing::span::Id;
+use tracing::span::Record;
+use tracing_subscriber::Layer;
+use tracing_subscriber::layer::Context;
+use tracing_subscriber::registry::LookupSpan;
 use uuid::Uuid;
 
 const QUEUE: usize = 4096;

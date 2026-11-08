@@ -32,8 +32,12 @@ impl App {
             .map_or((args, ""), |(command, value)| (command, value.trim()));
         match command {
             "" => match app_server.memory_read(thread_id).await {
-                Ok(response) => self.chat_widget.open_memories_popup_with_scope(response.scope.as_deref().unwrap_or("unknown")),
-                Err(error) => self.chat_widget.add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
+                Ok(response) => self
+                    .chat_widget
+                    .open_memories_popup_with_scope(response.scope.as_deref().unwrap_or("unknown")),
+                Err(error) => self
+                    .chat_widget
+                    .add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
             },
             "view" | "show" | "status" if value.is_empty() => {
                 match app_server.memory_read(thread_id).await {
@@ -46,12 +50,21 @@ impl App {
                             text("This is the stored summary. Existing chat context is unchanged; new context loads the latest summary.")),
                             Some(message("controls-memory-command-hint", &[])));
                     }
-                    Err(error) => self.chat_widget.add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
+                    Err(error) => self
+                        .chat_widget
+                        .add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
                 }
             }
             "edit" | "remember" | "forget" => {
-                if value.is_empty() { self.chat_widget.prepare_memory_note(); return; }
-                let note = if command == "forget" { format!("Explicit user forget request: {value}") } else { value.to_string() };
+                if value.is_empty() {
+                    self.chat_widget.prepare_memory_note();
+                    return;
+                }
+                let note = if command == "forget" {
+                    format!("Explicit user forget request: {value}")
+                } else {
+                    value.to_string()
+                };
                 match app_server.memory_note_add(thread_id, note).await {
                     Ok(_) => self.chat_widget.add_info_message(text("Memory correction saved for later consolidation. The stored summary and existing chats have not changed yet.").to_string(), None),
                     Err(error) => self.chat_widget.add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
@@ -59,32 +72,74 @@ impl App {
             }
             "enable" if matches!(value, "on" | "off") => {
                 let on = value == "on";
-                match self.set_memory_control(app_server, thread_id, Some(on), on, on, true).await {
-                    Ok(result) => self.chat_widget.add_info_message(result["message"].as_str().unwrap_or_default().to_string(), None),
+                match self
+                    .set_memory_control(app_server, thread_id, Some(on), on, on, true)
+                    .await
+                {
+                    Ok(result) => self.chat_widget.add_info_message(
+                        result["message"].as_str().unwrap_or_default().to_string(),
+                        None,
+                    ),
                     Err(error) => self.chat_widget.add_error_message(error),
                 }
             }
             "read" | "generate" if matches!(value, "on" | "off") => {
                 let on = value == "on";
-                let use_memories = if command == "read" { on } else { self.config.memories.use_memories };
-                let generate = if command == "generate" { on } else { self.config.memories.generate_memories };
-                match self.set_memory_control(app_server, thread_id, on.then_some(true), use_memories, generate, command == "generate").await {
-                    Ok(result) => self.chat_widget.add_info_message(result["message"].as_str().unwrap_or_default().to_string(), None),
+                let use_memories = if command == "read" {
+                    on
+                } else {
+                    self.config.memories.use_memories
+                };
+                let generate = if command == "generate" {
+                    on
+                } else {
+                    self.config.memories.generate_memories
+                };
+                match self
+                    .set_memory_control(
+                        app_server,
+                        thread_id,
+                        on.then_some(true),
+                        use_memories,
+                        generate,
+                        command == "generate",
+                    )
+                    .await
+                {
+                    Ok(result) => self.chat_widget.add_info_message(
+                        result["message"].as_str().unwrap_or_default().to_string(),
+                        None,
+                    ),
                     Err(error) => self.chat_widget.add_error_message(error),
                 }
             }
             "scope" if matches!(value, "project" | "global") => {
-                let edits = vec![crate::config_update::replace_config_value("memories.scope", serde_json::json!(value))];
-                match crate::config_update::write_config_batch(app_server.request_handle(), edits).await {
+                let edits = vec![crate::config_update::replace_config_value(
+                    "memories.scope",
+                    serde_json::json!(value),
+                )];
+                match crate::config_update::write_config_batch(app_server.request_handle(), edits)
+                    .await
+                {
                     Ok(response) if response.status != WriteStatus::OkOverridden => {
-                        self.config.memories.scope = if value == "project" { MemoryScope::Project } else { MemoryScope::Global };
+                        self.config.memories.scope = if value == "project" {
+                            MemoryScope::Project
+                        } else {
+                            MemoryScope::Global
+                        };
                         self.chat_widget.add_info_message(text("Memory scope saved for new chats. Existing global or external memories were not moved.").to_string(), None);
                     }
-                    Ok(_) => self.chat_widget.add_error_message(text("Memory scope was overridden by managed configuration.").to_string()),
-                    Err(error) => self.chat_widget.add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
+                    Ok(_) => self.chat_widget.add_error_message(
+                        text("Memory scope was overridden by managed configuration.").to_string(),
+                    ),
+                    Err(error) => self
+                        .chat_widget
+                        .add_error_message(format!("{} {error:#}", text("Memory request failed:"))),
                 }
             }
-            _ => self.chat_widget.add_error_message(message("controls-memory-usage", &[])),
+            _ => self
+                .chat_widget
+                .add_error_message(message("controls-memory-usage", &[])),
         }
     }
 }

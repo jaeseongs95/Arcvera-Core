@@ -345,7 +345,8 @@ mod tests {
 
     #[test]
     fn scheduler_errors_and_one_shot_status_follow_locale() {
-        use crate::i18n::{Locale, with_locale};
+        use crate::i18n::Locale;
+        use crate::i18n::with_locale;
         for locale in [Locale::English, Locale::Korean] {
             with_locale(locale, || {
                 let korean = locale == Locale::Korean;

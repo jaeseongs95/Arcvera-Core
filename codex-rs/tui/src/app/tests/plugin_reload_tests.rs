@@ -1,8 +1,8 @@
 //! Targeted reload never retargets a queued command or falls back to global config mutation.
 
-use super::session_lifecycle_requests::{
-    HistoryCapabilities, recorded_params, start_recording_app_server_with_history,
-};
+use super::session_lifecycle_requests::HistoryCapabilities;
+use super::session_lifecycle_requests::recorded_params;
+use super::session_lifecycle_requests::start_recording_app_server_with_history;
 use super::*;
 use crate::app::session_lifecycle::ThreadAttachPresentation;
 use crate::app_server_session::ResumeModelSettings;

@@ -1,14 +1,17 @@
 //! Passive installation/process observations. This is not an update reservation or an idle gate.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 use std::time::Duration;
 
-use anyhow::{Context, Result};
+use anyhow::Context;
+use anyhow::Result;
 use serde::Serialize;
 use tokio::fs;
 use tokio::time::timeout;
 
-use crate::backend::{ReadOnlyPidStatus, read_only_pid_status};
+use crate::backend::ReadOnlyPidStatus;
+use crate::backend::read_only_pid_status;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

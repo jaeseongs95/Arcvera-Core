@@ -2861,7 +2861,8 @@ mod tests {
 
     #[test]
     fn footer_hover_requests_one_frame_per_row_transition_and_preserves_draft() {
-        use crossterm::event::{MouseEvent, MouseEventKind};
+        use crossterm::event::MouseEvent;
+        use crossterm::event::MouseEventKind;
         let (tx, mut events) = unbounded_channel();
         let mut pane = test_pane(AppEventSender::new(tx));
         let mut summary = SubagentStatusSummary::default();

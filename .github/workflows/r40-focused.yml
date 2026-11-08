@@ -22,7 +22,6 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582
         with:
-          toolchain: '1.95.0'
           components: rustfmt
       - run: cargo fmt -- --config imports_granularity=Item --check
 
@@ -37,12 +36,15 @@ jobs:
       CARGO_BUILD_JOBS: '1'
       RUST_MIN_STACK: '8388608'
       INSTA_UPDATE: 'no'
+      CARGO_HOME: '${{ runner.temp }}/c'
+      CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.longpaths
+      GIT_CONFIG_VALUE_0: 'true'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582
-        with:
-          toolchain: '1.95.0'
       - name: Protocol serialization and generated schema parity
         run: cargo test --locked --profile dev-small -j1 -p codex-app-server-protocol --lib -- --test-threads=1

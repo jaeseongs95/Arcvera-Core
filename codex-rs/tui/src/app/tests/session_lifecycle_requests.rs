@@ -5739,9 +5739,8 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
                 )
             })
             .map(|request| {
-                let param = |name: &str| {
-                    request.params.as_ref().and_then(|params| params.get(name))
-                };
+                let param =
+                    |name: &str| request.params.as_ref().and_then(|params| params.get(name));
                 let field = |name: &str| param(name).and_then(serde_json::Value::as_str);
                 serde_json::json!({
                     "method": request.method.as_str(),
@@ -5760,7 +5759,11 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
         assert!(
             app.chat_widget.has_provider_error(),
             "route={} target_thread={thread_id} displayed_thread={:?} safe_requests={safe_requests:?} fixture_history={history_messages:?}",
-            if reopen_via_overview { "overview" } else { "resume_target" },
+            if reopen_via_overview {
+                "overview"
+            } else {
+                "resume_target"
+            },
             app.chat_widget.thread_id(),
         );
         let notice = history_messages

@@ -68,7 +68,9 @@ pub fn take_desktop_cron_bootstrap_from_env() -> DesktopCronBootstrap {
 #[cfg(windows)]
 use std::sync::Arc;
 #[cfg(windows)]
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::AtomicU8;
+#[cfg(windows)]
+use std::sync::atomic::Ordering;
 #[cfg(windows)]
 use tokio::sync::oneshot;
 #[cfg(windows)]

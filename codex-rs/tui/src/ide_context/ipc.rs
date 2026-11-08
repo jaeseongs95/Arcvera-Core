@@ -1243,7 +1243,8 @@ mod tests {
 #[cfg(all(test, any(unix, windows)))]
 mod localization_tests {
     use super::IdeContextError;
-    use std::io::{Error, ErrorKind};
+    use std::io::Error;
+    use std::io::ErrorKind;
 
     #[test]
     fn ide_hint_producers_localize_ui_preserving_error_display_and_error_payload() {

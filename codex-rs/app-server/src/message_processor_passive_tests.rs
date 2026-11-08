@@ -1,24 +1,33 @@
 //! New method contracts through the real initialized JSON-RPC dispatcher and listener.
-use super::message_processor_tracing_tests::{
-    build_test_processor_with_state_db, read_response_from,
-};
+use super::message_processor_tracing_tests::build_test_processor_with_state_db;
+use super::message_processor_tracing_tests::read_response_from;
 use super::*;
-use crate::outgoing_message::{OutgoingEnvelope, OutgoingMessage};
-use crate::transport::{AppServerTransport, ConnectionOrigin};
+use crate::outgoing_message::OutgoingEnvelope;
+use crate::outgoing_message::OutgoingMessage;
+use crate::transport::AppServerTransport;
+use crate::transport::ConnectionOrigin;
 use anyhow::Result;
-use app_test_support::{MockResponsesConfig, create_mock_responses_server_sequence_unchecked};
-use codex_app_server_protocol::{
-    InitializeResponse, RequestId, ServerNotification, ServerNotificationEnvelope,
-    ThreadResumeResponse, ThreadStartResponse, TurnStartIfIdleResponse,
-};
+use app_test_support::MockResponsesConfig;
+use app_test_support::create_mock_responses_server_sequence_unchecked;
+use codex_app_server_protocol::InitializeResponse;
+use codex_app_server_protocol::RequestId;
+use codex_app_server_protocol::ServerNotification;
+use codex_app_server_protocol::ServerNotificationEnvelope;
+use codex_app_server_protocol::ThreadResumeResponse;
+use codex_app_server_protocol::ThreadStartResponse;
+use codex_app_server_protocol::TurnStartIfIdleResponse;
 use codex_core::config::ConfigBuilder;
 use core_test_support::responses;
-use core_test_support::streaming_sse::{StreamingSseChunk, start_streaming_sse_server};
+use core_test_support::streaming_sse::StreamingSseChunk;
+use core_test_support::streaming_sse::start_streaming_sse_server;
 use serde_json::json;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use tempfile::TempDir;
-use tokio::sync::{mpsc, oneshot};
-use tokio::time::{Duration, timeout};
+use tokio::sync::mpsc;
+use tokio::sync::oneshot;
+use tokio::time::Duration;
+use tokio::time::timeout;
 
 type Receiver = mpsc::Receiver<OutgoingEnvelope>;
 const DEADLINE: Duration = Duration::from_secs(10);
@@ -427,10 +436,11 @@ async fn new_methods_reject_uninitialized_and_invalid_user_payloads() -> Result<
 /// A real extension observes lifecycle emission, rather than a mocked passive verdict.
 #[tokio::test]
 async fn passive_listener_replays_general_pending_but_emits_no_idle_lifecycle() -> Result<()> {
-    use codex_app_server_protocol::{
-        DynamicToolCallParams, McpServerElicitationRequest, McpServerElicitationRequestParams,
-        ServerRequestPayload, ThreadSubscribePassiveParams,
-    };
+    use codex_app_server_protocol::DynamicToolCallParams;
+    use codex_app_server_protocol::McpServerElicitationRequest;
+    use codex_app_server_protocol::McpServerElicitationRequestParams;
+    use codex_app_server_protocol::ServerRequestPayload;
+    use codex_app_server_protocol::ThreadSubscribePassiveParams;
     struct IdleRecorder(Arc<AtomicUsize>);
     impl codex_extension_api::ThreadLifecycleContributor<Config> for IdleRecorder {
         fn on_thread_idle<'a>(
@@ -572,7 +582,8 @@ async fn passive_listener_replays_general_pending_but_emits_no_idle_lifecycle() 
 #[tokio::test]
 async fn passive_blocked_response_releases_registry_and_unsubscribe_orders_after_replay()
 -> Result<()> {
-    use codex_app_server_protocol::{DynamicToolCallParams, ServerRequestPayload};
+    use codex_app_server_protocol::DynamicToolCallParams;
+    use codex_app_server_protocol::ServerRequestPayload;
     let server = create_mock_responses_server_sequence_unchecked(Vec::new()).await;
     let (_home, config, processor, mut rx) = setup(&server.uri()).await?;
     let owner = ConnectionId(1);
@@ -801,7 +812,8 @@ async fn passive_refuses_removed_runtime_or_listener_absence() -> Result<()> {
 
 #[tokio::test]
 async fn new_methods_queued_before_connection_gate_closes_have_no_effects() -> Result<()> {
-    use crate::request_serialization::{RequestSerializationAccess, RequestSerializationQueueKey};
+    use crate::request_serialization::RequestSerializationAccess;
+    use crate::request_serialization::RequestSerializationQueueKey;
     let server = create_mock_responses_server_sequence_unchecked(Vec::new()).await;
     let (_home, _, processor, mut rx) = setup(&server.uri()).await?;
     let owner = ConnectionId(1);

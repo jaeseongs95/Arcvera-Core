@@ -337,7 +337,8 @@ mod tests;
 #[cfg(test)]
 mod r39_localization_tests {
     use super::*;
-    use crate::i18n::{Locale, with_locale};
+    use crate::i18n::Locale;
+    use crate::i18n::with_locale;
 
     #[test]
     fn translated_navigation_preserves_key_spans_and_unknown_input() {

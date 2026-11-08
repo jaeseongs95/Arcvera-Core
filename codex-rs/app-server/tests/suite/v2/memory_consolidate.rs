@@ -21,7 +21,8 @@ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_a
     use core_test_support::responses::ev_apply_patch_custom_tool_call;
     use core_test_support::responses::ev_function_call;
     use core_test_support::responses::mount_sse_sequence;
-    use tokio::time::{Duration, Instant};
+    use tokio::time::Duration;
+    use tokio::time::Instant;
 
     // Synthetic input only. The test and mock responder never write either output artifact.
     let marker = "T09_SYNTHETIC_README_CURRENT_83c4";

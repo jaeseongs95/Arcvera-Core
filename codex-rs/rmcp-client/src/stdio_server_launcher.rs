@@ -1641,11 +1641,11 @@ mod tests {
     async fn mcp_read_lifetime_required_job_never_runs_an_uncontained_command() -> anyhow::Result<()>
     {
         use std::os::windows::io::AsRawHandle;
-        use windows_sys::Win32::System::JobObjects::{
-            JOB_OBJECT_LIMIT_ACTIVE_PROCESS, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-            SetInformationJobObject,
-        };
+        use windows_sys::Win32::System::JobObjects::JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
+        use windows_sys::Win32::System::JobObjects::JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        use windows_sys::Win32::System::JobObjects::JOBOBJECT_EXTENDED_LIMIT_INFORMATION;
+        use windows_sys::Win32::System::JobObjects::JobObjectExtendedLimitInformation;
+        use windows_sys::Win32::System::JobObjects::SetInformationJobObject;
         const TEST: &str = "stdio_server_launcher::tests::mcp_read_lifetime_required_job_never_runs_an_uncontained_command";
         const PHASE: &str = "CODEX_TEST_REQUIRED_MCP_JOB_PHASE";
         match std::env::var(PHASE).as_deref() {

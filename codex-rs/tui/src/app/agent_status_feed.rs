@@ -289,9 +289,10 @@ mod tests;
 #[cfg(test)]
 mod footer_tests {
     use super::*;
-    use codex_app_server_protocol::{
-        ItemCompletedNotification, Turn, TurnStartedNotification, TurnStatus,
-    };
+    use codex_app_server_protocol::ItemCompletedNotification;
+    use codex_app_server_protocol::Turn;
+    use codex_app_server_protocol::TurnStartedNotification;
+    use codex_app_server_protocol::TurnStatus;
 
     #[test]
     fn footer_detail_only_uses_current_turn_and_backend_time() {

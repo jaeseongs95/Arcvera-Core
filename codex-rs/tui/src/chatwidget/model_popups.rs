@@ -792,8 +792,10 @@ impl ChatWidget {
 #[cfg(test)]
 mod localization_tests {
     use super::*;
-    use crate::chatwidget::tests::{make_chatwidget_manual_with_sender, render_bottom_popup};
-    use crate::i18n::{Locale, with_locale};
+    use crate::chatwidget::tests::make_chatwidget_manual_with_sender;
+    use crate::chatwidget::tests::render_bottom_popup;
+    use crate::i18n::Locale;
+    use crate::i18n::with_locale;
     use codex_protocol::openai_models::ReasoningEffortPreset;
 
     #[tokio::test]

@@ -24,7 +24,8 @@ fn reconnect_keeps_other_backend_mcp_cron_on_the_new_app_queue() -> Result<()> {
 
 async fn reconnect_keeps_other_backend_mcp_cron_on_the_new_app_queue_in_korean() -> Result<()> {
     use crate::app::backend_sessions::BackendSessions;
-    use crate::dynamic_tools_mcp::{DynamicToolMcpServer, ThreadToolTransport};
+    use crate::dynamic_tools_mcp::DynamicToolMcpServer;
+    use crate::dynamic_tools_mcp::ThreadToolTransport;
 
     let (mut app, mut events, _ops) = make_test_app_with_channels().await;
     let caller_a = ThreadId::new();
