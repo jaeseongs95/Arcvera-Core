@@ -23,6 +23,137 @@ fn user_boundary(id: &str, turn: &str) -> RetainedSourceId {
     }
 }
 
+fn refork_legacy_worker(nonempty: bool) -> (RetainedContext, Option<RetainedSource>) {
+    let mut parent = RetainedContext::default();
+    parent.adopt_user_messages(false);
+    let mut old = RetainedContext::for_worker_fork(Some(&parent), true);
+    let source = nonempty.then(|| {
+        old.record_user_message(
+            adoption_message("old-local", "old-turn", "Never publish."),
+            RetainedInputSource::Local(Some(0)),
+        )
+        .unwrap()
+    });
+    let mut wire = serde_json::to_value(old).unwrap();
+    for field in ["adoption_user_messages", "standalone_root_provenance"] {
+        wire.as_object_mut().unwrap().remove(field);
+        assert!(wire.get(field).is_none());
+    }
+    assert_eq!(wire["user_messages_incomplete"], false);
+    assert_eq!(wire["incomplete"], false);
+    let checkpoint = serde_json::from_value(wire).unwrap();
+    let mut worker = RetainedContext::default();
+    worker.restore(Some(&checkpoint), &[]);
+    assert!(!worker.has_missing_user_messages());
+    assert!(worker.user_messages_complete());
+    (worker, source)
+}
+
+fn assert_legacy_refork(nonempty: bool) {
+    for forks in [1, 2] {
+        let (mut worker, source) = refork_legacy_worker(nonempty);
+        for _ in 0..forks {
+            worker = RetainedContext::for_worker_fork(Some(&worker), true);
+            assert!(worker.user_messages_complete());
+            assert_eq!(worker.ordered_entries().count(), 0);
+            let checkpoint = serde_json::from_slice(&serde_json::to_vec(&worker).unwrap()).unwrap();
+            worker.restore(Some(&checkpoint), &[]);
+        }
+        let checkpoint = serde_json::from_slice(&serde_json::to_vec(&worker).unwrap()).unwrap();
+        let mut root = RetainedContext::default();
+        root.restore(Some(&checkpoint), &[]);
+        root.adopt_user_messages(true);
+        assert!(
+            root.has_missing_user_messages(),
+            "nonempty={nonempty}, forks={forks}"
+        );
+        assert!(!root.user_messages_complete());
+        assert!(!root.verified_answers_complete());
+        assert_eq!(root.verified_answers().count(), 0);
+        assert_eq!(root.user_messages.len(), usize::from(nonempty));
+        if let Some(source) = source {
+            let inherited = &root.user_messages[0];
+            assert_eq!(inherited.value.message_id.as_deref(), Some("old-local"));
+            assert_eq!(inherited.value.turn_id, "old-turn");
+            assert_eq!(inherited.value.text, "Never publish.");
+            assert_eq!(inherited.revision.as_ref(), Some(&source.revision));
+            assert_eq!(inherited.key(), RetainedContextOrder::Inherited(0));
+            assert!(!inherited.value.complete);
+            root.record_user_message(
+                adoption_message("new-local", "new-turn", "Inspect only."),
+                RetainedInputSource::Local(Some(0)),
+            );
+            assert_eq!(root.user_messages[1].key(), RetainedContextOrder::Local(0));
+            assert!(root.user_messages[1].value.complete);
+        }
+        let expected = root.clone();
+        for _ in 0..2 {
+            let checkpoint = serde_json::from_slice(&serde_json::to_vec(&root).unwrap()).unwrap();
+            root.restore(Some(&checkpoint), &[]);
+            root.adopt_user_messages(true);
+            assert_eq!(root, expected);
+        }
+    }
+}
+
+#[test]
+fn adoption_refork_legacy_empty_retains_missing_prefix() {
+    assert_legacy_refork(false);
+}
+
+#[test]
+fn adoption_refork_legacy_nonempty_retains_missing_prefix() {
+    assert_legacy_refork(true);
+}
+
+#[test]
+fn adoption_refork_restored_suffix_does_not_certify_legacy_prefix() {
+    let (mut worker, _) = refork_legacy_worker(false);
+    let message = adoption_message("suffix", "suffix-turn", "Ask me first.");
+    let mut original = RetainedContext::default();
+    let source = original
+        .record_user_message(message.clone(), RetainedInputSource::Local(Some(0)))
+        .unwrap();
+    worker.record_user_message_for_adoption(message, Some(&source));
+    assert!(worker.user_messages_complete());
+    let checkpoint = serde_json::from_slice(&serde_json::to_vec(&worker).unwrap()).unwrap();
+    let mut root = RetainedContext::default();
+    root.restore(Some(&checkpoint), &[]);
+    root.adopt_user_messages(true);
+    assert!(root.has_missing_user_messages());
+    assert!(!root.user_messages_complete());
+    assert_eq!(root.user_messages.len(), 1);
+    assert_eq!(root.user_messages[0].value.text, "Ask me first.");
+    assert_eq!(
+        root.user_messages[0].revision.as_ref(),
+        Some(&source.revision)
+    );
+    assert!(!root.user_messages[0].value.complete);
+    assert!(!root.verified_answers_complete());
+    assert_eq!(root.verified_answers().count(), 0);
+}
+
+#[test]
+fn adoption_refork_modern_empty_lineages_stay_complete() {
+    let mut root = RetainedContext::default();
+    root.adopt_user_messages(false);
+    let modern_worker = RetainedContext::for_worker_fork(Some(&root), true);
+    for mut parent in [root, modern_worker] {
+        for _ in 0..2 {
+            let checkpoint = serde_json::from_slice(&serde_json::to_vec(&parent).unwrap()).unwrap();
+            parent.restore(Some(&checkpoint), &[]);
+            parent = RetainedContext::for_worker_fork(Some(&parent), true);
+        }
+        let checkpoint = serde_json::from_slice(&serde_json::to_vec(&parent).unwrap()).unwrap();
+        let mut root = RetainedContext::default();
+        root.restore(Some(&checkpoint), &[]);
+        root.adopt_user_messages(true);
+        assert!(!root.has_missing_user_messages());
+        assert!(root.user_messages_complete());
+        assert_eq!(root.user_messages.len(), 0);
+    }
+}
+
 #[test]
 fn adoption_rollback_keeps_same_id_in_other_turn() {
     for mode in ["backup", "adopted", "local"] {

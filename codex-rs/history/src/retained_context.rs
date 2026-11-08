@@ -270,7 +270,8 @@ impl RetainedContext {
             if let Some(inherited) = &parent.adoption_user_messages {
                 *backup = inherited.clone();
             }
-            backup.incomplete |= parent.has_missing_user_messages();
+            backup.incomplete |=
+                parent.has_missing_user_messages() || parent.has_unknown_adoption_prefix();
             let mut messages = parent.user_messages.iter().collect::<Vec<_>>();
             messages.sort_by_key(|entry| entry.key());
             for entry in messages {
@@ -295,9 +296,7 @@ impl RetainedContext {
                 || message.message_id.as_deref() != Some(source.id.message_id.as_str())
                 || message.turn_id != source.id.turn_id
         }) {
-            self.adoption_user_messages
-                .get_or_insert_default()
-                .incomplete = true;
+            self.adoption_backup_mut().incomplete = true;
             return;
         }
         let revision = source
@@ -307,14 +306,27 @@ impl RetainedContext {
                     && message.turn_id == source.id.turn_id
             })
             .map(|source| source.revision.clone());
+        self.adoption_backup_mut().record(Ordered {
+            revision,
+            inherited: true,
+            order: 0,
+            value: message,
+        });
+    }
+
+    fn has_unknown_adoption_prefix(&self) -> bool {
+        self.adoption_user_messages.is_none() && !self.standalone_root_provenance
+    }
+
+    fn adoption_backup_mut(&mut self) -> &mut AdoptionUserMessages {
+        // A surviving inherited suffix cannot certify an absent legacy prefix.
+        // Keep that gap in the backup, without changing worker-local evidence.
+        let incomplete = self.has_unknown_adoption_prefix();
         self.adoption_user_messages
-            .get_or_insert_default()
-            .record(Ordered {
-                revision,
-                inherited: true,
-                order: 0,
-                value: message,
-            });
+            .get_or_insert_with(|| AdoptionUserMessages {
+                incomplete,
+                ..AdoptionUserMessages::default()
+            })
     }
 
     /// Identifies checkpoint-only inherited sources outside the visible local families.

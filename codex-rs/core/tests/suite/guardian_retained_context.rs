@@ -40,6 +40,7 @@ use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::Op;
+use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::ThreadHistoryMode;
 use codex_protocol::protocol::ThreadSettingsOverrides;
 use codex_protocol::request_user_input::RequestUserInputAnswer;
@@ -785,25 +786,39 @@ async fn legacy_checkpoint_recovers_root_excerpt_before_discarding_backup(
 
 // Cover live copied history and a truncated referenced checkpoint. Parent-answer
 // omission is already exercised by retained_answers_cross_real_session_boundaries.
-#[test_case(ThreadHistoryMode::Legacy, false, false, false; "copied worker history")]
-#[test_case(ThreadHistoryMode::Legacy, true, false, false; "compacted legacy worker")]
-#[test_case(ThreadHistoryMode::Paginated, true, false, false; "referenced truncated checkpoint")]
-#[test_case(ThreadHistoryMode::Paginated, true, true, false; "already compacted parent")]
-#[test_case(ThreadHistoryMode::Legacy, true, false, true; "old worker local-only checkpoint")]
-#[test_case(ThreadHistoryMode::Paginated, true, false, true; "old paginated worker local-only checkpoint")]
+#[test_case(ThreadHistoryMode::Legacy, false, false, false, false, false; "copied worker history")]
+#[test_case(ThreadHistoryMode::Legacy, true, false, false, false, false; "compacted legacy worker")]
+#[test_case(ThreadHistoryMode::Paginated, true, false, false, false, false; "referenced truncated checkpoint")]
+#[test_case(ThreadHistoryMode::Paginated, true, true, false, false, false; "already compacted parent")]
+#[test_case(ThreadHistoryMode::Legacy, true, false, true, false, false; "old worker local-only checkpoint")]
+#[test_case(ThreadHistoryMode::Paginated, true, false, true, false, false; "old paginated worker local-only checkpoint")]
+#[test_case(ThreadHistoryMode::Legacy, true, false, true, true, false; "old legacy refork nonempty")]
+#[test_case(ThreadHistoryMode::Paginated, true, false, true, true, false; "old paginated refork nonempty")]
+#[test_case(ThreadHistoryMode::Legacy, true, false, true, true, true; "old legacy refork empty")]
+#[test_case(ThreadHistoryMode::Paginated, true, false, true, true, true; "old paginated refork empty")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn standalone_fork_retains_inherited_user_instructions(
     history_mode: ThreadHistoryMode,
     compacted: bool,
     compact_parent: bool,
     old_checkpoint: bool,
+    refork_worker: bool,
+    empty_local: bool,
 ) -> Result<()> {
     skip_if_no_network!(Ok(()));
     let server = start_mock_server().await;
     let mut test = test_codex()
         .with_history_mode(history_mode)
+        .with_model_info_override("gpt-5.5", move |model| {
+            // The loopback model must advertise native V2 tools for worker spawning.
+            // Root tool exposure alone does not establish worker model support.
+            if refork_worker {
+                model.multi_agent_version = Some(codex_protocol::protocol::MultiAgentVersion::V2);
+            }
+        })
         .with_config(|config| {
             config.experimental_thread_store = ThreadStoreConfig::Local;
+            config.agent_max_depth = 4;
             config
                 .features
                 .disable(Feature::TokenBudget)
@@ -895,14 +910,16 @@ async fn standalone_fork_retains_inherited_user_instructions(
     } else {
         "Ask me before publishing.".to_owned()
     };
-    mount_sse_sequence(&server, vec![sse(vec![ev_completed("local-instruction")])]).await;
-    worker
-        .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
-            text: local_instruction.clone(),
-            text_elements: Vec::new(),
-        }]))
-        .await?;
-    wait_for_event(&worker, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    if !empty_local {
+        mount_sse_sequence(&server, vec![sse(vec![ev_completed("local-instruction")])]).await;
+        worker
+            .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
+                text: local_instruction.clone(),
+                text_elements: Vec::new(),
+            }]))
+            .await?;
+        wait_for_event(&worker, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    }
     if compacted {
         // Completed originals leave the active model window, but their host-owned
         // adoption sources must survive outside the model summary.
@@ -914,7 +931,16 @@ async fn standalone_fork_retains_inherited_user_instructions(
             ])],
         )
         .await;
-        compact_and_assert_answers(&test, &worker, &[]).await?;
+        if refork_worker {
+            tokio::time::timeout(
+                Duration::from_secs(15),
+                compact_and_assert_answers(&test, &worker, &[]),
+            )
+            .await
+            .context("pre-refork worker compaction did not complete")??;
+        } else {
+            compact_and_assert_answers(&test, &worker, &[]).await?;
+        }
     }
     if old_checkpoint {
         let mut checkpoint = load_context(&test, &worker)
@@ -932,11 +958,12 @@ async fn standalone_fork_retains_inherited_user_instructions(
                 .as_ref()
                 .context("worker retained context")?,
         )?;
-        assert!(
-            !wire["user_messages"]
+        assert_eq!(
+            wire["user_messages"]
                 .as_array()
                 .context("local family")?
-                .is_empty()
+                .is_empty(),
+            empty_local
         );
         assert_eq!(wire["incomplete"], false);
         wire.as_object_mut()
@@ -953,6 +980,33 @@ async fn standalone_fork_retains_inherited_user_instructions(
             .append_rollout_items(&[RolloutItem::Compacted(checkpoint)])
             .await?;
     }
+    let worker = if refork_worker {
+        let resumed = resume(&test, &worker).await?;
+        assert!(matches!(
+            resumed.config_snapshot().await.session_source,
+            SessionSource::SubAgent(_)
+        ));
+        let snapshot = resumed.conversation_history_snapshot().await;
+        let retained = snapshot
+            .retained_context()
+            .context("resumed old worker context")?;
+        let wire = serde_json::to_value(retained)?;
+        assert!(wire.get("adoption_user_messages").is_none());
+        assert!(wire.get("standalone_root_provenance").is_none());
+        assert_eq!(wire["user_messages_incomplete"], false);
+        assert_eq!(
+            wire["user_messages"]
+                .as_array()
+                .context("resumed local family")?
+                .is_empty(),
+            empty_local
+        );
+        // Resume emits its own creation event. Observe only the next actual spawn.
+        created = test.thread_manager.subscribe_thread_created();
+        resumed
+    } else {
+        worker
+    };
     let worker_context = worker.conversation_history_snapshot().await;
     let active_inherited_text = worker_context.items().find_map(|item| match item {
         ResponseItem::Message { role, content, .. } if role == "user" => {
@@ -976,6 +1030,72 @@ async fn standalone_fork_retains_inherited_user_instructions(
         assert_ne!(inherited_text, instruction);
         assert!(!inherited_text.is_empty());
     }
+    const REFORK_INSTRUCTION: &str = "Delegate another inspection.";
+    let nested_worker = if refork_worker {
+        mount_sse_sequence(
+            &server,
+            vec![
+                sse(vec![
+                    ev_function_call_with_namespace(
+                        "nested-spawn", "collaboration", "spawn_agent",
+                        &json!({"task_name": "nested", "message": "Inspect the project again.", "fork_turns": "all"}).to_string(),
+                    ),
+                    ev_completed("nested-spawn-response"),
+                ]),
+                sse(vec![ev_completed("worker-refork-complete")]),
+                sse(vec![ev_completed("nested-worker-complete")]),
+            ],
+        ).await;
+        worker
+            .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
+                text: REFORK_INSTRUCTION.to_owned(),
+                text_elements: Vec::new(),
+            }]))
+            .await?;
+        tokio::time::timeout(
+            Duration::from_secs(15),
+            wait_for_event(&worker, |event| matches!(event, EventMsg::TurnComplete(_))),
+        )
+        .await
+        .context("refork request turn did not complete")?;
+        let nested_id = tokio::time::timeout(Duration::from_secs(15), created.recv()).await;
+        if nested_id.is_err() {
+            let snapshot = worker.conversation_history_snapshot().await;
+            for item in snapshot.items().filter(|item| matches!(item,
+                ResponseItem::FunctionCallOutput { call_id: Some(id), .. } if id == "nested-spawn"
+            )) {
+                eprintln!("synthetic nested spawn output: {item:?}");
+            }
+        }
+        let nested = test
+            .thread_manager
+            .get_thread(nested_id.context("nested worker was not created")??)
+            .await?;
+        wait_for_event(&nested, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+        Some(nested)
+    } else {
+        None
+    };
+    let refork_source = if refork_worker {
+        let snapshot = worker.conversation_history_snapshot().await;
+        let wire = serde_json::to_value(
+            snapshot
+                .retained_context()
+                .context("refork original context")?,
+        )?;
+        let original = wire["user_messages"]
+            .as_array()
+            .context("refork local sources")?
+            .iter()
+            .find(|entry| entry["text"] == REFORK_INSTRUCTION)
+            .context("original refork instruction")?
+            .clone();
+        assert_eq!(original["complete"], true);
+        Some(original)
+    } else {
+        None
+    };
+    let fork_parent = nested_worker.as_ref().unwrap_or(&worker);
     // The adopted root later compacts through the mechanical path, which can drop originals.
     test.config
         .features
@@ -985,7 +1105,7 @@ async fn standalone_fork_retains_inherited_user_instructions(
         let prepared = test
             .thread_store
             .prepare_fork(PrepareForkParams {
-                thread_id: worker.startup_metadata().thread_id,
+                thread_id: fork_parent.startup_metadata().thread_id,
                 boundary: ForkBoundary::Latest,
             })
             .await?;
@@ -1002,8 +1122,8 @@ async fn standalone_fork_retains_inherited_user_instructions(
                 codex_core::StartThreadOptions::new(test.config.clone()),
                 InitialHistory::Resumed(ResumedHistory {
                     history_revision: None,
-                    conversation_id: worker.startup_metadata().thread_id,
-                    history: Arc::new(load_context(&test, &worker).await?),
+                    conversation_id: fork_parent.startup_metadata().thread_id,
+                    history: Arc::new(load_context(&test, fork_parent).await?),
                     rollout_path: None,
                 }),
             )
@@ -1025,6 +1145,20 @@ async fn standalone_fork_retains_inherited_user_instructions(
             retained.has_missing_user_messages(),
             "legacy nonempty local family must disclose missing inherited sources"
         );
+        assert!(!retained.user_messages_complete());
+    }
+    if let Some(original) = refork_source {
+        let wire = serde_json::to_value(retained)?;
+        let inherited = wire["user_messages"]
+            .as_array()
+            .context("adopted sources")?
+            .iter()
+            .find(|entry| entry["text"] == REFORK_INSTRUCTION)
+            .context("adopted refork instruction")?;
+        for field in ["message_id", "turn_id", "revision", "text", "complete"] {
+            assert_eq!(inherited[field], original[field], "original refork {field}");
+        }
+        assert_eq!(inherited["inherited"], true);
     }
     let mut expected_messages = if old_checkpoint {
         Vec::new()
@@ -1034,10 +1168,17 @@ async fn standalone_fork_retains_inherited_user_instructions(
     if compact_parent {
         expected_messages.push(("Delegate an inspection.".to_owned(), false));
     }
-    expected_messages.push((
-        codex_guardian_context::truncate_text(&local_instruction, /*max_tokens*/ 900),
-        !compacted,
-    ));
+    if !empty_local {
+        expected_messages.push((
+            codex_guardian_context::truncate_text(&local_instruction, /*max_tokens*/ 900),
+            !compacted && !refork_worker,
+        ));
+    }
+    if refork_worker {
+        // This complete original is still active; weaker checkpoint copies must
+        // not downgrade it. The absent older prefix remains a global omission.
+        expected_messages.push((REFORK_INSTRUCTION.to_owned(), true));
+    }
     assert_eq!(
         retained
             .ordered_entries()
@@ -1070,6 +1211,9 @@ async fn standalone_fork_retains_inherited_user_instructions(
         Some(&expected)
     );
     root.shutdown_and_wait().await?;
+    if let Some(nested) = nested_worker {
+        nested.shutdown_and_wait().await?;
+    }
     worker.shutdown_and_wait().await?;
     Ok(())
 }
