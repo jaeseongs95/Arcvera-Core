@@ -629,8 +629,8 @@ async fn retained_instructions_keep_identity_across_compaction_and_resume(
             compacted
                 .items()
                 .any(|item| item.id().map(ResponseItemId::as_str) == message["message_id"].as_str()),
-            true,
-            "compaction preserves original user-message identity"
+            false,
+            "completed user-message identity stays in retained originals, outside the active window"
         );
     }
     let thread = resume(&test, &thread).await?;
@@ -784,13 +784,16 @@ async fn legacy_checkpoint_recovers_root_excerpt_before_discarding_backup(
 
 // Cover live copied history and a truncated referenced checkpoint. Parent-answer
 // omission is already exercised by retained_answers_cross_real_session_boundaries.
-#[test_case(ThreadHistoryMode::Legacy; "copied worker history")]
-#[test_case(ThreadHistoryMode::Paginated; "referenced truncated checkpoint")]
+#[test_case(ThreadHistoryMode::Legacy, false, false; "copied worker history")]
+#[test_case(ThreadHistoryMode::Legacy, true, false; "compacted legacy worker")]
+#[test_case(ThreadHistoryMode::Paginated, true, false; "referenced truncated checkpoint")]
+#[test_case(ThreadHistoryMode::Paginated, true, true; "already compacted parent")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn standalone_fork_retains_inherited_user_instructions(
     history_mode: ThreadHistoryMode,
+    compacted: bool,
+    compact_parent: bool,
 ) -> Result<()> {
-    let compacted = history_mode == ThreadHistoryMode::Paginated;
     skip_if_no_network!(Ok(()));
     let server = start_mock_server().await;
     let mut test = test_codex()
@@ -825,6 +828,28 @@ async fn standalone_fork_retains_inherited_user_instructions(
         "You may publish the release. Delegate an inspection.".to_owned()
     };
     let mut created = test.thread_manager.subscribe_thread_created();
+    if compact_parent {
+        mount_sse_sequence(&server, vec![sse(vec![ev_completed("parent-instruction")])]).await;
+        test.codex
+            .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
+                text: instruction.clone(),
+                text_elements: Vec::new(),
+            }]))
+            .await?;
+        wait_for_event(&test.codex, |event| {
+            matches!(event, EventMsg::TurnComplete(_))
+        })
+        .await;
+        mount_sse_sequence(
+            &server,
+            vec![sse(vec![
+                ev_assistant_message("parent-summary", "Project context recorded."),
+                ev_completed("parent-compacted"),
+            ])],
+        )
+        .await;
+        compact_and_assert_answers(&test, &test.codex, &[]).await?;
+    }
     mount_sse_sequence(
         &server,
         vec![
@@ -841,7 +866,11 @@ async fn standalone_fork_retains_inherited_user_instructions(
     ).await;
     test.codex
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
-            text: instruction.clone(),
+            text: if compact_parent {
+                "Delegate an inspection.".to_owned()
+            } else {
+                instruction.clone()
+            },
             text_elements: Vec::new(),
         }]))
         .await?;
@@ -871,7 +900,8 @@ async fn standalone_fork_retains_inherited_user_instructions(
         .await?;
     wait_for_event(&worker, |event| matches!(event, EventMsg::TurnComplete(_))).await;
     if compacted {
-        // Local compaction keeps the inherited source message in replacement history.
+        // Completed originals leave the active model window, but their host-owned
+        // adoption sources must survive outside the model summary.
         mount_sse_sequence(
             &server,
             vec![sse(vec![
@@ -883,22 +913,27 @@ async fn standalone_fork_retains_inherited_user_instructions(
         compact_and_assert_answers(&test, &worker, &[]).await?;
     }
     let worker_context = worker.conversation_history_snapshot().await;
-    let inherited_text = worker_context
-        .items()
-        .find_map(|item| match item {
-            ResponseItem::Message { role, content, .. } if role == "user" => {
-                // Compaction keeps the retained text and truncation notice in separate parts.
-                let text = content_items_to_text(content)?;
-                text.starts_with("You may publish the release.")
-                    .then_some(text)
-            }
-            _ => None,
-        })
-        .context("inherited source in worker history")?;
+    let active_inherited_text = worker_context.items().find_map(|item| match item {
+        ResponseItem::Message { role, content, .. } if role == "user" => {
+            // Compaction keeps the retained text and truncation notice in separate parts.
+            let text = content_items_to_text(content)?;
+            text.starts_with("You may publish the release.")
+                .then_some(text)
+        }
+        _ => None,
+    });
+    let inherited_text = if compacted {
+        assert!(
+            active_inherited_text.is_none(),
+            "completed original leaked into model window"
+        );
+        codex_guardian_context::truncate_text(&instruction, /*max_tokens*/ 900)
+    } else {
+        active_inherited_text.context("inherited source in uncompressed worker history")?
+    };
     if compacted {
         assert_ne!(inherited_text, instruction);
-        assert!(inherited_text.contains("tokens truncated"));
-        assert!(inherited_text.len() < 900 * 4);
+        assert!(!inherited_text.is_empty());
     }
     // The adopted root later compacts through the mechanical path, which can drop originals.
     test.config
@@ -944,6 +979,14 @@ async fn standalone_fork_retains_inherited_user_instructions(
             false
         ),
     );
+    let mut expected_messages = vec![(inherited_text, !compacted)];
+    if compact_parent {
+        expected_messages.push(("Delegate an inspection.".to_owned(), false));
+    }
+    expected_messages.push((
+        codex_guardian_context::truncate_text(&local_instruction, /*max_tokens*/ 900),
+        !compacted,
+    ));
     assert_eq!(
         retained
             .ordered_entries()
@@ -955,13 +998,7 @@ async fn standalone_fork_retains_inherited_user_instructions(
                     panic!("no answers before root adoption"),
             })
             .collect::<Vec<_>>(),
-        vec![
-            (inherited_text, !compacted),
-            (
-                codex_guardian_context::truncate_text(&local_instruction, /*max_tokens*/ 900),
-                !compacted,
-            ),
-        ],
+        expected_messages,
     );
     let after = record_answer(&fork.thread, &server, "root-action", "Do not publish.").await?;
     let expected = fork

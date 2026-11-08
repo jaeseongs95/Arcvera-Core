@@ -62,6 +62,7 @@ async fn dual_write_runs_both_versions_until_v2_is_selected() -> anyhow::Result<
         Mock::given(method("POST"))
             .and(path_regex(".*/responses$"))
             .respond_with(|request: &wiremock::Request| {
+                supply_consolidation_fixture_decision(request);
                 let body: serde_json::Value = request.body_json().expect("response request");
                 let properties = &body["text"]["format"]["schema"]["properties"];
                 let output = if properties.get("raw_memory").is_some() {
@@ -99,6 +100,14 @@ async fn dual_write_runs_both_versions_until_v2_is_selected() -> anyhow::Result<
             // Allow for process startup under contention on Windows CI runners.
             let deadline = Instant::now() + Duration::from_secs(60);
             while store.max_consolidated_thread_count().await? == 0 {
+                if let Some(status) = store.consolidation_status().await?
+                    && status.status == "error"
+                {
+                    anyhow::bail!(
+                        "pipeline {version:?} failed: {}",
+                        status.last_error.as_deref().unwrap_or("no error reason")
+                    );
+                }
                 anyhow::ensure!(
                     Instant::now() < deadline,
                     "pipeline {version:?} did not consolidate"

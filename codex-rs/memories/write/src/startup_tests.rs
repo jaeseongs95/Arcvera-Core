@@ -70,23 +70,27 @@ mod explicit_consolidation;
 // Replace only the worker's filesystem response in this fixture. The receipt
 // binds to the actual dispatched stage and inputs; it is not model-quality
 // evidence. Tests for a missing receipt use mount_sse_once_without_decision.
+fn supply_consolidation_fixture_decision(request: &wiremock::Request) {
+    if let Some(stage) = consolidation_fixture_stage(request) {
+        let (generation, digest) = consolidation_fixture_inputs(request);
+        std::fs::write(
+            stage.join("memory_application.json"),
+            serde_json::to_vec(&json!({
+                "generation": generation,
+                "input_digest": digest,
+                "decision": "unchanged",
+            }))
+            .expect("serialize fixture decision"),
+        )
+        .expect("write fixture worker decision");
+    }
+}
+
 async fn mount_sse_once(server: &wiremock::MockServer, body: String) -> ResponseMock {
     mount_sse_once_match(
         server,
         |request: &wiremock::Request| {
-            if let Some(stage) = consolidation_fixture_stage(request) {
-                let (generation, digest) = consolidation_fixture_inputs(request);
-                std::fs::write(
-                    stage.join("memory_application.json"),
-                    serde_json::to_vec(&json!({
-                        "generation": generation,
-                        "input_digest": digest,
-                        "decision": "unchanged",
-                    }))
-                    .expect("serialize fixture decision"),
-                )
-                .expect("write fixture worker decision");
-            }
+            supply_consolidation_fixture_decision(request);
             true
         },
         body,

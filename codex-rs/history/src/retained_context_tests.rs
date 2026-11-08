@@ -4,6 +4,282 @@ use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseItem;
 use pretty_assertions::assert_eq;
 
+fn adoption_message(id: &str, turn: &str, text: &str) -> RetainedUserMessage {
+    RetainedUserMessage {
+        turn_id: turn.to_owned(),
+        message_id: Some(id.to_owned()),
+        text: text.to_owned(),
+        complete: true,
+        origin: crate::UserInputOrigin::User,
+        phase: None,
+    }
+}
+
+fn user_boundary(id: &str, turn: &str) -> RetainedSourceId {
+    RetainedSourceId {
+        message_id: id.to_owned(),
+        turn_id: turn.to_owned(),
+        role: RetainedSourceRole::User,
+    }
+}
+
+#[test]
+fn adoption_rollback_keeps_same_id_in_other_turn() {
+    for mode in ["backup", "adopted", "local"] {
+        for boundary_id in ["same-id", "unknown-id"] {
+            let mut context = RetainedContext::default();
+            for (turn, text) in [("turn-A", "Never publish."), ("turn-B", "Inspect only.")] {
+                let message = adoption_message("same-id", turn, text);
+                if mode == "local" {
+                    context.record_user_message(message, RetainedInputSource::Local(None));
+                } else {
+                    context.record_user_message_for_adoption(message, None);
+                }
+            }
+            if mode == "adopted" {
+                context.adopt_user_messages(true);
+            }
+            let checkpoint =
+                serde_json::from_slice(&serde_json::to_vec(&context).unwrap()).unwrap();
+            let mut restored = RetainedContext::default();
+            restored.restore(Some(&checkpoint), &[]);
+            restored.rollback(
+                &["turn-B"],
+                Some(&user_boundary(boundary_id, "turn-B")),
+                if mode == "local" {
+                    RetainedInputSource::Local(None)
+                } else {
+                    RetainedInputSource::Inherited
+                },
+            );
+            if mode == "backup" {
+                let checkpoint =
+                    serde_json::from_slice(&serde_json::to_vec(&restored).unwrap()).unwrap();
+                restored.restore(Some(&checkpoint), &[]);
+                restored.adopt_user_messages(true);
+            }
+            assert_eq!(
+                restored
+                    .ordered_entries()
+                    .filter_map(|(_, entry)| match entry {
+                        RetainedContextEntry::UserMessage(message) => Some((
+                            message.message_id.as_deref(),
+                            message.turn_id.as_str(),
+                            message.text.as_str()
+                        )),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+                vec![(Some("same-id"), "turn-A", "Never publish.")],
+                "mode={mode}, boundary={boundary_id}",
+            );
+        }
+    }
+}
+
+#[test]
+fn adoption_checkpoint_preserves_sources_without_worker_local_authorization() {
+    let mut parent = RetainedContext::default();
+    parent.record(&publish_answer());
+    let source = parent
+        .record_user_message(
+            adoption_message("parent", "parent-turn", "Never publish publicly."),
+            RetainedInputSource::Local(Some(7)),
+        )
+        .unwrap();
+    let mut worker = RetainedContext::for_worker_fork(Some(&parent), true);
+    assert_eq!(worker.ordered_entries().count(), 0);
+    assert!(worker.user_messages_complete());
+    assert!(worker.verified_answers_complete());
+    worker.record_user_message(
+        adoption_message("local", "worker-turn", "Ask me first."),
+        RetainedInputSource::Local(Some(0)),
+    );
+    let wire = serde_json::to_vec(&worker).unwrap();
+    let checkpoint: RetainedContext = serde_json::from_slice(&wire).unwrap();
+    let mut root = RetainedContext::default();
+    root.restore(Some(&checkpoint), &[]);
+    root.adopt_user_messages(true);
+    assert_eq!(
+        root.user_messages
+            .iter()
+            .map(|entry| (
+                entry.value.message_id.as_deref(),
+                entry.value.text.as_str(),
+                entry.value.complete,
+                entry.key()
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                Some("parent"),
+                "Never publish publicly.",
+                false,
+                RetainedContextOrder::Inherited(0)
+            ),
+            (
+                Some("local"),
+                "Ask me first.",
+                true,
+                RetainedContextOrder::Local(0)
+            ),
+        ]
+    );
+    assert_eq!(
+        root.user_messages[0].revision.as_ref(),
+        Some(&source.revision)
+    );
+    assert!(root.verified_answers().next().is_none());
+    assert!(!root.verified_answers_complete());
+    assert!(!root.user_messages_complete());
+    let expected = root.clone();
+    root.adopt_user_messages(true);
+    root.restore(Some(&expected), &[]);
+    root.adopt_user_messages(true);
+    assert_eq!(root, expected);
+}
+
+#[test]
+fn adoption_merges_partial_sources_without_downgrading_or_changing_turn_identity() {
+    let mut parent = RetainedContext::default();
+    parent.record_user_message(
+        adoption_message("same-id", "first-turn", "Never publish."),
+        RetainedInputSource::Local(Some(0)),
+    );
+    parent.record_user_message(
+        adoption_message("other-id", "second-turn", "Inspect only."),
+        RetainedInputSource::Local(Some(1)),
+    );
+    let mut root = RetainedContext::for_worker_fork(Some(&parent), true);
+    let original = root
+        .record_user_message(
+            adoption_message("same-id", "first-turn", "Never publish."),
+            RetainedInputSource::Inherited,
+        )
+        .unwrap();
+    root.record_user_message(
+        adoption_message("same-id", "local-turn", "Local restriction."),
+        RetainedInputSource::Local(Some(0)),
+    );
+    root.adopt_user_messages(true);
+    assert_eq!(root.user_messages.len(), 3);
+    assert_eq!(root.user_messages[0].value.text, "Never publish.");
+    assert!(root.user_messages[0].value.complete);
+    assert_eq!(
+        root.user_messages[0].revision.as_ref(),
+        Some(&original.revision)
+    );
+    assert_eq!(root.user_messages[1].value.text, "Inspect only.");
+    assert_eq!(root.user_messages[2].value.turn_id, "local-turn");
+}
+
+#[test]
+fn adoption_bound_omissions_and_rollback_survive_checkpoint() {
+    let mut worker = RetainedContext::default();
+    for i in 0..10 {
+        worker.record_user_message_for_adoption(
+            adoption_message(
+                &format!("source-{i}"),
+                &format!("turn-{i}"),
+                &format!("Restriction {i}"),
+            ),
+            None,
+        );
+    }
+    assert_eq!(worker.ordered_entries().count(), 0);
+    assert!(worker.user_messages_complete());
+    assert_eq!(
+        worker
+            .adoption_user_messages
+            .as_ref()
+            .unwrap()
+            .messages
+            .len(),
+        8
+    );
+    worker.record_user_message(
+        adoption_message("local", "local-turn", "Do not deploy."),
+        RetainedInputSource::Local(Some(0)),
+    );
+    worker.rollback(
+        &["local-turn"],
+        Some(&user_boundary("local", "local-turn")),
+        RetainedInputSource::Local(Some(0)),
+    );
+    assert_eq!(
+        worker
+            .adoption_user_messages
+            .as_ref()
+            .unwrap()
+            .messages
+            .len(),
+        8
+    );
+    worker.rollback(
+        &["turn-7", "turn-8", "turn-9"],
+        Some(&user_boundary("source-7", "turn-7")),
+        RetainedInputSource::Inherited,
+    );
+    let wire = serde_json::to_vec(&worker).unwrap();
+    let checkpoint = serde_json::from_slice(&wire).unwrap();
+    let mut root = RetainedContext::default();
+    root.restore(Some(&checkpoint), &[]);
+    root.adopt_user_messages(true);
+    assert!(root.has_missing_user_messages());
+    assert_eq!(
+        root.user_messages
+            .iter()
+            .map(|entry| entry.value.message_id.as_deref().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["source-2", "source-3", "source-4", "source-5", "source-6"]
+    );
+    assert!(!root.verified_answers_complete());
+    assert!(root.user_messages.iter().all(|entry| !entry.value.complete));
+}
+
+#[test]
+fn adoption_old_missing_backup_and_oversized_sources_remain_incomplete() {
+    let mut old = RetainedContext::default();
+    old.adopt_user_messages(true);
+    assert!(old.has_missing_user_messages());
+    assert!(!old.verified_answers_complete());
+    let mut worker = RetainedContext::default();
+    worker.record_user_message_for_adoption(
+        adoption_message("large", "turn", "x".repeat(MAX_RECORD_BYTES + 1).as_str()),
+        None,
+    );
+    assert_eq!(worker.ordered_entries().count(), 0);
+    worker.adopt_user_messages(true);
+    assert_eq!(worker.user_messages.len(), 1);
+    assert!(worker.user_messages[0].value.text.is_empty());
+    assert!(!worker.user_messages_complete());
+    assert!(!worker.verified_answers_complete());
+}
+
+#[test]
+fn adoption_rejects_mismatched_host_source_identity() {
+    let mut parent = RetainedContext::default();
+    let source = parent
+        .record_user_message(
+            adoption_message("original", "turn", "Never publish."),
+            RetainedInputSource::Local(Some(0)),
+        )
+        .unwrap();
+    for message in [
+        adoption_message("forged", "turn", "Publish now."),
+        adoption_message("original", "other-turn", "Publish now."),
+    ] {
+        let mut worker = RetainedContext::default();
+        worker.record_user_message_for_adoption(message, Some(&source));
+        assert!(worker.user_messages_complete());
+        assert_eq!(worker.ordered_entries().count(), 0);
+        worker.adopt_user_messages(true);
+        assert_eq!(worker.ordered_entries().count(), 0);
+        assert!(worker.has_missing_user_messages());
+        assert!(!worker.verified_answers_complete());
+    }
+}
+
 fn publish_answer() -> RetainedContextEvent {
     RetainedContextEvent::VerifiedAnswer {
         answer: VerifiedAnswer {
@@ -79,7 +355,7 @@ fn retained_evidence_preserves_order_through_recovery_checkpoint_and_rollback() 
     );
     restored.rollback(
         &["revocation-turn"],
-        Some("revocation"),
+        Some(&user_boundary("revocation", "revocation-turn")),
         RetainedInputSource::Local(None),
     );
     assert_eq!(
@@ -421,12 +697,12 @@ fn accepted_order_survives_delayed_recording_and_checkpoint_replay() {
     let mut before_delivery = checkpoint;
     before_delivery.rollback(
         &["turn-1"],
-        Some("steer"),
+        Some(&user_boundary("steer", "turn-1")),
         RetainedInputSource::Local(Some(steer_order)),
     );
     resumed.rollback(
         &["turn-1"],
-        Some("steer"),
+        Some(&user_boundary("steer", "turn-1")),
         RetainedInputSource::Local(Some(steer_order)),
     );
     assert_eq!(before_delivery, resumed);
@@ -491,7 +767,7 @@ fn adopted_instructions_preserve_local_order_and_rollback_scope() {
     assert_eq!(restored, expected);
     restored.rollback(
         &["parent-turn"],
-        Some("parent-1"),
+        Some(&user_boundary("parent-1", "parent-turn")),
         RetainedInputSource::Inherited,
     );
     expected.user_messages.pop_back();

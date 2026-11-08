@@ -49,6 +49,8 @@ use codex_history::RetainedContext;
 use codex_history::RetainedContextEntry;
 use codex_history::RetainedContextEvent;
 use codex_history::RetainedInputSource;
+use codex_history::RetainedSourceId;
+use codex_history::RetainedSourceRole;
 use codex_prompts::render_model_instructions;
 use codex_protocol::DEFAULT_FUNCTION_NAMESPACE;
 use codex_protocol::items::TurnItem;
@@ -857,9 +859,18 @@ impl ContextManager {
             user_positions[user_positions.len() - n_from_end]
         };
 
-        let first_removed_message_id = snapshot[cut_idx]
+        let first_removed_source = snapshot[cut_idx]
             .id()
-            .map(codex_protocol::ResponseItemId::as_str);
+            .zip(snapshot[cut_idx].turn_id())
+            .map(|(id, turn_id)| RetainedSourceId {
+                message_id: id.as_str().to_owned(),
+                turn_id: turn_id.to_owned(),
+                role: if matches!(&snapshot[cut_idx].item, ResponseItem::Message { role, .. } if role == "assistant") {
+                    RetainedSourceRole::Assistant
+                } else {
+                    RetainedSourceRole::User
+                },
+            });
         let source = RetainedInputSource::from(snapshot[cut_idx].metadata.as_ref());
         let mut review_history = self.review_history.take();
         if let Some(history) = &mut review_history {
@@ -924,7 +935,7 @@ impl ContextManager {
         {
             Arc::make_mut(&mut retained_context).rollback(
                 &removed_turns,
-                first_removed_message_id,
+                first_removed_source.as_ref(),
                 source,
             );
         } else {

@@ -184,6 +184,16 @@ pub struct RetainedContext {
     /// Delivery snapshots share local input order, so later steers can be undone independently.
     #[serde(default, skip_serializing_if = "VecDeque::is_empty")]
     sender_deliveries: VecDeque<Ordered<SenderUserMessages>>,
+    /// Model-invisible copied user sources. Workers must not use these as local
+    /// evidence; a standalone root may adopt them after a fork or resume.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    adoption_user_messages: Option<AdoptionUserMessages>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+struct AdoptionUserMessages {
+    messages: VecDeque<Ordered<RetainedUserMessage>>,
+    incomplete: bool,
 }
 
 fn missing_message_history() -> bool {
@@ -238,6 +248,124 @@ impl RetainedContextEvent {
 }
 
 impl RetainedContext {
+    /// Starts a child's local evidence independently while preserving bounded
+    /// user-only sources for a possible later standalone-root fork.
+    pub fn for_worker_fork(parent: Option<&Self>, known_empty: bool) -> Self {
+        let mut result = Self {
+            user_messages_incomplete: !known_empty,
+            verified_answers_incomplete: !known_empty,
+            adoption_user_messages: Some(AdoptionUserMessages::default()),
+            ..Self::default()
+        };
+        let backup = result
+            .adoption_user_messages
+            .as_mut()
+            .expect("initialized backup");
+        if let Some(parent) = parent {
+            if let Some(inherited) = &parent.adoption_user_messages {
+                *backup = inherited.clone();
+            }
+            backup.incomplete |= parent.has_missing_user_messages();
+            let mut messages = parent.user_messages.iter().collect::<Vec<_>>();
+            messages.sort_by_key(|entry| entry.key());
+            for entry in messages {
+                backup.record(entry.clone());
+            }
+        } else {
+            backup.incomplete = true;
+        }
+        backup.bound();
+        result
+    }
+
+    /// The caller has already checked host inherited-user metadata and excluded
+    /// summary/tool/contextual items. No local family or acceptance counter changes.
+    pub fn record_user_message_for_adoption(
+        &mut self,
+        message: RetainedUserMessage,
+        source: Option<&RetainedSource>,
+    ) {
+        if source.is_some_and(|source| {
+            source.id.role != RetainedSourceRole::User
+                || message.message_id.as_deref() != Some(source.id.message_id.as_str())
+                || message.turn_id != source.id.turn_id
+        }) {
+            self.adoption_user_messages
+                .get_or_insert_default()
+                .incomplete = true;
+            return;
+        }
+        let revision = source
+            .filter(|source| {
+                source.id.role == RetainedSourceRole::User
+                    && message.message_id.as_deref() == Some(source.id.message_id.as_str())
+                    && message.turn_id == source.id.turn_id
+            })
+            .map(|source| source.revision.clone());
+        self.adoption_user_messages
+            .get_or_insert_default()
+            .record(Ordered {
+                revision,
+                inherited: true,
+                order: 0,
+                value: message,
+            });
+    }
+
+    /// Identifies checkpoint-only inherited sources outside the visible local families.
+    pub fn has_adoption_user_messages(&self) -> bool {
+        self.adoption_user_messages.is_some()
+    }
+
+    /// Consumes copied sources only when the host installs a standalone root.
+    /// Existing sources win over weaker checkpoint copies, including partial adoption.
+    pub fn adopt_user_messages(&mut self, checkpointed: bool) {
+        let Some(mut backup) = self.adoption_user_messages.take() else {
+            // Old empty checkpoints may have stripped an inherited prefix. Its
+            // absence cannot establish a complete standalone-root history.
+            if checkpointed && self.user_messages.is_empty() {
+                self.user_messages_incomplete = true;
+                self.verified_answers_incomplete = true;
+            }
+            return;
+        };
+        backup.bound();
+        self.user_messages_incomplete |= backup.incomplete;
+        self.verified_answers_incomplete = true;
+        let mut prefix = VecDeque::new();
+        for entry in backup.messages {
+            let existing = self
+                .user_messages
+                .iter()
+                .position(|current| same_user_source(current, &entry));
+            prefix.push_back(
+                existing
+                    .and_then(|index| self.user_messages.remove(index))
+                    .unwrap_or(entry),
+            );
+        }
+        let (inherited, local): (VecDeque<_>, VecDeque<_>) = self
+            .user_messages
+            .drain(..)
+            .partition(|entry| entry.inherited);
+        prefix.extend(inherited);
+        for (order, entry) in prefix.iter_mut().enumerate() {
+            entry.inherited = true;
+            entry.order = order as u64;
+        }
+        prefix.extend(local);
+        self.user_messages = prefix;
+        bound_family(&mut self.user_messages, &mut self.user_messages_incomplete);
+    }
+
+    pub fn contains_user_message(&self, message: &RetainedUserMessage) -> bool {
+        self.user_messages.iter().any(|entry| {
+            message.message_id.is_some()
+                && entry.value.message_id == message.message_id
+                && entry.value.turn_id == message.turn_id
+        })
+    }
+
     /// Context for the latest delivery still present in this task's retained history.
     pub fn sender_user_messages(&self) -> Option<&SenderUserMessages> {
         self.sender_deliveries.back().map(|entry| &entry.value)
@@ -387,7 +515,9 @@ impl RetainedContext {
         // cannot establish whether an omitted answer restricted an inherited grant.
         self.verified_answers_incomplete |= inherited;
         if let Some(index) = self.user_messages.iter().position(|entry| {
-            message.message_id.is_some() && entry.value.message_id == message.message_id
+            message.message_id.is_some()
+                && entry.value.message_id == message.message_id
+                && entry.value.turn_id == message.turn_id
         }) {
             if self.user_messages[index].value == message
                 && self.user_messages[index].inherited == inherited
@@ -498,6 +628,9 @@ impl RetainedContext {
             user_messages_incomplete: true,
             ..Self::default()
         });
+        if let Some(backup) = &mut self.adoption_user_messages {
+            backup.bound();
+        }
         for entry in &mut self.verified_answers {
             let mut event = RetainedContextEvent::VerifiedAnswer {
                 answer: entry.value.clone(),
@@ -559,20 +692,41 @@ impl RetainedContext {
 
     /// Rolls back at the original user-message boundary, including later-accepted facts.
     /// The explicit order also covers checkpoints made before a queued message was delivered.
+    /// Message IDs are scoped by role and turn. The caller supplies the actual
+    /// first removed source, rather than guessing it from a suffix's turn set.
     /// Steering can share a turn ID. Legacy sources without message identity fall back to
     /// source-turn removal and cannot establish complete retained user instructions.
     pub fn rollback(
         &mut self,
         turn_ids: &[&str],
-        first_removed_message_id: Option<&str>,
+        first_removed_source: Option<&RetainedSourceId>,
         source: RetainedInputSource,
     ) {
+        let first_removed_message_id =
+            first_removed_source.map(|source| source.message_id.as_str());
+        if source == RetainedInputSource::Inherited
+            && let Some(backup) = &mut self.adoption_user_messages
+        {
+            if let Some(index) = first_removed_source.and_then(|source| {
+                backup
+                    .messages
+                    .iter()
+                    .position(|entry| matches_user_boundary(entry, source))
+            }) {
+                backup.messages.truncate(index);
+            } else {
+                backup.incomplete = true;
+                backup
+                    .messages
+                    .retain(|entry| !turn_ids.contains(&entry.value.turn_id.as_str()));
+            }
+        }
         let boundary = source.acceptance_order().map(RetainedContextOrder::Local);
         if let Some(boundary) = boundary.or_else(|| {
-            first_removed_message_id.and_then(|id| {
+            first_removed_source.and_then(|source| {
                 self.user_messages
                     .iter()
-                    .find(|message| message.value.message_id.as_deref() == Some(id))
+                    .find(|message| matches_user_boundary(message, source))
                     .map(Ordered::key)
             })
         }) {
@@ -605,6 +759,52 @@ impl RetainedContext {
             (source != RetainedInputSource::Inherited || message.inherited)
                 && !turn_ids.contains(&message.value.turn_id.as_str())
         });
+    }
+}
+
+fn same_user_source(
+    left: &Ordered<RetainedUserMessage>,
+    right: &Ordered<RetainedUserMessage>,
+) -> bool {
+    left.value.message_id.is_some()
+        && left.value.message_id == right.value.message_id
+        && left.value.turn_id == right.value.turn_id
+}
+
+fn matches_user_boundary(entry: &Ordered<RetainedUserMessage>, source: &RetainedSourceId) -> bool {
+    source.role == RetainedSourceRole::User
+        && entry.value.message_id.as_deref() == Some(source.message_id.as_str())
+        && entry.value.turn_id == source.turn_id
+}
+
+impl AdoptionUserMessages {
+    fn record(&mut self, mut entry: Ordered<RetainedUserMessage>) {
+        if self
+            .messages
+            .iter()
+            .any(|current| same_user_source(current, &entry))
+        {
+            return;
+        }
+        entry.inherited = true;
+        entry.order = self
+            .messages
+            .back()
+            .map_or(0, |last| last.order.saturating_add(1));
+        // A persisted copy cannot establish original completeness or parent answers.
+        entry.value.complete = false;
+        entry.value.bound();
+        self.messages.push_back(entry);
+        self.bound();
+    }
+
+    fn bound(&mut self) {
+        for entry in &mut self.messages {
+            entry.inherited = true;
+            entry.value.complete = false;
+            entry.value.bound();
+        }
+        bound_family(&mut self.messages, &mut self.incomplete);
     }
 }
 

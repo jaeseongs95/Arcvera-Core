@@ -466,7 +466,7 @@ async fn real_prompt_projection_preserves_original_context_manager_snapshot() {
         host("new-v2", QUERY_STATE_KIND),
     ];
     history.record_items(
-        original.into_iter().map(|envelope| envelope.item),
+        original.iter().map(|envelope| &envelope.item),
         codex_utils_output_truncation::TruncationPolicy::Bytes(64_000),
     );
     let before = history.raw_items().cloned().collect::<Vec<_>>();

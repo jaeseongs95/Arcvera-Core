@@ -78,6 +78,9 @@ impl ContextManager {
 
     pub(crate) fn restore_retained_context(&mut self, checkpoint: Option<&RetainedContext>) {
         Arc::make_mut(&mut self.retained_context).restore(checkpoint, &self.items);
+        if self.retain_inherited_user_messages {
+            Arc::make_mut(&mut self.retained_context).adopt_user_messages(checkpoint.is_some());
+        }
         let items = Arc::clone(&self.items);
         for envelope in items.iter().filter(|envelope| {
             envelope
@@ -91,11 +94,9 @@ impl ContextManager {
                 RetainedMessageSource::Checkpoint,
             );
         }
-        if self.retain_inherited_user_messages
-            && !self.retained_context.has_inherited_user_messages()
-        {
+        if self.retain_inherited_user_messages {
             // Worker checkpoints intentionally omit copied instructions. A standalone
-            // root adopts the surviving prefix without duplicating an adopted checkpoint.
+            // root adopts every surviving source not already present in the checkpoint.
             let items = Arc::clone(&self.items);
             for envelope in items.iter().filter(|envelope| {
                 envelope
@@ -157,13 +158,12 @@ impl ContextManager {
         }
         let mut captured = None;
         let inherited = metadata.is_some_and(|metadata| metadata.inherited_user_message);
-        if (!inherited || self.retain_inherited_user_messages)
-            && let ResponseItem::Message {
-                content,
-                phase,
-                internal_chat_message_metadata_passthrough,
-                ..
-            } = item
+        if let ResponseItem::Message {
+            content,
+            phase,
+            internal_chat_message_metadata_passthrough,
+            ..
+        } = item
         {
             let mut complete = matches!(source, RetainedMessageSource::Original)
                 && (is_assistant
@@ -207,6 +207,22 @@ impl ContextManager {
                 complete,
             };
             let retained = Arc::make_mut(&mut self.retained_context);
+            if inherited && !self.retain_inherited_user_messages {
+                if !is_assistant {
+                    retained.record_user_message_for_adoption(
+                        message,
+                        metadata.and_then(|metadata| metadata.retained_source.as_ref()),
+                    );
+                    self.user_message_revision = self.user_message_revision.saturating_add(1);
+                }
+                return None;
+            }
+            if inherited
+                && matches!(source, RetainedMessageSource::Checkpoint)
+                && retained.contains_user_message(&message)
+            {
+                return None;
+            }
             captured = if is_assistant {
                 retained.record_assistant_message(message, metadata.into())
             } else {

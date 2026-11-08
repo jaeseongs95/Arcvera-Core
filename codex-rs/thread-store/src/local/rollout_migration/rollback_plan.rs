@@ -10,7 +10,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use codex_protocol::ResponseItemId;
 use codex_protocol::models::AudioReference;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ImageReference;
@@ -22,6 +21,8 @@ use codex_protocol::protocol::UserMessageImageKind;
 use codex_rollout::CompactedItem;
 use codex_rollout::RetainedContextEntry;
 use codex_rollout::RetainedInputSource;
+use codex_rollout::RetainedSourceId;
+use codex_rollout::RetainedSourceRole;
 use codex_rollout::RolloutItem;
 use codex_rollout::RolloutLine;
 
@@ -46,7 +47,7 @@ struct PendingUserResponse {
 
 struct InstructionBoundary {
     record_index: usize,
-    message_id: Option<ResponseItemId>,
+    source_id: Option<RetainedSourceId>,
     input_source: RetainedInputSource,
     is_communication: bool,
     alive: bool,
@@ -180,11 +181,27 @@ impl RollbackPlanner {
                 }
                 if let Some(boundary) = paired_delivery_boundary {
                     self.record_boundaries[index] = Some(boundary);
-                    self.boundaries[boundary].message_id = response.id().cloned();
+                    self.boundaries[boundary].source_id = response.id().zip(response.turn_id()).map(|(id, turn_id)| RetainedSourceId {
+                        message_id: id.as_str().to_owned(),
+                        turn_id: turn_id.to_owned(),
+                        role: if matches!(&response.item, ResponseItem::Message { role, .. } if role == "assistant") {
+                            RetainedSourceRole::Assistant
+                        } else {
+                            RetainedSourceRole::User
+                        },
+                    });
                     self.boundaries[boundary].input_source = response.metadata.as_ref().into();
                 } else if rollback::counts_as_boundary(&response.item) {
                     let boundary = self.start_boundary(index);
-                    self.boundaries[boundary].message_id = response.id().cloned();
+                    self.boundaries[boundary].source_id = response.id().zip(response.turn_id()).map(|(id, turn_id)| RetainedSourceId {
+                        message_id: id.as_str().to_owned(),
+                        turn_id: turn_id.to_owned(),
+                        role: if matches!(&response.item, ResponseItem::Message { role, .. } if role == "assistant") {
+                            RetainedSourceRole::Assistant
+                        } else {
+                            RetainedSourceRole::User
+                        },
+                    });
                     self.boundaries[boundary].input_source = response.metadata.as_ref().into();
                     self.boundaries[boundary].is_communication =
                         matches!(response.item, ResponseItem::AgentMessage { .. });
@@ -394,7 +411,7 @@ impl RollbackPlanner {
         let boundary = self.boundaries.len();
         self.boundaries.push(InstructionBoundary {
             record_index: index,
-            message_id: None,
+            source_id: None,
             input_source: RetainedInputSource::Local(None),
             is_communication: false,
             alive: true,
@@ -491,14 +508,16 @@ impl RollbackPlanner {
                 acceptance_order.is_some() || frame.record_index >= source.record_index
             }) {
                 if let Some(context) = &mut frame.item.retained_context {
-                    if acceptance_order.is_some()
+                    if (source.input_source == RetainedInputSource::Inherited
+                        && context.has_adoption_user_messages())
+                        || acceptance_order.is_some()
                         || context
                             .ordered_entries()
                             .any(|(_, entry)| matches!(entry, RetainedContextEntry::UserMessage(_)))
                     {
                         context.rollback(
                             &removed_turns,
-                            source.message_id.as_ref().map(ResponseItemId::as_str),
+                            source.source_id.as_ref(),
                             source.input_source,
                         );
                     } else {

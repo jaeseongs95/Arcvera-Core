@@ -1736,8 +1736,203 @@ async fn migration_preserves_same_turn_evidence_across_rollback_checkpoints() {
 }
 
 #[tokio::test]
+async fn migration_rollback_keeps_same_message_id_in_other_turn() {
+    let [initial, removed] =
+        [("turn-A", "Never publish."), ("turn-B", "Inspect only.")].map(|(turn_id, text)| {
+            serde_json::from_value::<ResponseItem>(json!({
+                "type": "message", "id": "same-id", "role": "user",
+                "content": [{"type": "input_text", "text": text}],
+                "internal_chat_message_metadata_passthrough": {"turn_id": turn_id}
+            }))
+            .expect("user source")
+        });
+    let RolloutItem::Compacted(mut checkpoint) = compacted(vec![initial.clone(), removed.clone()])
+    else {
+        unreachable!("compacted helper creates a checkpoint");
+    };
+    let retained = json!({
+        "user_messages": [
+            {"order": 0, "turn_id": "turn-A", "message_id": "same-id", "text": "Never publish.", "complete": true},
+            {"order": 1, "turn_id": "turn-B", "message_id": "same-id", "text": "Inspect only.", "complete": true}
+        ],
+        "verified_answers": [], "incomplete": false, "user_messages_incomplete": false,
+        "next_order": 2, "assistant_messages": [], "assistant_messages_incomplete": true
+    });
+    checkpoint.retained_context =
+        Some(serde_json::from_value(retained.clone()).expect("retained checkpoint"));
+    let migrated = migrate_after_rollback(vec![
+        started("turn-A"),
+        rollout_response_item(initial),
+        completed("turn-A"),
+        started("turn-B"),
+        rollout_response_item(removed),
+        RolloutItem::Compacted(checkpoint),
+        completed("turn-B"),
+    ])
+    .await;
+    let context = migrated
+        .iter()
+        .find_map(|item| match item {
+            RolloutItem::Compacted(checkpoint) => checkpoint.retained_context.as_ref(),
+            _ => None,
+        })
+        .expect("migrated checkpoint");
+    let actual = serde_json::to_value(context).expect("retained context");
+    assert_eq!(
+        actual["user_messages"],
+        json!([retained["user_messages"][0].clone()])
+    );
+    assert_eq!(actual["user_messages_incomplete"], false);
+}
+
+#[tokio::test]
 async fn migration_removes_answers_accepted_after_a_queued_steer() {
     assert_migrated_evidence_order(Some(1)).await;
+}
+
+#[tokio::test]
+async fn migration_rolls_back_adoption_backup_without_local_users_cli() {
+    assert_migrated_adoption_backup_rollback(SessionSource::Cli).await;
+}
+
+#[tokio::test]
+async fn migration_rolls_back_adoption_backup_without_local_users_worker() {
+    assert_migrated_adoption_backup_rollback(SessionSource::SubAgent(SubAgentSource::Other(
+        "test".to_owned(),
+    )))
+    .await;
+}
+
+async fn assert_migrated_adoption_backup_rollback(source: SessionSource) {
+    let originals = [
+        ("id-A", "turn-A", "Never publish."),
+        ("id-B", "turn-B", "Inspect only."),
+    ];
+    let mut parent = codex_rollout::RetainedContext::default();
+    let sources = originals.map(|(message_id, turn_id, text)| {
+        parent
+            .record_user_message(
+                serde_json::from_value(json!({
+                    "message_id": message_id, "turn_id": turn_id, "text": text, "complete": true
+                }))
+                .expect("original source message"),
+                codex_rollout::RetainedInputSource::Local(None),
+            )
+            .expect("host source revision")
+    });
+    let worker = codex_rollout::RetainedContext::for_worker_fork(Some(&parent), true);
+    assert_eq!(worker.ordered_entries().count(), 0);
+    let before = serde_json::to_value(&worker).expect("worker checkpoint");
+    let backup = before["adoption_user_messages"]["messages"]
+        .as_array()
+        .expect("adoption backup");
+    assert_eq!(backup.len(), 2);
+    assert_eq!(backup[0]["message_id"], "id-A");
+    assert_eq!(backup[1]["message_id"], "id-B");
+    let expected_backup = json!([backup[0].clone()]);
+    let [initial, removed] =
+        originals.map(
+            |(message_id, turn_id, text)| codex_rollout::ResponseItemEnvelope {
+                item: serde_json::from_value(json!({
+                    "type": "message", "id": message_id, "role": "user",
+                    "content": [{"type": "input_text", "text": text}],
+                    "internal_chat_message_metadata_passthrough": {"turn_id": turn_id}
+                }))
+                .expect("inherited response"),
+                metadata: Some(
+                    serde_json::from_value(json!({"inherited_user_message": true}))
+                        .expect("inherited host metadata"),
+                ),
+            },
+        );
+    let RolloutItem::Compacted(mut checkpoint) = compacted(Vec::new()) else {
+        unreachable!("compacted helper creates a checkpoint");
+    };
+    // Exercise the legacy planner, not the bounded worker checkpoint fast-path.
+    checkpoint.window_number = None;
+    checkpoint.replacement_history = Some(vec![initial.clone(), removed.clone()]);
+    checkpoint.retained_context = Some(worker);
+    let home = TempDir::new().expect("create Codex home");
+    let path = write_rollout(
+        home.path(),
+        ThreadId::new(),
+        source,
+        vec![
+            started("turn-A"),
+            RolloutItem::ResponseItem(initial),
+            completed("turn-A"),
+            started("turn-B"),
+            RolloutItem::ResponseItem(removed),
+            completed("turn-B"),
+            // No active turn owns this checkpoint when the rollback arrives.
+            RolloutItem::Compacted(checkpoint),
+            RolloutItem::EventMsg(EventMsg::ThreadRolledBack(ThreadRolledBackEvent {
+                num_turns: 1,
+            })),
+        ],
+    );
+    indexed_store(home.path())
+        .await
+        .migrate_rollouts(apply_options())
+        .await
+        .expect("migrate inherited backup rollback");
+    let migrated = read_rollout(&path);
+    assert!(!migrated.iter().any(|line| matches!(
+        &line.item,
+        RolloutItem::EventMsg(EventMsg::ThreadRolledBack(_))
+    )));
+    let checkpoints = migrated
+        .iter()
+        .filter_map(|line| match &line.item {
+            RolloutItem::Compacted(checkpoint) => Some(checkpoint),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(checkpoints.len(), 1);
+    let checkpoint = checkpoints[0];
+    let context = checkpoint
+        .retained_context
+        .as_ref()
+        .expect("retained checkpoint");
+    assert_eq!(context.ordered_entries().count(), 0);
+    let after = serde_json::to_value(context).expect("migrated checkpoint");
+    assert_eq!(
+        after["adoption_user_messages"]["messages"], expected_backup,
+        "rollback must remove B from the adoption-only checkpoint"
+    );
+    assert!(
+        !checkpoint
+            .replacement_history
+            .as_ref()
+            .expect("replacement history")
+            .iter()
+            .any(|item| item.id().is_some_and(|id| id.as_str() == "id-B"))
+    );
+    let mut roundtrip: codex_rollout::RetainedContext =
+        serde_json::from_slice(&serde_json::to_vec(context).expect("serialize checkpoint"))
+            .expect("restore checkpoint");
+    for _ in 0..2 {
+        let mut root = codex_rollout::RetainedContext::default();
+        root.restore(Some(&roundtrip), &[]);
+        root.adopt_user_messages(true);
+        let entries = root.ordered_entries().collect::<Vec<_>>();
+        assert_eq!(entries.len(), 1);
+        let codex_rollout::RetainedContextEntry::UserMessage(message) = entries[0].1 else {
+            panic!("only the surviving original user source is expected");
+        };
+        assert_eq!(message.message_id.as_deref(), Some("id-A"));
+        assert_eq!(message.turn_id, "turn-A");
+        assert_eq!(message.text, "Never publish.");
+        assert!(!message.complete);
+        let surviving_source = root.source(entries[0].1).expect("original source identity");
+        assert_eq!(surviving_source.id, sources[0].id);
+        assert_eq!(surviving_source.revision, sources[0].revision);
+        assert!(!surviving_source.complete);
+        assert!(root.verified_answers().next().is_none());
+        assert!(!root.verified_answers_complete());
+        roundtrip = serde_json::from_slice(&serde_json::to_vec(&root).expect("serialize root"))
+            .expect("restore adopted root");
+    }
 }
 
 async fn assert_migrated_evidence_order(steer_order: Option<u64>) {
