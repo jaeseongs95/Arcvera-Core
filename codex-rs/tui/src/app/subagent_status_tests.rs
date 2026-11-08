@@ -503,7 +503,13 @@ async fn footer_selection_uses_owned_terminal_routing_and_existing_thread_switch
                 "child draft survives return"
             );
         }
-        // The newly selected child starts collapsed; main remains visible without Alt+S.
+        // Main is a selectable item only after opening the child's agent list.
+        app.handle_tui_event(
+            &mut tui,
+            &mut server,
+            crate::tui::TuiEvent::Key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT)),
+        )
+        .await?;
         let root_buffer = if owned {
             app.render_owned_transcript(&mut tui, ratatui::layout::Size::new(80, 24))?;
             crate::custom_terminal::test_support::last_rendered_buffer(&tui.terminal).clone()
@@ -518,7 +524,7 @@ async fn footer_selection_uses_owned_terminal_routing_and_existing_thread_switch
                     .collect::<String>()
                     .contains(&crate::i18n::message("r38-agents-main", &[]))
             })
-            .expect("main row stays visible in collapsed/narrow child view");
+            .expect("main row is inside the expanded child list");
         while events.try_recv().is_ok() {}
         app.handle_tui_event(
             &mut tui,
@@ -638,6 +644,12 @@ async fn footer_selection_uses_owned_terminal_routing_and_existing_thread_switch
     app.agent_navigation
         .set_picker_thread_visibility(child_id, AgentPickerThreadVisibility::Hidden);
     app.sync_active_agent_label();
+    app.handle_tui_event(
+        &mut tui,
+        &mut server,
+        crate::tui::TuiEvent::Key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT)),
+    )
+    .await?;
     let zero_children = paint_widget_footer(&app.chat_widget, 47);
     let area = *zero_children.area();
     let row = (area.y..area.bottom())
@@ -647,7 +659,7 @@ async fn footer_selection_uses_owned_terminal_routing_and_existing_thread_switch
                 .collect::<String>()
                 .contains(&crate::i18n::message("r38-agents-main", &[]))
         })
-        .expect("hidden last child does not remove the main return row");
+        .expect("expanded zero-child list still offers main");
     assert_eq!(
         app.chat_widget.composer_text_with_pending(),
         "child draft survives return"

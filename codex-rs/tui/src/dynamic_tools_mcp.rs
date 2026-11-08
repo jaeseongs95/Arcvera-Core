@@ -67,7 +67,7 @@ impl ThreadToolTransport {
     ) {
         params.runtime_dynamic_tools = Some(crate::cron_tools::specs());
         params.previous_runtime_dynamic_tools = crate::cron_tools::previous_specs();
-        self.configure_mcp(&mut params.config);
+        self.configure_runtime_mcp(&mut params.runtime_mcp_servers);
     }
 
     pub(crate) fn validate_config(
@@ -95,11 +95,20 @@ impl ThreadToolTransport {
             }
             Self::Mcp(_) => {
                 params.dynamic_tools = None;
-                self.configure_mcp(&mut params.config);
+                self.configure_runtime_mcp(&mut params.runtime_mcp_servers);
             }
         }
     }
 
+    pub(crate) fn configure_runtime_mcp(&self, config: &mut Option<HashMap<String, Value>>) {
+        if let Self::Mcp(server) = self {
+            config
+                .get_or_insert_default()
+                .insert(dynamic_tools::NAMESPACE.to_string(), server.config.clone());
+        }
+    }
+
+    #[cfg(test)]
     pub(crate) fn configure_mcp(&self, config: &mut Option<HashMap<String, Value>>) {
         if let Self::Mcp(server) = self {
             config.get_or_insert_default().insert(
@@ -127,6 +136,16 @@ pub(crate) struct DynamicToolMcpServer {
 }
 
 impl DynamicToolMcpServer {
+    pub(crate) fn notify_task_tools_available(&self, thread_id: codex_protocol::ThreadId) {
+        if let Some((_, events, _)) = self
+            .connection
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_ref()
+        {
+            events.send(crate::app_event::AppEvent::TaskToolsAvailable { thread_id });
+        }
+    }
     pub(crate) fn suspend(&self) {
         let mut connection = self
             .connection
@@ -385,10 +404,13 @@ impl ServerHandler for DynamicToolMcpHandler {
             arguments: Value::Object(request.arguments.unwrap_or_default()),
         };
         let mut thread_start_params = self.thread_start_params.clone();
-        thread_start_params.config.get_or_insert_default().insert(
-            format!("mcp_servers.{}", dynamic_tools::NAMESPACE),
-            self.server_config.clone(),
-        );
+        thread_start_params
+            .runtime_mcp_servers
+            .get_or_insert_default()
+            .insert(
+                dynamic_tools::NAMESPACE.to_string(),
+                self.server_config.clone(),
+            );
         // Snapshot once: an in-flight call must never switch connections or replay a mutation.
         let (request_handle, app_event_tx, cron) = self
             .connection

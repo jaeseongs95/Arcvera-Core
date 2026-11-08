@@ -891,6 +891,20 @@ impl CodexThread {
             .await
     }
 
+    /// Atomically registers connection-owned native and MCP catalogs while idle.
+    pub async fn supplement_runtime_tools(
+        &self,
+        owner: u64,
+        disconnected: tokio_util::sync::CancellationToken,
+        tools: Option<Vec<codex_protocol::dynamic_tools::DynamicToolSpec>>,
+        previous: &[codex_protocol::dynamic_tools::DynamicToolSpec],
+        servers: Option<std::collections::HashMap<String, codex_config::McpServerConfig>>,
+    ) -> CodexResult<bool> {
+        self.session
+            .supplement_runtime_tools(owner, disconnected, tools, previous, servers)
+            .await
+    }
+
     /// Only supplemented keys receive connection-specific routing.
     pub async fn runtime_dynamic_tool_owner(
         &self,

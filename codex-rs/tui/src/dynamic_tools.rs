@@ -340,12 +340,7 @@ async fn execute_inner(
     mut status_updates: broadcast::Receiver<ThreadStatusChangedNotification>,
     app_event_tx: Option<&AppEventSender>,
 ) -> Result<Value, String> {
-    let mcp_config = thread_start_params.config.as_ref().and_then(|overrides| {
-        let key = format!("mcp_servers.{NAMESPACE}");
-        overrides
-            .get(&key)
-            .map(|server| HashMap::from([(key, server.clone())]))
-    });
+    let mcp_config = thread_start_params.runtime_mcp_servers.clone();
     match params.tool.as_str() {
         "list_threads" | "list_archived_threads" => {
             let arguments: ListArguments = parse_arguments(params.arguments)?;
@@ -677,13 +672,18 @@ async fn execute_inner(
                         before_turn_id: before_turn_id.clone(),
                         ephemeral: thread.ephemeral,
                         exclude_turns,
-                        config: mcp_config.clone(),
+                        runtime_mcp_servers: mcp_config.clone(),
                         ..ThreadForkParams::default()
                     },
                 },
             )
             .await?;
             let forked_thread_id = response.thread.id.clone();
+            if mcp_config.is_some() && response.runtime_mcp_servers_applied != Some(true) {
+                return Err(format!(
+                    "대화 {forked_thread_id}는 분기됐지만 연결 한정 MCP 등록을 확인하지 못했습니다. 자동으로 다시 분기하거나 입력을 보내지 않습니다."
+                ));
+            }
             register_background_thread(
                 app_event_tx,
                 response.thread,
@@ -715,13 +715,19 @@ async fn execute_inner(
                     params: ThreadResumeParams {
                         thread_id: arguments.thread_id.clone(),
                         exclude_turns,
-                        config: mcp_config.clone(),
+                        runtime_mcp_servers: mcp_config.clone(),
                         ..ThreadResumeParams::default()
                     },
                 },
             )
             .await?;
             let daybreak_enabled = thread.daybreak_enabled.unwrap_or(false);
+            if mcp_config.is_some() && resumed.runtime_mcp_servers_applied != Some(true) {
+                return Err(format!(
+                    "대화 {}에 연결됐지만 연결 한정 MCP 등록을 확인하지 못했습니다. 입력을 보내지 않았습니다.",
+                    arguments.thread_id
+                ));
+            }
             register_background_thread(
                 app_event_tx,
                 resumed.thread,

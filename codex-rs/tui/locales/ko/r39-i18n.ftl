@@ -2044,3 +2044,50 @@ r39-cli-plugin-multiple-roots = 마켓플레이스 `{ $marketplace }`의 플러�
 r39-cli-plugin-snapshot-issue = - `{ $name }` 경로 { $path }: { $error }
 r39-cli-plugin-snapshot-load-failed = 설정된 마켓플레이스 스냅샷을 불러오지 못했습니다:{ "\u000A" }{ $issues }
 r39-cli-marketplace-load-failed = 마켓플레이스를 불러오지 못했습니다:{ "\u000A" }{ $issues }
+
+r40-cli-nfs-unix-required = 현재 migrate-nfs-db는 Unix 파일 시스템 잠금과 디렉터리 fsync가 필요합니다.
+r40-cli-nfs-concurrency-warning = 경고: 다른 프로세스가 동시에 접근하면 이 작업은 안전하지 않습니다.
+r40-cli-nfs-stop-clients = 이 데이터베이스를 사용하는 모든 호스트에서 Codex 인스턴스를 모두 종료하세요.
+    이전이 성공적으로 끝날 때까지 종료 상태를 유지하세요.
+r40-cli-nfs-no-databases = 데이터베이스를 찾지 못했습니다.
+r40-cli-nfs-nonprivate-permissions = 일부 데이터베이스 파일의 권한이 0600이 아닙니다.
+    이전 시 그룹과 다른 사용자의 접근 권한을 포함한 파일 권한 비트를 보존합니다.
+r40-cli-nfs-ownership-warning = 교체 파일은 현재 사용자 소유가 되며, 원래 소유자·그룹·확장 ACL은 복사하지 않습니다.
+    파일 권한이 0600이어도 다른 사용자의 접근 권한이 사라질 수 있습니다.
+    원본 파일은 비공개 백업 디렉터리에 보존됩니다.
+    데이터베이스 디렉터리와 이전 잠금에 대한 쓰기 권한이 필요합니다.
+r40-cli-nfs-confirm-permissions = 권한이 0600이 아닌 파일을 포함해 데이터베이스를 이전할까요? [y/N]:
+r40-cli-nfs-confirm = 계속할까요? [y/N]:
+r40-cli-nfs-cancelled = 이전을 취소했습니다. 변경된 데이터베이스는 없습니다.
+r40-cli-nfs-skipped-logs = log_dir이 설정되어 있어 로그 데이터베이스를 건너뛰었습니다.
+r40-cli-nfs-complete = 이전이 성공적으로 완료되었습니다. Codex를 다시 시작할 수 있습니다.
+r40-cli-nfs-failed = { $path } 이전에 실패했습니다. 모든 Codex 인스턴스의 종료 상태를 유지하세요. 오류를 해결한 뒤 codex migrate-nfs-db를 다시 실행하세요.
+r40-cli-nfs-already-delete = 이미 DELETE 모드입니다: { $path }
+r40-cli-nfs-migrated = 이전한 데이터베이스: { $path }
+    WAL 백업: { $backup }
+r40-cli-rollout-otel-failed = otel 내보내기를 만들 수 없습니다: { $error }
+r40-cli-rollout-metadata-failed = 로컬 대화 메타데이터를 초기화하지 못했습니다.
+r40-cli-rollout-failed = 하나 이상의 대화 기록 이전에 실패했습니다.
+r40-cli-rollout-scanning = 로컬 대화 기록을 검사하고 있습니다...
+r40-cli-rollout-checking = 검사 중
+r40-cli-rollout-migrating = 이전 중
+r40-cli-rollout-counts-eligible = { $count }개 이전 가능  •  { $already }개 이미 페이지 형식
+r40-cli-rollout-counts-migrated = { $count }개 이전 완료  •  { $already }개 이미 페이지 형식
+r40-cli-rollout-progress = 대화 기록 { $action }  { $processed }/{ $total } ({ $percent }%)  •  { $status }  •  { $skipped }개 건너뜀  •  { $failed }개 실패  •  { $elapsed }
+r40-cli-rollout-summary-eligible = 대화 기록 { $total }개 검사: { $count }개 이전 가능, { $already }개 이미 페이지 형식, { $skipped }개 건너뜀(빈 기록 { $empty }개, 사용 중 { $busy }개), { $failed }개 실패.
+r40-cli-rollout-summary-migrated = 대화 기록 { $total }개 검사: { $count }개 이전 완료, { $already }개 이미 페이지 형식, { $skipped }개 건너뜀(빈 기록 { $empty }개, 사용 중 { $busy }개), { $failed }개 실패.
+r40-cli-rollout-scan-complete = 검사 완료
+r40-cli-rollout-migration-complete = 이전 완료
+r40-cli-rollout-completion-time = { $completion }: { $elapsed } 소요.
+r40-cli-rollout-storage = 대화 저장소 디스크 사용량: { $before } -> { $after }
+r40-cli-rollout-apply-hint = 이전 가능한 대화를 이전하려면 `codex migrate-rollouts --apply`를 실행하세요.
+r40-cli-rollout-more = ... 그 밖에 { $count }개가 더 있습니다. 전체 보고서는 --json 옵션으로 다시 실행해 확인하세요.
+r40-cli-rollout-status-eligible = 이전 가능
+r40-cli-rollout-status-migrated = 이전 완료
+r40-cli-rollout-status-paginated = 이미 페이지 형식
+r40-cli-rollout-status-empty = 빈 기록 건너뜀
+r40-cli-rollout-status-busy = 사용 중인 기록 건너뜀
+r40-cli-rollout-status-failed = 실패
+r40-cli-rollout-status-unknown = 알 수 없음
+r40-cli-help-agents = 대화를 찾아보고 전환하는 에이전트 명령 센터를 엽니다
+r40-cli-help-agents-no-daemon = 내장 앱 서버로 에이전트 개요를 실행합니다

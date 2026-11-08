@@ -75,7 +75,7 @@ impl HistoryCell for UpdateAvailableHistoryCell {
         let update_instruction = if let Some(update_action) = self.update_action {
             crate::i18n::message(
                 "r39-update-command",
-                &[("command", update_action.command_str())],
+                &[("command", &update_action.command_str())],
             )
         } else {
             crate::i18n::text("See https://github.com/openai/codex for installation options.")

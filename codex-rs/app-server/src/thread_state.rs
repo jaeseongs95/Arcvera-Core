@@ -47,6 +47,7 @@ pub(crate) struct PendingThreadResumeRequest {
     pub(crate) passive: bool,
     /// Set only after the runtime catalog has been published.
     pub(crate) runtime_dynamic_tools_applied: Option<bool>,
+    pub(crate) runtime_mcp_servers_applied: Option<bool>,
     /// Protects only this command from cleanup, never the resulting membership.
     pub(crate) _activity_guard: Option<codex_core::ThreadActivityGuard>,
     pub(crate) history_items: Vec<RolloutItem>,

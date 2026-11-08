@@ -251,7 +251,7 @@ pub(crate) async fn request_thread_start_with_history_fallback(
     let mut history_support = ThreadHistorySupport::Paginated;
     loop {
         match request_handle
-            .request_typed(ClientRequest::ThreadStart {
+            .request_typed::<ThreadStartResponse>(ClientRequest::ThreadStart {
                 request_id,
                 params: params.clone(),
             })
@@ -271,10 +271,25 @@ pub(crate) async fn request_thread_start_with_history_fallback(
                             !crate::cron_tools::is_owned_tool(&function.name)
                         }
                     })
-                }) || params
-                    .config
+                }) || (params
+                    .runtime_mcp_servers
                     .as_ref()
-                    .is_some_and(|config| config.contains_key("mcp_servers.codex_tui"));
+                    .is_some_and(|servers| servers.contains_key("codex_tui"))
+                    && response.runtime_mcp_servers_applied == Some(true));
+                if params.runtime_mcp_servers.is_some()
+                    && response.runtime_mcp_servers_applied != Some(true)
+                {
+                    return Err(TypedRequestError::Transport {
+                        method: "thread/start".into(),
+                        source: std::io::Error::new(
+                            std::io::ErrorKind::Unsupported,
+                            format!(
+                                "대화 {}는 생성됐지만 서버가 연결 한정 MCP 도구의 적용을 확인하지 않았습니다. 서버를 업데이트한 뒤 이 대화를 다시 연결하세요. 자동으로 다시 생성하지 않습니다.",
+                                response.thread.id
+                            ),
+                        ),
+                    });
+                }
                 return Ok((response, history_support, task_tools_available));
             }
             Err(TypedRequestError::Server { source, .. })
@@ -389,19 +404,19 @@ async fn run_context_inspection_request(
 ) {
     tokio::pin!(request);
     match tokio::time::timeout(deadline, &mut request).await {
-        Ok(result) => app_event_tx.send(AppEvent::ContextCompositionLoaded {
+        Ok(result) => app_event_tx.send(crate::app_event::AppEvent::ContextCompositionLoaded {
             key,
             outcome: ContextInspectionOutcome::Completed(result),
         }),
         Err(_) => {
-            app_event_tx.send(AppEvent::ContextCompositionLoaded {
+            app_event_tx.send(crate::app_event::AppEvent::ContextCompositionLoaded {
                 key,
                 outcome: ContextInspectionOutcome::TimedOut,
             });
             // A dropped receiver does not cancel the remote wire request. Keep its one slot
             // occupied until it drains or the connection owner drops this task.
             let _ = request.await;
-            app_event_tx.send(AppEvent::ContextCompositionLoaded {
+            app_event_tx.send(crate::app_event::AppEvent::ContextCompositionLoaded {
                 key,
                 outcome: ContextInspectionOutcome::Drained,
             });
@@ -1455,7 +1470,8 @@ impl AppServerSession {
             remove_permission_config_overrides(&mut params.config);
         }
         self.thread_tool_transport()
-            .configure_mcp(&mut params.config);
+            .configure_runtime_mcp(&mut params.runtime_mcp_servers);
+        let runtime_mcp_requested = params.runtime_mcp_servers.is_some();
         let response: ThreadForkResponse = match self
             .request_handle
             .request_typed(ClientRequest::ThreadFork {
@@ -1485,6 +1501,12 @@ impl AppServerSession {
                 ));
             }
         };
+        if runtime_mcp_requested && response.runtime_mcp_servers_applied != Some(true) {
+            color_eyre::eyre::bail!(
+                "대화 {}는 분기됐지만 서버가 연결 한정 MCP 도구의 적용을 확인하지 않았습니다. 서버를 업데이트한 뒤 이 대화를 다시 연결하세요. 자동으로 다시 분기하지 않습니다.",
+                response.thread.id
+            );
+        }
         let mut response = response;
         if presentation == ForkPresentation::Regular
             && !response.thread.ephemeral
@@ -1526,7 +1548,7 @@ impl AppServerSession {
             started.session.daybreak_enabled = false;
         }
         started.session.fork_parent_title = fork_parent.and_then(|thread| thread.name);
-        if self.task_tools_available(thread_id) {
+        if runtime_mcp_requested || self.task_tools_available(thread_id) {
             started.task_tools_available = true;
             self.remember_task_tool_thread(started.session.thread_id);
         }
@@ -5482,6 +5504,7 @@ mod tests {
         let forked_from_id = ThreadId::new();
         let read_only_profile = PermissionProfile::read_only();
         let response = ThreadResumeResponse {
+            runtime_mcp_servers_applied: None,
             runtime_dynamic_tools_applied: None,
             runtime_dynamic_tools_runtime_id: None,
             supports_compact_if_idle: None,
@@ -5825,3 +5848,7 @@ mod tests {
         ));
     }
 }
+
+#[cfg(test)]
+#[path = "app_server_session/context_inspection_tests.rs"]
+mod context_inspection_tests;

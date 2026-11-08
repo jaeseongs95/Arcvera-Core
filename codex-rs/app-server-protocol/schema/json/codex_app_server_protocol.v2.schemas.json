@@ -2784,6 +2784,31 @@
           "type": "object"
         },
         {
+          "description": "Content-free inventory of an already-loaded thread's local context.",
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/RequestId"
+            },
+            "method": {
+              "enum": [
+                "thread/context/read"
+              ],
+              "title": "Thread/context/readRequestMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/ThreadContextReadParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "title": "Thread/context/readRequest",
+          "type": "object"
+        },
+        {
           "properties": {
             "id": {
               "$ref": "#/definitions/RequestId"
@@ -7080,6 +7105,31 @@
         }
       ]
     },
+    "ContextBaseInstructions": {
+      "properties": {
+        "placement": {
+          "$ref": "#/definitions/ContextBasePlacement"
+        },
+        "utf8Bytes": {
+          "description": "Configured instructions length; not a count of a normalized request field.",
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "placement",
+        "utf8Bytes"
+      ],
+      "type": "object"
+    },
+    "ContextBasePlacement": {
+      "enum": [
+        "history",
+        "outsideHistory"
+      ],
+      "type": "string"
+    },
     "ContextCompactedNotification": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "description": "Deprecated: Use `ContextCompaction` item type instead.",
@@ -7097,6 +7147,173 @@
       ],
       "title": "ContextCompactedNotification",
       "type": "object"
+    },
+    "ContextItemCounts": {
+      "properties": {
+        "agentMessages": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "compaction": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "configuration": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "messages": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "other": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "reasoning": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "toolCalls": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "toolDeclarations": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "toolOutputs": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "agentMessages",
+        "compaction",
+        "configuration",
+        "messages",
+        "other",
+        "reasoning",
+        "toolCalls",
+        "toolDeclarations",
+        "toolOutputs"
+      ],
+      "type": "object"
+    },
+    "ContextMeasurementStatus": {
+      "enum": [
+        "unverified",
+        "notCaptured"
+      ],
+      "type": "string"
+    },
+    "ContextMessageSourceCounts": {
+      "description": "Positional sources of Message/AgentMessage parts; roles do not identify sources.",
+      "properties": {
+        "agentsMd": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "developerInstructions": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "harness": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "hooks": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "skills": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "tool": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "unknown": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "user": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "agentsMd",
+        "developerInstructions",
+        "harness",
+        "hooks",
+        "skills",
+        "tool",
+        "unknown",
+        "user"
+      ],
+      "type": "object"
+    },
+    "ContextRoleCounts": {
+      "properties": {
+        "assistant": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "developer": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "other": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "system": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "user": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "assistant",
+        "developer",
+        "other",
+        "system",
+        "user"
+      ],
+      "type": "object"
+    },
+    "ContextSnapshotScope": {
+      "enum": [
+        "retainedLocalHistory"
+      ],
+      "type": "string"
     },
     "ConversationTextRole": {
       "enum": [
@@ -12091,6 +12308,46 @@
         "global"
       ],
       "type": "string"
+    },
+    "MemoryPublicationState": {
+      "properties": {
+        "acceptedGeneration": {
+          "description": "Namespace-local input generation. Compare only within this response's scope/root; it is not a timestamp or the job input watermark.",
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "current": {
+          "description": "True only when selected artifact bytes match this published generation. It does not certify semantic application of a correction or forget request.",
+          "type": "boolean"
+        },
+        "publishedGeneration": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "recoveryStageRoot": {
+          "description": "Preserved host stage for explicit recovery. A path is metadata, not authorization to read, restore, or permanently delete its contents.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "current",
+        "status"
+      ],
+      "type": "object"
     },
     "MergeStrategy": {
       "enum": [
@@ -20549,6 +20806,112 @@
       "title": "ThreadCompactStartResponse",
       "type": "object"
     },
+    "ThreadContextReadParams": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId"
+      ],
+      "title": "ThreadContextReadParams",
+      "type": "object"
+    },
+    "ThreadContextReadResponse": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "snapshot": {
+          "$ref": "#/definitions/ThreadContextSnapshot"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "snapshot",
+        "threadId"
+      ],
+      "title": "ThreadContextReadResponse",
+      "type": "object"
+    },
+    "ThreadContextSnapshot": {
+      "description": "Never contains prompt text, tool arguments, paths or arbitrary metadata strings.",
+      "properties": {
+        "baseInstructions": {
+          "$ref": "#/definitions/ContextBaseInstructions"
+        },
+        "historyRevision": {
+          "description": "Destructive-history revision; this is not an append sequence or a timestamp.",
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "itemCount": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "items": {
+          "$ref": "#/definitions/ContextItemCounts"
+        },
+        "messageSources": {
+          "$ref": "#/definitions/ContextMessageSourceCounts"
+        },
+        "nextRequestTools": {
+          "$ref": "#/definitions/ContextMeasurementStatus"
+        },
+        "roles": {
+          "$ref": "#/definitions/ContextRoleCounts"
+        },
+        "scope": {
+          "$ref": "#/definitions/ContextSnapshotScope"
+        },
+        "serverMeasuredUsage": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TokenUsage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trackedUsage": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TokenUsage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Existing tracking can contain synthetic counts; not certified server usage."
+        },
+        "trackedUsageProvenance": {
+          "$ref": "#/definitions/ContextMeasurementStatus"
+        },
+        "windowNumber": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "baseInstructions",
+        "historyRevision",
+        "itemCount",
+        "items",
+        "messageSources",
+        "nextRequestTools",
+        "roles",
+        "scope",
+        "trackedUsageProvenance",
+        "windowNumber"
+      ],
+      "type": "object"
+    },
     "ThreadDeleteParams": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "properties": {
@@ -20768,6 +21131,13 @@
             {
               "type": "null"
             }
+          ]
+        },
+        "runtimeMcpServersApplied": {
+          "description": "Explicit registration ACK; missing on servers without runtime MCP support.",
+          "type": [
+            "boolean",
+            "null"
           ]
         },
         "sandbox": {
@@ -23431,6 +23801,13 @@
             "null"
           ]
         },
+        "runtimeMcpServersApplied": {
+          "description": "Explicit MCP registration ACK, independent of native runtime-tool support.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "sandbox": {
           "allOf": [
             {
@@ -24200,6 +24577,13 @@
             {
               "type": "null"
             }
+          ]
+        },
+        "runtimeMcpServersApplied": {
+          "description": "Explicit registration ACK; missing on servers without runtime MCP support.",
+          "type": [
+            "boolean",
+            "null"
           ]
         },
         "sandbox": {
@@ -24991,6 +25375,43 @@
       },
       "required": [
         "estimatedUsageCreditsMicros"
+      ],
+      "type": "object"
+    },
+    "TokenUsage": {
+      "properties": {
+        "cache_write_input_tokens": {
+          "default": 0,
+          "format": "int64",
+          "type": "integer"
+        },
+        "cached_input_tokens": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "input_tokens": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "output_tokens": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "reasoning_output_tokens": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "total_tokens": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cached_input_tokens",
+        "input_tokens",
+        "output_tokens",
+        "reasoning_output_tokens",
+        "total_tokens"
       ],
       "type": "object"
     },

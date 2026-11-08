@@ -4649,6 +4649,17 @@
       ],
       "type": "object"
     },
+    "ThreadContextReadParams": {
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId"
+      ],
+      "type": "object"
+    },
     "ThreadDeleteParams": {
       "properties": {
         "threadId": {
@@ -7429,6 +7440,31 @@
         "params"
       ],
       "title": "Thread/readRequest",
+      "type": "object"
+    },
+    {
+      "description": "Content-free inventory of an already-loaded thread's local context.",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "thread/context/read"
+          ],
+          "title": "Thread/context/readRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ThreadContextReadParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Thread/context/readRequest",
       "type": "object"
     },
     {

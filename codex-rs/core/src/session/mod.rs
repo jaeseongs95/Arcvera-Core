@@ -6208,6 +6208,9 @@ mod elicitation_holders_tests;
 pub(crate) mod tests;
 
 #[cfg(test)]
+mod runtime_mcp_registration_tests;
+
+#[cfg(test)]
 mod loop_lifecycle_tests;
 
 #[cfg(test)]

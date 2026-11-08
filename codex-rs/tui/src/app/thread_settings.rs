@@ -533,3 +533,59 @@ mod context_window_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod context_inspection_command_tests {
+    use super::*;
+    use crate::app_server_session::ThreadParamsMode;
+    use crate::render::renderable::Renderable;
+    use codex_app_server_client::AppServerClient;
+    use codex_app_server_client::CloudClient;
+    use codex_app_server_client::CloudOperation;
+    use ratatui::buffer::Buffer;
+    use ratatui::layout::Rect;
+
+    #[tokio::test(start_paused = true)]
+    async fn context_inspection_command_returns_to_the_real_app_before_wire_reply() {
+        let (client, mut commands, events) = CloudClient::channel(1);
+        let mut server = AppServerSession::new(
+            crate::backend_id::BackendId::new(),
+            AppServerClient::Cloud(client),
+            ThreadParamsMode::Remote,
+        );
+        let mut app = crate::app::test_support::make_test_app().await;
+        let thread = ThreadId::new();
+        app.active_thread_id = Some(thread);
+        tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            app.handle_context_command(&mut server, Some(thread), "inspect".into()),
+        )
+        .await
+        .expect("App must return to input handling before any wire response");
+        let command = commands.recv().await.expect("actual context read request");
+        assert!(
+            matches!(&command.operation, CloudOperation::Request(request)
+                if matches!(request.as_ref(), codex_app_server_protocol::ClientRequest::ThreadContextRead { params, .. } if params.thread_id == thread.to_string())
+            )
+        );
+        app.chat_widget.insert_str("DRAFT_WHILE_CONTEXT_IS_PENDING");
+        let view = app.chat_widget.bottom_pane_renderable(Default::default());
+        let area = Rect::new(0, 0, 100, view.desired_height(100));
+        let mut buffer = Buffer::empty(area);
+        view.render(area, &mut buffer);
+        let text: String = buffer.content().iter().map(|cell| cell.symbol()).collect();
+        assert!(text.contains("DRAFT_WHILE_CONTEXT_IS_PENDING"));
+        assert!(
+            !command.response.is_closed(),
+            "wire request is still outstanding while draft renders"
+        );
+        events
+            .send(codex_app_server_client::AppServerEvent::Disconnected {
+                message: "controlled test cleanup".into(),
+            })
+            .unwrap();
+        assert!(server.next_event().await.is_some());
+        tokio::task::yield_now().await;
+        assert!(command.response.is_closed());
+    }
+}

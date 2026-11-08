@@ -218,11 +218,7 @@ impl SubagentStatusPanel {
         let next = if !self.contains_mouse(event) {
             None
         } else if event.row == area.y {
-            if self.compact_main() {
-                self.summary.root.map(SubagentHover::Agent)
-            } else {
-                Some(SubagentHover::Summary)
-            }
+            Some(SubagentHover::Summary)
         } else {
             self.painted_rows
                 .borrow()
@@ -267,10 +263,6 @@ impl SubagentStatusPanel {
 
     fn child_rows(&self) -> usize {
         MAX_AGENT_ROWS - usize::from(self.has_main())
-    }
-
-    fn compact_main(&self) -> bool {
-        self.has_main() && self.area.get().height == 1
     }
 
     fn visible_summary(&self) -> SubagentStatusSummary {
@@ -373,7 +365,12 @@ impl SubagentStatusPanel {
         self.focused.set(self.expanded);
         self.selected = self
             .expanded
-            .then(|| self.entries().get(self.offset).map(|entry| entry.thread_id))
+            .then(|| {
+                self.entries()
+                    .get(self.offset)
+                    .map(|entry| entry.thread_id)
+                    .or_else(|| self.summary.root.filter(|_| self.has_main()))
+            })
             .flatten();
         self.painted_rows.borrow_mut().clear();
         self.clear_hover();
@@ -435,7 +432,10 @@ impl SubagentStatusPanel {
                         }
                         _ => 0,
                     };
-                    self.selected = entries.get(next).map(|entry| entry.thread_id);
+                    self.selected = entries
+                        .get(next)
+                        .map(|entry| entry.thread_id)
+                        .or_else(|| self.summary.root.filter(|_| self.has_main()));
                     if next < self.offset {
                         self.offset = next;
                     } else if next >= self.offset + self.child_rows() {
@@ -474,11 +474,6 @@ impl SubagentStatusPanel {
             return false;
         }
         match event.kind {
-            MouseEventKind::Down(MouseButton::Left) if self.compact_main() => {
-                if let Some(root) = self.summary.root {
-                    self.select(root);
-                }
-            }
             MouseEventKind::Down(MouseButton::Left) if event.row == self.area.get().y => {
                 self.toggle();
             }
@@ -515,12 +510,13 @@ impl Renderable for SubagentStatusView<'_> {
         if width == 0 || self.panel.is_empty() {
             return 0;
         }
-        1 + u16::from(self.panel.has_main())
-            + if self.allow_expanded && self.panel.expanded && width >= 48 {
-                self.panel.entries().len().min(self.panel.child_rows()) as u16
-            } else {
-                0
-            }
+        1 + if self.allow_expanded && self.panel.expanded && (width >= 48 || self.panel.has_main())
+        {
+            u16::from(self.panel.has_main())
+                + self.panel.entries().len().min(self.panel.child_rows()) as u16
+        } else {
+            0
+        }
     }
 
     fn render(&self, area: Rect, buf: &mut Buffer) {
@@ -532,7 +528,7 @@ impl Renderable for SubagentStatusView<'_> {
         let entries = self.panel.entries();
         let show_details = self.allow_expanded
             && self.panel.expanded
-            && area.width >= 48
+            && (area.width >= 48 || self.panel.has_main())
             && usize::from(area.height)
                 > entries.len().min(self.panel.child_rows()) + usize::from(self.panel.has_main());
         if !show_details {
@@ -543,7 +539,7 @@ impl Renderable for SubagentStatusView<'_> {
             .offset
             .min(entries.len().saturating_sub(self.panel.child_rows()));
         let mut painted_rows: Vec<_> = Vec::new();
-        if self.panel.has_main() {
+        if show_details && self.panel.has_main() {
             painted_rows.extend(self.panel.summary.root);
         }
         if show_details {
@@ -610,12 +606,8 @@ impl Renderable for SubagentStatusView<'_> {
             span.content = span.content[first.len_utf8()..].to_owned().into();
             line.spans.insert(0, first.to_string().dim().underlined());
         }
-        let mut lines = if self.panel.compact_main() {
-            Vec::new()
-        } else {
-            vec![line]
-        };
-        if self.panel.has_main() {
+        let mut lines = vec![line];
+        if show_details && self.panel.has_main() {
             let root = self.panel.summary.root.unwrap();
             let current = self.panel.summary.current_thread_id == Some(root);
             let selected = self.panel.focused.get() && self.panel.selected == Some(root);
@@ -826,7 +818,7 @@ mod tests {
     }
 
     #[test]
-    fn main_agent_row_is_pinned_counted_separately_and_clickable_in_small_layouts() {
+    fn main_agent_is_only_in_the_expanded_selection_list() {
         for count in [0, 15, 100] {
             let root = ThreadId::new();
             let mut summary = summary_with_agents(count, root);
@@ -840,32 +832,64 @@ mod tests {
                 for _ in 0..count + 1 {
                     panel.scroll(true);
                 }
-                for (width, allow_expanded) in
+                for (width, allowed) in
                     [(1, true), (24, true), (47, true), (120, true), (120, false)]
                 {
-                    let (height, text) = render_panel(&panel, width, allow_expanded);
-                    assert!((2..=4).contains(&height));
-                    if width >= 24 {
-                        assert!(text.contains(&message("r38-agents-main", &[])));
+                    let (height, text) = render_panel(&panel, width, allowed);
+                    if expanded && allowed {
+                        assert!((2..=4).contains(&height));
+                        if width >= 24 {
+                            assert!(text.contains(&message("r38-agents-main", &[])));
+                        }
+                        assert_eq!(panel.painted_rows.borrow().first(), Some(&root));
+                        assert!(panel.painted_rows.borrow().len() <= MAX_AGENT_ROWS);
+                        assert!(panel.handle_mouse(click(0, 1)));
+                        assert_eq!(panel.take_selection(), Some((root, root)));
+                    } else {
+                        assert_eq!(height, 1);
+                        assert!(!text.contains(&message("r38-agents-main", &[])));
+                        assert!(panel.painted_rows.borrow().is_empty());
+                        assert!(!panel.handle_mouse(click(0, 1)));
+                        assert_eq!(panel.take_selection(), None);
                     }
-                    assert_eq!(panel.painted_rows.borrow().first(), Some(&root));
-                    assert!(panel.painted_rows.borrow().len() <= MAX_AGENT_ROWS);
-                    assert!(panel.handle_mouse(click(0, 1)));
-                    assert_eq!(panel.take_selection(), Some((root, root)));
                 }
             }
-            // A terminal height clip keeps return available by replacing the summary.
+            // A clipped terminal keeps its summary as the list toggle.
             render_panel_at(&panel, Rect::new(7, 11, 24, 1));
+            assert!(panel.painted_rows.borrow().is_empty());
             assert!(panel.handle_mouse(click(7, 11)));
-            assert_eq!(panel.take_selection(), Some((root, root)));
+            assert_eq!(panel.take_selection(), None);
             summary.current_thread_id = Some(root);
             panel.update(summary);
-            let (_, text) = render_panel(&panel, 120, false);
-            assert!(text.contains("●"), "current main has a persistent marker");
+            panel.expanded = true;
+            let (_, text) = render_panel(&panel, 120, true);
+            assert!(text.contains("●"), "current main is marked in the list");
             panel.update(SubagentStatusSummary::default());
             assert!(!panel.handle_mouse(click(0, 1)));
             assert_eq!(panel.take_selection(), None);
         }
+    }
+
+    #[test]
+    fn main_only_expanded_list_keeps_keyboard_selection_and_enter_ownership() {
+        let root = ThreadId::new();
+        let mut summary = summary_with_agents(0, root);
+        summary.show_main = true;
+        let mut panel = SubagentStatusPanel::default();
+        panel.update(summary);
+        render_panel(&panel, 24, true);
+        assert!(panel.handle_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT)));
+        render_panel(&panel, 24, true);
+        for key in [KeyCode::Down, KeyCode::Up, KeyCode::Enter] {
+            assert!(panel.handle_key(key.into()));
+            render_panel(&panel, 24, true);
+        }
+        assert_eq!(panel.take_selection(), Some((root, root)));
+        assert!(panel.owns_selection_key(KeyCode::Enter.into()));
+        assert!(panel.handle_key(KeyCode::Enter.into()));
+        assert_eq!(panel.take_selection(), None);
+        assert!(panel.handle_key(KeyCode::Esc.into()));
+        assert!(!panel.owns_selection_key(KeyCode::Enter.into()));
     }
 
     #[test]

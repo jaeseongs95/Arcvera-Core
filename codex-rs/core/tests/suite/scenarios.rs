@@ -3557,12 +3557,23 @@ async fn astra_async_compaction_keeps_work_added_after_its_snapshot(
         positions[0]
     };
     let default = position("# Collaboration Mode: Default");
-    let draft = position("Draft the launch notes.");
+    assert!(requests[..3].iter().any(|request| {
+        request["input"]
+            .as_array()
+            .expect("pre-compaction input")
+            .iter()
+            .any(|item| item.to_string().contains("Draft the launch notes."))
+    }));
+    assert!(
+        !input
+            .iter()
+            .any(|item| item.to_string().contains("Draft the launch notes."))
+    );
     let compaction = position("ASYNC_LAUNCH_CHECKPOINT");
     let plan = position("Plan Mode");
     if matches!(suffix, LiveSuffix::User) {
         let user = position("Check who can finish the notes.");
-        assert!(draft < compaction && compaction < default && default < plan && plan < user);
+        assert!(compaction < default && default < plan && plan < user);
         let entries = requests.iter().map(SnapshotEntry::body).collect::<Vec<_>>();
         insta::assert_snapshot!(
             "astra_async_compaction_with_live_suffix",
@@ -3578,9 +3589,9 @@ async fn astra_async_compaction_keeps_work_added_after_its_snapshot(
             suffix,
             LiveSuffix::RetainedTool | LiveSuffix::OverBudgetRetainedTool
         ) {
-            assert!(draft < compaction && compaction < default && default < plan && plan < tool);
+            assert!(compaction < default && default < plan && plan < tool);
         } else {
-            assert!(default < draft && draft < compaction && compaction < plan && plan < tool);
+            assert!(default < compaction && compaction < plan && plan < tool);
         }
         let assistant = position("I will check who is available.");
         let call = input

@@ -2,6 +2,9 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 
+mod runtime_tools;
+pub use runtime_tools::RuntimeMcpServers;
+
 use crate::config::Config;
 use crate::mcp_tool_exposure::SharedMcpDefinitions;
 use codex_config::DEFAULT_MCP_SERVER_ENVIRONMENT_ID;
@@ -190,6 +193,18 @@ impl McpManager {
         executor_capability_discovery: Option<&ExecutorCapabilityDiscoverySnapshot>,
         executor_capability_discovery_v2: Option<&[ExecutorCapabilityDiscoveryV2Snapshot]>,
     ) -> McpRuntimeProjection {
+        let overlay = thread_store.get::<RuntimeMcpServers>();
+        let projected = overlay.as_ref().and_then(|overlay| {
+            if overlay.disconnected.is_cancelled() { return None; }
+            match overlay.project(config) {
+                Ok(projected) => Some(projected),
+                Err(reason) => {
+                    tracing::warn!(%reason, "runtime MCP registration excluded after configuration change");
+                    None
+                }
+            }
+        });
+        let config = projected.as_ref().unwrap_or(config);
         let mut context = McpServerContributionContext::for_step(
             config,
             thread_init,

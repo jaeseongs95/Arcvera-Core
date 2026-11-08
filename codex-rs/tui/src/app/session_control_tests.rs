@@ -10,7 +10,7 @@ use tokio_util::sync::CancellationToken;
 
 #[test]
 fn memory_result_lifetime_uses_typed_attempts_and_never_marks_unrelated_controls() {
-    use super::session_control::memory_context_for_attempt;
+    use super::memory_context_for_attempt;
     use codex_protocol::dynamic_tools::DynamicToolMemoryContext;
     assert_eq!(
         memory_context_for_attempt(&session_control::Command::MemoryView),

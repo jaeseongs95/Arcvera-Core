@@ -30,12 +30,22 @@ impl Session {
         tools: Vec<codex_protocol::dynamic_tools::DynamicToolSpec>,
         previous: &[codex_protocol::dynamic_tools::DynamicToolSpec],
     ) -> CodexResult<bool> {
+        self.supplement_runtime_tools(owner, disconnected, Some(tools), previous, None)
+            .await
+    }
+
+    /// Atomically admit native and MCP overlays; neither changes if validation fails.
+    pub(crate) async fn supplement_runtime_tools(
+        &self,
+        owner: u64,
+        disconnected: tokio_util::sync::CancellationToken,
+        tools: Option<Vec<codex_protocol::dynamic_tools::DynamicToolSpec>>,
+        previous: &[codex_protocol::dynamic_tools::DynamicToolSpec],
+        servers: Option<std::collections::HashMap<String, codex_config::McpServerConfig>>,
+    ) -> CodexResult<bool> {
         // No persistence is touched here. Holding its permit while waiting for an
         // active turn can deadlock a user reply behind a delivered-message record.
         let active = self.active_turn.lock().await;
-        if active.is_some() {
-            return Ok(false);
-        }
         let mut state = self.state.lock().await;
         if state.shutting_down || self.cleanup_admission.is_closing() || disconnected.is_cancelled()
         {
@@ -43,19 +53,77 @@ impl Session {
                 "도구를 제공한 연결이 종료됐습니다.".into(),
             ));
         }
-        if state
-            .runtime_dynamic_tools
-            .as_ref()
-            .is_some_and(|overlay| !overlay.disconnected.is_cancelled() && overlay.owner != owner)
+        if active.is_some() {
+            // Repeating the exact live MCP registration has no side effects, including
+            // while sending a message to a child whose turn is already running.
+            if tools.is_none()
+                && let Some(servers) = &servers
+            {
+                if let Some(overlay) = self
+                    .services
+                    .thread_extension_data
+                    .get::<crate::mcp::RuntimeMcpServers>()
+                    && overlay.matches(owner, servers)
+                {
+                    overlay
+                        .validate(&state.session_configuration.original_config_do_not_use)
+                        .map_err(CodexErr::InvalidRequest)?;
+                    return Ok(true);
+                }
+            }
+            return Ok(false);
+        }
+        if tools.is_some()
+            && state.runtime_dynamic_tools.as_ref().is_some_and(|overlay| {
+                !overlay.disconnected.is_cancelled() && overlay.owner != owner
+            })
         {
             return Err(CodexErr::InvalidRequest(
                 "다른 연결이 이 대화의 도구 보강을 소유하고 있습니다.".into(),
             ));
         }
-        let (merged, keys) =
-            merge_runtime_tools(&state.session_configuration.dynamic_tools, &tools, previous)
+        let merged = tools
+            .as_ref()
+            .map(|tools| {
+                merge_runtime_tools(&state.session_configuration.dynamic_tools, tools, previous)
+                    .map_err(CodexErr::InvalidRequest)
+            })
+            .transpose()?;
+        let overlay = if let Some(servers) = servers {
+            let store = &self.services.thread_extension_data;
+            if store
+                .get::<crate::mcp::RuntimeMcpServers>()
+                .is_some_and(|old| old.owner != owner && !old.disconnected.is_cancelled())
+            {
+                return Err(CodexErr::InvalidRequest(
+                    "다른 연결이 이 대화의 MCP 도구를 소유하고 있습니다.".into(),
+                ));
+            }
+            if self
+                .services
+                .mcp_thread_init
+                .get::<crate::mcp::McpServersDisabled>()
+                .is_some()
+            {
+                return Err(CodexErr::InvalidRequest(
+                    "MCP servers are disabled for this thread".into(),
+                ));
+            }
+            let overlay = crate::mcp::RuntimeMcpServers::new(owner, disconnected.clone(), servers);
+            overlay
+                .validate(&state.session_configuration.original_config_do_not_use)
                 .map_err(CodexErr::InvalidRequest)?;
-        state.set_runtime_dynamic_tools(owner, disconnected, Arc::from(merged), keys);
+            Some(overlay)
+        } else {
+            None
+        };
+        if let Some((merged, keys)) = merged {
+            state.set_runtime_dynamic_tools(owner, disconnected, Arc::from(merged), keys);
+        }
+        if let Some(overlay) = overlay {
+            self.services.thread_extension_data.insert(overlay);
+            self.mark_mcp_runtime_dirty();
+        }
         Ok(true)
     }
 

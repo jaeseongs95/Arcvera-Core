@@ -194,6 +194,23 @@ fn read_hook_inputs(path: &Path) -> Vec<Value> {
         .collect()
 }
 
+#[cfg(windows)]
+fn python_hook_command(script_path: &Path) -> String {
+    let python = std::env::var_os("CODEX_TEST_PYTHON")
+        .expect("Windows compact hook tests require CODEX_TEST_PYTHON");
+    let python = Path::new(&python);
+    assert!(
+        python.is_absolute() && python.is_file(),
+        "CODEX_TEST_PYTHON must name an existing absolute interpreter path"
+    );
+    format!(
+        "& '{}' '{}'",
+        python.display().to_string().replace('\'', "''"),
+        script_path.display().to_string().replace('\'', "''")
+    )
+}
+
+#[cfg(not(windows))]
 fn python_hook_command(script_path: &Path) -> String {
     format!("python3 \"{}\"", script_path.display())
 }
@@ -588,6 +605,27 @@ async fn summarize_context_three_requests_and_instructions(
         .await?;
     wait_for_event(&codex, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
+    let original_stored_message = codex
+        .load_history(/*include_archived*/ false)
+        .await?
+        .items
+        .into_iter()
+        .filter_map(|item| match item {
+            RolloutItem::ResponseItem(envelope) => Some(envelope.item),
+            _ => None,
+        })
+        .map(|item| serde_json::to_value(item).expect("serialize original stored message"))
+        .find(|item| item["role"] == "user" && item["content"][0]["text"] == ORIGINAL_FIRST_PART)
+        .expect("original stored multipart message before compaction");
+    assert_eq!(
+        original_stored_message["content"].as_array().unwrap().len(),
+        3
+    );
+    assert_eq!(
+        original_stored_message["internal_chat_message_metadata_passthrough"]["content_item_kinds"],
+        json!(["user.text", "user.text", "user.text"]),
+    );
+
     // 2) Summarize – second hit should include the summarization prompt.
     codex.submit(Op::Compact).await?;
     wait_for_event(&codex, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
@@ -720,6 +758,7 @@ async fn summarize_context_three_requests_and_instructions(
     let text = std::fs::read_to_string(&rollout_path).expect("failed to read rollout file");
     let mut turn_context_count = 0usize;
     let mut saw_compacted_summary = false;
+    let mut saw_original_multipart = false;
     for line in text.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
@@ -729,6 +768,24 @@ async fn summarize_context_three_requests_and_instructions(
             continue;
         };
         match entry.item {
+            RolloutItem::ResponseItem(envelope) => {
+                let original = serde_json::to_value(&envelope.item)?;
+                if original["role"] == "user"
+                    && original["content"][0]["text"] == ORIGINAL_FIRST_PART
+                {
+                    for key in [
+                        "role",
+                        "content",
+                        "internal_chat_message_metadata_passthrough",
+                    ] {
+                        assert_eq!(
+                            original[key], original_stored_message[key],
+                            "stored multipart source must remain unchanged: {key}"
+                        );
+                    }
+                    saw_original_multipart = true;
+                }
+            }
             RolloutItem::TurnContext(_) => {
                 turn_context_count += 1;
             }
@@ -765,6 +822,10 @@ async fn summarize_context_three_requests_and_instructions(
     assert_eq!(
         turn_context_count, 3,
         "rollout should contain two user-turn contexts and the compaction baseline"
+    );
+    assert!(
+        saw_original_multipart,
+        "original multipart source must remain stored after compaction"
     );
     assert!(
         saw_compacted_summary,
@@ -1383,6 +1444,158 @@ async fn failed_compaction_preserves_history_after_restart() -> Result<()> {
     Ok(())
 }
 
+#[test_case::test_case(None; "no_output")]
+#[test_case::test_case(Some(""); "empty_assistant")]
+#[test_case::test_case(Some(" \t\n "); "whitespace_assistant")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn manual_compact_rejects_empty_summary_without_replacing_history(
+    summary: Option<&str>,
+) -> Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let server = start_mock_server().await;
+    let original_user = "PRESERVED_REQUEST_AFTER_EMPTY_COMPACT";
+    let initial = mount_sse_once(
+        &server,
+        sse(vec![
+            ev_assistant_message("initial-reply", FIRST_REPLY),
+            ev_completed_with_tokens("initial-response", /*total_tokens*/ 1_000),
+        ]),
+    )
+    .await;
+    let model_provider = non_openai_model_provider(&server);
+    let test = test_codex()
+        .with_config(move |config| {
+            config.model_provider = model_provider;
+            config.model_provider.stream_max_retries = Some(0);
+            config.model_auto_compact_token_limit = Some(200_000);
+            set_test_compact_prompt(config);
+        })
+        .build_with_auto_env(&server)
+        .await?;
+    test.submit_turn(original_user).await?;
+    assert_eq!(initial.requests().len(), 1);
+    let original_usage = test.codex.token_usage_info().await.expect("initial usage");
+    let original_history = test.codex.load_history(/*include_archived*/ false).await?;
+    let original_items = original_history
+        .items
+        .into_iter()
+        .filter_map(|item| match item {
+            RolloutItem::ResponseItem(envelope) => Some(envelope),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    let mut events = summary
+        .map(|text| ev_assistant_message("invalid-summary", text))
+        .into_iter()
+        .collect::<Vec<_>>();
+    events.push(ev_completed_with_tokens(
+        "empty-compaction-response",
+        /*total_tokens*/ 250,
+    ));
+    let compact = mount_sse_once(&server, sse(events)).await;
+    test.codex.submit(Op::Compact).await?;
+    let mut errors = Vec::new();
+    let mut completed_responses = Vec::new();
+    wait_for_event(&test.codex, |event| {
+        match event {
+            EventMsg::Error(error) => errors.push(error.message.clone()),
+            EventMsg::StreamError(error) => panic!("unexpected compaction retry: {error:?}"),
+            EventMsg::ContextCompacted(event) => {
+                panic!("empty summary installed a compaction checkpoint: {event:?}")
+            }
+            EventMsg::ItemCompleted(event)
+                if matches!(event.item, TurnItem::ContextCompaction(_)) =>
+            {
+                panic!("empty summary completed a compaction item: {event:?}")
+            }
+            EventMsg::RawResponseCompleted(response) => {
+                completed_responses.push(response.response_id.clone());
+            }
+            _ => {}
+        }
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
+    assert_eq!(compact.requests().len(), 1);
+    assert_eq!(
+        errors,
+        vec![
+            "stream disconnected before completion: Compaction completed without an assistant summary"
+        ]
+    );
+    assert_eq!(completed_responses, vec!["empty-compaction-response"]);
+    let usage = test
+        .codex
+        .token_usage_info()
+        .await
+        .expect("completed usage");
+    assert_eq!(
+        usage.total_token_usage.total_tokens,
+        original_usage.total_token_usage.total_tokens + 250,
+    );
+    assert_eq!(usage.last_token_usage.total_tokens, 250);
+
+    let history = test.codex.load_history(/*include_archived*/ false).await?;
+    assert!(
+        history
+            .items
+            .iter()
+            .all(|item| !matches!(item, RolloutItem::Compacted(_))),
+        "invalid compaction must not persist a replacement checkpoint"
+    );
+    let response_items = history
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            RolloutItem::ResponseItem(envelope) => Some(envelope.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(response_items, original_items);
+    let compact_usage = history
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            RolloutItem::TokenUsageRecord(record)
+                if record.response_id == "empty-compaction-response" =>
+            {
+                Some(record.usage.total_tokens)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(compact_usage, vec![250]);
+
+    let follow_up = mount_sse_once(&server, sse(vec![ev_completed("follow-up")])).await;
+    test.submit_text_turn("continue after the rejected empty summary")
+        .await?;
+    let original_messages = |request: &responses::ResponsesRequest| {
+        request
+            .input()
+            .into_iter()
+            .filter(|item| {
+                item["role"] == "assistant"
+                    || (item["role"] == "user" && item["content"][0]["text"] == original_user)
+            })
+            .map(strip_response_item_ids_from_json)
+            .collect::<Vec<_>>()
+    };
+    let original_messages_sent = original_messages(&compact.single_request());
+    assert_eq!(original_messages_sent.len(), 2);
+    assert_eq!(
+        original_messages(&follow_up.single_request()),
+        original_messages_sent,
+        "failed compact must retain the original user request and assistant reply in their roles"
+    );
+    assert!(!body_contains_text(
+        &follow_up.single_request().body_json().to_string(),
+        &summary_with_prefix(FIRST_REPLY),
+    ));
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn manual_compact_records_durable_and_local_token_usage() {
     skip_if_no_network!();
@@ -1727,6 +1940,7 @@ async fn multiple_auto_compact_per_task_runs_after_token_limit_hit() {
 
     // collect the requests payloads from the model
     let requests_payloads = request_log.requests();
+    assert_eq!(requests_payloads.len(), 7);
     let body = requests_payloads[0].body_json();
     let input = body.get("input").and_then(|v| v.as_array()).unwrap();
 
@@ -1784,7 +1998,7 @@ async fn multiple_auto_compact_per_task_runs_after_token_limit_hit() {
     let initial_input = normalize_inputs(input);
     let environment_message = initial_input[0]["content"][0]["text"].as_str().unwrap();
 
-    // test 1: after compaction, we should have one environment message, one user message, and one user message with summary prefix
+    // Each installed window contains canonical context and the current handoff only.
     let compaction_indices = [2, 4, 6];
     let expected_summaries = [
         prefixed_first_summary.as_str(),
@@ -1795,12 +2009,16 @@ async fn multiple_auto_compact_per_task_runs_after_token_limit_hit() {
         let body = requests_payloads.clone()[i].body_json();
         let input = body.get("input").and_then(|v| v.as_array()).unwrap();
         let input = normalize_inputs(input);
-        assert_eq!(input.len(), 3);
-        let environment_message = input[0]["content"][0]["text"].as_str().unwrap();
-        let user_message_received = input[1]["content"][0]["text"].as_str().unwrap();
-        let summary_message = input[2]["content"][0]["text"].as_str().unwrap();
-        assert_eq!(environment_message, environment_message);
-        assert_eq!(user_message_received, user_message);
+        assert_eq!(input.len(), 2);
+        let received_environment = input[0]["content"][0]["text"].as_str().unwrap();
+        let summary_message = input[1]["content"][0]["text"].as_str().unwrap();
+        assert_eq!(received_environment, environment_message);
+        assert!(
+            !input.iter().any(|item| {
+                item["role"] == "user" && item["content"][0]["text"] == user_message
+            }),
+            "compaction must not reinstall the earlier raw user request"
+        );
         assert_eq!(
             summary_message, expected_summary,
             "compaction request at index {i} should include the prefixed summary"
@@ -1904,16 +2122,6 @@ async fn multiple_auto_compact_per_task_runs_after_token_limit_hit() {
       {
         "content": [
           {
-            "text": "create an app",
-            "type": "input_text"
-          }
-        ],
-        "role": "user",
-        "type": "message"
-      },
-      {
-        "content": [
-          {
             "text": prefixed_first_summary.clone(),
             "type": "input_text"
           }
@@ -1929,16 +2137,6 @@ async fn multiple_auto_compact_per_task_runs_after_token_limit_hit() {
         "content": [
           {
             "text": environment_message,
-            "type": "input_text"
-          }
-        ],
-        "role": "user",
-        "type": "message"
-      },
-      {
-        "content": [
-          {
-            "text": "create an app",
             "type": "input_text"
           }
         ],
@@ -2004,16 +2202,6 @@ async fn multiple_auto_compact_per_task_runs_after_token_limit_hit() {
       {
         "content": [
           {
-            "text": "create an app",
-            "type": "input_text"
-          }
-        ],
-        "role": "user",
-        "type": "message"
-      },
-      {
-        "content": [
-          {
             "text": prefixed_second_summary.clone(),
             "type": "input_text"
           }
@@ -2029,16 +2217,6 @@ async fn multiple_auto_compact_per_task_runs_after_token_limit_hit() {
         "content": [
           {
             "text": environment_message,
-            "type": "input_text"
-          }
-        ],
-        "role": "user",
-        "type": "message"
-      },
-      {
-        "content": [
-          {
-            "text": "create an app",
             "type": "input_text"
           }
         ],
@@ -2104,16 +2282,6 @@ async fn multiple_auto_compact_per_task_runs_after_token_limit_hit() {
       {
         "content": [
           {
-            "text": "create an app",
-            "type": "input_text"
-          }
-        ],
-        "role": "user",
-        "type": "message"
-      },
-      {
-        "content": [
-          {
             "text": prefixed_third_summary.clone(),
             "type": "input_text"
           }
@@ -2130,9 +2298,6 @@ async fn multiple_auto_compact_per_task_runs_after_token_limit_hit() {
         let expected_input = expected_requests_inputs[i].as_array().unwrap();
         assert_eq!(normalize_inputs(input), normalize_inputs(expected_input));
     }
-
-    // test 3: the number of requests should be 7
-    assert_eq!(requests_payloads.len(), 7);
 }
 
 // Windows CI only: bump to 4 workers to prevent SSE/event starvation and test timeouts.
@@ -4439,9 +4604,6 @@ async fn manual_compact_retries_after_context_window_error() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-// TODO(ccunningham): Re-enable after the follow-up compaction behavior PR lands.
-// Current main behavior around non-context manual /compact failures is known-incorrect.
-#[ignore = "behavior change covered in follow-up compaction PR"]
 async fn manual_compact_non_context_failure_retries_then_emits_task_error() {
     skip_if_no_network!();
 
@@ -4462,7 +4624,8 @@ async fn manual_compact_non_context_failure_retries_then_emits_task_error() {
         "temporary compact failure two",
     );
 
-    mount_sse_sequence(&server, vec![user_turn, compact_failed_1, compact_failed_2]).await;
+    let responses_mock =
+        mount_sse_sequence(&server, vec![user_turn, compact_failed_1, compact_failed_2]).await;
 
     let mut model_provider = non_openai_model_provider(&server);
     model_provider.stream_max_retries = Some(1);
@@ -4489,26 +4652,37 @@ async fn manual_compact_non_context_failure_retries_then_emits_task_error() {
 
     codex.submit(Op::Compact).await.expect("trigger compact");
 
-    let reconnect_message = wait_for_event_match(&codex, |event| match event {
-        EventMsg::StreamError(stream_error) => Some(stream_error.message.clone()),
-        _ => None,
+    let mut compact_events = Vec::new();
+    wait_for_event(&codex, |event| {
+        match event {
+            EventMsg::StreamError(error) => {
+                compact_events.push(("reconnect", error.message.clone()));
+            }
+            EventMsg::Error(error) => {
+                compact_events.push(("error", error.message.clone()));
+            }
+            EventMsg::TurnComplete(_) => {
+                compact_events.push(("complete", String::new()));
+            }
+            _ => {}
+        }
+        matches!(event, EventMsg::TurnComplete(_))
     })
     .await;
-    assert!(
-        reconnect_message.contains("Reconnecting... 1/1"),
-        "expected reconnect stream error message, got {reconnect_message}"
+    assert_eq!(
+        compact_events
+            .iter()
+            .map(|(kind, _)| *kind)
+            .collect::<Vec<_>>(),
+        vec!["reconnect", "error", "complete"]
     );
-
-    let task_error_message = wait_for_event_match(&codex, |event| match event {
-        EventMsg::Error(err) => Some(err.message.clone()),
-        _ => None,
-    })
-    .await;
-    assert!(
-        task_error_message.contains("Error running local compact task"),
-        "expected local compact task error prefix, got {task_error_message}"
+    assert!(compact_events[0].1.contains("Reconnecting... 1/1"));
+    // Match the active failed-compaction/restart contract: retain the original cause.
+    assert_eq!(
+        compact_events[1].1,
+        "stream disconnected before completion: temporary compact failure two"
     );
-    wait_for_event(&codex, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    assert_eq!(responses_mock.requests().len(), 3);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

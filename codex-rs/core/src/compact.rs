@@ -624,7 +624,7 @@ pub(crate) struct CompactedUserMessage<'a> {
 
 /// Request-only instructions: do not install this message in the compacted history.
 pub(crate) fn compaction_handoff_instructions() -> ResponseItem {
-    ResponseItem::Message {
+    let mut item = ResponseItem::Message {
         id: None,
         role: "developer".to_string(),
         content: vec![ContentItem::InputText {
@@ -634,7 +634,9 @@ pub(crate) fn compaction_handoff_instructions() -> ResponseItem {
         encrypted_content: None,
         phase: None,
         internal_chat_message_metadata_passthrough: None,
-    }
+    };
+    Session::assign_missing_response_item_id(&mut item);
+    item
 }
 
 #[cfg(test)]
@@ -971,23 +973,10 @@ async fn drain_to_completed(
                 usage_metadata,
                 ..
             }) => {
-                sess.record_observed_response_completed(
-                    turn_context,
-                    &response_id,
-                    token_usage.as_ref(),
-                    usage_metadata.as_ref(),
-                )
-                .await;
-                sess.update_token_usage_info(
-                    turn_context,
-                    token_usage.as_ref(),
-                    includes_reasoning,
-                )
-                .await?;
-                // A successful transport response is not necessarily a usable summary.
-                // Account for its usage first, then reject empty output before changing history.
-                let summary = require_compaction_summary(&output, phase)?;
-                if !matches!(phase, CompactionPhase::PostTurn) {
+                // Only usable output may enter history. Preserve the successful-response
+                // event order, but account for completed usage even when validation fails.
+                let summary = require_compaction_summary(&output, phase);
+                if summary.is_ok() && !matches!(phase, CompactionPhase::PostTurn) {
                     for item in output {
                         sess.record_annotated_conversation_items(
                             turn_context,
@@ -1003,9 +992,22 @@ async fn drain_to_completed(
                         .await;
                     }
                 }
+                sess.record_observed_response_completed(
+                    turn_context,
+                    &response_id,
+                    token_usage.as_ref(),
+                    usage_metadata.as_ref(),
+                )
+                .await;
+                sess.update_token_usage_info(
+                    turn_context,
+                    token_usage.as_ref(),
+                    includes_reasoning,
+                )
+                .await?;
                 return Ok(CompactionResponse {
                     response_id,
-                    summary,
+                    summary: summary?,
                 });
             }
             Ok(_) => continue,

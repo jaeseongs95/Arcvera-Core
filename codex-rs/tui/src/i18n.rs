@@ -253,10 +253,22 @@ mod tests {
     fn english_and_unknown_text_preserve_the_original() {
         assert_eq!(text_for(Locale::Korean, "Working"), "작업 중");
         assert_eq!(text_for(Locale::English, "Working"), "Working");
+        // "model" is a registered human UI label. Opaque model argument
+        // values travel through named Fluent arguments, never this literal API.
+        assert_eq!(text_for(Locale::English, "model"), "model");
+        assert_eq!(text_for(Locale::Korean, "model"), "모델");
+        for (locale, expected) in [
+            (Locale::English, "requested: model"),
+            (Locale::Korean, "요청 모델: model"),
+        ] {
+            assert_eq!(
+                message_for(locale, "r39-session-requested-model", &[("model", "model")]),
+                expected
+            );
+        }
         for token in [
             "/model",
             "read-only",
-            "model",
             "request_id",
             "사용자 원문",
             "untranslated UI",

@@ -9,6 +9,7 @@ use codex_config::LoaderOverrides;
 use codex_core::config::ConfigBuilder;
 use codex_state::NfsDbMigration;
 use codex_state::NfsDbMigrationOutcome;
+use codex_tui::i18n::message;
 use codex_utils_cli::CliConfigOverrides;
 use owo_colors::OwoColorize;
 use std::path::PathBuf;
@@ -29,19 +30,14 @@ pub(crate) async fn run(
     config_overrides: CliConfigOverrides,
     loader_overrides: LoaderOverrides,
 ) -> anyhow::Result<()> {
-    ensure!(
-        cfg!(unix),
-        "migrate-nfs-db currently requires Unix filesystem locking and directory fsync"
-    );
-    let warning = "WARNING: This operation is unsafe under concurrency.";
+    ensure!(cfg!(unix), "{}", message("r40-cli-nfs-unix-required", &[]));
+    let warning = message("r40-cli-nfs-concurrency-warning", &[]);
     if supports_color::on(supports_color::Stream::Stderr).is_some() {
         eprintln!("{}", warning.red().bold());
     } else {
         eprintln!("{warning}");
     }
-    eprintln!(
-        "Stop all Codex instances on every host that uses these databases.\nKeep them stopped until the migration completes successfully."
-    );
+    eprintln!("{}", message("r40-cli-nfs-stop-clients", &[]));
     let config = ConfigBuilder::default()
         .cli_overrides(
             config_overrides
@@ -56,7 +52,7 @@ pub(crate) async fn run(
     let skip_logs = effective_config.get("log_dir").is_some();
     let sqlite = config.sqlite_config();
     if !sqlite.home().try_exists()? {
-        println!("No databases found.");
+        println!("{}", message("r40-cli-nfs-no-databases", &[]));
         return Ok(());
     }
     let mut needs_permission_confirmation = false;
@@ -68,50 +64,63 @@ pub(crate) async fn run(
             NfsDbMigration::needs_permission_confirmation(&database.path)?;
     }
     if needs_permission_confirmation {
-        eprintln!(
-            "Some database files have permissions other than 0600.\nMigration preserves file mode bits, including group and other access."
-        );
+        eprintln!("{}", message("r40-cli-nfs-nonprivate-permissions", &[]));
     }
-    eprintln!(
-        "Replacement files belong to you; the original owner, group, and extended ACLs are not copied.\nThis can remove another user's access even when file permissions are 0600.\nOriginal files remain in a private backup directory.\nYou need write access to the database directory and its migration lock."
-    );
+    eprintln!("{}", message("r40-cli-nfs-ownership-warning", &[]));
     let prompt = if needs_permission_confirmation {
-        "Migrate databases, including files with permissions other than 0600? [y/N]:"
+        message("r40-cli-nfs-confirm-permissions", &[])
     } else {
-        "Continue? [y/N]:"
+        message("r40-cli-nfs-confirm", &[])
     };
     ensure!(
-        crate::confirm(prompt)?,
-        "Migration cancelled. No databases were changed."
+        crate::confirm(&prompt)?,
+        "{}",
+        message("r40-cli-nfs-cancelled", &[])
     );
     let mut migration = NfsDbMigration::lock(sqlite.home())?;
     let mut databases_found = 0;
     for database in sqlite.runtime_db_paths() {
         if skip_logs && database.path == sqlite.logs_db_path() {
-            println!("Skipped logs database: log_dir is configured.");
+            println!("{}", message("r40-cli-nfs-skipped-logs", &[]));
             continue;
         }
-        let outcome = migration.migrate(&database.path, &command.staging_dir).await.with_context(|| format!(
-            "migration failed for {}. Keep all Codex instances stopped. Correct the error and rerun codex migrate-nfs-db",
-            database.path.display()
-        ))?;
+        let outcome = migration
+            .migrate(&database.path, &command.staging_dir)
+            .await
+            .with_context(|| {
+                message(
+                    "r40-cli-nfs-failed",
+                    &[("path", &database.path.display().to_string())],
+                )
+            })?;
         match outcome {
             NfsDbMigrationOutcome::Missing => continue,
             NfsDbMigrationOutcome::AlreadyDelete => {
-                println!("Already in DELETE mode: {}", database.path.display())
+                println!(
+                    "{}",
+                    message(
+                        "r40-cli-nfs-already-delete",
+                        &[("path", &database.path.display().to_string())]
+                    )
+                )
             }
             NfsDbMigrationOutcome::Migrated { backup_directory } => println!(
-                "Migrated database: {}\nWAL backup: {}",
-                database.path.display(),
-                backup_directory.display()
+                "{}",
+                message(
+                    "r40-cli-nfs-migrated",
+                    &[
+                        ("path", &database.path.display().to_string()),
+                        ("backup", &backup_directory.display().to_string())
+                    ]
+                )
             ),
         }
         databases_found += 1;
     }
     if databases_found == 0 {
-        println!("No databases found.");
+        println!("{}", message("r40-cli-nfs-no-databases", &[]));
         return Ok(());
     }
-    println!("Migration completed successfully. You can restart Codex.");
+    println!("{}", message("r40-cli-nfs-complete", &[]));
     Ok(())
 }

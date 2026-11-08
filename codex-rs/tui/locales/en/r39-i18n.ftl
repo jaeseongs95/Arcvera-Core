@@ -2044,3 +2044,50 @@ r39-cli-plugin-multiple-roots = plugin `{ $plugin }` in marketplace `{ $marketpl
 r39-cli-plugin-snapshot-issue = - `{ $name }` at { $path }: { $error }
 r39-cli-plugin-snapshot-load-failed = failed to load configured marketplace snapshot(s):{ "\u000A" }{ $issues }
 r39-cli-marketplace-load-failed = failed to load marketplace(s):{ "\u000A" }{ $issues }
+
+r40-cli-nfs-unix-required = migrate-nfs-db currently requires Unix filesystem locking and directory fsync
+r40-cli-nfs-concurrency-warning = WARNING: This operation is unsafe under concurrency.
+r40-cli-nfs-stop-clients = Stop all Codex instances on every host that uses these databases.
+    Keep them stopped until the migration completes successfully.
+r40-cli-nfs-no-databases = No databases found.
+r40-cli-nfs-nonprivate-permissions = Some database files have permissions other than 0600.
+    Migration preserves file mode bits, including group and other access.
+r40-cli-nfs-ownership-warning = Replacement files belong to you; the original owner, group, and extended ACLs are not copied.
+    This can remove another user's access even when file permissions are 0600.
+    Original files remain in a private backup directory.
+    You need write access to the database directory and its migration lock.
+r40-cli-nfs-confirm-permissions = Migrate databases, including files with permissions other than 0600? [y/N]:
+r40-cli-nfs-confirm = Continue? [y/N]:
+r40-cli-nfs-cancelled = Migration cancelled. No databases were changed.
+r40-cli-nfs-skipped-logs = Skipped logs database: log_dir is configured.
+r40-cli-nfs-complete = Migration completed successfully. You can restart Codex.
+r40-cli-nfs-failed = migration failed for { $path }. Keep all Codex instances stopped. Correct the error and rerun codex migrate-nfs-db
+r40-cli-nfs-already-delete = Already in DELETE mode: { $path }
+r40-cli-nfs-migrated = Migrated database: { $path }
+    WAL backup: { $backup }
+r40-cli-rollout-otel-failed = Could not create otel exporter: { $error }
+r40-cli-rollout-metadata-failed = failed to initialize local thread metadata
+r40-cli-rollout-failed = one or more rollout migrations failed
+r40-cli-rollout-scanning = Scanning local rollouts...
+r40-cli-rollout-checking = Checking
+r40-cli-rollout-migrating = Migrating
+r40-cli-rollout-counts-eligible = { $count } eligible  •  { $already } already paginated
+r40-cli-rollout-counts-migrated = { $count } migrated  •  { $already } already paginated
+r40-cli-rollout-progress = { $action } rollouts  { $processed }/{ $total } ({ $percent }%)  •  { $status }  •  { $skipped } skipped  •  { $failed } failed  •  { $elapsed }
+r40-cli-rollout-summary-eligible = Scanned { $total } rollout(s): { $count } eligible, { $already } already paginated, { $skipped } skipped ({ $empty } empty, { $busy } busy), { $failed } failed.
+r40-cli-rollout-summary-migrated = Scanned { $total } rollout(s): { $count } migrated, { $already } already paginated, { $skipped } skipped ({ $empty } empty, { $busy } busy), { $failed } failed.
+r40-cli-rollout-scan-complete = Scan complete
+r40-cli-rollout-migration-complete = Migration complete
+r40-cli-rollout-completion-time = { $completion } in { $elapsed }.
+r40-cli-rollout-storage = Disk used for thread storage: { $before } -> { $after }
+r40-cli-rollout-apply-hint = Run `codex migrate-rollouts --apply` to migrate eligible sessions.
+r40-cli-rollout-more = ... and { $count } more; rerun with --json for the complete report.
+r40-cli-rollout-status-eligible = eligible
+r40-cli-rollout-status-migrated = migrated
+r40-cli-rollout-status-paginated = already paginated
+r40-cli-rollout-status-empty = skipped empty
+r40-cli-rollout-status-busy = skipped busy
+r40-cli-rollout-status-failed = failed
+r40-cli-rollout-status-unknown = unknown
+r40-cli-help-agents = Open the agent command center to browse and switch sessions
+r40-cli-help-agents-no-daemon = Run the agents overview with an embedded app server

@@ -60,6 +60,11 @@ pub enum ThreadStartSource {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ThreadStartParams {
+    /// Connection-owned MCP servers. Subject to normal MCP policy; never persisted.
+    #[experimental("thread/start.runtimeMcpServers")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_servers: Option<HashMap<String, serde_json::Value>>,
     #[ts(optional = nullable)]
     pub model: Option<String>,
     #[ts(optional = nullable)]
@@ -186,6 +191,10 @@ pub struct MockExperimentalMethodResponse {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ThreadStartResponse {
+    /// Explicit registration ACK; missing on servers without runtime MCP support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_servers_applied: Option<bool>,
     pub thread: Thread,
     pub model: String,
     pub model_provider: String,
@@ -386,6 +395,11 @@ pub struct ThreadSettingsUpdatedNotification {
 ///
 /// Prefer using thread_id whenever possible.
 pub struct ThreadResumeParams {
+    /// Connection-owned MCP servers, atomically registered with runtime tools while idle.
+    #[experimental("thread/resume.runtimeMcpServers")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_servers: Option<HashMap<String, serde_json::Value>>,
     pub thread_id: String,
     /// Connection-lifetime tools, merged only while idle. Never persisted.
     #[experimental("thread/resume.runtimeDynamicTools")]
@@ -485,6 +499,10 @@ pub struct ThreadResumeParams {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ThreadResumeResponse {
+    /// Explicit MCP registration ACK, independent of native runtime-tool support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_servers_applied: Option<bool>,
     /// True only after runtime publication; false means busy with no change.
     /// Null when no supplement was requested; missing fields from older servers are accepted.
     #[serde(default)]
@@ -617,6 +635,11 @@ impl From<ThreadTurnsListResponse> for TurnsPage {
 ///
 /// Prefer using thread_id whenever possible.
 pub struct ThreadForkParams {
+    /// Connection-owned MCP servers for this fork, not inherited from its parent.
+    #[experimental("thread/fork.runtimeMcpServers")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_servers: Option<HashMap<String, serde_json::Value>>,
     pub thread_id: String,
 
     /// Start from the loaded parent's effective config, tools, environments, and
@@ -726,6 +749,10 @@ pub struct ThreadForkParams {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ThreadForkResponse {
+    /// Explicit registration ACK; missing on servers without runtime MCP support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_servers_applied: Option<bool>,
     pub thread: Thread,
     pub model: String,
     pub model_provider: String,

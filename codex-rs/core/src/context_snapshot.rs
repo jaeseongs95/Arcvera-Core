@@ -134,7 +134,7 @@ mod tests {
     fn inventory_preserves_unknown_parts_without_exposing_or_mutating_content() {
         let mut history = ContextManager::new();
         history.record_items(
-            [ResponseItem::Message {
+            &[ResponseItem::Message {
                 id: None,
                 encrypted_content: None,
                 status: None,

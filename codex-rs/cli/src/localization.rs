@@ -262,6 +262,12 @@ fn localize_metadata(locale: Locale, original: &str) -> String {
 
 fn help_message_id(original: &str) -> Option<&'static str> {
     match original {
+        "Open the agent command center to browse and switch sessions" => {
+            Some("r40-cli-help-agents")
+        }
+        "Run the agents overview with an embedded app server" => {
+            Some("r40-cli-help-agents-no-daemon")
+        }
         "Observe GitHub Actions runs without changing remote state" => Some("ci-help"),
         "Repository in [HOST/]OWNER/REPO format (defaults to the current repository)" => {
             Some("ci-help-repo")

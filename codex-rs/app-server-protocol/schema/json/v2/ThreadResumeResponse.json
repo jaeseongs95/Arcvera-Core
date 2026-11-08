@@ -3312,6 +3312,13 @@
         "null"
       ]
     },
+    "runtimeMcpServersApplied": {
+      "description": "Explicit MCP registration ACK, independent of native runtime-tool support.",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "sandbox": {
       "allOf": [
         {

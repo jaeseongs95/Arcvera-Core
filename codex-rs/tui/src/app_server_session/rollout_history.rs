@@ -95,6 +95,7 @@ impl AppServerSession {
         let client = self.request_handle();
         let connection_live = self.connection_live.clone();
         let registration = self.runtime_tool_registration_lifetime.clone();
+        let mcp = self.dynamic_tool_mcp.clone();
         tokio::spawn(async move {
             if registration.is_cancelled()
                 || selection.is_cancelled()
@@ -103,6 +104,9 @@ impl AppServerSession {
                 return;
             }
             // No retry on timeout, response loss, unsupported server, or a second busy result.
+            let expected_runtime_id = params.expected_runtime_id.clone();
+            let registration_thread_id = ThreadId::from_string(&params.thread_id).ok();
+            let require_mcp = params.runtime_mcp_servers.is_some();
             let request = tokio::time::timeout(
                 std::time::Duration::from_secs(3),
                 client.request_typed::<ThreadResumeResponse>(ClientRequest::ThreadResume {
@@ -118,8 +122,20 @@ impl AppServerSession {
                 _ = selection.cancelled() => return,
                 result = request => result,
             };
-            if !matches!(result, Ok(Ok(ref response)) if response.runtime_dynamic_tools_applied == Some(true))
+            let confirmed = matches!(result, Ok(Ok(ref response))
+                if response.runtime_dynamic_tools_applied == Some(true)
+                && (!require_mcp || response.runtime_mcp_servers_applied == Some(true))
+                && response.runtime_dynamic_tools_runtime_id == expected_runtime_id);
+            if confirmed
+                && !registration.is_cancelled()
+                && !selection.is_cancelled()
+                && connection_live.load(std::sync::atomic::Ordering::Acquire)
             {
+                if let (Some(mcp), Some(thread_id)) = (mcp, registration_thread_id) {
+                    mcp.notify_task_tools_available(thread_id);
+                }
+            }
+            if !confirmed {
                 tracing::warn!(
                     "연결 한정 도구의 유휴 보강을 확인하지 못했습니다. 자동 재전송하지 않습니다."
                 );
@@ -347,6 +363,20 @@ impl AppServerSession {
             }
         };
         if params.runtime_dynamic_tools.is_some() {
+            if params.runtime_mcp_servers.is_some()
+                && (response.runtime_mcp_servers_applied.is_none()
+                    || response.runtime_mcp_servers_applied
+                        != response.runtime_dynamic_tools_applied
+                    || response
+                        .runtime_dynamic_tools_runtime_id
+                        .as_deref()
+                        .is_none_or(str::is_empty))
+            {
+                color_eyre::eyre::bail!(
+                    "대화 {}에 연결됐지만 서버가 연결 한정 MCP 등록을 확인하지 않았습니다. 서버를 업데이트한 뒤 다시 연결하세요. 자동 재전송하지 않습니다.",
+                    thread_id
+                );
+            }
             match (
                 response.runtime_dynamic_tools_applied,
                 response.runtime_dynamic_tools_runtime_id.as_deref(),
@@ -364,6 +394,7 @@ impl AppServerSession {
                             runtime_tools_only: true,
                             expected_runtime_id: Some(runtime_id.to_string()),
                             runtime_dynamic_tools: params.runtime_dynamic_tools.clone(),
+                            runtime_mcp_servers: params.runtime_mcp_servers.clone(),
                             previous_runtime_dynamic_tools: params
                                 .previous_runtime_dynamic_tools
                                 .clone(),
@@ -395,6 +426,8 @@ impl AppServerSession {
             // explicitly retaining that history has not been queried successfully.
             self.mark_initial_history_unavailable(thread_id, response.thread.history_mode, &error);
         }
+        let runtime_mcp_confirmed = params.runtime_mcp_servers.is_none()
+            || response.runtime_mcp_servers_applied == Some(true);
         let fork_parent_title = self
             .fork_parent_title_from_app_server(response.thread.forked_from_id.as_deref())
             .await;
@@ -405,7 +438,9 @@ impl AppServerSession {
         )
         .await?;
         started.session.fork_parent_title = fork_parent_title;
-        if self.task_tools_available(thread_id) {
+        if runtime_mcp_confirmed
+            && (params.runtime_mcp_servers.is_some() || self.task_tools_available(thread_id))
+        {
             self.remember_task_tool_thread(thread_id);
             started.task_tools_available = true;
         }

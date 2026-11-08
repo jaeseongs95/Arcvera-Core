@@ -295,6 +295,11 @@ fn normalize_path(value: &str, aliases: &[(String, String)]) -> Option<String> {
 }
 
 fn known_segment_name(text: &str, source: TextSource<'_>) -> Option<String> {
+    if matches!(source, TextSource::Message("user" | "developer"))
+        && text.trim() == normalize_line_endings(codex_core::compact::SUMMARIZATION_PROMPT).trim()
+    {
+        return Some("SUMMARIZATION_PROMPT".to_string());
+    }
     let prefixes: &[(&str, &str)] = match source {
         TextSource::ModelInstructions => &[
             (GUARDIAN_INSTRUCTIONS_PREFIX, "GUARDIAN_INSTRUCTIONS"),

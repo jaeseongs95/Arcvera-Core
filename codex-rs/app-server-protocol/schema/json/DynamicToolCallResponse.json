@@ -64,6 +64,23 @@
           "type": "object"
         }
       ]
+    },
+    "DynamicToolMemoryContext": {
+      "oneOf": [
+        {
+          "enum": [
+            "snapshot"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "An attempted mutation may have partial effects even when its RPC fails. This invalidates older snapshots; it is not an acknowledgment of success.",
+          "enum": [
+            "mutation_boundary"
+          ],
+          "type": "string"
+        }
+      ]
     }
   },
   "properties": {
@@ -72,6 +89,17 @@
         "$ref": "#/definitions/DynamicToolCallOutputContentItem"
       },
       "type": "array"
+    },
+    "memoryContext": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/DynamicToolMemoryContext"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "This authorized client's own memory result lifetime, never user authority."
     },
     "success": {
       "type": "boolean"

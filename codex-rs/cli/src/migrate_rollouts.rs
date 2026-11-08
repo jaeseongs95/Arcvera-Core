@@ -16,6 +16,7 @@ use codex_thread_store::RolloutMigrationOptions;
 use codex_thread_store::RolloutMigrationProgress;
 use codex_thread_store::RolloutMigrationReport;
 use codex_thread_store::RolloutMigrationStatus;
+use codex_tui::i18n::message;
 use codex_utils_cli::CliConfigOverrides;
 
 #[derive(Debug, Parser)]
@@ -63,7 +64,13 @@ pub(crate) async fn run(
         /*default_analytics_enabled*/ true,
     )
     .unwrap_or_else(|error| {
-        eprintln!("Could not create otel exporter: {error}");
+        eprintln!(
+            "{}",
+            message(
+                "r40-cli-rollout-otel-failed",
+                &[("error", &error.to_string())]
+            )
+        );
         None
     });
     codex_core::otel_init::record_process_start(otel.as_ref(), "codex_migrate_rollouts");
@@ -89,7 +96,7 @@ pub(crate) async fn run(
         Some(
             codex_rollout::state_db::try_init(&config)
                 .await
-                .context("failed to initialize local thread metadata")?,
+                .context(message("r40-cli-rollout-metadata-failed", &[]))?,
         )
     } else {
         None
@@ -131,7 +138,7 @@ pub(crate) async fn run(
         .iter()
         .any(|outcome| outcome.status == RolloutMigrationStatus::Failed)
     {
-        anyhow::bail!("one or more rollout migrations failed");
+        anyhow::bail!("{}", message("r40-cli-rollout-failed", &[]));
     }
     Ok(())
 }
@@ -182,7 +189,7 @@ impl MigrationProgress {
 
     fn begin(&self) {
         if self.output != ProgressOutput::Quiet {
-            eprintln!("Scanning local rollouts...");
+            eprintln!("{}", message("r40-cli-rollout-scanning", &[]));
         }
     }
 
@@ -238,26 +245,37 @@ impl MigrationProgress {
             .checked_div(update.total_paths)
             .unwrap_or(100);
         let action = match self.mode {
-            RolloutMigrationMode::DryRun => "Checking",
-            RolloutMigrationMode::Apply => "Migrating",
+            RolloutMigrationMode::DryRun => message("r40-cli-rollout-checking", &[]),
+            RolloutMigrationMode::Apply => message("r40-cli-rollout-migrating", &[]),
         };
         let status_counts = match self.mode {
-            RolloutMigrationMode::DryRun => format!(
-                "{} eligible  •  {} already paginated",
-                self.counts.eligible, self.counts.already_paginated
+            RolloutMigrationMode::DryRun => message(
+                "r40-cli-rollout-counts-eligible",
+                &[
+                    ("count", &self.counts.eligible.to_string()),
+                    ("already", &self.counts.already_paginated.to_string()),
+                ],
             ),
-            RolloutMigrationMode::Apply => format!(
-                "{} migrated  •  {} already paginated",
-                self.counts.migrated, self.counts.already_paginated
+            RolloutMigrationMode::Apply => message(
+                "r40-cli-rollout-counts-migrated",
+                &[
+                    ("count", &self.counts.migrated.to_string()),
+                    ("already", &self.counts.already_paginated.to_string()),
+                ],
             ),
         };
-        format!(
-            "{action} rollouts  {}/{} ({percent}%)  •  {status_counts}  •  {} skipped  •  {} failed  •  {}",
-            update.processed_paths,
-            update.total_paths,
-            self.counts.skipped(),
-            self.counts.failed,
-            format_elapsed(self.elapsed()),
+        message(
+            "r40-cli-rollout-progress",
+            &[
+                ("action", &action),
+                ("processed", &update.processed_paths.to_string()),
+                ("total", &update.total_paths.to_string()),
+                ("percent", &percent.to_string()),
+                ("status", &status_counts),
+                ("skipped", &self.counts.skipped().to_string()),
+                ("failed", &self.counts.failed.to_string()),
+                ("elapsed", &format_elapsed(self.elapsed())),
+            ],
         )
     }
 }
@@ -301,41 +319,65 @@ fn print_human_report(
         counts.observe(outcome.status);
     }
     let completion = match mode {
-        RolloutMigrationMode::DryRun => "Scan complete",
-        RolloutMigrationMode::Apply => "Migration complete",
+        RolloutMigrationMode::DryRun => message("r40-cli-rollout-scan-complete", &[]),
+        RolloutMigrationMode::Apply => message("r40-cli-rollout-migration-complete", &[]),
     };
-    println!("{completion} in {}.", format_elapsed(elapsed));
+    println!(
+        "{}",
+        message(
+            "r40-cli-rollout-completion-time",
+            &[
+                ("completion", &completion),
+                ("elapsed", &format_elapsed(elapsed))
+            ]
+        )
+    );
     match mode {
         RolloutMigrationMode::DryRun => println!(
-            "Scanned {} rollout(s): {} eligible, {} already paginated, {} skipped ({} empty, {} busy), {} failed.",
-            report.outcomes.len(),
-            counts.eligible,
-            counts.already_paginated,
-            counts.skipped(),
-            counts.skipped_empty,
-            counts.skipped_busy,
-            counts.failed,
+            "{}",
+            message(
+                "r40-cli-rollout-summary-eligible",
+                &[
+                    ("total", &report.outcomes.len().to_string()),
+                    ("count", &counts.eligible.to_string()),
+                    ("already", &counts.already_paginated.to_string()),
+                    ("skipped", &counts.skipped().to_string()),
+                    ("empty", &counts.skipped_empty.to_string()),
+                    ("busy", &counts.skipped_busy.to_string()),
+                    ("failed", &counts.failed.to_string())
+                ]
+            )
         ),
         RolloutMigrationMode::Apply => println!(
-            "Scanned {} rollout(s): {} migrated, {} already paginated, {} skipped ({} empty, {} busy), {} failed.",
-            report.outcomes.len(),
-            counts.migrated,
-            counts.already_paginated,
-            counts.skipped(),
-            counts.skipped_empty,
-            counts.skipped_busy,
-            counts.failed,
+            "{}",
+            message(
+                "r40-cli-rollout-summary-migrated",
+                &[
+                    ("total", &report.outcomes.len().to_string()),
+                    ("count", &counts.migrated.to_string()),
+                    ("already", &counts.already_paginated.to_string()),
+                    ("skipped", &counts.skipped().to_string()),
+                    ("empty", &counts.skipped_empty.to_string()),
+                    ("busy", &counts.skipped_busy.to_string()),
+                    ("failed", &counts.failed.to_string())
+                ]
+            )
         ),
     }
     if let Some((before, after)) = thread_storage {
         println!(
-            "Disk used for thread storage: {} -> {}",
-            format_bytes(before),
-            format_bytes(after)
+            "{}",
+            message(
+                "r40-cli-rollout-storage",
+                &[
+                    ("before", &format_bytes(before)),
+                    ("after", &format_bytes(after))
+                ]
+            )
         );
     }
     if mode == RolloutMigrationMode::DryRun && counts.eligible > 0 {
-        println!("Run `codex migrate-rollouts --apply` to migrate eligible sessions.");
+        println!("{}", message("r40-cli-rollout-apply-hint", &[]));
     }
 
     if verbose {
@@ -361,24 +403,33 @@ fn print_human_report(
     }
     if exception_count > MAX_EXCEPTION_DETAILS {
         println!(
-            "... and {} more; rerun with --json for the complete report.",
-            exception_count - MAX_EXCEPTION_DETAILS
+            "{}",
+            message(
+                "r40-cli-rollout-more",
+                &[(
+                    "count",
+                    &(exception_count - MAX_EXCEPTION_DETAILS).to_string()
+                )]
+            )
         );
     }
 }
 
 fn print_outcome(outcome: &codex_thread_store::RolloutMigrationOutcome) {
     let status = match outcome.status {
-        RolloutMigrationStatus::Eligible => "eligible",
-        RolloutMigrationStatus::Migrated => "migrated",
-        RolloutMigrationStatus::AlreadyPaginated => "already paginated",
-        RolloutMigrationStatus::SkippedEmpty => "skipped empty",
-        RolloutMigrationStatus::SkippedBusy => "skipped busy",
-        RolloutMigrationStatus::Failed => "failed",
+        RolloutMigrationStatus::Eligible => message("r40-cli-rollout-status-eligible", &[]),
+        RolloutMigrationStatus::Migrated => message("r40-cli-rollout-status-migrated", &[]),
+        RolloutMigrationStatus::AlreadyPaginated => {
+            message("r40-cli-rollout-status-paginated", &[])
+        }
+        RolloutMigrationStatus::SkippedEmpty => message("r40-cli-rollout-status-empty", &[]),
+        RolloutMigrationStatus::SkippedBusy => message("r40-cli-rollout-status-busy", &[]),
+        RolloutMigrationStatus::Failed => message("r40-cli-rollout-status-failed", &[]),
     };
-    let thread_id = outcome
-        .thread_id
-        .map_or_else(|| "unknown".to_string(), |thread_id| thread_id.to_string());
+    let thread_id = outcome.thread_id.map_or_else(
+        || message("r40-cli-rollout-status-unknown", &[]),
+        |thread_id| thread_id.to_string(),
+    );
     match &outcome.message {
         Some(message) => println!("{status}\t{thread_id}\t{message}"),
         None => println!("{status}\t{thread_id}"),

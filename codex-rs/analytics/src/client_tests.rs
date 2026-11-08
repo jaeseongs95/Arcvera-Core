@@ -685,6 +685,7 @@ fn sample_thread(thread_id: &str) -> Thread {
 
 fn sample_thread_start_response() -> ClientResponsePayload {
     ClientResponsePayload::ThreadStart(ThreadStartResponse {
+        runtime_mcp_servers_applied: None,
         disabled_plugin_ids: Vec::new(),
         thread: sample_thread("thread-1"),
         model: "gpt-5".to_string(),
@@ -704,6 +705,7 @@ fn sample_thread_start_response() -> ClientResponsePayload {
 
 fn sample_thread_resume_response() -> ClientResponsePayload {
     ClientResponsePayload::ThreadResume(ThreadResumeResponse {
+        runtime_mcp_servers_applied: None,
         runtime_dynamic_tools_applied: None,
         runtime_dynamic_tools_runtime_id: None,
         supports_compact_if_idle: None,
@@ -731,6 +733,7 @@ fn sample_thread_resume_response() -> ClientResponsePayload {
 
 fn sample_thread_fork_response() -> ClientResponsePayload {
     ClientResponsePayload::ThreadFork(ThreadForkResponse {
+        runtime_mcp_servers_applied: None,
         disabled_plugin_ids: Vec::new(),
         thread: sample_thread("thread-3"),
         model: "gpt-5".to_string(),
