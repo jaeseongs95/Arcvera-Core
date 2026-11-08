@@ -1,0 +1,48 @@
+name: R40 focused checks
+
+on:
+  push:
+    branches:
+      - work/r40-development-20261108
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: codex-rs
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582
+        with:
+          toolchain: '1.95.0'
+          components: rustfmt
+      - run: cargo fmt -- --config imports_granularity=Item --check
+
+  protocol:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: codex-rs
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '1'
+      RUST_MIN_STACK: '8388608'
+      INSTA_UPDATE: 'no'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582
+        with:
+          toolchain: '1.95.0'
+      - name: Protocol serialization and generated schema parity
+        run: cargo test --locked --profile dev-small -j1 -p codex-app-server-protocol --lib -- --test-threads=1
