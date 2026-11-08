@@ -62,7 +62,11 @@ pub(super) fn chart_lines(
     let values = daily_values(buckets, today);
     let shown_columns = shown_columns(width);
     if shown_columns == 0 {
-        lines.push(crate::i18n::text("   Widen terminal to show activity graph").dim().into());
+        lines.push(
+            crate::i18n::text("   Widen terminal to show activity graph")
+                .dim()
+                .into(),
+        );
         return lines;
     }
 
@@ -181,7 +185,11 @@ fn bar_caption(view: TokenActivityView, values: &[i64]) -> Line<'static> {
         TokenActivityView::Daily => ("", 0),
     };
     if peak <= 0 {
-        return Span::styled(crate::i18n::text("   No token activity in the last 12 months"), label_style()).into();
+        return Span::styled(
+            crate::i18n::text("   No token activity in the last 12 months"),
+            label_style(),
+        )
+        .into();
     }
     vec![
         Span::styled(format!("   {lead}"), label_style()),

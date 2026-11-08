@@ -60,19 +60,22 @@ impl<T: Send + 'static> Load<T> {
         timeout: std::time::Duration,
     ) -> Self {
         let (sender, receiver) = oneshot::channel();
-        let task =
-            tokio::spawn(async move {
-                let result =
-                    match tokio::time::timeout(timeout, AssertUnwindSafe(future).catch_unwind())
-                        .await
-                    {
-                        Ok(Ok(result)) => result,
-                        Ok(Err(_)) => Err(crate::i18n::text("Request interrupted. Press R to retry.").into()),
-                        Err(_) => Err(crate::i18n::text("Request timed out. Press R to retry.").into()),
-                    };
-                let _ = sender.send(result);
-                frame.schedule_frame();
-            });
+        let task = tokio::spawn(async move {
+            let result = match tokio::time::timeout(
+                timeout,
+                AssertUnwindSafe(future).catch_unwind(),
+            )
+            .await
+            {
+                Ok(Ok(result)) => result,
+                Ok(Err(_)) => {
+                    Err(crate::i18n::text("Request interrupted. Press R to retry.").into())
+                }
+                Err(_) => Err(crate::i18n::text("Request timed out. Press R to retry.").into()),
+            };
+            let _ = sender.send(result);
+            frame.schedule_frame();
+        });
         Self::Loading(Pending { receiver, task })
     }
 

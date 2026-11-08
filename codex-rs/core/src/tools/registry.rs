@@ -333,9 +333,10 @@ fn annotate_memory_context(
     context: Option<codex_protocol::dynamic_tools::DynamicToolMemoryContext>,
 ) {
     use codex_protocol::dynamic_tools::DynamicToolMemoryContext;
-    use codex_protocol::models::{
-        ContentItemKind, ContentItemMetadata, FunctionCallOutputBody, ResponseItem,
-    };
+    use codex_protocol::models::ContentItemKind;
+    use codex_protocol::models::ContentItemMetadata;
+    use codex_protocol::models::FunctionCallOutputBody;
+    use codex_protocol::models::ResponseItem;
     let Some(context) = context else {
         return;
     };
@@ -1198,7 +1199,8 @@ mod tests;
 mod memory_context_tests {
     use super::*;
     use codex_protocol::dynamic_tools::DynamicToolMemoryContext;
-    use codex_protocol::models::{ContentItemProvenance, ResponseItem};
+    use codex_protocol::models::ContentItemProvenance;
+    use codex_protocol::models::ResponseItem;
 
     #[test]
     fn feedback_preserves_original_lifetime_and_host_annotation_stays_tool_provenance() {

@@ -1812,7 +1812,8 @@ async fn project_source_cwd_reclassification_rejects_foreign_history_before_samp
 -> anyhow::Result<()> {
     use codex_config::memory_scope::MemoryProject;
     use codex_config::types::MemoryScope;
-    use codex_protocol::protocol::{ThreadMemoryScope, ThreadSettingsAppliedEvent};
+    use codex_protocol::protocol::ThreadMemoryScope;
+    use codex_protocol::protocol::ThreadSettingsAppliedEvent;
     // A positive control proves that zero requests are caused by scope validation.
     for foreign in [true, false] {
         let server = start_mock_server().await;

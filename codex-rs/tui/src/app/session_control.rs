@@ -1,10 +1,14 @@
 //! Local controls use the originating model call and the existing confirmed APIs.
 use super::App;
 use crate::app_server_session::AppServerSession;
-use crate::session_control::{Command, Scope};
-use codex_app_server_protocol::{ClientRequest, RequestId, ThreadSettingsUpdateParams};
+use crate::session_control::Command;
+use crate::session_control::Scope;
+use codex_app_server_protocol::ClientRequest;
+use codex_app_server_protocol::RequestId;
+use codex_app_server_protocol::ThreadSettingsUpdateParams;
 use codex_protocol::ThreadId;
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
 impl App {
     pub(super) async fn handle_session_control_tool_call(

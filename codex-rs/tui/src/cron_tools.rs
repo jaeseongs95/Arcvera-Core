@@ -4,16 +4,19 @@ use crate::app_event_sender::AppEventSender;
 use crate::backend_id::BackendId;
 use crate::dynamic_tools;
 use crate::i18n::text;
-use codex_app_server_protocol::{
-    DynamicToolCallParams, DynamicToolCallResponse, DynamicToolFunctionSpec,
-    DynamicToolNamespaceSpec, DynamicToolNamespaceTool, DynamicToolSpec,
-};
+use codex_app_server_protocol::DynamicToolCallParams;
+use codex_app_server_protocol::DynamicToolCallResponse;
+use codex_app_server_protocol::DynamicToolFunctionSpec;
+use codex_app_server_protocol::DynamicToolNamespaceSpec;
+use codex_app_server_protocol::DynamicToolNamespaceTool;
+use codex_app_server_protocol::DynamicToolSpec;
 use serde::Deserialize;
-use serde_json::{Value, json};
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, AtomicU8, Ordering},
-};
+use serde_json::Value;
+use serde_json::json;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicU8;
+use std::sync::atomic::Ordering;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
@@ -227,7 +230,8 @@ mod tests {
 
     #[test]
     fn cron_argument_errors_follow_locale_but_commands_and_specs_do_not() {
-        use crate::i18n::{Locale, with_locale};
+        use crate::i18n::Locale;
+        use crate::i18n::with_locale;
         let english_specs = with_locale(Locale::English, || serde_json::to_value(specs()).unwrap());
         let korean_specs = with_locale(Locale::Korean, || serde_json::to_value(specs()).unwrap());
         assert_eq!(english_specs, korean_specs);
@@ -295,9 +299,11 @@ mod tests {
     #[tokio::test]
     async fn cron_execute_verifies_real_thread_read_policy_before_queueing()
     -> color_eyre::Result<()> {
-        use codex_app_server_protocol::{JSONRPCMessage, SessionSource};
+        use codex_app_server_protocol::JSONRPCMessage;
+        use codex_app_server_protocol::SessionSource;
         use codex_protocol::ThreadId;
-        use futures::{SinkExt, StreamExt};
+        use futures::SinkExt;
+        use futures::StreamExt;
         use tokio_tungstenite::tungstenite::Message;
         for case in ["wrong-id", "direct-input-denied", "subagent", "valid"] {
             let caller = ThreadId::new();

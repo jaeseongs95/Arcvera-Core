@@ -477,9 +477,12 @@ async fn capacity_completed_tool_output_is_retained_across_retry() -> anyhow::Re
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn capacity_budget_survives_real_generic_transport_fallback() -> anyhow::Result<()> {
     use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, ResponseTemplate};
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+    use wiremock::Mock;
+    use wiremock::ResponseTemplate;
+    use wiremock::matchers::method;
+    use wiremock::matchers::path;
     let server = responses::start_mock_server().await;
     let gets = Arc::new(AtomicUsize::new(0));
     let warmup = Arc::new(tokio::sync::Notify::new());

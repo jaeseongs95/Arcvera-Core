@@ -154,10 +154,9 @@ impl AnalyticsView {
         let (lines, selection) = if self.show_help {
             (self.help_lines(width), 0..1)
         } else if visible.is_empty() {
-            let message = self
-                .account
-                .message()
-                .unwrap_or(crate::i18n::text("Analytics is not available for this account type."));
+            let message = self.account.message().unwrap_or(crate::i18n::text(
+                "Analytics is not available for this account type.",
+            ));
             (
                 textwrap::wrap(message, width)
                     .into_iter()

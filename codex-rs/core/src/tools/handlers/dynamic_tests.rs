@@ -11,7 +11,8 @@ use std::time::Duration;
 
 #[test]
 fn native_mutation_fence_is_tool_context_not_user_authorization() {
-    use crate::context::{is_contextual_user_fragment, is_user_authorization_message};
+    use crate::context::is_contextual_user_fragment;
+    use crate::context::is_user_authorization_message;
     let item = Box::new(MemoryMutationFence {
         call_id: "opaque-native-call".into(),
         step_turn_id: "captured-step-turn".into(),

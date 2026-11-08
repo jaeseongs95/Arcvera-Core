@@ -85,7 +85,8 @@ impl AnalyticsView {
                             "r39-analytics-by",
                             &[(
                                 "group",
-                                &self.group_label(section, self.sections[section].group)
+                                &self
+                                    .group_label(section, self.sections[section].group)
                                     .to_lowercase(),
                             )],
                         )
@@ -121,7 +122,9 @@ impl AnalyticsView {
                         if let Some(chats) = self.chats.ready() {
                             if chats.rows.is_empty() {
                                 content.push(
-                                    crate::i18n::text("No recent local chats.").set_style(secondary_style()).into(),
+                                    crate::i18n::text("No recent local chats.")
+                                        .set_style(secondary_style())
+                                        .into(),
                                 );
                             }
                             for chat in chats.rows.iter().take(/*n*/ 5) {
@@ -162,8 +165,9 @@ impl AnalyticsView {
                 let mut content = word_wrap_lines(content, RtOptions::new(inner_width));
                 if content.len() > inner_height {
                     content.truncate(inner_height);
-                    content[inner_height - 1] =
-                        crate::i18n::text("… z to maximize").set_style(secondary_style()).into();
+                    content[inner_height - 1] = crate::i18n::text("… z to maximize")
+                        .set_style(secondary_style())
+                        .into();
                 }
                 content.resize(inner_height, Line::default());
                 let label = format!(" {} {} ", row * count + column + 1, self.tab_label(section));

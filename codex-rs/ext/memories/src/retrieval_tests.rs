@@ -434,14 +434,15 @@ async fn dedicated_v2_tools_cannot_bypass_publication_via_old_rollout_inputs() {
 
 #[tokio::test]
 async fn legacy_v1_and_versioned_v1_have_distinct_publication_contracts() {
-    use crate::backend::{
-        ListMemoriesRequest, MemoriesBackend, MemoriesBackendError, ReadMemoryRequest,
-        SearchMatchMode, SearchMemoriesRequest,
-    };
+    use crate::backend::ListMemoriesRequest;
+    use crate::backend::MemoriesBackend;
+    use crate::backend::MemoriesBackendError;
+    use crate::backend::ReadMemoryRequest;
+    use crate::backend::SearchMatchMode;
+    use crate::backend::SearchMemoriesRequest;
     use crate::local::LocalMemoriesBackend;
-    use codex_memories_read::publication::{
-        collect_published_artifacts, published_artifact_digests,
-    };
+    use codex_memories_read::publication::collect_published_artifacts;
+    use codex_memories_read::publication::published_artifact_digests;
     let fixture = tempfile::tempdir().unwrap();
     let root = AbsolutePathBuf::from_absolute_path_checked(fixture.path())
         .unwrap()

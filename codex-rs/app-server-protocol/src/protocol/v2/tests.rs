@@ -5797,7 +5797,8 @@ fn feedback_paths_preserve_native_wire_spelling_before_host_validation() {
 
 #[test]
 fn start_if_idle_wire_has_explicit_outcomes_and_no_screen_setting_overrides() {
-    use super::{TurnStartIfIdleParams, TurnStartIfIdleResponse};
+    use super::TurnStartIfIdleParams;
+    use super::TurnStartIfIdleResponse;
     assert_eq!(
         serde_json::to_value(TurnStartIfIdleResponse::SkippedBusy).unwrap(),
         json!({"status":"skippedBusy"})

@@ -1,12 +1,16 @@
 //! CLI-lifetime cron integration: immutable targets, normal protocol input, one loop deadline.
 use super::*;
 use crate::backend_id::BackendId;
-use crate::cron::{Phase, Schedule, Scheduler, Submission};
+use crate::cron::Phase;
+use crate::cron::Schedule;
+use crate::cron::Scheduler;
+use crate::cron::Submission;
 use crate::i18n::text;
-use codex_app_server_protocol::{
-    RequestId as AppServerRequestId, TurnInterruptParams, TurnInterruptResponse,
-    TurnStartIfIdleParams, TurnStartIfIdleResponse,
-};
+use codex_app_server_protocol::RequestId as AppServerRequestId;
+use codex_app_server_protocol::TurnInterruptParams;
+use codex_app_server_protocol::TurnInterruptResponse;
+use codex_app_server_protocol::TurnStartIfIdleParams;
+use codex_app_server_protocol::TurnStartIfIdleResponse;
 use std::time::Instant as MonotonicInstant;
 
 const MAX_MODEL_CALLS: usize = 1_024;
@@ -952,7 +956,8 @@ mod tests {
     #[test]
     fn cron_commands_and_model_results_follow_ui_locale_without_changing_inputs()
     -> color_eyre::Result<()> {
-        use crate::i18n::{Locale, with_locale};
+        use crate::i18n::Locale;
+        use crate::i18n::with_locale;
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?;
@@ -1899,7 +1904,8 @@ mod tests {
 
     #[test]
     fn model_cron_mcp_metadata_and_cancelled_queue_fail_closed() -> color_eyre::Result<()> {
-        use crate::i18n::{Locale, with_locale};
+        use crate::i18n::Locale;
+        use crate::i18n::with_locale;
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?;
@@ -2070,11 +2076,11 @@ mod tests {
     #[tokio::test]
     async fn model_cron_native_roundtrip_lists_and_resumes_existing_job() -> color_eyre::Result<()>
     {
-        use app_test_support::{
-            MockResponsesConfig, create_final_assistant_message_sse_response,
-            create_mock_responses_server_sequence_unchecked,
-        };
-        use codex_login::{AuthCredentialsStoreMode, AuthKeyringBackendKind};
+        use app_test_support::MockResponsesConfig;
+        use app_test_support::create_final_assistant_message_sse_response;
+        use app_test_support::create_mock_responses_server_sequence_unchecked;
+        use codex_login::AuthCredentialsStoreMode;
+        use codex_login::AuthKeyringBackendKind;
         use codex_model_provider_info::ModelProviderInfo;
         use codex_utils_absolute_path::test_support::PathExt;
         use core_test_support::responses;
@@ -2277,11 +2283,11 @@ mod tests {
 
     #[tokio::test]
     async fn cron_a_survives_plain_b_navigation_and_preserves_b_draft() -> color_eyre::Result<()> {
-        use app_test_support::{
-            MockResponsesConfig, create_final_assistant_message_sse_response,
-            create_mock_responses_server_sequence_unchecked,
-        };
-        use codex_login::{AuthCredentialsStoreMode, AuthKeyringBackendKind};
+        use app_test_support::MockResponsesConfig;
+        use app_test_support::create_final_assistant_message_sse_response;
+        use app_test_support::create_mock_responses_server_sequence_unchecked;
+        use codex_login::AuthCredentialsStoreMode;
+        use codex_login::AuthKeyringBackendKind;
         use codex_model_provider_info::ModelProviderInfo;
         use codex_utils_absolute_path::test_support::PathExt;
         let model_server = create_mock_responses_server_sequence_unchecked(vec![
@@ -2442,9 +2448,11 @@ mod tests {
     #[tokio::test]
     async fn cron_remove_cancel_and_late_reply_keep_exact_turn_until_terminal()
     -> color_eyre::Result<()> {
-        use codex_app_server_protocol::{
-            JSONRPCMessage, Turn, TurnCompletedNotification, TurnItemsView, TurnStatus,
-        };
+        use codex_app_server_protocol::JSONRPCMessage;
+        use codex_app_server_protocol::Turn;
+        use codex_app_server_protocol::TurnCompletedNotification;
+        use codex_app_server_protocol::TurnItemsView;
+        use codex_app_server_protocol::TurnStatus;
         let (mut app, mut events, _ops) = crate::app::tests::make_test_app_with_channels().await;
         let (session, mut observed, worker) =
             super::super::app_server_requests::retained_reply_tests::connection_with_expected_turn_interrupt(Some(true)).await?;

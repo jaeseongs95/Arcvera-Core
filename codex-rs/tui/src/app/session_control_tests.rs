@@ -1,10 +1,12 @@
 use super::*;
 use crate::backend_id::BackendId;
 use crate::session_control;
-use codex_app_server_protocol::{DynamicToolCallParams, DynamicToolCallResponse};
+use codex_app_server_protocol::DynamicToolCallParams;
+use codex_app_server_protocol::DynamicToolCallResponse;
 use codex_features::Feature;
 use codex_utils_absolute_path::test_support::PathExt;
-use std::sync::{Arc, atomic::AtomicU8};
+use std::sync::Arc;
+use std::sync::atomic::AtomicU8;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
@@ -647,7 +649,8 @@ async fn control_server_with_metadata(
     tokio::sync::mpsc::UnboundedSender<Value>,
 )> {
     use codex_app_server_protocol::JSONRPCMessage;
-    use futures::{SinkExt, StreamExt};
+    use futures::SinkExt;
+    use futures::StreamExt;
     use tokio_tungstenite::tungstenite::Message;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let endpoint = crate::resolve_remote_addr(&format!("ws://{}", listener.local_addr()?))?;
@@ -867,7 +870,8 @@ async fn memory_note_scope_control_forwards_project_without_rebinding_global_thr
 
 #[test]
 fn memory_note_scope_errors_have_english_and_korean_catalog_messages() {
-    use crate::i18n::{Locale, message_for};
+    use crate::i18n::Locale;
+    use crate::i18n::message_for;
     for (key, english, korean) in [
         (
             "controls-memory-note-scope-unsupported",

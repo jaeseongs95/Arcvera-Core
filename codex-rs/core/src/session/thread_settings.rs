@@ -358,10 +358,10 @@ type RuntimeToolKey = (Option<String>, String);
 #[cfg(test)]
 mod runtime_merge_tests {
     use super::*;
-    use codex_protocol::dynamic_tools::{
-        DynamicToolFunctionSpec, DynamicToolNamespaceSpec, DynamicToolNamespaceTool,
-        DynamicToolSpec,
-    };
+    use codex_protocol::dynamic_tools::DynamicToolFunctionSpec;
+    use codex_protocol::dynamic_tools::DynamicToolNamespaceSpec;
+    use codex_protocol::dynamic_tools::DynamicToolNamespaceTool;
+    use codex_protocol::dynamic_tools::DynamicToolSpec;
 
     fn namespace(description: &str, tools: &[(&str, &str)]) -> DynamicToolSpec {
         DynamicToolSpec::Namespace(DynamicToolNamespaceSpec {
@@ -429,7 +429,8 @@ fn merge_runtime_tools(
     ),
     String,
 > {
-    use codex_protocol::dynamic_tools::{DynamicToolNamespaceTool, DynamicToolSpec};
+    use codex_protocol::dynamic_tools::DynamicToolNamespaceTool;
+    use codex_protocol::dynamic_tools::DynamicToolSpec;
     fn expected(
         previous: &[DynamicToolSpec],
         namespace: Option<&str>,

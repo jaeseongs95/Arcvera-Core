@@ -8,7 +8,9 @@ use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ServerRequestResolvedNotification;
 use codex_app_server_protocol::ToolRequestUserInputParams;
 use codex_app_server_protocol::TurnCompletedNotification;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyCode;
+use crossterm::event::KeyEvent;
+use crossterm::event::KeyModifiers;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 
@@ -327,7 +329,9 @@ async fn footer_selection_public_keys_preserve_draft_and_escape_never_interrupts
 #[tokio::test]
 async fn footer_mouse_capture_and_raw_terminal_coordinates_follow_painted_visibility() {
     use crate::tui::MouseCapture;
-    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    use crossterm::event::MouseButton;
+    use crossterm::event::MouseEvent;
+    use crossterm::event::MouseEventKind;
     let (mut widget, _sender, mut events, _ops) =
         crate::chatwidget::tests::make_chatwidget_manual_with_sender().await;
     let root = ThreadId::new();
@@ -442,7 +446,9 @@ async fn footer_selection_uses_owned_terminal_routing_and_existing_thread_switch
         "root draft survives visit"
     );
     for owned in [true, false] {
-        use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+        use crossterm::event::MouseButton;
+        use crossterm::event::MouseEvent;
+        use crossterm::event::MouseEventKind;
         tui.set_owned_screen(owned)?;
         app.chat_widget
             .handle_key_event(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT));
@@ -681,7 +687,9 @@ async fn footer_selection_uses_owned_terminal_routing_and_existing_thread_switch
     // Repaint after the rejected event before relying on the actual hit map.
     paint_widget_footer(&app.chat_widget, 47);
     while events.try_recv().is_ok() {}
-    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    use crossterm::event::MouseButton;
+    use crossterm::event::MouseEvent;
+    use crossterm::event::MouseEventKind;
     let click = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
         column: area.x + 2,
@@ -702,7 +710,8 @@ async fn footer_selection_uses_owned_terminal_routing_and_existing_thread_switch
 #[tokio::test]
 async fn footer_hover_public_inline_owned_routes_preserve_interaction_and_modal_priority()
 -> color_eyre::Result<()> {
-    use crossterm::event::{MouseEvent, MouseEventKind};
+    use crossterm::event::MouseEvent;
+    use crossterm::event::MouseEventKind;
     use ratatui::style::Modifier;
 
     fn paint(app: &mut App, tui: &mut crate::tui::Tui, owned: bool) -> color_eyre::Result<Buffer> {

@@ -237,7 +237,8 @@ async fn assert_one_shot_owned_shutdown(
     output: OneShotOutput,
 ) {
     use core_test_support::responses;
-    use core_test_support::streaming_sse::{StreamingSseChunk, start_streaming_sse_server};
+    use core_test_support::streaming_sse::StreamingSseChunk;
+    use core_test_support::streaming_sse::start_streaming_sse_server;
 
     struct StopGate {
         entered: tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
