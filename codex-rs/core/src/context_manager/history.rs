@@ -289,7 +289,7 @@ impl ContextManager {
 
     pub(crate) fn for_session(source: &SessionSource, features: &ManagedFeatures) -> Self {
         let independent = !features.enabled(Feature::GuardianReuseParentCompaction);
-        Self {
+        let mut history = Self {
             retain_inherited_user_messages: !source.is_non_root_agent(),
             guardian_review_mode: if independent {
                 GuardianContextMode::Independent
@@ -298,7 +298,13 @@ impl ContextManager {
             },
             review_history: independent.then(TranscriptHistory::default),
             ..Self::new()
+        };
+        if history.retain_inherited_user_messages {
+            // A new root is host-known. Restoring any checkpoint replaces this
+            // state with its persisted provenance before adoption is checked.
+            Arc::make_mut(&mut history.retained_context).adopt_user_messages(false);
         }
+        history
     }
 
     pub(crate) fn reserve_input_order(&mut self) -> u64 {

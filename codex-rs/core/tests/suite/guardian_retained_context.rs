@@ -610,6 +610,7 @@ async fn retained_instructions_keep_identity_across_compaction_and_resume(
             "text": QUESTION, "complete": true}],
         "assistant_messages_incomplete": false,
         "verified_answers": ordered_answers, "incomplete": false, "next_order": next_order,
+        "standalone_root_provenance": true,
     });
     assert_eq!(
         serde_json::to_value(history.retained_context())?,
@@ -784,15 +785,18 @@ async fn legacy_checkpoint_recovers_root_excerpt_before_discarding_backup(
 
 // Cover live copied history and a truncated referenced checkpoint. Parent-answer
 // omission is already exercised by retained_answers_cross_real_session_boundaries.
-#[test_case(ThreadHistoryMode::Legacy, false, false; "copied worker history")]
-#[test_case(ThreadHistoryMode::Legacy, true, false; "compacted legacy worker")]
-#[test_case(ThreadHistoryMode::Paginated, true, false; "referenced truncated checkpoint")]
-#[test_case(ThreadHistoryMode::Paginated, true, true; "already compacted parent")]
+#[test_case(ThreadHistoryMode::Legacy, false, false, false; "copied worker history")]
+#[test_case(ThreadHistoryMode::Legacy, true, false, false; "compacted legacy worker")]
+#[test_case(ThreadHistoryMode::Paginated, true, false, false; "referenced truncated checkpoint")]
+#[test_case(ThreadHistoryMode::Paginated, true, true, false; "already compacted parent")]
+#[test_case(ThreadHistoryMode::Legacy, true, false, true; "old worker local-only checkpoint")]
+#[test_case(ThreadHistoryMode::Paginated, true, false, true; "old paginated worker local-only checkpoint")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn standalone_fork_retains_inherited_user_instructions(
     history_mode: ThreadHistoryMode,
     compacted: bool,
     compact_parent: bool,
+    old_checkpoint: bool,
 ) -> Result<()> {
     skip_if_no_network!(Ok(()));
     let server = start_mock_server().await;
@@ -912,6 +916,43 @@ async fn standalone_fork_retains_inherited_user_instructions(
         .await;
         compact_and_assert_answers(&test, &worker, &[]).await?;
     }
+    if old_checkpoint {
+        let mut checkpoint = load_context(&test, &worker)
+            .await?
+            .into_iter()
+            .rev()
+            .find_map(|item| match item {
+                RolloutItem::Compacted(checkpoint) => Some(checkpoint),
+                _ => None,
+            })
+            .context("actual worker checkpoint")?;
+        let mut wire = serde_json::to_value(
+            checkpoint
+                .retained_context
+                .as_ref()
+                .context("worker retained context")?,
+        )?;
+        assert!(
+            !wire["user_messages"]
+                .as_array()
+                .context("local family")?
+                .is_empty()
+        );
+        assert_eq!(wire["incomplete"], false);
+        wire.as_object_mut()
+            .context("checkpoint object")?
+            .remove("adoption_user_messages");
+        wire.as_object_mut()
+            .context("checkpoint object")?
+            .remove("standalone_root_provenance");
+        checkpoint.retained_context = Some(serde_json::from_value(wire)?);
+        // The old wire differs only by fields unavailable to source08 workers.
+        // Install it through the durable history path, rather than changing the
+        // live context or fabricating inherited originals from the summary.
+        worker
+            .append_rollout_items(&[RolloutItem::Compacted(checkpoint)])
+            .await?;
+    }
     let worker_context = worker.conversation_history_snapshot().await;
     let active_inherited_text = worker_context.items().find_map(|item| match item {
         ResponseItem::Message { role, content, .. } if role == "user" => {
@@ -979,7 +1020,17 @@ async fn standalone_fork_retains_inherited_user_instructions(
             false
         ),
     );
-    let mut expected_messages = vec![(inherited_text, !compacted)];
+    if old_checkpoint {
+        assert!(
+            retained.has_missing_user_messages(),
+            "legacy nonempty local family must disclose missing inherited sources"
+        );
+    }
+    let mut expected_messages = if old_checkpoint {
+        Vec::new()
+    } else {
+        vec![(inherited_text, !compacted)]
+    };
     if compact_parent {
         expected_messages.push(("Delegate an inspection.".to_owned(), false));
     }

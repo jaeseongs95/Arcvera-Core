@@ -188,6 +188,11 @@ pub struct RetainedContext {
     /// evidence; a standalone root may adopt them after a fork or resume.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     adoption_user_messages: Option<AdoptionUserMessages>,
+    /// The host has initialized or adopted this standalone root's provenance.
+    /// Old checkpoints cannot distinguish local-only workers from original roots.
+    /// This records that the gap was checked, never that missing evidence exists.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    standalone_root_provenance: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -320,10 +325,13 @@ impl RetainedContext {
     /// Consumes copied sources only when the host installs a standalone root.
     /// Existing sources win over weaker checkpoint copies, including partial adoption.
     pub fn adopt_user_messages(&mut self, checkpointed: bool) {
+        let root_provenance = self.standalone_root_provenance;
+        self.standalone_root_provenance = true;
         let Some(mut backup) = self.adoption_user_messages.take() else {
-            // Old empty checkpoints may have stripped an inherited prefix. Its
-            // absence cannot establish a complete standalone-root history.
-            if checkpointed && self.user_messages.is_empty() {
+            // A local family in an old worker checkpoint says nothing about a
+            // discarded parent prefix or parent answers. Keep those local facts
+            // intact, but disclose the gap even when the family is nonempty.
+            if checkpointed && !root_provenance {
                 self.user_messages_incomplete = true;
                 self.verified_answers_incomplete = true;
             }

@@ -238,6 +238,78 @@ fn adoption_bound_omissions_and_rollback_survive_checkpoint() {
 }
 
 #[test]
+fn adoption_old_missing_backup_with_local_messages_remains_incomplete() {
+    let mut local = RetainedContext::default();
+    local.record_user_message(
+        adoption_message("local-id", "local-turn", "Inspect only."),
+        RetainedInputSource::Local(Some(0)),
+    );
+    assert!(local.user_messages_complete());
+    assert!(local.verified_answers_complete());
+    let mut wire = serde_json::to_value(&local).unwrap();
+    wire.as_object_mut()
+        .unwrap()
+        .remove("adoption_user_messages");
+    wire.as_object_mut()
+        .unwrap()
+        .remove("standalone_root_provenance");
+    let expected_source = wire["user_messages"].clone();
+    for _ in 0..3 {
+        let checkpoint = serde_json::from_value(wire).unwrap();
+        let mut root = RetainedContext::default();
+        root.restore(Some(&checkpoint), &[]);
+        root.adopt_user_messages(true);
+        assert!(
+            root.has_missing_user_messages(),
+            "legacy local source cannot prove the missing inherited prefix"
+        );
+        assert!(!root.user_messages_complete());
+        assert!(
+            !root.verified_answers_complete(),
+            "legacy local source cannot prove absent parent answers"
+        );
+        assert_eq!(root.verified_answers().count(), 0);
+        wire = serde_json::to_value(&root).unwrap();
+        assert_eq!(wire["user_messages"], expected_source);
+    }
+}
+
+#[test]
+fn adoption_preserves_known_root_completeness_and_legacy_root_facts() {
+    let mut root = RetainedContext::default();
+    root.adopt_user_messages(false);
+    root.record_user_message(
+        adoption_message("root-local", "root-turn", "Never publish."),
+        RetainedInputSource::Local(Some(0)),
+    );
+    root.record(&publish_answer());
+    let expected = root.clone();
+    let checkpoint = serde_json::from_value(serde_json::to_value(&root).unwrap()).unwrap();
+    root.restore(Some(&checkpoint), &[]);
+    root.adopt_user_messages(true);
+    assert_eq!(root, expected);
+    assert!(root.user_messages_complete());
+    assert!(root.verified_answers_complete());
+
+    // Older checkpoints cannot prove whether they were roots or workers. Keep
+    // every local fact, but conservatively disclose that provenance gap.
+    let mut wire = serde_json::to_value(&root).unwrap();
+    wire.as_object_mut()
+        .unwrap()
+        .remove("standalone_root_provenance");
+    let expected_messages = wire["user_messages"].clone();
+    let expected_answers = wire["verified_answers"].clone();
+    let checkpoint = serde_json::from_value(wire).unwrap();
+    root.restore(Some(&checkpoint), &[]);
+    root.adopt_user_messages(true);
+    assert!(root.has_missing_user_messages());
+    assert!(!root.verified_answers_complete());
+    let wire = serde_json::to_value(root).unwrap();
+    assert_eq!(wire["user_messages"], expected_messages);
+    assert_eq!(wire["verified_answers"], expected_answers);
+}
+
+#[test]
 fn adoption_old_missing_backup_and_oversized_sources_remain_incomplete() {
     let mut old = RetainedContext::default();
     old.adopt_user_messages(true);
