@@ -290,7 +290,7 @@ async fn validate_profile_v2_migration(
         .loader_overrides(loader_overrides)
         .build()
         .await
-        .context("failed to load configuration")?;
+        .context(codex_tui::i18n::text("failed to load configuration"))?;
     Ok(())
 }
 
@@ -312,7 +312,7 @@ async fn run_add(config: &Config, add_args: AddArgs) -> Result<()> {
                 let mut command_parts = stdio.command.into_iter();
                 let command_bin = command_parts
                     .next()
-                    .ok_or_else(|| anyhow!("command is required"))?;
+                    .ok_or_else(|| anyhow!("{}", codex_tui::i18n::text("command is required")))?;
                 let command_args: Vec<String> = command_parts.collect();
 
                 let env_map = if stdio.env.is_empty() {
@@ -361,19 +361,30 @@ async fn run_add(config: &Config, add_args: AddArgs) -> Result<()> {
                 oauth_resource,
             ),
             AddMcpTransportArgs { .. } => {
-                bail!("exactly one of --command or --url must be provided")
+                bail!(
+                    "{}",
+                    codex_tui::i18n::text("exactly one of --command or --url must be provided")
+                )
             }
         };
 
     if let Some(secret) = &oauth_client_secret {
         if secret.trim().is_empty() {
-            bail!("--oauth-client-secret must not be empty");
+            bail!(
+                "{}",
+                codex_tui::i18n::text("--oauth-client-secret must not be empty")
+            );
         }
         if oauth_client_id
             .as_deref()
             .is_none_or(|client_id| client_id.trim().is_empty())
         {
-            bail!("--oauth-client-secret requires a nonempty --oauth-client-id");
+            bail!(
+                "{}",
+                codex_tui::i18n::text(
+                    "--oauth-client-secret requires a nonempty --oauth-client-id"
+                )
+            );
         }
     }
 
@@ -404,7 +415,10 @@ async fn run_add(config: &Config, add_args: AddArgs) -> Result<()> {
         .as_ref()
         .map(|_| {
             let McpServerTransportConfig::StreamableHttp { url, .. } = &transport else {
-                bail!("OAuth client IDs require a streamable HTTP MCP server");
+                bail!(
+                    "{}",
+                    codex_tui::i18n::text("OAuth client IDs require a streamable HTTP MCP server")
+                );
             };
             resolve_mcp_oauth_callback_url(
                 url,
@@ -444,9 +458,12 @@ async fn run_add(config: &Config, add_args: AddArgs) -> Result<()> {
         tools: HashMap::new(),
     };
 
-    let mut servers = load_global_mcp_servers(codex_home)
-        .await
-        .with_context(|| format!("failed to load MCP servers from {}", codex_home.display()))?;
+    let mut servers = load_global_mcp_servers(codex_home).await.with_context(|| {
+        codex_tui::i18n::message(
+            "r39-cli-mcp-load-servers",
+            &[("path", &codex_home.display().to_string())],
+        )
+    })?;
     let credential_name = new_entry.oauth_credential_name(&name);
     servers.insert(name.clone(), new_entry);
 
@@ -454,15 +471,29 @@ async fn run_add(config: &Config, add_args: AddArgs) -> Result<()> {
         .replace_mcp_servers(&servers)
         .apply()
         .await
-        .with_context(|| format!("failed to write MCP servers to {}", codex_home.display()))?;
+        .with_context(|| {
+            codex_tui::i18n::message(
+                "r39-cli-mcp-write-servers",
+                &[("path", &codex_home.display().to_string())],
+            )
+        })?;
 
-    println!("Added global MCP server '{name}'.");
+    println!(
+        "{}",
+        codex_tui::i18n::message("r39-cli-mcp-added-server", &[("name", &name)])
+    );
     if let Some(callback_url) = &callback_url {
-        println!("OAuth callback URL: {callback_url}");
+        println!(
+            "{}",
+            codex_tui::i18n::message("r39-cli-mcp-callback-url", &[("url", callback_url)])
+        );
     }
     match login_support {
         McpOAuthLoginSupport::Supported(oauth_config) => {
-            println!("Detected OAuth support. Starting OAuth flow…");
+            println!(
+                "{}",
+                codex_tui::i18n::text("Detected OAuth support. Starting OAuth flow…")
+            );
             let resolved_scopes = resolve_oauth_scopes(
                 /*explicit_scopes*/ None,
                 /*configured_scopes*/ None,
@@ -488,11 +519,12 @@ async fn run_add(config: &Config, add_args: AddArgs) -> Result<()> {
                 McpLoginMode::Browser,
             )
             .await?;
-            println!("Successfully logged in.");
+            println!("{}", codex_tui::i18n::text("Successfully logged in."));
         }
         McpOAuthLoginSupport::Unsupported => {}
         McpOAuthLoginSupport::Unknown(_) => println!(
-            "MCP server may or may not require login. Run `codex mcp login {name}` to login."
+            "{}",
+            codex_tui::i18n::message("r39-cli-mcp-login-unknown", &[("name", &name)])
         ),
     }
 
@@ -508,10 +540,16 @@ async fn run_remove(config_overrides: &CliConfigOverrides, remove_args: RemoveAr
 
     validate_server_name(&name)?;
 
-    let codex_home = find_codex_home().context("failed to resolve CODEX_HOME")?;
+    let codex_home =
+        find_codex_home().context(codex_tui::i18n::text("failed to resolve CODEX_HOME"))?;
     let mut servers = load_global_mcp_servers(&codex_home)
         .await
-        .with_context(|| format!("failed to load MCP servers from {}", codex_home.display()))?;
+        .with_context(|| {
+            codex_tui::i18n::message(
+                "r39-cli-mcp-load-servers",
+                &[("path", &codex_home.display().to_string())],
+            )
+        })?;
 
     let removed = servers.remove(&name).is_some();
 
@@ -520,13 +558,24 @@ async fn run_remove(config_overrides: &CliConfigOverrides, remove_args: RemoveAr
             .replace_mcp_servers(&servers)
             .apply()
             .await
-            .with_context(|| format!("failed to write MCP servers to {}", codex_home.display()))?;
+            .with_context(|| {
+                codex_tui::i18n::message(
+                    "r39-cli-mcp-write-servers",
+                    &[("path", &codex_home.display().to_string())],
+                )
+            })?;
     }
 
     if removed {
-        println!("Removed global MCP server '{name}'.");
+        println!(
+            "{}",
+            codex_tui::i18n::message("r39-cli-mcp-removed-server", &[("name", &name)])
+        );
     } else {
-        println!("No MCP server named '{name}' found.");
+        println!(
+            "{}",
+            codex_tui::i18n::message("r39-cli-mcp-server-not-found", &[("name", &name)])
+        );
     }
 
     Ok(())
@@ -555,12 +604,18 @@ async fn run_login(config: &Config, login_args: LoginArgs) -> Result<()> {
         .unwrap_or_default();
 
     let Some(server) = mcp_servers.get(&name) else {
-        bail!("No MCP server named '{name}' found.");
+        bail!(
+            "{}",
+            codex_tui::i18n::message("r39-cli-mcp-server-not-found", &[("name", &name)])
+        );
     };
 
     if matches!(server.auth, codex_config::types::McpServerAuth::EmaAuth) {
         bail!(
-            "Enterprise MCP authorization is managed by Codex account sign-in. Open Codex to sign in."
+            "{}",
+            codex_tui::i18n::text(
+                "Enterprise MCP authorization is managed by Codex account sign-in. Open Codex to sign in."
+            )
         );
     }
 
@@ -571,7 +626,10 @@ async fn run_login(config: &Config, login_args: LoginArgs) -> Result<()> {
             env_http_headers,
             ..
         } => (url.clone(), http_headers.clone(), env_http_headers.clone()),
-        _ => bail!("OAuth login is only supported for streamable HTTP servers."),
+        _ => bail!(
+            "{}",
+            codex_tui::i18n::text("OAuth login is only supported for streamable HTTP servers.")
+        ),
     };
 
     // Standalone `mcp login` runs OAuth from the local CLI process; execution
@@ -621,7 +679,10 @@ async fn run_login(config: &Config, login_args: LoginArgs) -> Result<()> {
         },
     )
     .await?;
-    println!("Successfully logged in to MCP server '{name}'.");
+    println!(
+        "{}",
+        codex_tui::i18n::message("r39-cli-mcp-logged-in", &[("name", &name)])
+    );
     Ok(())
 }
 
@@ -631,22 +692,29 @@ async fn run_logout(config: &Config, logout_args: LogoutArgs) -> Result<()> {
 
     let LogoutArgs { name } = logout_args;
 
-    let server = mcp_servers
-        .get(&name)
-        .ok_or_else(|| anyhow!("No MCP server named '{name}' found in configuration."))?;
+    let server = mcp_servers.get(&name).ok_or_else(|| {
+        anyhow!(
+            "{}",
+            codex_tui::i18n::message("r39-cli-mcp-server-missing-config", &[("name", &name)])
+        )
+    })?;
 
     if matches!(server.auth, McpServerAuth::EmaAuth) {
         let auth_manager =
             AuthManager::shared_from_config(config, /*enable_codex_api_key_env*/ true).await?;
         let auth = auth_manager.auth().await;
-        let scope = ema_auth_scope(auth.as_ref())
-            .context("Sign in to your Codex account before removing enterprise authorization")?;
+        let scope = ema_auth_scope(auth.as_ref()).context(codex_tui::i18n::text(
+            "Sign in to your Codex account before removing enterprise authorization",
+        ))?;
         // Cleanup must remain available even when this server is no longer eligible
         // for EMA (for example, after disabling the feature or changing its transport).
-        let profile = config
-            .mcp_enterprise_managed_auth
-            .as_ref()
-            .context("EMA logout requires a trusted enterprise IdP profile")?;
+        let profile =
+            config
+                .mcp_enterprise_managed_auth
+                .as_ref()
+                .context(codex_tui::i18n::text(
+                    "EMA logout requires a trusted enterprise IdP profile",
+                ))?;
         let idp = &profile.idp;
         let credential_name = idp.credential_name(&scope);
         match delete_enterprise_oauth_tokens(
@@ -657,17 +725,29 @@ async fn run_logout(config: &Config, logout_args: LogoutArgs) -> Result<()> {
         .await
         {
             Ok(true) => println!(
-                "Removed the shared enterprise authorization used by EMA MCP servers (selected via '{name}')."
+                "{}",
+                codex_tui::i18n::message("r39-cli-mcp-removed-enterprise", &[("name", &name)])
             ),
-            Ok(false) => println!("No shared enterprise authorization is stored."),
-            Err(_) => return Err(anyhow!("failed to delete enterprise authorization")),
+            Ok(false) => println!(
+                "{}",
+                codex_tui::i18n::text("No shared enterprise authorization is stored.")
+            ),
+            Err(_) => {
+                return Err(anyhow!(
+                    "{}",
+                    codex_tui::i18n::text("failed to delete enterprise authorization")
+                ));
+            }
         }
         return Ok(());
     }
 
     let url = match &server.transport {
         McpServerTransportConfig::StreamableHttp { url, .. } => url.clone(),
-        _ => bail!("OAuth logout is only supported for streamable_http transports."),
+        _ => bail!(
+            "{}",
+            codex_tui::i18n::text("OAuth logout is only supported for streamable_http transports.")
+        ),
     };
     let credential_name = server.oauth_credential_name(&name);
 
@@ -679,9 +759,23 @@ async fn run_logout(config: &Config, logout_args: LogoutArgs) -> Result<()> {
     )
     .await
     {
-        Ok(true) => println!("Removed OAuth credentials for '{name}'."),
-        Ok(false) => println!("No OAuth credentials stored for '{name}'."),
-        Err(err) => return Err(anyhow!("failed to delete OAuth credentials: {err}")),
+        Ok(true) => println!(
+            "{}",
+            codex_tui::i18n::message("r39-cli-mcp-removed-oauth", &[("name", &name)])
+        ),
+        Ok(false) => println!(
+            "{}",
+            codex_tui::i18n::message("r39-cli-mcp-no-oauth", &[("name", &name)])
+        ),
+        Err(err) => {
+            return Err(anyhow!(
+                "{}",
+                codex_tui::i18n::message(
+                    "r39-cli-mcp-delete-oauth-failed",
+                    &[("error", &err.to_string())]
+                )
+            ));
+        }
     }
 
     Ok(())
@@ -781,7 +875,12 @@ async fn run_list(config: &Config, list_args: ListArgs) -> Result<()> {
     }
 
     if entries.is_empty() {
-        println!("No MCP servers configured yet. Try `codex mcp add my-tool -- my-command`.");
+        println!(
+            "{}",
+            codex_tui::i18n::text(
+                "No MCP servers configured yet. Try `codex mcp add my-tool -- my-command`."
+            )
+        );
         return Ok(());
     }
 
@@ -814,6 +913,7 @@ async fn run_list(config: &Config, list_args: ListArgs) -> Result<()> {
                     .map(|entry| McpAuthStatus::from(entry.auth_state))
                     .unwrap_or(McpAuthStatus::Unsupported)
                     .to_string();
+                let auth_status = codex_tui::i18n::text(&auth_status).to_string();
                 stdio_rows.push([
                     name.clone(),
                     command.clone(),
@@ -835,6 +935,7 @@ async fn run_list(config: &Config, list_args: ListArgs) -> Result<()> {
                     .map(|entry| McpAuthStatus::from(entry.auth_state))
                     .unwrap_or(McpAuthStatus::Unsupported)
                     .to_string();
+                let auth_status = codex_tui::i18n::text(&auth_status).to_string();
                 let bearer_token_display =
                     bearer_token_env_var.as_deref().unwrap_or("-").to_string();
                 http_rows.push([
@@ -850,55 +951,41 @@ async fn run_list(config: &Config, list_args: ListArgs) -> Result<()> {
 
     if !stdio_rows.is_empty() {
         let mut widths = [
-            "Name".len(),
-            "Command".len(),
-            "Args".len(),
-            "Env".len(),
-            "Cwd".len(),
-            "Status".len(),
-            "Auth".len(),
+            crate::localization::display_width(codex_tui::i18n::text("Name")),
+            crate::localization::display_width(codex_tui::i18n::text("Command")),
+            crate::localization::display_width(codex_tui::i18n::text("Args")),
+            crate::localization::display_width(codex_tui::i18n::text("Env")),
+            crate::localization::display_width(codex_tui::i18n::text("Cwd")),
+            crate::localization::display_width(codex_tui::i18n::text("Status")),
+            crate::localization::display_width(codex_tui::i18n::text("Auth")),
         ];
         for row in &stdio_rows {
             for (i, cell) in row.iter().enumerate() {
-                widths[i] = widths[i].max(cell.len());
+                widths[i] = widths[i].max(crate::localization::display_width(cell));
             }
         }
 
         println!(
-            "{name:<name_w$}  {command:<cmd_w$}  {args:<args_w$}  {env:<env_w$}  {cwd:<cwd_w$}  {status:<status_w$}  {auth:<auth_w$}",
-            name = "Name",
-            command = "Command",
-            args = "Args",
-            env = "Env",
-            cwd = "Cwd",
-            status = "Status",
-            auth = "Auth",
-            name_w = widths[0],
-            cmd_w = widths[1],
-            args_w = widths[2],
-            env_w = widths[3],
-            cwd_w = widths[4],
-            status_w = widths[5],
-            auth_w = widths[6],
+            "{}  {}  {}  {}  {}  {}  {}",
+            crate::localization::pad_to_width(codex_tui::i18n::text("Name"), widths[0]),
+            crate::localization::pad_to_width(codex_tui::i18n::text("Command"), widths[1]),
+            crate::localization::pad_to_width(codex_tui::i18n::text("Args"), widths[2]),
+            crate::localization::pad_to_width(codex_tui::i18n::text("Env"), widths[3]),
+            crate::localization::pad_to_width(codex_tui::i18n::text("Cwd"), widths[4]),
+            crate::localization::pad_to_width(codex_tui::i18n::text("Status"), widths[5]),
+            crate::localization::pad_to_width(codex_tui::i18n::text("Auth"), widths[6])
         );
 
         for row in &stdio_rows {
             println!(
-                "{name:<name_w$}  {command:<cmd_w$}  {args:<args_w$}  {env:<env_w$}  {cwd:<cwd_w$}  {status:<status_w$}  {auth:<auth_w$}",
-                name = row[0].as_str(),
-                command = row[1].as_str(),
-                args = row[2].as_str(),
-                env = row[3].as_str(),
-                cwd = row[4].as_str(),
-                status = row[5].as_str(),
-                auth = row[6].as_str(),
-                name_w = widths[0],
-                cmd_w = widths[1],
-                args_w = widths[2],
-                env_w = widths[3],
-                cwd_w = widths[4],
-                status_w = widths[5],
-                auth_w = widths[6],
+                "{}  {}  {}  {}  {}  {}  {}",
+                crate::localization::pad_to_width(row[0].as_str(), widths[0]),
+                crate::localization::pad_to_width(row[1].as_str(), widths[1]),
+                crate::localization::pad_to_width(row[2].as_str(), widths[2]),
+                crate::localization::pad_to_width(row[3].as_str(), widths[3]),
+                crate::localization::pad_to_width(row[4].as_str(), widths[4]),
+                crate::localization::pad_to_width(row[5].as_str(), widths[5]),
+                crate::localization::pad_to_width(row[6].as_str(), widths[6])
             );
         }
     }
@@ -909,45 +996,38 @@ async fn run_list(config: &Config, list_args: ListArgs) -> Result<()> {
 
     if !http_rows.is_empty() {
         let mut widths = [
-            "Name".len(),
-            "Url".len(),
-            "Bearer Token Env Var".len(),
-            "Status".len(),
-            "Auth".len(),
+            crate::localization::display_width(codex_tui::i18n::text("Name")),
+            crate::localization::display_width(codex_tui::i18n::text("Url")),
+            crate::localization::display_width(codex_tui::i18n::text("Bearer Token Env Var")),
+            crate::localization::display_width(codex_tui::i18n::text("Status")),
+            crate::localization::display_width(codex_tui::i18n::text("Auth")),
         ];
         for row in &http_rows {
             for (i, cell) in row.iter().enumerate() {
-                widths[i] = widths[i].max(cell.len());
+                widths[i] = widths[i].max(crate::localization::display_width(cell));
             }
         }
 
         println!(
-            "{name:<name_w$}  {url:<url_w$}  {token:<token_w$}  {status:<status_w$}  {auth:<auth_w$}",
-            name = "Name",
-            url = "Url",
-            token = "Bearer Token Env Var",
-            status = "Status",
-            auth = "Auth",
-            name_w = widths[0],
-            url_w = widths[1],
-            token_w = widths[2],
-            status_w = widths[3],
-            auth_w = widths[4],
+            "{}  {}  {}  {}  {}",
+            crate::localization::pad_to_width(codex_tui::i18n::text("Name"), widths[0]),
+            crate::localization::pad_to_width(codex_tui::i18n::text("Url"), widths[1]),
+            crate::localization::pad_to_width(
+                codex_tui::i18n::text("Bearer Token Env Var"),
+                widths[2]
+            ),
+            crate::localization::pad_to_width(codex_tui::i18n::text("Status"), widths[3]),
+            crate::localization::pad_to_width(codex_tui::i18n::text("Auth"), widths[4])
         );
 
         for row in &http_rows {
             println!(
-                "{name:<name_w$}  {url:<url_w$}  {token:<token_w$}  {status:<status_w$}  {auth:<auth_w$}",
-                name = row[0].as_str(),
-                url = row[1].as_str(),
-                token = row[2].as_str(),
-                status = row[3].as_str(),
-                auth = row[4].as_str(),
-                name_w = widths[0],
-                url_w = widths[1],
-                token_w = widths[2],
-                status_w = widths[3],
-                auth_w = widths[4],
+                "{}  {}  {}  {}  {}",
+                crate::localization::pad_to_width(row[0].as_str(), widths[0]),
+                crate::localization::pad_to_width(row[1].as_str(), widths[1]),
+                crate::localization::pad_to_width(row[2].as_str(), widths[2]),
+                crate::localization::pad_to_width(row[3].as_str(), widths[3]),
+                crate::localization::pad_to_width(row[4].as_str(), widths[4])
             );
         }
     }
@@ -960,7 +1040,10 @@ async fn run_get(config: &Config, get_args: GetArgs) -> Result<()> {
     let mcp_servers = mcp_manager.configured_servers(config).await;
 
     let Some(server) = mcp_servers.get(&get_args.name) else {
-        bail!("No MCP server named '{name}' found.", name = get_args.name);
+        bail!(
+            "{}",
+            codex_tui::i18n::message("r39-cli-mcp-server-not-found", &[("name", &get_args.name)])
+        );
     };
 
     if get_args.json {
@@ -1016,15 +1099,30 @@ async fn run_get(config: &Config, get_args: GetArgs) -> Result<()> {
 
     if !server.enabled {
         if let Some(reason) = server.disabled_reason.as_ref() {
-            println!("{name} (disabled: {reason})", name = get_args.name);
+            println!(
+                "{}",
+                codex_tui::i18n::message(
+                    "r39-cli-mcp-disabled-reason",
+                    &[("name", &get_args.name), ("reason", &reason.to_string())]
+                )
+            );
         } else {
-            println!("{name} (disabled)", name = get_args.name);
+            println!(
+                "{}",
+                codex_tui::i18n::message("r39-cli-mcp-disabled-name", &[("name", &get_args.name)])
+            );
         }
         return Ok(());
     }
 
     println!("{}", get_args.name);
-    println!("  enabled: {}", server.enabled);
+    println!(
+        "{}",
+        codex_tui::i18n::message(
+            "r39-cli-mcp-field-enabled",
+            &[("value", &server.enabled.to_string())]
+        )
+    );
     let format_tool_list = |tools: &Option<Vec<String>>| -> String {
         match tools {
             Some(list) if list.is_empty() => "[]".to_string(),
@@ -1034,11 +1132,23 @@ async fn run_get(config: &Config, get_args: GetArgs) -> Result<()> {
     };
     if server.enabled_tools.is_some() {
         let enabled_tools_display = format_tool_list(&server.enabled_tools);
-        println!("  enabled_tools: {enabled_tools_display}");
+        println!(
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-mcp-field-enabled-tools",
+                &[("value", &enabled_tools_display)]
+            )
+        );
     }
     if server.disabled_tools.is_some() {
         let disabled_tools_display = format_tool_list(&server.disabled_tools);
-        println!("  disabled_tools: {disabled_tools_display}");
+        println!(
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-mcp-field-disabled-tools",
+                &[("value", &disabled_tools_display)]
+            )
+        );
     }
     match &server.transport {
         McpServerTransportConfig::Stdio {
@@ -1048,22 +1158,34 @@ async fn run_get(config: &Config, get_args: GetArgs) -> Result<()> {
             env_vars,
             cwd,
         } => {
-            println!("  transport: stdio");
-            println!("  command: {command}");
+            println!("{}", codex_tui::i18n::text("  transport: stdio"));
+            println!(
+                "{}",
+                codex_tui::i18n::message("r39-cli-mcp-field-command", &[("value", command)])
+            );
             let args_display = if args.is_empty() {
                 "-".to_string()
             } else {
                 args.join(" ")
             };
-            println!("  args: {args_display}");
+            println!(
+                "{}",
+                codex_tui::i18n::message("r39-cli-mcp-field-args", &[("value", &args_display)])
+            );
             let cwd_display = cwd
                 .as_ref()
                 .map(ToString::to_string)
                 .filter(|value| !value.is_empty())
                 .unwrap_or_else(|| "-".to_string());
-            println!("  cwd: {cwd_display}");
+            println!(
+                "{}",
+                codex_tui::i18n::message("r39-cli-mcp-field-cwd", &[("value", &cwd_display)])
+            );
             let env_display = format_env_display(env.as_ref(), env_vars);
-            println!("  env: {env_display}");
+            println!(
+                "{}",
+                codex_tui::i18n::message("r39-cli-mcp-field-env", &[("value", &env_display)])
+            );
         }
         McpServerTransportConfig::StreamableHttp {
             url,
@@ -1072,10 +1194,19 @@ async fn run_get(config: &Config, get_args: GetArgs) -> Result<()> {
             env_http_headers,
             http_headers_helper,
         } => {
-            println!("  transport: streamable_http");
-            println!("  url: {url}");
+            println!("{}", codex_tui::i18n::text("  transport: streamable_http"));
+            println!(
+                "{}",
+                codex_tui::i18n::message("r39-cli-mcp-field-url", &[("value", url)])
+            );
             let bearer_token_display = bearer_token_env_var.as_deref().unwrap_or("-");
-            println!("  bearer_token_env_var: {bearer_token_display}");
+            println!(
+                "{}",
+                codex_tui::i18n::message(
+                    "r39-cli-mcp-field-bearer-env",
+                    &[("value", bearer_token_display)]
+                )
+            );
             let headers_display = match http_headers {
                 Some(map) if !map.is_empty() => {
                     let mut pairs: Vec<_> = map.iter().collect();
@@ -1088,7 +1219,13 @@ async fn run_get(config: &Config, get_args: GetArgs) -> Result<()> {
                 }
                 _ => "-".to_string(),
             };
-            println!("  http_headers: {headers_display}");
+            println!(
+                "{}",
+                codex_tui::i18n::message(
+                    "r39-cli-mcp-field-headers",
+                    &[("value", &headers_display)]
+                )
+            );
             let env_headers_display = match env_http_headers {
                 Some(map) if !map.is_empty() => {
                     let mut pairs: Vec<_> = map.iter().collect();
@@ -1101,16 +1238,40 @@ async fn run_get(config: &Config, get_args: GetArgs) -> Result<()> {
                 }
                 _ => "-".to_string(),
             };
-            println!("  env_http_headers: {env_headers_display}");
+            println!(
+                "{}",
+                codex_tui::i18n::message(
+                    "r39-cli-mcp-field-env-headers",
+                    &[("value", &env_headers_display)]
+                )
+            );
             let helper_display = http_headers_helper.as_ref().map_or("-", |_| "<redacted>");
-            println!("  http_headers_helper: {helper_display}");
+            println!(
+                "{}",
+                codex_tui::i18n::message(
+                    "r39-cli-mcp-field-headers-helper",
+                    &[("value", helper_display)]
+                )
+            );
         }
     }
     if let Some(timeout) = server.startup_timeout_sec {
-        println!("  startup_timeout_sec: {}", timeout.as_secs_f64());
+        println!(
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-mcp-field-startup-timeout",
+                &[("value", &timeout.as_secs_f64().to_string())]
+            )
+        );
     }
     if let Some(timeout) = server.tool_timeout_sec {
-        println!("  tool_timeout_sec: {}", timeout.as_secs_f64());
+        println!(
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-mcp-field-tool-timeout",
+                &[("value", &timeout.as_secs_f64().to_string())]
+            )
+        );
     }
     if let Some(approval_mode) = server.default_tools_approval_mode {
         let approval_mode = match approval_mode {
@@ -1119,9 +1280,18 @@ async fn run_get(config: &Config, get_args: GetArgs) -> Result<()> {
             AppToolApproval::Writes => "writes",
             AppToolApproval::Approve => "approve",
         };
-        println!("  default_tools_approval_mode: {approval_mode}");
+        println!(
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-mcp-field-approval-mode",
+                &[("value", approval_mode)]
+            )
+        );
     }
-    println!("  remove: codex mcp remove {}", get_args.name);
+    println!(
+        "{}",
+        codex_tui::i18n::message("r39-cli-mcp-remove-command", &[("name", &get_args.name)])
+    );
 
     Ok(())
 }
@@ -1132,11 +1302,12 @@ fn parse_env_pair(raw: &str) -> Result<(String, String), String> {
         .next()
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| "environment entries must be in KEY=VALUE form".to_string())?;
-    let value = parts
-        .next()
-        .map(str::to_string)
-        .ok_or_else(|| "environment entries must be in KEY=VALUE form".to_string())?;
+        .ok_or_else(|| {
+            codex_tui::i18n::text("environment entries must be in KEY=VALUE form").to_string()
+        })?;
+    let value = parts.next().map(str::to_string).ok_or_else(|| {
+        codex_tui::i18n::text("environment entries must be in KEY=VALUE form").to_string()
+    })?;
 
     Ok((key.to_string(), value))
 }
@@ -1150,16 +1321,22 @@ fn validate_server_name(name: &str) -> Result<()> {
     if is_valid {
         Ok(())
     } else {
-        bail!("invalid server name '{name}' (use letters, numbers, '-', '_', ':', '@', '/', '.')");
+        bail!(
+            "{}",
+            codex_tui::i18n::message("r39-cli-mcp-invalid-server-name", &[("name", name)])
+        );
     }
 }
 
 fn format_mcp_status(config: &McpServerConfig) -> String {
     if config.enabled {
-        "enabled".to_string()
+        codex_tui::i18n::text("enabled").to_string()
     } else if let Some(reason) = config.disabled_reason.as_ref() {
-        format!("disabled: {reason}")
+        codex_tui::i18n::message(
+            "r39-cli-mcp-disabled-state",
+            &[("reason", &reason.to_string())],
+        )
     } else {
-        "disabled".to_string()
+        codex_tui::i18n::text("disabled").to_string()
     }
 }

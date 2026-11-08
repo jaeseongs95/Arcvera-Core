@@ -45,21 +45,32 @@ impl AnalyticsView {
                 let mut content = Vec::new();
                 if !matches!(section, Section::Chats | Section::Plan | Section::Summary) {
                     content.push(
-                        format!(
-                            "{}d{}",
-                            if self.ranges[self.range_group(section) as usize] == 0 {
-                                7
-                            } else {
-                                30
-                            },
-                            if section == Section::Usage && self.business() {
-                                format!(
-                                    " · {}",
-                                    self.token_model.as_deref().unwrap_or("All models")
-                                )
-                            } else {
-                                String::new()
-                            }
+                        crate::i18n::message(
+                            "r39-analytics-range",
+                            &[
+                                (
+                                    "days",
+                                    &(if self.ranges[self.range_group(section) as usize] == 0 {
+                                        7
+                                    } else {
+                                        30
+                                    })
+                                    .to_string(),
+                                ),
+                                (
+                                    "model",
+                                    &if section == Section::Usage && self.business() {
+                                        format!(
+                                            " · {}",
+                                            self.token_model.as_deref().unwrap_or_else(|| {
+                                                crate::i18n::text("All models")
+                                            })
+                                        )
+                                    } else {
+                                        String::new()
+                                    },
+                                ),
+                            ],
                         )
                         .set_style(secondary_style())
                         .into(),
@@ -70,10 +81,13 @@ impl AnalyticsView {
                     Section::Usage | Section::Credits | Section::Activity | Section::Plan
                 ) {
                     content.push(
-                        format!(
-                            "By {}",
-                            self.group_label(section, self.sections[section].group)
-                                .to_lowercase()
+                        crate::i18n::message(
+                            "r39-analytics-by",
+                            &[(
+                                "group",
+                                &self.group_label(section, self.sections[section].group)
+                                    .to_lowercase(),
+                            )],
                         )
                         .set_style(secondary_style())
                         .into(),
@@ -99,7 +113,7 @@ impl AnalyticsView {
                     }
                     Section::Chats => {
                         content.push(
-                            "30d active · lifetime credits"
+                            crate::i18n::text("30d active · lifetime credits")
                                 .set_style(secondary_style())
                                 .into(),
                         );
@@ -107,7 +121,7 @@ impl AnalyticsView {
                         if let Some(chats) = self.chats.ready() {
                             if chats.rows.is_empty() {
                                 content.push(
-                                    "No recent local chats.".set_style(secondary_style()).into(),
+                                    crate::i18n::text("No recent local chats.").set_style(secondary_style()).into(),
                                 );
                             }
                             for chat in chats.rows.iter().take(/*n*/ 5) {
@@ -129,13 +143,13 @@ impl AnalyticsView {
                             }
                             content.push(Line::default());
                             content.push(
-                                "Local chats · excludes subagents"
+                                crate::i18n::text("Local chats · excludes subagents")
                                     .set_style(secondary_style())
                                     .into(),
                             );
                             if chats.rows.iter().any(|chat| chat.usage.is_none()) {
                                 content.push(
-                                    "Some estimates unavailable"
+                                    crate::i18n::text("Some estimates unavailable")
                                         .set_style(secondary_style())
                                         .into(),
                                 );
@@ -149,7 +163,7 @@ impl AnalyticsView {
                 if content.len() > inner_height {
                     content.truncate(inner_height);
                     content[inner_height - 1] =
-                        "… z to maximize".set_style(secondary_style()).into();
+                        crate::i18n::text("… z to maximize").set_style(secondary_style()).into();
                 }
                 content.resize(inner_height, Line::default());
                 let label = format!(" {} {} ", row * count + column + 1, self.tab_label(section));

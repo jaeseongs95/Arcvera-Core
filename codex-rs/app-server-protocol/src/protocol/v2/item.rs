@@ -1778,6 +1778,10 @@ pub struct DynamicToolCallParams {
 pub struct DynamicToolCallResponse {
     pub content_items: Vec<DynamicToolCallOutputContentItem>,
     pub success: bool,
+    /// This authorized client's own memory result lifetime, never user authority.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub memory_context: Option<codex_protocol::dynamic_tools::DynamicToolMemoryContext>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

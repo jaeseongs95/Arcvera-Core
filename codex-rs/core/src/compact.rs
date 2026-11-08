@@ -347,6 +347,16 @@ async fn run_compact_task_inner_impl(
         sess.services
             .executed_tool_calls
             .attach_to_compaction_prompt(&mut turn_input);
+        if turn_context
+            .config
+            .compact_prompt
+            .as_deref()
+            .is_some_and(|prompt| prompt != SUMMARIZATION_PROMPT)
+        {
+            // Custom formatting may supplement the handoff, but cannot opt completed work
+            // back into the active context. Do not duplicate an identical default policy.
+            turn_input.push(compaction_handoff_instructions());
+        }
         let turn_input_len = turn_input.len();
         let base_instructions = if turn_input
             .iter()
@@ -431,23 +441,12 @@ async fn run_compact_task_inner_impl(
         }
     };
 
-    let history_snapshot = sess.clone_history().await;
-    let history_items = history_snapshot.annotated_items();
-    let summary_suffix = if matches!(compaction_metadata.phase(), CompactionPhase::PostTurn) {
-        get_last_assistant_message_from_turn(compaction_response.output.iter())
-            .filter(|summary| !summary.trim().is_empty())
-            .ok_or_else(|| {
-                CodexErr::Stream(
-                    "Post-turn compaction completed without an assistant summary".to_string(),
-                )
-            })?
-    } else {
-        get_last_assistant_message_from_turn(history_snapshot.raw_items()).unwrap_or_default()
-    };
+    let summary_suffix = compaction_response.summary;
     let summary_text = format!("{SUMMARY_PREFIX}\n{summary_suffix}");
-    let user_messages = collect_annotated_user_messages(history_items);
-
-    let mut new_history = build_compacted_history(Vec::new(), &user_messages, &summary_text);
+    // The handoff summary carries the unfinished work. Reattaching all prior user messages
+    // would bring completed work back into the active window. Stored authorization evidence
+    // and legacy rollout reconstruction keep their original history independently.
+    let mut new_history = build_compacted_history(Vec::new(), &[], &summary_text);
     if let Some(summary_item) = new_history.last_mut() {
         // This replacement history skips `record_conversation_items`; only the appended summary
         // belongs to this compaction turn.
@@ -621,6 +620,21 @@ pub(crate) struct CompactedUserMessage<'a> {
     message: String,
     original: &'a ResponseItem,
     harness_metadata: Option<&'a CodexHarnessMetadata>,
+}
+
+/// Request-only instructions: do not install this message in the compacted history.
+pub(crate) fn compaction_handoff_instructions() -> ResponseItem {
+    ResponseItem::Message {
+        id: None,
+        role: "developer".to_string(),
+        content: vec![ContentItem::InputText {
+            text: codex_prompts::SUMMARIZATION_PROMPT.to_string(),
+        }],
+        status: None,
+        encrypted_content: None,
+        phase: None,
+        internal_chat_message_metadata_passthrough: None,
+    }
 }
 
 #[cfg(test)]
@@ -859,7 +873,52 @@ fn build_compacted_history_with_limit(
 
 struct CompactionResponse {
     response_id: String,
-    output: Vec<ResponseItem>,
+    summary: String,
+}
+
+fn require_compaction_summary(
+    output: &[ResponseItem],
+    phase: CompactionPhase,
+) -> CodexResult<String> {
+    get_last_assistant_message_from_turn(output.iter())
+        .filter(|summary| !summary.trim().is_empty())
+        .ok_or_else(|| {
+            CodexErr::Stream(if matches!(phase, CompactionPhase::PostTurn) {
+                "Post-turn compaction completed without an assistant summary".to_string()
+            } else {
+                "Compaction completed without an assistant summary".to_string()
+            })
+        })
+}
+
+#[cfg(test)]
+#[test]
+fn compaction_requires_a_current_nonempty_summary_in_every_phase() {
+    let response = |text: &str| ResponseItem::Message {
+        id: None,
+        role: "assistant".to_string(),
+        content: vec![ContentItem::OutputText {
+            text: text.to_string(),
+            annotations: None,
+            logprobs: None,
+        }],
+        status: None,
+        encrypted_content: None,
+        phase: None,
+        internal_chat_message_metadata_passthrough: None,
+    };
+    for phase in [
+        CompactionPhase::StandaloneTurn,
+        CompactionPhase::PreTurn,
+        CompactionPhase::PostTurn,
+    ] {
+        assert!(require_compaction_summary(&[], phase).is_err());
+        assert!(require_compaction_summary(&[response(" \n ")], phase).is_err());
+        assert_eq!(
+            require_compaction_summary(&[response("unfinished work")], phase).unwrap(),
+            "unfinished work"
+        );
+    }
 }
 
 async fn drain_to_completed(
@@ -912,8 +971,24 @@ async fn drain_to_completed(
                 usage_metadata,
                 ..
             }) => {
+                sess.record_observed_response_completed(
+                    turn_context,
+                    &response_id,
+                    token_usage.as_ref(),
+                    usage_metadata.as_ref(),
+                )
+                .await;
+                sess.update_token_usage_info(
+                    turn_context,
+                    token_usage.as_ref(),
+                    includes_reasoning,
+                )
+                .await?;
+                // A successful transport response is not necessarily a usable summary.
+                // Account for its usage first, then reject empty output before changing history.
+                let summary = require_compaction_summary(&output, phase)?;
                 if !matches!(phase, CompactionPhase::PostTurn) {
-                    for item in std::mem::take(&mut output) {
+                    for item in output {
                         sess.record_annotated_conversation_items(
                             turn_context,
                             turn_context.model_info(),
@@ -928,22 +1003,9 @@ async fn drain_to_completed(
                         .await;
                     }
                 }
-                sess.record_observed_response_completed(
-                    turn_context,
-                    &response_id,
-                    token_usage.as_ref(),
-                    usage_metadata.as_ref(),
-                )
-                .await;
-                sess.update_token_usage_info(
-                    turn_context,
-                    token_usage.as_ref(),
-                    includes_reasoning,
-                )
-                .await?;
                 return Ok(CompactionResponse {
                     response_id,
-                    output,
+                    summary,
                 });
             }
             Ok(_) => continue,

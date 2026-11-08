@@ -92,6 +92,7 @@ async fn dynamic_tools_update_preserves_pending_calls_and_survives_resume() -> R
         .submit(Op::DynamicToolResponse {
             id: call.call_id,
             response: DynamicToolResponse {
+                memory_context: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputText {
                     text: "Release ready.".into(),
                 }],
@@ -117,6 +118,7 @@ async fn dynamic_tools_update_preserves_pending_calls_and_survives_resume() -> R
         .submit(Op::DynamicToolResponse {
             id: call.call_id,
             response: DynamicToolResponse {
+                memory_context: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputText {
                     text: "Deployment ready.".into(),
                 }],

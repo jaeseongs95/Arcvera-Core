@@ -307,8 +307,10 @@ impl AnyToolResult {
             ..
         } = self;
         let history_truncation_token_limit = result.fallback_token_limit_override();
+        let mut item = result.to_response_item(&call_id, &payload).into();
+        annotate_memory_context(&mut item, result.memory_context());
         ResponseItemEnvelope {
-            item: result.to_response_item(&call_id, &payload).into(),
+            item,
             metadata: history_truncation_token_limit.map(|limit| CodexHarnessMetadata {
                 history_truncation_token_limit: Some(limit),
                 ..Default::default()
@@ -324,12 +326,49 @@ impl AnyToolResult {
     }
 }
 
+/// Only executable host outputs may supply this classification. In particular,
+/// McpToolOutput does not derive it from external result bodies or `_meta`.
+fn annotate_memory_context(
+    item: &mut codex_protocol::models::ResponseItem,
+    context: Option<codex_protocol::dynamic_tools::DynamicToolMemoryContext>,
+) {
+    use codex_protocol::dynamic_tools::DynamicToolMemoryContext;
+    use codex_protocol::models::{
+        ContentItemKind, ContentItemMetadata, FunctionCallOutputBody, ResponseItem,
+    };
+    let Some(context) = context else {
+        return;
+    };
+    let ResponseItem::FunctionCallOutput {
+        output,
+        internal_chat_message_metadata_passthrough,
+        ..
+    } = item
+    else {
+        return;
+    };
+    let count = match &output.body {
+        FunctionCallOutputBody::Text(_) => 1,
+        FunctionCallOutputBody::ContentItems(items) => items.len(),
+    };
+    let kind = match context {
+        DynamicToolMemoryContext::Snapshot => "memories.tool_snapshot",
+        DynamicToolMemoryContext::MutationBoundary => "memories.mutation_boundary",
+    };
+    let metadata = internal_chat_message_metadata_passthrough.get_or_insert_default();
+    metadata.content_item_kinds = Some(vec![ContentItemKind(kind.to_string()); count]);
+    metadata.content_item_metadata = Some(vec![ContentItemMetadata::tool(None); count]);
+}
+
 struct PostToolUseFeedbackOutput {
     original: Box<dyn ToolOutput>,
     model_visible: FunctionToolOutput,
 }
 
 impl ToolOutput for PostToolUseFeedbackOutput {
+    fn memory_context(&self) -> Option<codex_protocol::dynamic_tools::DynamicToolMemoryContext> {
+        self.original.memory_context()
+    }
     fn log_output(&self) -> String {
         self.original.log_output()
     }
@@ -1154,3 +1193,53 @@ fn unsupported_tool_call_message(payload: &ToolPayload, tool_name: &ToolName) ->
 #[cfg(test)]
 #[path = "registry_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod memory_context_tests {
+    use super::*;
+    use codex_protocol::dynamic_tools::DynamicToolMemoryContext;
+    use codex_protocol::models::{ContentItemProvenance, ResponseItem};
+
+    #[test]
+    fn feedback_preserves_original_lifetime_and_host_annotation_stays_tool_provenance() {
+        let feedback = PostToolUseFeedbackOutput {
+            original: Box::new(
+                FunctionToolOutput::from_text("old memory".into(), Some(false))
+                    .with_memory_context(Some(DynamicToolMemoryContext::Snapshot)),
+            ),
+            model_visible: FunctionToolOutput::from_text("hook feedback".into(), Some(false)),
+        };
+        assert_eq!(
+            feedback.memory_context(),
+            Some(DynamicToolMemoryContext::Snapshot)
+        );
+        let mut item: ResponseItem = feedback
+            .to_response_item(
+                "native-id",
+                &ToolPayload::Function {
+                    arguments: "{}".into(),
+                },
+            )
+            .into();
+        annotate_memory_context(&mut item, feedback.memory_context());
+        let ResponseItem::FunctionCallOutput {
+            call_id,
+            output,
+            internal_chat_message_metadata_passthrough: Some(metadata),
+            ..
+        } = item
+        else {
+            panic!("typed function output expected");
+        };
+        assert_eq!(call_id.as_deref(), Some("native-id"));
+        assert_eq!(output.success, Some(false));
+        assert_eq!(
+            metadata.content_item_kinds.unwrap()[0].0,
+            "memories.tool_snapshot"
+        );
+        assert!(matches!(
+            metadata.content_item_metadata.unwrap()[0].provenance,
+            ContentItemProvenance::Tool { .. }
+        ));
+    }
+}

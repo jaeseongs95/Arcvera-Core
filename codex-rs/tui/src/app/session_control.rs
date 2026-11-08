@@ -21,6 +21,7 @@ impl App {
             }
         };
         let key = request.key(thread);
+        let mut memory_context = None;
         let result = if self.current_displayed_thread_id() != Some(thread)
             || self.active_thread_id != Some(thread)
         {
@@ -31,6 +32,7 @@ impl App {
         } else {
             match crate::session_control::from_command(&request.command) {
                 Ok(command) => {
+                    memory_context = memory_context_for_attempt(&command);
                     if command == Command::Compact {
                         app_server.compact_after_turn(thread, request.params.turn_id.clone(), self.app_event_tx.clone())
                             .map(|()| json!({"status":"pending","message":crate::i18n::message("controls-compact-pending", &[])}))
@@ -48,17 +50,21 @@ impl App {
                 Err(error) => Err(error),
             }
         };
-        let response = match result
+        let mut response = match result
             .and_then(|value| serde_json::to_string(&value).map_err(|error| error.to_string()))
         {
             Ok(text) => codex_app_server_protocol::DynamicToolCallResponse {
                 success: true,
+                memory_context: None,
                 content_items: vec![
                     codex_app_server_protocol::DynamicToolCallOutputContentItem::InputText { text },
                 ],
             },
             Err(error) => crate::dynamic_tools::failure_response(error),
         };
+        // Mark the attempted RPC even on an error/timeout: publication may
+        // already be pending. This never changes the response's success flag.
+        response.memory_context = memory_context;
         // A memory read can return 1 MiB. Retain its intent, not 1,024 copies per turn.
         // Read-only retries may query again; mutations retain their exact acknowledged result.
         let retained = if crate::session_control::is_read_only_command(&request.command) {
@@ -427,6 +433,19 @@ impl App {
                 "UI language saved globally. It applies on the next launch. CODEX_UI_LANGUAGE takes precedence."
             )
         ))
+    }
+}
+
+pub(super) fn memory_context_for_attempt(
+    command: &Command,
+) -> Option<codex_protocol::dynamic_tools::DynamicToolMemoryContext> {
+    use codex_protocol::dynamic_tools::DynamicToolMemoryContext;
+    match command {
+        Command::MemoryView => Some(DynamicToolMemoryContext::Snapshot),
+        Command::MemoryNote { .. } | Command::MemoryForget { .. } => {
+            Some(DynamicToolMemoryContext::MutationBoundary)
+        }
+        _ => None,
     }
 }
 

@@ -107,8 +107,8 @@ impl AnalyticsView {
             .ready()
             .map(|plan| crate::subscription::SubscriptionDisplay::Analytics.label(*plan));
         let heading = Line::from(vec![
-            plan.map(|plan| format!("Usage · {plan}"))
-                .unwrap_or_else(|| "Usage".into())
+            plan.map(|plan| crate::i18n::message("r39-analytics-heading-plan", &[("plan", plan)]))
+                .unwrap_or_else(|| crate::i18n::text("Usage").into())
                 .bold(),
             account
                 .map(|account| format!(" · {account}"))
@@ -157,7 +157,7 @@ impl AnalyticsView {
             let message = self
                 .account
                 .message()
-                .unwrap_or("Analytics is not available for this account type.");
+                .unwrap_or(crate::i18n::text("Analytics is not available for this account type."));
             (
                 textwrap::wrap(message, width)
                     .into_iter()

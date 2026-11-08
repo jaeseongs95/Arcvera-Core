@@ -42,8 +42,7 @@ use core_test_support::responses::ResponsesRequest;
 use core_test_support::responses::ev_assistant_message;
 use core_test_support::responses::ev_completed;
 use core_test_support::responses::ev_response_created;
-use core_test_support::responses::mount_sse_once;
-#[cfg(unix)]
+use core_test_support::responses::mount_sse_once as mount_sse_once_without_decision;
 use core_test_support::responses::mount_sse_once_match;
 use core_test_support::responses::sse;
 #[cfg(unix)]
@@ -67,6 +66,94 @@ mod dual_write;
 
 #[path = "explicit_consolidation_tests.rs"]
 mod explicit_consolidation;
+
+// Replace only the worker's filesystem response in this fixture. The receipt
+// binds to the actual dispatched stage and inputs; it is not model-quality
+// evidence. Tests for a missing receipt use mount_sse_once_without_decision.
+async fn mount_sse_once(server: &wiremock::MockServer, body: String) -> ResponseMock {
+    mount_sse_once_match(
+        server,
+        |request: &wiremock::Request| {
+            if let Some(stage) = consolidation_fixture_stage(request) {
+                let (generation, digest) = consolidation_fixture_inputs(request);
+                std::fs::write(
+                    stage.join("memory_application.json"),
+                    serde_json::to_vec(&json!({
+                        "generation": generation,
+                        "input_digest": digest,
+                        "decision": "unchanged",
+                    }))
+                    .expect("serialize fixture decision"),
+                )
+                .expect("write fixture worker decision");
+            }
+            true
+        },
+        body,
+    )
+    .await
+}
+
+fn consolidation_fixture_text(request: &wiremock::Request) -> Option<String> {
+    let body: serde_json::Value = serde_json::from_slice(&request.body).expect("request JSON");
+    let metadata = body["client_metadata"]["x-codex-turn-metadata"].as_str()?;
+    let metadata: serde_json::Value = serde_json::from_str(metadata).expect("turn metadata JSON");
+    if metadata["turn_trigger"] != "memory_consolidation" {
+        return None;
+    }
+    fn collect(value: &serde_json::Value, text: &mut String) {
+        match value {
+            serde_json::Value::String(value) => {
+                text.push_str(value);
+                text.push('\n');
+            }
+            serde_json::Value::Array(values) => values.iter().for_each(|v| collect(v, text)),
+            serde_json::Value::Object(values) => values.values().for_each(|v| collect(v, text)),
+            _ => {}
+        }
+    }
+    let mut text = String::new();
+    collect(&body["input"], &mut text);
+    Some(text)
+}
+
+fn consolidation_fixture_field<'a>(text: &'a str, prefix: &str) -> &'a str {
+    text.lines()
+        .filter_map(|line| line.strip_prefix(prefix))
+        .next_back()
+        .expect("host consolidation field")
+        .trim()
+}
+
+fn consolidation_fixture_stage(request: &wiremock::Request) -> Option<PathBuf> {
+    let text = consolidation_fixture_text(request)?;
+    // Detached stage-one streaming shares the memory trigger metadata but has
+    // no stage. Only an actual phase-two dispatch carries this host field.
+    let path = text
+        .lines()
+        .filter_map(|line| line.strip_prefix("Host staging root: "))
+        .next_back()?;
+    let root = PathBuf::from(path.trim());
+    assert!(root.is_absolute());
+    assert!(
+        root.file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("codex-memory-stage-")
+    );
+    assert!(root.join(".codex-memory-stage.json").is_file());
+    Some(root)
+}
+
+fn consolidation_fixture_inputs(request: &wiremock::Request) -> (u64, String) {
+    let text = consolidation_fixture_text(request).expect("consolidation request");
+    let generation = consolidation_fixture_field(&text, "Host input generation: ")
+        .parse()
+        .expect("host generation");
+    let digest = consolidation_fixture_field(&text, "Host input digest: ").to_owned();
+    assert_eq!(digest.len(), 64);
+    (generation, digest)
+}
 
 #[tokio::test]
 async fn memories_startup_creates_memory_root() -> anyhow::Result<()> {
@@ -175,10 +262,11 @@ async fn memories_startup_fails_consolidation_when_worker_creates_extension_syml
         tokio::fs::write(&target, "outside content").await?;
         let link = root.join("extensions/external_agent_import/instructions.md");
         let worker_target = target.clone();
-        let worker_link = link.clone();
         let phase2 = mount_sse_once_match(
             &server,
-            move |_request: &wiremock::Request| {
+            move |request: &wiremock::Request| {
+                let stage = consolidation_fixture_stage(request).expect("worker stage");
+                let worker_link = stage.join("extensions/external_agent_import/instructions.md");
                 std::fs::create_dir_all(worker_link.parent().expect("extension directory"))
                     .expect("create extension directory");
                 std::os::unix::fs::symlink(&worker_target, &worker_link)

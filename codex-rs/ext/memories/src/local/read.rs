@@ -32,8 +32,22 @@ pub(super) async fn read(
     }
 
     let original_content = tokio::fs::read_to_string(&path).await?;
-    let start_byte = line_start_byte_offset(&original_content, request.line_offset)?;
-    let end_byte = line_end_byte_offset(&original_content, start_byte, request.max_lines);
+    read_content(request, &original_content)
+}
+
+/// The same line and token contract for disk reads and verified publication snapshots.
+pub(super) fn read_content(
+    request: ReadMemoryRequest,
+    original_content: &str,
+) -> Result<ReadMemoryResponse, MemoriesBackendError> {
+    if request.line_offset == 0 {
+        return Err(MemoriesBackendError::InvalidLineOffset);
+    }
+    if request.max_lines == Some(0) {
+        return Err(MemoriesBackendError::InvalidMaxLines);
+    }
+    let start_byte = line_start_byte_offset(original_content, request.line_offset)?;
+    let end_byte = line_end_byte_offset(original_content, start_byte, request.max_lines);
     let content_from_offset = &original_content[start_byte..end_byte];
     let max_tokens = if request.max_tokens == 0 {
         DEFAULT_READ_MAX_TOKENS
@@ -87,4 +101,51 @@ fn line_end_byte_offset(content: &str, start_byte: usize, max_lines: Option<usiz
     }
 
     content.len()
+}
+
+#[cfg(test)]
+mod content_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn disk_and_snapshot_reads_share_unicode_line_and_error_contracts() {
+        let fixture = tempfile::tempdir().unwrap();
+        let content = "첫 줄\r\n두 번째 줄\r\n끝\r\n";
+        std::fs::write(fixture.path().join("memory_summary.md"), content).unwrap();
+        let backend = LocalMemoriesBackend::from_memory_root(fixture.path());
+        for offset in 1..=4 {
+            let request = ReadMemoryRequest {
+                path: "memory_summary.md".to_string(),
+                line_offset: offset,
+                max_lines: Some(1),
+                max_tokens: 1000,
+            };
+            assert_eq!(
+                read(&backend, request.clone()).await.unwrap(),
+                read_content(request, content).unwrap()
+            );
+        }
+        let request = |offset, max_lines| ReadMemoryRequest {
+            path: "memory_summary.md".to_string(),
+            line_offset: offset,
+            max_lines,
+            max_tokens: 1000,
+        };
+        assert_eq!(
+            read_content(request(2, Some(1)), content).unwrap().content,
+            "두 번째 줄\r\n"
+        );
+        assert!(matches!(
+            read_content(request(0, None), content),
+            Err(MemoriesBackendError::InvalidLineOffset)
+        ));
+        assert!(matches!(
+            read_content(request(1, Some(0)), content),
+            Err(MemoriesBackendError::InvalidMaxLines)
+        ));
+        assert!(matches!(
+            read_content(request(usize::MAX, None), content),
+            Err(MemoriesBackendError::LineOffsetExceedsFileLength)
+        ));
+    }
 }

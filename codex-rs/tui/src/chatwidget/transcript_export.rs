@@ -9,16 +9,20 @@ impl ChatWidget {
         self.show_selection_view(SelectionViewParams {
             header: Box::new(
                 Paragraph::new(vec![
-                    Line::from("Export conversation".bold()),
-                    Line::from("Save the complete conversation as Markdown".dim()),
+                    Line::from(crate::i18n::text("Export conversation").bold()),
+                    Line::from(
+                        crate::i18n::text("Save the complete conversation as Markdown").dim(),
+                    ),
                 ])
                 .wrap(Wrap { trim: false }),
             ),
             footer_hint: Some(picker_hint_line_for_keymap(&self.bottom_pane.list_keymap())),
             items: vec![
                 SelectionItem {
-                    name: "Copy to clipboard".to_string(),
-                    description: Some("Copy the complete Markdown transcript".to_string()),
+                    name: crate::i18n::text("Copy to clipboard").to_string(),
+                    description: Some(
+                        crate::i18n::text("Copy the complete Markdown transcript").to_string(),
+                    ),
                     is_disabled: cfg!(target_os = "android"),
                     actions: vec![Box::new(|tx| {
                         tx.send(AppEvent::ExportTranscript {
@@ -29,8 +33,8 @@ impl ChatWidget {
                     ..Default::default()
                 },
                 SelectionItem {
-                    name: "Save to file".to_string(),
-                    description: Some("Choose a Markdown filename".to_string()),
+                    name: crate::i18n::text("Save to file").to_string(),
+                    description: Some(crate::i18n::text("Choose a Markdown filename").to_string()),
                     actions: vec![Box::new(|tx| {
                         tx.send(AppEvent::OpenTranscriptExportFilePrompt);
                     })],
@@ -51,8 +55,8 @@ impl ChatWidget {
             |thread_id| format!("codex-session-{thread_id}.md"),
         );
         let view = CustomPromptView::new(
-            "Save conversation".to_string(),
-            "Type a filename and press Enter".to_string(),
+            crate::i18n::text("Save conversation").to_string(),
+            crate::i18n::text("Type a filename and press Enter").to_string(),
             filename,
             /*context_label*/ None,
             Box::new(move |filename| {

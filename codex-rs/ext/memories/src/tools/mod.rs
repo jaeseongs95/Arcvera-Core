@@ -94,7 +94,8 @@ fn clamp_max_results(requested: Option<usize>, default: usize, max: usize) -> us
 
 fn backend_error_to_function_call(err: MemoriesBackendError) -> FunctionCallError {
     match err {
-        MemoriesBackendError::InvalidPath { .. }
+        MemoriesBackendError::MemoryUnavailable { .. }
+        | MemoriesBackendError::InvalidPath { .. }
         | MemoriesBackendError::InvalidCursor { .. }
         | MemoriesBackendError::InvalidFilename { .. }
         | MemoriesBackendError::NotFound { .. }

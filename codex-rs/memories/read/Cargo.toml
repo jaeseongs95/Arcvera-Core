@@ -16,6 +16,10 @@ workspace = true
 codex-protocol = { workspace = true }
 codex-shell-command = { workspace = true }
 codex-utils-absolute-path = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
+tempfile = { workspace = true }

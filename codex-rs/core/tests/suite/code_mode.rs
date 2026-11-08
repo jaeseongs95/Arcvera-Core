@@ -8439,6 +8439,7 @@ text(JSON.stringify({
                 .submit(Op::DynamicToolResponse {
                     id: request.call_id,
                     response: DynamicToolResponse {
+                        memory_context: None,
                         content_items: vec![DynamicToolCallOutputContentItem::InputText {
                             text: "first-winner".to_string(),
                         }],
@@ -8800,6 +8801,7 @@ text(
         .submit(Op::DynamicToolResponse {
             id: request.call_id,
             response: DynamicToolResponse {
+                memory_context: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputText {
                     text: "hidden-ok".to_string(),
                 }],

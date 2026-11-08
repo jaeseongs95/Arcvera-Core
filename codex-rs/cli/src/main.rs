@@ -105,7 +105,7 @@ use codex_features::Stage;
 use codex_features::is_known_feature_key;
 use codex_home::CodexHomeUserInstructionsProvider;
 use codex_login::AuthManager;
-use codex_memories_write::clear_memory_roots_contents;
+use codex_memories_write::MemoryResetGuard;
 use codex_models_manager::bundled_models_response;
 use codex_models_manager::manager::RefreshStrategy;
 use codex_protocol::protocol::AskForApproval;
@@ -2387,10 +2387,11 @@ async fn run_debug_clear_memories_command(
         .await?;
 
     let memories_path = config.sqlite_config().memories_db_path();
+    let memory_reset = MemoryResetGuard::try_acquire(&config.codex_home)?;
     let cleared_memories_db =
         StateRuntime::clear_memory_data_in_sqlite_home(config.sqlite_config()).await?;
 
-    clear_memory_roots_contents(&config.codex_home).await?;
+    memory_reset.clear_contents().await?;
 
     let mut message = if cleared_memories_db {
         format!("Cleared memory state from {}.", memories_path.display())

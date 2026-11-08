@@ -368,6 +368,7 @@ async fn capacity_after_tool_dispatch_never_replays_tool() -> anyhow::Result<()>
         .submit(Op::DynamicToolResponse {
             id: request.call_id,
             response: DynamicToolResponse {
+                memory_context: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputText {
                     text: "effect applied once".into(),
                 }],
@@ -434,6 +435,7 @@ async fn capacity_completed_tool_output_is_retained_across_retry() -> anyhow::Re
         .submit(Op::DynamicToolResponse {
             id: request.call_id,
             response: DynamicToolResponse {
+                memory_context: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputText {
                     text: "effect result 1".into(),
                 }],

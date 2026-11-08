@@ -35,7 +35,9 @@ impl UsageNoticeState {
         clock_format: ClockFormat,
     ) -> Option<Line<'static>> {
         let (window, is_secondary) = self.current()?;
-        let label = limit_label_for_window(window.window_duration_mins, is_secondary);
+        let raw_label = limit_label_for_window(window.window_duration_mins, is_secondary);
+        let label =
+            crate::bottom_pane::StatusSurfacePreviewData::display_rate_limit_label(&raw_label);
         // Percentages are rounded by the protocol; 100% alone does not prove a hard stop.
         let remaining = if window.used_percent >= 100 {
             "<1%".to_string()
@@ -43,23 +45,33 @@ impl UsageNoticeState {
             format!("{}%", 100 - window.used_percent)
         };
         let emphasis = if window.used_percent >= 95 {
-            "only "
+            crate::i18n::text("only ")
         } else {
             ""
         };
-        let summary = format!("⚠ {label} limit: {emphasis}{remaining} left");
+        let summary = crate::i18n::message(
+            "r39-surfaces-usage-notice",
+            &[
+                ("label", label),
+                ("emphasis", emphasis),
+                ("remaining", &remaining),
+            ],
+        );
         let reset = window
             .resets_at
             .and_then(|timestamp| DateTime::from_timestamp(timestamp, /*nsecs*/ 0))
             .filter(|reset| *reset > now)
             .map(|reset| {
-                format!(
-                    " · resets at {}",
-                    crate::status::format_reset_timestamp(
-                        reset.with_timezone(&Local),
-                        now,
-                        clock_format
-                    )
+                crate::i18n::message(
+                    "r39-surfaces-usage-resets",
+                    &[(
+                        "time",
+                        &crate::status::format_reset_timestamp(
+                            reset.with_timezone(&Local),
+                            now,
+                            clock_format,
+                        ),
+                    )],
                 )
             })
             .unwrap_or_default();
@@ -67,7 +79,10 @@ impl UsageNoticeState {
         if window.used_percent >= 90 {
             style = style.bold();
         }
-        let compact = Line::from(format!("⚠ {label} {remaining} left"));
+        let compact = Line::from(crate::i18n::message(
+            "r39-surfaces-usage-notice-compact",
+            &[("label", label), ("remaining", &remaining)],
+        ));
         // Prefer half the row, but keep a complete warning on narrow terminals.
         let notice_width = (usize::from(width) / 2)
             .max(compact.width())

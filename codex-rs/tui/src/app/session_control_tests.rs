@@ -8,6 +8,39 @@ use std::sync::{Arc, atomic::AtomicU8};
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
+#[test]
+fn memory_result_lifetime_uses_typed_attempts_and_never_marks_unrelated_controls() {
+    use super::session_control::memory_context_for_attempt;
+    use codex_protocol::dynamic_tools::DynamicToolMemoryContext;
+    assert_eq!(
+        memory_context_for_attempt(&session_control::Command::MemoryView),
+        Some(DynamicToolMemoryContext::Snapshot)
+    );
+    for command in [
+        session_control::Command::MemoryNote {
+            note: "synthetic".into(),
+            scope: None,
+        },
+        session_control::Command::MemoryForget {
+            note: "synthetic".into(),
+            scope: None,
+        },
+    ] {
+        assert_eq!(
+            memory_context_for_attempt(&command),
+            Some(DynamicToolMemoryContext::MutationBoundary)
+        );
+    }
+    assert_eq!(
+        memory_context_for_attempt(&session_control::Command::Status),
+        None
+    );
+    assert_eq!(
+        memory_context_for_attempt(&session_control::Command::ContextGet),
+        None
+    );
+}
+
 #[tokio::test]
 async fn memory_consolidation_dispatch_is_explicit_and_acceptance_is_not_completion()
 -> color_eyre::Result<()> {

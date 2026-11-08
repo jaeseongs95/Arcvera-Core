@@ -1,3 +1,4 @@
+use crate::context::ContextualUserFragment;
 use crate::function_tool::FunctionCallError;
 use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
@@ -17,6 +18,7 @@ use codex_protocol::items::DynamicToolCallItem;
 use codex_protocol::items::DynamicToolCallStatus;
 use codex_protocol::items::TurnItem;
 use codex_protocol::models::FunctionCallOutputContentItem;
+use codex_protocol::models::{ContentItem, ContentItemKind, ContentItemMetadata, input_text};
 use codex_tools::ResponsesApiNamespace;
 use codex_tools::ResponsesApiNamespaceTool;
 use codex_tools::ToolName;
@@ -30,6 +32,36 @@ use std::time::Instant;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
+
+/// Freshness only: no note text, memory content, permission, or success claim.
+struct MemoryMutationFence {
+    call_id: String,
+    step_turn_id: String,
+}
+
+impl ContextualUserFragment for MemoryMutationFence {
+    fn role(&self) -> &'static str {
+        "user"
+    }
+    fn content_kind(&self) -> ContentItemKind {
+        ContentItemKind("memories.mutation_boundary".into())
+    }
+    fn content_metadata(&self) -> ContentItemMetadata {
+        ContentItemMetadata::tool(None)
+    }
+    fn markers(&self) -> (&'static str, &'static str) {
+        Self::type_markers()
+    }
+    fn type_markers() -> (&'static str, &'static str) {
+        ("<external_memory_mutation>", "</external_memory_mutation>")
+    }
+    fn body(&self) -> ContentItem {
+        input_text(format!(
+            "Memory mutation attempt observed; earlier derived snapshots may be superseded. Operation outcome and semantic application remain unverified. {}",
+            serde_json::json!({"call_id":self.call_id,"step_turn_id":self.step_turn_id})
+        ))
+    }
+}
 
 pub struct DynamicToolHandler {
     tool_name: ToolName,
@@ -127,6 +159,7 @@ impl DynamicToolHandler {
         let ToolInvocation {
             session,
             turn,
+            step_context,
             call_id,
             payload,
             cancellation_token,
@@ -146,7 +179,7 @@ impl DynamicToolHandler {
         let response = request_dynamic_tool(
             &session,
             turn.as_ref(),
-            call_id,
+            call_id.clone(),
             self.tool_name.clone(),
             args,
             cancellation_token,
@@ -161,15 +194,40 @@ impl DynamicToolHandler {
         let DynamicToolResponse {
             content_items,
             success,
+            memory_context,
         } = response;
-        let body = content_items
+        if memory_context
+            == Some(codex_protocol::dynamic_tools::DynamicToolMemoryContext::MutationBoundary)
+        {
+            // This survives a nested Code Mode result's JSON conversion. The
+            // existing dynamic dispatch lifetime awaits this append on cancel;
+            // no detached task or inferred command/body classification exists.
+            let fence = Box::new(MemoryMutationFence {
+                call_id,
+                step_turn_id: step_context.turn.sub_id.clone(),
+            })
+            .into_boxed_response_item();
+            session
+                .record_conversation_items(
+                    step_context.turn.as_ref(),
+                    &step_context.settings.model_info,
+                    &[fence],
+                )
+                .await;
+        }
+        let mut body = content_items
             .into_iter()
             .map(FunctionCallOutputContentItem::from)
             .collect::<Vec<_>>();
-        Ok(boxed_tool_output(FunctionToolOutput::from_content(
-            body,
-            Some(success),
-        )))
+        if body.is_empty() && memory_context.is_some() {
+            body.push(FunctionCallOutputContentItem::InputText {
+                text: String::new(),
+            });
+        }
+        Ok(boxed_tool_output(
+            FunctionToolOutput::from_content(body, Some(success))
+                .with_memory_context(memory_context),
+        ))
     }
 }
 

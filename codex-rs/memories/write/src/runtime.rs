@@ -465,6 +465,7 @@ impl MemoryStartupContext {
         config: Config,
         prompt: Vec<UserInput>,
         workspace_lock: Arc<crate::MemoryWorkspaceLock>,
+        memory_stage: Arc<crate::workspace::MemoryStage>,
     ) -> anyhow::Result<SpawnedConsolidationAgent> {
         let NewThread {
             thread_id, thread, ..
@@ -485,6 +486,7 @@ impl MemoryStartupContext {
         let running_thread = Arc::clone(&thread);
         tokio::spawn(async move {
             running_thread.wait_until_terminated().await;
+            drop(memory_stage);
             drop(workspace_lock);
         });
 

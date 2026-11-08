@@ -168,6 +168,19 @@ pub fn start_memories_startup_task(
                 warn!("project memory root is unavailable: {err}");
                 return;
             }
+            match codex_memories_read::publication::load_publication(&root) {
+                Ok(Some(state))
+                    if state.status
+                        == codex_memories_read::publication::PublicationStatus::Resetting =>
+                {
+                    return;
+                }
+                Ok(_) => {}
+                Err(err) => {
+                    warn!("memory publication state is unavailable: {err}");
+                    return;
+                }
+            }
             if let Err(err) = ensure_layout(&root).await {
                 warn!("failed preparing memories root: {err}");
                 return;

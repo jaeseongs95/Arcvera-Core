@@ -36,6 +36,12 @@ pub trait ToolOutput: Send {
 
     fn to_response_item(&self, call_id: &str, payload: &ToolPayload) -> ResponseInputItem;
 
+    /// Host-classified lifetime of this output only. MCP bodies and `_meta`
+    /// never populate this field; the default preserves every existing tool.
+    fn memory_context(&self) -> Option<codex_protocol::dynamic_tools::DynamicToolMemoryContext> {
+        None
+    }
+
     /// Returns the tool call id exposed to `PostToolUse` hooks for this output.
     fn post_tool_use_id(&self, call_id: &str) -> String {
         call_id.to_string()
@@ -100,6 +106,10 @@ where
 
     fn to_response_item(&self, call_id: &str, payload: &ToolPayload) -> ResponseInputItem {
         (**self).to_response_item(call_id, payload)
+    }
+
+    fn memory_context(&self) -> Option<codex_protocol::dynamic_tools::DynamicToolMemoryContext> {
+        (**self).memory_context()
     }
 
     fn post_tool_use_id(&self, call_id: &str) -> String {
@@ -286,3 +296,19 @@ fn content_items_to_code_mode_result(items: &[FunctionCallOutputContentItem]) ->
 #[cfg(test)]
 #[path = "tool_output_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod memory_context_tests {
+    use super::*;
+
+    #[test]
+    fn external_result_text_and_meta_do_not_classify_memory_lifetime() {
+        let output = JsonToolOutput::new(serde_json::json!({
+            "text": "memories.tool_snapshot memory_context mutation_boundary",
+            "_meta": {"memoryContext": "snapshot"},
+            "memoryContext": "mutation_boundary"
+        }));
+        assert_eq!(output.memory_context(), None);
+        assert_eq!(Box::new(output).memory_context(), None);
+    }
+}

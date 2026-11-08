@@ -12,6 +12,7 @@ use codex_install_context::InstallMethod;
 
 use super::CheckStatus;
 use super::DoctorCheck;
+use super::DoctorHumanOrigin;
 use super::describe_install_context;
 use super::doctor_install_context;
 use super::push_path_detail;
@@ -63,6 +64,7 @@ pub(super) fn search_check() -> DoctorCheck {
         format!("search provider: {provider}"),
     ];
 
+    let mut path_is_not_file = false;
     let status = if rg_command.components().count() > 1 {
         match std::fs::metadata(&rg_command) {
             Ok(metadata) if metadata.is_file() => {
@@ -70,6 +72,7 @@ pub(super) fn search_check() -> DoctorCheck {
                 CheckStatus::Ok
             }
             Ok(_) => {
+                path_is_not_file = true;
                 details.push("search command readiness: path is not a file".to_string());
                 CheckStatus::Warning
             }
@@ -98,6 +101,9 @@ pub(super) fn search_check() -> DoctorCheck {
         CheckStatus::Fail => unreachable!(),
     };
     let mut check = DoctorCheck::new("runtime.search", "search", status, summary).details(details);
+    if path_is_not_file {
+        check.human_origin = DoctorHumanOrigin::SearchPathNotFile;
+    }
     if status != CheckStatus::Ok {
         check = check.remediation("Install ripgrep or repair the bundled Codex package.");
     }

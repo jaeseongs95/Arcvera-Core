@@ -398,6 +398,7 @@ mod tests {
                 assert_eq!(request.params.thread_id, caller.to_string());
                 assert_eq!(request.command, "add --every 1m -- 권한 확인");
                 let _ = request.reply.send(DynamicToolCallResponse {
+                    memory_context: None,
                     success: true,
                     content_items: Vec::new(),
                 });

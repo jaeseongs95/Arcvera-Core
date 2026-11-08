@@ -14,6 +14,9 @@
 #[path = "history_user_authorization.rs"]
 mod user_authorization;
 
+#[path = "memory_prompt.rs"]
+mod memory_prompt;
+
 use crate::context::BaseInstructionsFragment;
 use crate::context::ContextualUserFragment;
 use crate::context::ModelSwitchInstructions;
@@ -657,6 +660,10 @@ impl ContextManager {
         input_modalities: &[InputModality],
         image_store: &dyn AttachmentStore,
     ) -> Vec<ResponseItemEnvelope> {
+        // Project a snapshot only: original user evidence, reviewer history and
+        // stored rollouts remain unchanged. Remove paired memory calls before
+        // normalization can synthesize outputs for them.
+        memory_prompt::project(Arc::make_mut(&mut self.items));
         self.normalize_history(input_modalities);
         replace_unresolvable_image_files(
             Arc::make_mut(&mut self.items)

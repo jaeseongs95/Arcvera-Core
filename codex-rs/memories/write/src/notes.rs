@@ -51,6 +51,9 @@ fn save_note(root: &Path, note: &str) -> io::Result<PathBuf> {
     validate_entry(&lock_path, false, true)?;
     let _lock = MemoryWorkspaceLock::try_acquire(root)?;
     validate_entry(&lock_path, false, false)?;
+    let previous = codex_memories_read::publication::load_publication(root)?;
+    let pending =
+        codex_memories_read::publication::MemoryPublication::next_pending(previous.as_ref())?;
     let mut directory = root.to_path_buf();
     for component in ["extensions", "ad_hoc", "notes"] {
         directory.push(component);
@@ -66,6 +69,10 @@ fn save_note(root: &Path, note: &str) -> io::Result<PathBuf> {
         Uuid::new_v4()
     );
     let path = directory.join(filename);
+    // Block readers before any new input bytes can become visible. If writing
+    // the note fails, leave pending state for explicit recovery rather than
+    // asserting that the preceding summary represents the latest request.
+    crate::lifecycle::save_publication(root, &pending)?;
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)

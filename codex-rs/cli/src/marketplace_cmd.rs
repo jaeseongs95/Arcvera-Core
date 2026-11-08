@@ -175,18 +175,36 @@ async fn run_add(config: Config, args: AddMarketplaceArgs) -> Result<()> {
 
     if outcome.already_added {
         println!(
-            "Marketplace `{}` is already added from {}.",
-            outcome.marketplace_name, outcome.source_display
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-marketplace-already-added",
+                &[
+                    ("name", &outcome.marketplace_name),
+                    ("source", &outcome.source_display)
+                ]
+            )
         );
     } else {
         println!(
-            "Added marketplace `{}` from {}.",
-            outcome.marketplace_name, outcome.source_display
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-marketplace-added",
+                &[
+                    ("name", &outcome.marketplace_name),
+                    ("source", &outcome.source_display)
+                ]
+            )
         );
     }
     println!(
-        "Installed marketplace root: {}",
-        outcome.installed_root.as_path().display()
+        "{}",
+        codex_tui::i18n::message(
+            "r39-cli-marketplace-installed-root",
+            &[(
+                "path",
+                &outcome.installed_root.as_path().display().to_string()
+            )]
+        )
     );
 
     Ok(())
@@ -215,7 +233,7 @@ async fn run_list(config: Config, args: ListMarketplaceArgs) -> Result<()> {
     let plugins_input = config.plugins_config_input();
     let marketplace_listing = manager
         .discover_marketplaces_for_config(&plugins_input, &[])
-        .context("failed to list plugin marketplaces")?;
+        .context(codex_tui::i18n::text("failed to list plugin marketplaces"))?;
     let mut load_issues = configured_marketplace_snapshot_issues(
         config.codex_home.as_path(),
         &plugins_input,
@@ -239,16 +257,24 @@ async fn run_list(config: Config, args: ListMarketplaceArgs) -> Result<()> {
         let issue_lines = load_issues
             .iter()
             .map(|issue| {
-                format!(
-                    "- `{}` at {}: {}",
-                    issue.marketplace_name,
-                    issue.path.display(),
-                    issue.message
+                codex_tui::i18n::message(
+                    "r39-cli-plugin-snapshot-issue",
+                    &[
+                        ("name", &issue.marketplace_name),
+                        ("path", &issue.path.display().to_string()),
+                        ("error", &issue.message),
+                    ],
                 )
             })
             .collect::<Vec<_>>()
             .join("\n");
-        bail!("failed to load marketplace(s):\n{issue_lines}");
+        bail!(
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-marketplace-load-failed",
+                &[("issues", &issue_lines)]
+            )
+        );
     }
     let marketplaces = marketplace_listing.marketplaces;
     if args.json {
@@ -261,7 +287,10 @@ async fn run_list(config: Config, args: ListMarketplaceArgs) -> Result<()> {
     }
 
     if marketplaces.is_empty() {
-        println!("No plugin marketplaces in scope.");
+        println!(
+            "{}",
+            codex_tui::i18n::text("No plugin marketplaces in scope.")
+        );
         return Ok(());
     }
 
@@ -279,16 +308,24 @@ async fn run_list(config: Config, args: ListMarketplaceArgs) -> Result<()> {
 
     let marketplace_width = rows
         .iter()
-        .map(|(name, _)| name.len())
+        .map(|(name, _)| crate::localization::display_width(name))
         .max()
-        .unwrap_or("MARKETPLACE".len())
-        .max("MARKETPLACE".len());
+        .unwrap_or(crate::localization::display_width(codex_tui::i18n::text(
+            "MARKETPLACE",
+        )))
+        .max(crate::localization::display_width(codex_tui::i18n::text(
+            "MARKETPLACE",
+        )));
 
-    println!("{:<marketplace_width$}  ROOT", "MARKETPLACE");
+    println!(
+        "{}  {}",
+        crate::localization::pad_to_width(codex_tui::i18n::text("MARKETPLACE"), marketplace_width),
+        codex_tui::i18n::text("ROOT")
+    );
     for (marketplace_name, root) in rows {
         println!(
-            "{:<marketplace_width$}  {}",
-            marketplace_name,
+            "{}  {}",
+            crate::localization::pad_to_width(&marketplace_name, marketplace_width),
             root.display()
         );
     }
@@ -416,11 +453,20 @@ async fn run_remove(config: Config, args: RemoveMarketplaceArgs) -> Result<()> {
         return Ok(());
     }
 
-    println!("Removed marketplace `{}`.", outcome.marketplace_name);
+    println!(
+        "{}",
+        codex_tui::i18n::message(
+            "r39-cli-marketplace-removed",
+            &[("name", &outcome.marketplace_name)]
+        )
+    );
     if let Some(installed_root) = outcome.removed_installed_root {
         println!(
-            "Removed installed marketplace root: {}",
-            installed_root.as_path().display()
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-marketplace-removed-root",
+                &[("path", &installed_root.as_path().display().to_string())]
+            )
         );
     }
 
@@ -503,32 +549,78 @@ fn print_upgrade_outcome(
 ) -> Result<()> {
     for error in &outcome.errors {
         eprintln!(
-            "Failed to upgrade marketplace `{}`: {}",
-            error.marketplace_name, error.message
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-marketplace-upgrade-error",
+                &[("name", &error.marketplace_name), ("error", &error.message)]
+            )
         );
     }
     if !outcome.all_succeeded() {
-        bail!("{} upgrade failure(s) occurred.", outcome.errors.len());
+        bail!(
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-marketplace-upgrade-failures",
+                &[("count", &outcome.errors.len().to_string())]
+            )
+        );
     }
 
-    let selection_label = marketplace_name.unwrap_or("all configured Git marketplaces");
+    let selection_label =
+        marketplace_name.unwrap_or(codex_tui::i18n::text("all configured Git marketplaces"));
     if outcome.selected_marketplaces.is_empty() {
-        println!("No configured Git marketplaces to upgrade.");
+        println!(
+            "{}",
+            codex_tui::i18n::text("No configured Git marketplaces to upgrade.")
+        );
     } else if outcome.upgraded_roots.is_empty() {
         if marketplace_name.is_some() {
-            println!("Marketplace `{selection_label}` is already up to date.");
+            println!(
+                "{}",
+                codex_tui::i18n::message(
+                    "r39-cli-marketplace-up-to-date",
+                    &[("name", selection_label)]
+                )
+            );
         } else {
-            println!("All configured Git marketplaces are already up to date.");
+            println!(
+                "{}",
+                codex_tui::i18n::text("All configured Git marketplaces are already up to date.")
+            );
         }
     } else if marketplace_name.is_some() {
-        println!("Upgraded marketplace `{selection_label}` to the latest configured revision.");
+        println!(
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-marketplace-upgraded-one",
+                &[("name", selection_label)]
+            )
+        );
         for root in &outcome.upgraded_roots {
-            println!("Installed marketplace root: {}", root.display());
+            println!(
+                "{}",
+                codex_tui::i18n::message(
+                    "r39-cli-marketplace-upgraded-root",
+                    &[("path", &root.display().to_string())]
+                )
+            );
         }
     } else {
-        println!("Upgraded {} marketplace(s).", outcome.upgraded_roots.len());
+        println!(
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-marketplace-upgraded-many",
+                &[("count", &outcome.upgraded_roots.len().to_string())]
+            )
+        );
         for root in &outcome.upgraded_roots {
-            println!("Installed marketplace root: {}", root.display());
+            println!(
+                "{}",
+                codex_tui::i18n::message(
+                    "r39-cli-marketplace-upgraded-root",
+                    &[("path", &root.display().to_string())]
+                )
+            );
         }
     }
 

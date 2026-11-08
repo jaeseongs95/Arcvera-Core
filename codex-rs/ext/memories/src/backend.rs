@@ -95,6 +95,12 @@ pub struct SearchMemoriesResponse {
     pub matches: Vec<MemorySearchMatch>,
     pub next_cursor: Option<String>,
     pub truncated: bool,
+    /// Present for versioned snapshots. False means observation stopped before
+    /// the whole selected artifact scope was scanned; no total count is known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scan_complete: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scan_stop_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -134,6 +140,8 @@ pub struct MemorySearchMatch {
 
 #[derive(Debug, thiserror::Error)]
 pub enum MemoriesBackendError {
+    #[error("memory is unavailable: {reason}")]
+    MemoryUnavailable { reason: String },
     #[error("filename '{filename}' {reason}")]
     InvalidFilename { filename: String, reason: String },
     #[error("ad-hoc note must not be empty")]

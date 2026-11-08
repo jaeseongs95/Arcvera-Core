@@ -138,6 +138,7 @@ async fn finish_spawn_tool(
         .submit(Op::DynamicToolResponse {
             id: invocation.call_id.clone(),
             response: DynamicToolResponse {
+                memory_context: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputText {
                     text: "Done.".into(),
                 }],

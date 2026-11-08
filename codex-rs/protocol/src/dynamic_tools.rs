@@ -60,6 +60,42 @@ pub struct DynamicToolCallRequest {
 pub struct DynamicToolResponse {
     pub content_items: Vec<DynamicToolCallOutputContentItem>,
     pub success: bool,
+    /// Only lowers this client's own tool result to memory-context lifetime.
+    /// It never authenticates user instructions, permissions, or success.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub memory_context: Option<DynamicToolMemoryContext>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export_to = "v2/")]
+pub enum DynamicToolMemoryContext {
+    Snapshot,
+    /// An attempted mutation may have partial effects even when its RPC fails.
+    /// This invalidates older snapshots; it is not an acknowledgment of success.
+    MutationBoundary,
+}
+
+#[cfg(test)]
+mod memory_context_tests {
+    use super::*;
+
+    #[test]
+    fn old_response_bytes_and_default_decode_are_preserved() {
+        let old = r#"{"contentItems":[],"success":false}"#;
+        let mut decoded: DynamicToolResponse = serde_json::from_str(old).unwrap();
+        assert_eq!(decoded.memory_context, None);
+        assert_eq!(serde_json::to_string(&decoded).unwrap(), old);
+        decoded.memory_context = Some(DynamicToolMemoryContext::MutationBoundary);
+        let value = serde_json::to_value(&decoded).unwrap();
+        assert_eq!(value["success"], false);
+        assert_eq!(value["memoryContext"], "mutation_boundary");
+        assert_eq!(
+            serde_json::from_value::<DynamicToolResponse>(value).unwrap(),
+            decoded
+        );
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema, TS)]

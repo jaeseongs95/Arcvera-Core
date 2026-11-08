@@ -230,6 +230,20 @@ struct DoctorCheck {
     issues: Vec<DoctorIssue>,
     remediation: Option<String>,
     duration_ms: u64,
+    /// Presentation provenance only; never serialized or used for status decisions.
+    #[serde(skip)]
+    human_origin: DoctorHumanOrigin,
+}
+
+#[derive(Clone, Debug, Default)]
+enum DoctorHumanOrigin {
+    #[default]
+    None,
+    SystemEnvironment {
+        os_language_missing: bool,
+        missing_editor_env: Vec<&'static str>,
+    },
+    SearchPathNotFile,
 }
 
 /// Structured cause/remedy metadata for a non-ok doctor check.
@@ -297,6 +311,7 @@ impl DoctorCheck {
             issues: Vec::new(),
             remediation: None,
             duration_ms: 0,
+            human_origin: DoctorHumanOrigin::None,
         }
     }
 

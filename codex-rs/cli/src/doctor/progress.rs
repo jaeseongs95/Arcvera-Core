@@ -1,3 +1,4 @@
+use codex_tui::i18n::message;
 use std::io;
 use std::io::IsTerminal;
 use std::io::Write;
@@ -74,11 +75,20 @@ impl StderrProgress {
 
 impl DoctorProgress for StderrProgress {
     fn begin(&self, label: &'static str) {
-        self.render(format!("Checking {label}..."));
+        self.render(message(
+            "r39-doctor-human-dcccbfa97d36",
+            &[("label", label)],
+        ));
     }
 
     fn heartbeat(&self, label: &'static str, elapsed: Duration) {
-        self.render(format!("Still checking {label}... {}s", elapsed.as_secs()));
+        self.render(message(
+            "r39-doctor-human-3424fdc9d007",
+            &[
+                ("label", label),
+                ("seconds", &elapsed.as_secs().to_string()),
+            ],
+        ));
     }
 
     fn finish(&self, _label: &'static str, _status: CheckStatus) {}

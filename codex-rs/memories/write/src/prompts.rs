@@ -118,6 +118,18 @@ fn render_memory_extensions_block(template: &Template, memory_extensions_root: &
         })
 }
 
+/// Scope comes from the host's fixed memory namespace, never rollout text.
+pub(crate) fn memory_scope_instructions(scope: codex_config::types::MemoryScope) -> &'static str {
+    match scope {
+        codex_config::types::MemoryScope::Global => {
+            "\nHost memory scope: global. Retain only supported cross-project preferences, reusable corrections, and useful routing references. Keep any project reference explicitly qualified by its project and source time. Do not promote project progress, checkout-specific decisions, or temporary task instructions into global user defaults. Do not copy a project's activity history into global memory.\n"
+        }
+        codex_config::types::MemoryScope::Project => {
+            "\nHost memory scope: project. Retain information useful to future work in this project only. Keep branches, dated status, temporary instructions, and ownership qualified by their evidence. Do not infer global user preferences from project-specific choices. Never read or update another memory namespace.\n"
+        }
+    }
+}
+
 pub(crate) fn rollout_token_limit(model_info: &ModelInfo) -> usize {
     model_info
         .resolved_context_window()

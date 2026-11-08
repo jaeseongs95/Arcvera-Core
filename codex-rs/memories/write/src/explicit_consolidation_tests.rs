@@ -169,7 +169,6 @@ async fn explicit_consolidation_completion_is_job_state_not_a_note_application_r
     let root = home.path().join("memories");
     seed_required_memory_artifacts(&root).await?;
     let previous_summary = tokio::fs::read_to_string(root.join("memory_summary.md")).await?;
-    let note = crate::add_user_memory_note(&root, "Explicit correction from this test").await?;
     let response = mount_sse_once(
         &server,
         sse(vec![
@@ -185,6 +184,10 @@ async fn explicit_consolidation_completion_is_job_state_not_a_note_application_r
     loop {
         if let Some(status) = crate::memory_consolidation_status(&test.codex, &test.config).await?
             && status.status == "done"
+            && codex_memories_read::publication::load_publication(&root)?.is_some_and(|state| {
+                state.status == codex_memories_read::publication::PublicationStatus::Published
+            })
+            && MemoryWorkspaceLock::try_acquire(&root).is_ok()
         {
             assert!(status.finished_at.is_some());
             break;
@@ -196,7 +199,6 @@ async fn explicit_consolidation_completion_is_job_state_not_a_note_application_r
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
     assert!(!diff_since_latest_init(&root).await?.has_changes());
-    assert!(note.is_file());
     assert_eq!(
         tokio::fs::read_to_string(root.join("memory_summary.md")).await?,
         previous_summary
@@ -210,7 +212,8 @@ async fn explicit_consolidation_completion_is_job_state_not_a_note_application_r
     assert_eq!(retry.status, "completed");
     assert_eq!(retry.reason.as_deref(), Some("no_workspace_changes"));
     // A note accepted after the last job cannot inherit that job's completion.
-    crate::add_user_memory_note(&root, "Later correction not processed by this worker").await?;
+    let note =
+        crate::add_user_memory_note(&root, "Later correction not processed by this worker").await?;
     assert_eq!(
         crate::memory_consolidation_status(&test.codex, &test.config)
             .await?
@@ -218,6 +221,76 @@ async fn explicit_consolidation_completion_is_job_state_not_a_note_application_r
             .status,
         "done"
     );
+    assert!(diff_since_latest_init(&root).await?.has_changes());
+    let publication =
+        codex_memories_read::publication::load_publication(&root)?.expect("pending input");
+    assert_eq!(
+        publication.status,
+        codex_memories_read::publication::PublicationStatus::Pending
+    );
+    assert_eq!(
+        publication.readiness_for_summary(previous_summary.as_bytes()),
+        codex_memories_read::publication::PublicationReadiness::Pending
+    );
+    assert_eq!(
+        tokio::fs::read_to_string(note).await?,
+        "Later correction not processed by this worker"
+    );
+    shutdown_test_codex(&test).await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn explicit_note_cannot_be_acknowledged_by_an_unchanged_worker_completion()
+-> anyhow::Result<()> {
+    let server = start_mock_server().await;
+    let home = Arc::new(TempDir::new()?);
+    let test = build_test_codex(&server, Arc::clone(&home)).await?;
+    let root = home.path().join("memories");
+    seed_required_memory_artifacts(&root).await?;
+    let previous = tokio::fs::read(root.join("memory_summary.md")).await?;
+    let note =
+        crate::add_user_memory_note(&root, "Forget the synthetic obsolete preference").await?;
+    let response = mount_sse_once_without_decision(
+        &server,
+        sse(vec![
+            ev_response_created("no-note-decision"),
+            ev_assistant_message("no-note-decision-message", "worker completed"),
+            ev_completed("no-note-decision"),
+        ]),
+    )
+    .await;
+    assert_eq!(consolidate(&test, false).await?.status, "accepted");
+    let request = wait_for_single_request(&response).await;
+    assert!(request.body_contains_text("memory_application.json"));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let status = test
+            .codex
+            .state_db()
+            .expect("state")
+            .memories()
+            .consolidation_status()
+            .await?;
+        let publication = codex_memories_read::publication::load_publication(&root)?;
+        if status.is_some_and(|status| status.status == "error")
+            && publication.is_some_and(|state| {
+                state.status == codex_memories_read::publication::PublicationStatus::Failed
+            })
+        {
+            break;
+        }
+        anyhow::ensure!(
+            Instant::now() < deadline,
+            "missing note decision was not rejected"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(
+        tokio::fs::read(root.join("memory_summary.md")).await?,
+        previous
+    );
+    assert!(note.is_file());
     assert!(diff_since_latest_init(&root).await?.has_changes());
     shutdown_test_codex(&test).await?;
     Ok(())

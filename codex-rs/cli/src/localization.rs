@@ -8,6 +8,18 @@ use clap::error::ErrorFormatter;
 use clap::error::ErrorKind;
 use codex_tui::i18n::Locale;
 use codex_tui::i18n::message_for;
+use unicode_width::UnicodeWidthStr;
+
+/// Measure display cells without stripping or rewriting the original text.
+pub(super) fn display_width(text: &str) -> usize {
+    UnicodeWidthStr::width(text)
+}
+
+/// Pad a human-readable table cell while retaining its original payload bytes.
+pub(super) fn pad_to_width(text: &str, width: usize) -> String {
+    let padding = width.saturating_sub(display_width(text));
+    format!("{text}{}", " ".repeat(padding))
+}
 
 pub(super) fn localize_help(mut command: Command, locale: Locale) -> Command {
     // Materialize generated help/version arguments and deferred command metadata

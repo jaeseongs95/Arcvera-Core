@@ -1,3 +1,7 @@
+use codex_memories_read::publication::MemoryPublication;
+use codex_memories_read::publication::MemoryWorkspaceLock;
+use codex_memories_read::publication::load_publication;
+use codex_memories_read::publication::publication_path;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
@@ -22,19 +26,55 @@ pub(super) async fn add_ad_hoc_note(
     if request.note.trim().is_empty() {
         return Err(MemoriesBackendError::EmptyAdHocNote);
     }
+    if request.note.len() > 16 * 1024 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "memory note must be at most 16384 UTF-8 bytes",
+        )
+        .into());
+    }
+    let note = codex_secrets::redact_secrets(request.note);
 
+    ensure_directory(&backend.root).await?;
+    let lock = MemoryWorkspaceLock::try_acquire(&backend.root)?;
+    let previous = load_publication(&backend.root)?;
+    let pending = MemoryPublication::next_pending(previous.as_ref())?;
     let notes_dir = ensure_notes_dir(backend).await?;
     let path = notes_dir.join(&request.filename);
-    let mut file = match OpenOptions::new().write(true).create_new(true).open(&path) {
-        Ok(file) => file,
-        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
-            return Err(MemoriesBackendError::AdHocNoteAlreadyExists {
-                filename: request.filename,
-            });
+    let root = backend.root.clone();
+    tokio::task::spawn_blocking(move || -> Result<(), MemoriesBackendError> {
+        // The worker owns the lock even if its async caller is cancelled.
+        let _lock = lock;
+        let mut file = match OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(file) => file,
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                return Err(MemoriesBackendError::AdHocNoteAlreadyExists {
+                    filename: request.filename,
+                });
+            }
+            Err(err) => return Err(err.into()),
+        };
+        // Share the native note RPC's generation. Invalidate derived memory
+        // before exposing new note content, without blocking the async worker.
+        let result = (|| -> std::io::Result<()> {
+            let contents = serde_json::to_string(&pending).map_err(std::io::Error::other)?;
+            codex_utils_path::write_atomically(&publication_path(&root), &contents)?;
+            file.write_all(note.as_bytes())?;
+            file.flush()
+        })();
+        if let Err(error) = result {
+            drop(file);
+            std::fs::remove_file(&path).map_err(|cleanup| {
+                std::io::Error::other(format!(
+                    "memory note write failed: {error}; incomplete note cleanup failed: {cleanup}"
+                ))
+            })?;
+            return Err(error.into());
         }
-        Err(err) => return Err(err.into()),
-    };
-    file.write_all(request.note.as_bytes())?;
+        Ok(())
+    })
+    .await
+    .map_err(std::io::Error::other)??;
 
     Ok(AddAdHocMemoryNoteResponse {})
 }

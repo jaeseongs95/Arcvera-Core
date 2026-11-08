@@ -41,15 +41,54 @@ pub(crate) async fn build_memory_tool_developer_instructions(
     build_memory_instructions_from_root(&base_path, version).await
 }
 
+#[cfg(test)]
 pub(crate) async fn build_memory_instructions_from_root(
     base_path: &AbsolutePathBuf,
     version: MemoryVersion,
 ) -> Option<String> {
+    build_memory_context_from_root(base_path, version)
+        .await
+        .map(|(text, _)| text)
+}
+
+pub(crate) async fn build_memory_context_from_root(
+    base_path: &AbsolutePathBuf,
+    version: MemoryVersion,
+) -> Option<(String, bool)> {
+    // V2 keeps only stable policy in the initial developer context. Historical
+    // data is selected for an individual query by the turn-input contributor.
+    let root = base_path.clone();
+    let versioned = version == MemoryVersion::V2
+        || !matches!(
+            tokio::task::spawn_blocking(
+                move || codex_memories_read::publication::load_publication(root.as_path())
+            )
+            .await,
+            Ok(Ok(None))
+        );
+    if versioned {
+        let base_path = base_path.display().to_string();
+        let mut policy = MEMORY_V2_TEMPLATE
+            .render([("base_path", base_path.as_str())])
+            .ok()?;
+        if version == MemoryVersion::V1 {
+            policy.push_str("\nVersioned v1 also exposes its current published MEMORY.md and final skills through the memory tools; raw inputs and user notes remain outside that publication.\n");
+        }
+        return Some((policy, true));
+    }
     let root = base_path.clone();
     // Optional context is omitted on unreadable, invalid or oversized input; explicit browsing
     // reports the storage state. Bound the read before allocation, then apply the token budget.
     let memory_summary = tokio::task::spawn_blocking(move || -> std::io::Result<String> {
         codex_core::config::validate_scoped_memory_root(root.as_path())?;
+        let _lock = codex_memories_read::publication::MemoryWorkspaceLock::try_acquire_shared(
+            root.as_path(),
+        )?;
+        if codex_memories_read::publication::load_publication(root.as_path())?.is_some() {
+            return Err(std::io::Error::other(
+                "legacy memory became versioned before the summary snapshot",
+            ));
+        }
         let file = std::fs::File::open(root.join("memory_summary.md"))?;
         let mut bytes = Vec::new();
         file.take(codex_core::config::MEMORY_SUMMARY_MAX_BYTES + 1)
@@ -85,6 +124,7 @@ pub(crate) async fn build_memory_instructions_from_root(
             ("memory_summary", memory_summary.as_str()),
         ])
         .ok()
+        .map(|text| (text, false))
 }
 
 #[cfg(test)]

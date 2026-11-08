@@ -12,10 +12,14 @@ impl ChatWidget {
         let items = [
             (
                 false,
-                "Scrollback",
-                "Native terminal copy, paste and scrollback",
+                crate::i18n::text("Scrollback"),
+                crate::i18n::text("Native terminal copy, paste and scrollback"),
             ),
-            (true, "Fullscreen", "Scroll within Codex's fullscreen view"),
+            (
+                true,
+                crate::i18n::text("Fullscreen"),
+                crate::i18n::text("Scroll within Codex's fullscreen view"),
+            ),
         ]
         .into_iter()
         .map(|(enabled, name, description)| SelectionItem {
@@ -31,9 +35,11 @@ impl ChatWidget {
         })
         .collect();
         self.show_selection_view(SelectionViewParams {
-            title: Some("TUI mode for next launch".into()),
+            title: Some(crate::i18n::text("TUI mode for next launch").into()),
             description_layout: SelectionDescriptionLayout::Columns,
-            footer_note: Some("Restart to apply. Launch overrides still apply.".into()),
+            footer_note: Some(
+                crate::i18n::text("Restart to apply. Launch overrides still apply.").into(),
+            ),
             footer_hint: Some(picker_hint_line_for_keymap(&self.bottom_pane.list_keymap())),
             items,
             ..SelectionViewParams::picker()

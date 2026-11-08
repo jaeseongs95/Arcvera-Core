@@ -7,6 +7,7 @@
 mod control;
 mod extensions;
 mod guard;
+mod lifecycle;
 mod metrics;
 mod notes;
 mod phase1;
@@ -24,8 +25,11 @@ use codex_utils_absolute_path::AbsolutePathBuf;
 use std::path::Path;
 use std::path::PathBuf;
 
+pub use control::MemoryResetGuard;
 pub use control::clear_memory_roots_contents;
 pub use extensions::prune_old_extension_resources;
+pub use lifecycle::MemoryPublicationView;
+pub use lifecycle::memory_publication_snapshot;
 pub use notes::add_user_memory_note;
 pub use phase2::MemoryConsolidationStartOutcome;
 pub use prompts::build_consolidation_prompt;

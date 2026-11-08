@@ -30,7 +30,9 @@ pub struct ThreadMemoryReadResponse {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub root: Option<String>,
-    /// ready, missing, disabled, unavailable, unreadable, or oversized.
+    /// ready, missing, disabled, unavailable, unreadable, oversized, unknown,
+    /// pending, processing, failed, busy, invalid, cleared, or resetting. For V1 legacy
+    /// previews, ready means readable; publication.current remains false.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub status: Option<String>,
@@ -44,6 +46,30 @@ pub struct ThreadMemoryReadResponse {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub consolidation: Option<MemoryConsolidationState>,
+    /// Artifact currentness is independent of job completion. Pending or invalid
+    /// memory never returns an earlier summary as the current artifact.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub publication: Option<MemoryPublicationState>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct MemoryPublicationState {
+    pub status: String,
+    /// Namespace-local input generation. Compare only within this response's
+    /// scope/root; it is not a timestamp or the job input watermark.
+    pub accepted_generation: Option<u64>,
+    pub published_generation: Option<u64>,
+    /// True only when selected artifact bytes match this published generation.
+    /// It does not certify semantic application of a correction or forget request.
+    pub current: bool,
+    /// Preserved host stage for explicit recovery. A path is metadata, not
+    /// authorization to read, restore, or permanently delete its contents.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub recovery_stage_root: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
@@ -199,6 +225,28 @@ mod tests {
         assert_eq!(
             serde_json::to_value(state).unwrap()["consolidation"]["lastSuccessWatermark"],
             41
+        );
+    }
+
+    #[test]
+    fn publication_state_is_optional_and_independent_of_an_older_done_job() {
+        let legacy: ThreadMemoryReadResponse =
+            serde_json::from_value(json!({"summary":"legacy preview"})).unwrap();
+        assert!(legacy.publication.is_none());
+        let pending: ThreadMemoryReadResponse = serde_json::from_value(json!({
+            "summary":null, "status":"pending",
+            "publication":{"status":"pending","acceptedGeneration":2,"publishedGeneration":1,"current":false},
+            "consolidation":{"status":"done","startedAt":10,"finishedAt":11,"leaseUntil":null,"retryAt":null,"lastError":null,"inputWatermark":42,"lastSuccessWatermark":42}
+        })).unwrap();
+        assert!(pending.summary.is_none());
+        assert_eq!(pending.consolidation.as_ref().unwrap().status, "done");
+        let publication = pending.publication.as_ref().unwrap();
+        assert_eq!(publication.accepted_generation, Some(2));
+        assert_eq!(publication.published_generation, Some(1));
+        assert!(!publication.current);
+        assert_eq!(
+            serde_json::to_value(pending).unwrap()["publication"]["current"],
+            false
         );
     }
 

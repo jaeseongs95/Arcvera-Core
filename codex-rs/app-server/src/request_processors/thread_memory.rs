@@ -5,9 +5,6 @@ use codex_app_server_protocol::ThreadMemoryNoteAddParams;
 use codex_app_server_protocol::ThreadMemoryNoteAddResponse;
 use codex_app_server_protocol::ThreadMemoryReadParams;
 use codex_app_server_protocol::ThreadMemoryReadResponse;
-use std::io::Read;
-
-use codex_core::config::MEMORY_SUMMARY_MAX_BYTES as MAX_SUMMARY_BYTES;
 
 /// Resolve an explicit write target without rebinding the loaded thread's memory namespace.
 async fn memory_note_target(
@@ -112,47 +109,30 @@ impl ThreadRequestProcessor {
             "global"
         };
         let enabled = config.features.enabled(Feature::MemoryTool);
-        let (summary, status) = if root.is_none() {
-            (None, "unavailable")
+        let (summary, status, publication) = if root.is_none() {
+            (None, "unavailable", None)
         } else if !enabled || !config.memories.use_memories && params.include_disabled != Some(true)
         {
-            (None, "disabled")
+            (None, "disabled", None)
         } else if root.as_ref().is_some_and(|root| {
             codex_core::config::validate_scoped_memory_root(root.as_path()).is_err()
         }) {
-            (None, "unreadable")
+            (None, "unreadable", None)
         } else {
-            let path = root
-                .as_ref()
-                .expect("checked root")
-                .join("memory_summary.md");
-            tokio::task::spawn_blocking(move || {
-                let file = match std::fs::File::open(path) {
-                    Ok(file) => file,
-                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                        return (None, "missing");
-                    }
-                    Err(_) => return (None, "unreadable"),
-                };
-                let mut bytes = Vec::new();
-                if file
-                    .take(MAX_SUMMARY_BYTES + 1)
-                    .read_to_end(&mut bytes)
-                    .is_err()
-                {
-                    return (None, "unreadable");
-                }
-                if bytes.len() as u64 > MAX_SUMMARY_BYTES {
-                    return (None, "oversized");
-                }
-                match String::from_utf8(bytes) {
-                    Ok(summary) if !summary.trim().is_empty() => (Some(summary), "ready"),
-                    Ok(_) => (None, "missing"),
-                    Err(_) => (None, "unreadable"),
-                }
-            })
+            let view = codex_memories_write::memory_publication_snapshot(
+                root.as_ref().expect("checked root").as_path(),
+                config.memories.version,
+            )
             .await
-            .map_err(|error| internal_error(format!("memory read failed: {error}")))?
+            .map_err(|error| internal_error(format!("memory read failed: {error}")))?;
+            let publication = codex_app_server_protocol::MemoryPublicationState {
+                status: view.publication_status.to_string(),
+                accepted_generation: view.accepted_generation,
+                published_generation: view.published_generation,
+                current: view.current,
+                recovery_stage_root: view.recovery_stage_root,
+            };
+            (view.summary, view.status, Some(publication))
         };
         let generate = if let Some(db) = thread.state_db() {
             db.get_thread_memory_mode(thread_id)
@@ -203,6 +183,7 @@ impl ThreadRequestProcessor {
                 use_memories: Some(enabled && config.memories.use_memories),
                 generate_memories: Some(enabled && generate),
                 consolidation,
+                publication,
             }
             .into(),
         ))

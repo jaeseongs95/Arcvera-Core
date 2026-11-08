@@ -63,7 +63,7 @@ pub(crate) fn preferred_tooltip<R: Rng + ?Sized>(
 
     // Leave small chance for a random tooltip to be shown.
     if rng.random_ratio(/*numerator*/ 8, /*denominator*/ 10) {
-        return app_tooltip().map(str::to_string);
+        return app_tooltip().map(|tip| crate::i18n::text(tip).to_string());
     }
 
     None
@@ -119,7 +119,7 @@ fn pick_tooltip<R: Rng + ?Sized>(rng: &mut R, keymap: &TuiKeymap) -> Option<Stri
 /// Render shared tip styling and links, retaining visible URLs when the terminal needs them.
 pub(crate) fn render_tooltip_lines(tip: &str, width: usize, cwd: &Path) -> Vec<HyperlinkLine> {
     crate::markdown_render::render_streaming_markdown_lines_with_width_and_cwd(
-        &format!("**Tip:** {tip}"),
+        &format!("**{}** {tip}", crate::i18n::text("Tip:")),
         Some(width),
         Some(cwd),
         &crate::markdown_render::hide_web_link_destination,
@@ -135,11 +135,11 @@ pub(crate) fn resolved_tooltips(
 ) -> impl Iterator<Item = String> + '_ {
     ALL_TOOLTIPS
         .iter()
-        .filter_map(move |tip| render_tooltip(tip, keymap))
+        .filter_map(move |tip| render_tooltip(crate::i18n::text(tip), keymap))
 }
 
 pub(crate) fn tooltip_templates() -> impl Iterator<Item = &'static str> {
-    ALL_TOOLTIPS.iter().copied()
+    ALL_TOOLTIPS.iter().copied().map(crate::i18n::text)
 }
 
 /// Substitute `{key:context.action}` with the current primary shortcut in a Markdown code span.

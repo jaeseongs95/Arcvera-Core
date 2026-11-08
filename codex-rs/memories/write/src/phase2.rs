@@ -1,4 +1,5 @@
 use crate::MemoryWorkspaceLock;
+use crate::lifecycle::ConsolidationPublication;
 use crate::metrics::MEMORY_PHASE_TWO_E2E_MS;
 use crate::metrics::MEMORY_PHASE_TWO_INPUT;
 use crate::metrics::MEMORY_PHASE_TWO_JOBS;
@@ -9,6 +10,7 @@ use crate::rebuild_raw_memories_file_from_memories;
 use crate::runtime::MemoryStartupContext;
 use crate::runtime::SpawnedConsolidationAgent;
 use crate::sync_rollout_summaries_from_memories;
+use crate::workspace::MemoryStage;
 use crate::workspace::memory_workspace_diff;
 use crate::workspace::prepare_memory_workspace;
 use crate::workspace::remove_memory_symlinks;
@@ -105,6 +107,25 @@ pub(crate) async fn run_with_retry(
             return MemoryConsolidationStartOutcome::new("blocked", Some(status));
         }
     };
+    // An incomplete reset must never be repaired by extracting/consolidating
+    // the old inputs. Check before claiming a job or touching workspace files.
+    match codex_memories_read::publication::load_publication(&root) {
+        Ok(Some(state))
+            if state.status == codex_memories_read::publication::PublicationStatus::Resetting =>
+        {
+            return MemoryConsolidationStartOutcome::new(
+                "blocked",
+                Some("reset_recovery_required"),
+            );
+        }
+        Ok(_) => {}
+        Err(_) => {
+            return MemoryConsolidationStartOutcome::new(
+                "blocked",
+                Some("publication_unavailable"),
+            );
+        }
+    }
 
     // 1. Claim the global Phase 2 lock before touching the memory workspace.
     let claim = match job::claim(context.as_ref(), &db, explicit_retry).await {
@@ -160,6 +181,11 @@ pub(crate) async fn run_with_retry(
     // 5. Sync the current inputs into the memory workspace.
     if let Err(err) = sync_phase2_workspace_inputs(&root, &raw_memories, &config).await {
         tracing::error!("failed syncing phase2 workspace inputs: {err}");
+        if let Err(error) =
+            crate::lifecycle::reject_unpublished_inputs(&root, Arc::clone(&workspace_lock)).await
+        {
+            tracing::error!("failed invalidating partially synced memory inputs: {error}");
+        }
         job::failed(
             context.as_ref(),
             &db,
@@ -178,11 +204,30 @@ pub(crate) async fn run_with_retry(
         Ok(diff) => diff,
         Err(err) => {
             tracing::error!("failed checking memory workspace changes: {err}");
+            if let Err(error) =
+                crate::lifecycle::reject_unpublished_inputs(&root, Arc::clone(&workspace_lock))
+                    .await
+            {
+                tracing::error!("failed invalidating unchecked memory inputs: {error}");
+            }
             job::failed(context.as_ref(), &db, &claim, "failed_workspace_status").await;
             return MemoryConsolidationStartOutcome::new("failed", Some("failed_workspace_status"));
         }
     };
+    let pending_inputs =
+        match crate::lifecycle::has_pending_inputs(&root, config.memories.version).await {
+            Ok(pending) => pending,
+            Err(err) => {
+                tracing::error!("failed reading memory publication state: {err}");
+                job::failed(context.as_ref(), &db, &claim, "failed_publication_state").await;
+                return MemoryConsolidationStartOutcome::new(
+                    "failed",
+                    Some("failed_publication_state"),
+                );
+            }
+        };
     if !workspace_diff.has_changes()
+        && !pending_inputs
         && validate_consolidation_artifacts_for_version(&root, config.memories.version)
             .await
             .is_ok()
@@ -209,19 +254,99 @@ pub(crate) async fn run_with_retry(
     // 7. Persist the diff for the consolidation agent to inspect.
     if let Err(err) = write_workspace_diff(&root, &workspace_diff).await {
         tracing::error!("failed writing memory workspace diff file: {err}");
+        if let Err(error) =
+            crate::lifecycle::reject_unpublished_inputs(&root, Arc::clone(&workspace_lock)).await
+        {
+            tracing::error!("failed invalidating unprocessed memory inputs: {error}");
+        }
         job::failed(context.as_ref(), &db, &claim, "failed_workspace_diff_file").await;
         return MemoryConsolidationStartOutcome::new("failed", Some("failed_workspace_diff_file"));
     }
 
-    // 8. Spawn the consolidation agent.
-    let prompt = agent::get_prompt(&root, config.memories.version);
+    // Readers must stop consuming the preceding artifact before the agent can
+    // edit it. A new note cannot inherit an earlier job's completion.
+    let mut publication = match ConsolidationPublication::begin(
+        &root,
+        &workspace_diff.unified_diff,
+        config.memories.version,
+        Arc::clone(&workspace_lock),
+    )
+    .await
+    {
+        Ok(publication) => publication,
+        Err(err) => {
+            tracing::error!("failed starting memory publication: {err}");
+            job::failed(context.as_ref(), &db, &claim, "failed_begin_publication").await;
+            return MemoryConsolidationStartOutcome::new(
+                "failed",
+                Some("failed_begin_publication"),
+            );
+        }
+    };
+
+    let stage =
+        match MemoryStage::prepare(&root, config.memories.version, Arc::clone(&workspace_lock))
+            .await
+        {
+            Ok(stage) => Arc::new(stage),
+            Err(error) => {
+                tracing::error!("failed preparing bounded memory stage: {error}");
+                if let Err(error) = publication.fail(&root).await {
+                    tracing::error!("failed marking memory publication unavailable: {error}");
+                }
+                let detail = format!("failed_prepare_stage: {error}");
+                job::failed_with_details(
+                    context.as_ref(),
+                    &db,
+                    &claim,
+                    "failed_prepare_stage",
+                    &detail,
+                )
+                .await;
+                return MemoryConsolidationStartOutcome::new("failed", Some(&detail));
+            }
+        };
+    let Some(agent_config) = agent::bind_stage(agent_config, stage.root()) else {
+        if let Err(error) = publication.fail(&root).await {
+            tracing::error!("failed marking memory publication unavailable: {error}");
+        }
+        job::failed(context.as_ref(), &db, &claim, "failed_stage_permissions").await;
+        return MemoryConsolidationStartOutcome::new("failed", Some("failed_stage_permissions"));
+    };
+
+    if let Err(error) = publication.bind_stage(&root, stage.root()).await {
+        tracing::error!("failed recording memory recovery stage: {error}");
+        job::failed(context.as_ref(), &db, &claim, "failed_record_stage").await;
+        return MemoryConsolidationStartOutcome::new("failed", Some("failed_record_stage"));
+    }
+
+    // 8. Spawn the consolidation agent in a selected input copy.
+    let mut prompt = agent::get_prompt(stage.root(), config.memories.version);
+    prompt.push(UserInput::Text {
+        text: format!(
+            "{}\nHost staging root: {}\nYou are working in a temporary input copy. Edit only final consolidated artifacts. Keep memory artifact references relative to the memory root; never retain this temporary stage path as memory. Original source and note files are inputs, not outputs. The host may later select bounded relevant excerpts from current final artifacts in this namespace; do not assume the entire summary or raw source files will be supplied to a future session.\n{}",
+            crate::prompts::memory_scope_instructions(config.memories.scope),
+            stage.root().display(),
+            publication.decision_prompt()
+        ),
+        text_elements: vec![],
+    });
+    stage.preserve_outputs();
     let agent = match context
-        .spawn_consolidation_agent(agent_config, prompt, Arc::clone(&workspace_lock))
+        .spawn_consolidation_agent(
+            agent_config,
+            prompt,
+            Arc::clone(&workspace_lock),
+            Arc::clone(&stage),
+        )
         .await
     {
         Ok(agent) => agent,
         Err(err) => {
             tracing::error!("failed to spawn global memory consolidation agent: {err}");
+            if let Err(error) = publication.fail(&root).await {
+                tracing::error!("failed marking memory publication unavailable: {error}");
+            }
             job::failed(context.as_ref(), &db, &claim, "failed_spawn_agent").await;
             return MemoryConsolidationStartOutcome::new("failed", Some("failed_spawn_agent"));
         }
@@ -235,6 +360,8 @@ pub(crate) async fn run_with_retry(
         raw_memories.clone(),
         root,
         config.memories.version,
+        publication,
+        stage,
         agent,
         workspace_lock,
         phase_two_e2e_timer,
@@ -320,11 +447,21 @@ mod job {
         claim: &Claim,
         reason: &'static str,
     ) {
+        failed_with_details(context, db, claim, reason, reason).await;
+    }
+
+    pub(super) async fn failed_with_details(
+        context: &MemoryStartupContext,
+        db: &MemoryStore,
+        claim: &Claim,
+        reason: &'static str,
+        details: &str,
+    ) {
         context.counter(MEMORY_PHASE_TWO_JOBS, /*inc*/ 1, &[("status", reason)]);
         if matches!(
             db.mark_global_phase2_job_failed(
                 &claim.token,
-                reason,
+                details,
                 crate::stage_two::JOB_RETRY_DELAY_SECONDS,
             )
             .await,
@@ -333,7 +470,7 @@ mod job {
             let _ = db
                 .mark_global_phase2_job_failed_if_unowned(
                     &claim.token,
-                    reason,
+                    details,
                     crate::stage_two::JOB_RETRY_DELAY_SECONDS,
                 )
                 .await;
@@ -428,6 +565,29 @@ mod agent {
         }]
     }
 
+    /// Keep parent enforcement while directing ordinary worker writes to its
+    /// own copy. Disabled/External remains outside Codex-managed OS isolation.
+    pub(super) fn bind_stage(
+        mut config: Config,
+        root: &codex_utils_absolute_path::AbsolutePathBuf,
+    ) -> Option<Config> {
+        config.cwd = root.clone();
+        if matches!(
+            config.permissions.effective_permission_profile(),
+            PermissionProfile::Managed { .. }
+        ) {
+            config
+                .set_legacy_sandbox_policy(SandboxPolicy::WorkspaceWrite {
+                    writable_roots: vec![root.clone()],
+                    network_access: false,
+                    exclude_tmpdir_env_var: true,
+                    exclude_slash_tmp: true,
+                })
+                .ok()?;
+        }
+        Some(config)
+    }
+
     /// Handle the agent while it is running.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn handle(
@@ -437,6 +597,8 @@ mod agent {
         selected_outputs: Vec<codex_state::Stage1Output>,
         memory_root: codex_utils_absolute_path::AbsolutePathBuf,
         version: MemoryVersion,
+        publication: ConsolidationPublication,
+        stage: Arc<MemoryStage>,
         agent: SpawnedConsolidationAgent,
         workspace_lock: Arc<MemoryWorkspaceLock>,
         phase_two_e2e_timer: Option<codex_otel::Timer>,
@@ -467,16 +629,32 @@ mod agent {
                 .await
             {
                 warn!("failed to auto-close global memory consolidation agent {thread_id}: {err}");
+                if let Err(error) = publication.fail(&memory_root).await {
+                    tracing::error!("failed marking memory publication unavailable: {error}");
+                }
                 // Keep the existing lease until it expires so another worker cannot race a
                 // consolidation agent whose shutdown has not completed.
                 return;
             }
 
             let artifacts_valid = if agent_completed {
-                match validate_consolidation_artifacts_for_version(&memory_root, version).await {
+                let validation = async {
+                    validate_consolidation_artifacts_for_version(stage.root(), version).await?;
+                    publication
+                        .validate_decision(&memory_root, stage.root())
+                        .await?;
+                    Ok::<(), anyhow::Error>(())
+                }
+                .await;
+                match validation {
                     Ok(()) => true,
                     Err(err) => {
                         tracing::error!("memory consolidation artifacts are invalid: {err}");
+                        if let Err(error) = publication.fail(&memory_root).await {
+                            tracing::error!(
+                                "failed marking memory publication unavailable: {error}"
+                            );
+                        }
                         job::failed(context.as_ref(), &db, &claim, "failed_invalid_artifacts")
                             .await;
                         false
@@ -504,18 +682,37 @@ mod agent {
                         tracing::error!(
                             "lost global memory consolidation ownership before resetting workspace baseline"
                         );
+                        if let Err(error) = publication.fail(&memory_root).await {
+                            tracing::error!("failed marking memory publication unavailable: {error}");
+                        }
                         false
                     }
                     Err(_) => {
                         job::failed(context.as_ref(), &db, &claim, "failed_confirm_ownership")
                             .await;
+                        if let Err(error) = publication.fail(&memory_root).await {
+                            tracing::error!("failed marking memory publication unavailable: {error}");
+                        }
                         false
                     }
                 };
                 if still_owns_lock {
-                    if let Err(err) = reset_memory_workspace_baseline(&memory_root).await {
+                    if let Err(err) = stage.publish_outputs(&memory_root, version).await {
+                        tracing::error!("failed copying final memory artifacts from stage: {err}");
+                        job::failed(context.as_ref(), &db, &claim, "failed_publish_stage").await;
+                        if let Err(error) = publication.fail(&memory_root).await {
+                            tracing::error!(
+                                "failed marking memory publication unavailable: {error}"
+                            );
+                        }
+                    } else if let Err(err) = reset_memory_workspace_baseline(&memory_root).await {
                         tracing::error!("failed resetting memory workspace baseline: {err}");
                         job::failed(context.as_ref(), &db, &claim, "failed_workspace_commit").await;
+                        if let Err(error) = publication.fail(&memory_root).await {
+                            tracing::error!(
+                                "failed marking memory publication unavailable: {error}"
+                            );
+                        }
                     } else if !job::succeed(
                         context.as_ref(),
                         &db,
@@ -529,16 +726,36 @@ mod agent {
                         tracing::error!(
                             "failed marking global memory consolidation job succeeded after resetting workspace baseline"
                         );
+                        if let Err(error) = publication.fail(&memory_root).await {
+                            tracing::error!(
+                                "failed marking memory publication unavailable: {error}"
+                            );
+                        }
                     } else {
-                        drop(phase_two_e2e_timer);
-                        context.record_storage_size(&memory_root).await;
+                        if let Err(err) = publication.publish(&memory_root, version).await {
+                            // The DB job is done, but this generation is not
+                            // available to readers. Do not turn it into ready.
+                            tracing::error!("failed publishing completed memory artifacts: {err}");
+                            if let Err(error) = publication.fail(&memory_root).await {
+                                tracing::error!(
+                                    "failed marking memory publication unavailable: {error}"
+                                );
+                            }
+                        } else {
+                            stage.allow_cleanup();
+                            drop(phase_two_e2e_timer);
+                            context.record_storage_size(&memory_root).await;
+                        }
                     }
                 }
             } else if !agent_completed {
-                if let Err(err) = remove_memory_symlinks(&memory_root).await {
+                if let Err(err) = remove_memory_symlinks(stage.root()).await {
                     tracing::error!("failed removing memory workspace symbolic links: {err}");
                 }
                 job::failed(context.as_ref(), &db, &claim, "failed_agent").await;
+                if let Err(error) = publication.fail(&memory_root).await {
+                    tracing::error!("failed marking memory publication unavailable: {error}");
+                }
             }
         });
     }

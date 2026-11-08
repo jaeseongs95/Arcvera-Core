@@ -49,12 +49,41 @@ impl StageOneOutput {
         let mut rollout_summary = redact_secrets(rollout_summary);
         if version == MemoryVersion::V2 {
             rollout_summary = truncate_text(&rollout_summary, TruncationPolicy::Bytes(9_000));
+            // Whitespace is not a useful memory. Preserve the existing empty
+            // output contract so no-output jobs do not accumulate empty rows.
+            if rollout_summary.trim().is_empty() {
+                rollout_summary.clear();
+            }
         }
         Ok(Self {
             raw_memory: raw_memory.map(redact_secrets),
             rollout_summary,
             rollout_slug: rollout_slug.map(redact_secrets),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn v2_whitespace_is_no_memory_and_useful_utf8_is_preserved() {
+        let empty = StageOneOutput::parse(
+            r#"{"rollout_summary":" \n\t","rollout_slug":"routine-update"}"#,
+            MemoryVersion::V2,
+        )
+        .unwrap();
+        assert!(empty.rollout_summary.is_empty());
+        let useful = StageOneOutput::parse(
+            r#"{"rollout_summary":"A 프로젝트에서만 재시도 전에 원인 확인","rollout_slug":"a-retry"}"#,
+            MemoryVersion::V2,
+        ).unwrap();
+        assert_eq!(
+            useful.rollout_summary,
+            "A 프로젝트에서만 재시도 전에 원인 확인"
+        );
+        assert!(useful.raw_memory.is_none());
     }
 }
 

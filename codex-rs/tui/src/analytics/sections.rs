@@ -130,17 +130,17 @@ impl AnalyticsView {
     }
 
     pub(super) fn group_label(&self, section: Section, group: usize) -> &'static str {
-        if section == Section::Summary {
-            return super::summary::VIEWS[group].label();
-        }
-        if group == 0
+        let label = if section == Section::Summary {
+            super::summary::VIEWS[group].label()
+        } else if group == 0
             && (section == Section::Credits
                 || (section == Section::Usage && !self.consumer_attribution()))
         {
             "Product"
         } else {
             super::data::GROUP_LABELS[group]
-        }
+        };
+        crate::i18n::text(label)
     }
 
     fn account_kind(&self) -> Option<AccountKind> {

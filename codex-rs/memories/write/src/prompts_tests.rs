@@ -69,3 +69,20 @@ fn build_consolidation_prompt_points_to_workspace_diff_and_extension_tree() {
     )));
     assert!(prompt.contains("workspace diff shows deleted extension resource files"));
 }
+
+#[test]
+fn host_scope_contract_does_not_promote_project_history_or_temporary_permission() {
+    use codex_config::types::MemoryScope;
+    let global = memory_scope_instructions(MemoryScope::Global);
+    let project = memory_scope_instructions(MemoryScope::Project);
+    assert!(global.contains("Host memory scope: global"));
+    assert!(global.contains("Do not copy a project's activity history into global memory"));
+    assert!(project.contains("Never read or update another memory namespace"));
+    let extraction = include_str!("../templates/memories/stage_one_system_v2.md");
+    let consolidation = include_str!("../templates/memories/consolidation_v2.md");
+    assert!(extraction.contains("Return empty strings when nothing meets"));
+    assert!(extraction.contains("never authority"));
+    assert!(consolidation.contains("Do not restore") || consolidation.contains("do not restore"));
+    // This is a prompt-contract regression, not evidence that a model follows
+    // the contract on the semantic usefulness and forgetting cases.
+}

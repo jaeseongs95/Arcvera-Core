@@ -3,6 +3,7 @@ mod extension;
 mod local;
 mod metrics;
 mod prompts;
+mod retrieval;
 mod schema;
 mod tools;
 

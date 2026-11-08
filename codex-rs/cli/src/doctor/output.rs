@@ -6,6 +6,7 @@
 //! sensitive detail lines before showing them in detailed output.
 
 mod detail;
+mod localized_value;
 
 use codex_tui::i18n::message;
 use codex_tui::i18n::text;
@@ -13,6 +14,7 @@ use std::fmt::Write as _;
 
 use detail::HumanDetail;
 use detail::detail_lines;
+use localized_value::Surface;
 use owo_colors::OwoColorize;
 use owo_colors::XtermColors;
 
@@ -235,17 +237,19 @@ fn row_description(check: &DoctorCheck, options: HumanOutputOptions) -> String {
         && let Some(remediation) = &check.remediation
     {
         let dash = if options.ascii { " - " } else { " — " };
-        let summary = &check.summary;
+        let summary = localized_value::for_display(check, Surface::Summary, &check.summary);
+        let remediation = localized_value::for_display(check, Surface::Remedy, remediation);
         return format!("{summary}{dash}{remediation}");
     }
 
-    display_summary(check, options)
+    let summary = display_summary(check, options);
+    localized_value::for_display(check, Surface::Summary, &summary).into_owned()
 }
 
 fn issue_summary(check: &DoctorCheck) -> String {
     match check.issues.as_slice() {
-        [] => check.summary.clone(),
-        [issue] => issue.cause.clone(),
+        [] => localized_value::for_display(check, Surface::Summary, &check.summary).into_owned(),
+        [issue] => localized_value::for_display(check, Surface::Cause, &issue.cause).into_owned(),
         issues => message(
             "r39-doctor-issue-count",
             &[
@@ -255,7 +259,9 @@ fn issue_summary(check: &DoctorCheck) -> String {
                     &issues
                         .iter()
                         .take(2)
-                        .map(|issue| issue.cause.as_str())
+                        .map(|issue| {
+                            localized_value::for_display(check, Surface::Cause, &issue.cause)
+                        })
                         .collect::<Vec<_>>()
                         .join("; "),
                 ),
@@ -636,9 +642,11 @@ fn actionable_note_summary(check: &DoctorCheck) -> String {
         return issue_summary(check);
     }
     if let Some(remediation) = &check.remediation {
-        return format!("{} - {remediation}", check.summary);
+        let summary = localized_value::for_display(check, Surface::Summary, &check.summary);
+        let remediation = localized_value::for_display(check, Surface::Remedy, remediation);
+        return format!("{summary} - {remediation}");
     }
-    check.summary.clone()
+    localized_value::for_display(check, Surface::Summary, &check.summary).into_owned()
 }
 
 fn auth_reachability_note(report: &DoctorReport) -> Option<DoctorNote> {
@@ -678,7 +686,7 @@ fn display_summary(check: &DoctorCheck, options: HumanOutputOptions) -> String {
 }
 
 fn system_summary(check: &DoctorCheck) -> String {
-    detail::detail_value(check, "os language").unwrap_or_else(|| check.summary.clone())
+    display_detail_value(check, "os language").unwrap_or_else(|| check.summary.clone())
 }
 
 fn runtime_summary(check: &DoctorCheck) -> String {
@@ -693,7 +701,7 @@ fn runtime_summary(check: &DoctorCheck) -> String {
 fn search_summary(check: &DoctorCheck) -> String {
     let provider = detail::detail_value(check, "search provider");
     let command = detail::detail_value(check, "search command");
-    let readiness = detail::detail_value(check, "search command readiness");
+    let readiness = display_detail_value(check, "search command readiness");
     match (readiness, provider, command) {
         (Some(readiness), Some(provider), Some(command)) if check.status == CheckStatus::Ok => {
             format!("{readiness} ({provider}, `{command}`)")
@@ -722,7 +730,7 @@ fn terminal_summary(check: &DoctorCheck) -> String {
 }
 
 fn title_summary(check: &DoctorCheck, options: HumanOutputOptions) -> String {
-    let source = detail::detail_value(check, "terminal title source");
+    let source = display_detail_value(check, "terminal title source");
     let project = detail::detail_value(check, "terminal title project value");
     match (source, project) {
         (Some(source), Some(project)) => {
@@ -831,8 +839,8 @@ fn websocket_summary(check: &DoctorCheck) -> String {
 }
 
 fn app_server_summary(check: &DoctorCheck) -> String {
-    let status = detail::detail_value(check, "status");
-    let mode = detail::detail_value(check, "mode");
+    let status = display_detail_value(check, "status");
+    let mode = display_detail_value(check, "mode");
     match (status, mode) {
         (Some(status), Some(mode)) => message(
             "r39-doctor-app-server-summary",
@@ -840,6 +848,12 @@ fn app_server_summary(check: &DoctorCheck) -> String {
         ),
         _ => check.summary.clone(),
     }
+}
+
+/// Display-only field conversion. Parsing and status decisions keep using raw detail_value.
+fn display_detail_value(check: &DoctorCheck, field: &str) -> Option<String> {
+    detail::detail_value(check, field)
+        .map(|raw| localized_value::for_display(check, Surface::Detail(field), &raw).into_owned())
 }
 
 fn separator(options: HumanOutputOptions) -> String {

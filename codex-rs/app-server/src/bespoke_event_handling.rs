@@ -1144,6 +1144,7 @@ pub(crate) async fn apply_bespoke_event_handling(
                 let (_pending_request_id, rx) = match owner {
                     Some((_, ref disconnected)) if disconnected.is_cancelled() => {
                         let response = codex_protocol::dynamic_tools::DynamicToolResponse {
+                            memory_context: None,
                             content_items: vec![codex_protocol::dynamic_tools::DynamicToolCallOutputContentItem::InputText {
                                 text: "도구를 제공한 연결이 종료됐습니다. 작업을 실행하거나 재전송하지 않았습니다.".into(),
                             }],

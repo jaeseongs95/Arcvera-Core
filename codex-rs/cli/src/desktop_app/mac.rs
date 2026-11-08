@@ -1,4 +1,6 @@
 use anyhow::Context as _;
+use codex_tui::i18n::message;
+use codex_tui::i18n::text;
 use std::ffi::CString;
 use std::path::Path;
 use std::path::PathBuf;
@@ -17,13 +19,19 @@ pub async fn run_mac_app_open_or_install(
 ) -> anyhow::Result<()> {
     if let Some(app_path) = find_existing_codex_app_path(&codex_app_search_dirs()) {
         eprintln!(
-            "Opening Desktop app at {app_path}...",
-            app_path = app_path.display()
+            "{}",
+            message(
+                "cli-entry-desktop-mac-open",
+                &[("path", &app_path.display().to_string())]
+            )
         );
         open_codex_app(&app_path, &workspace).await?;
         return Ok(());
     }
-    eprintln!("Desktop app not found; downloading installer...");
+    eprintln!(
+        "{}",
+        text("Desktop app not found; downloading installer...")
+    );
     let download_url = download_url_override.unwrap_or_else(|| {
         let default_url = if is_apple_silicon_mac() {
             CODEX_DMG_URL_ARM64
@@ -36,8 +44,11 @@ pub async fn run_mac_app_open_or_install(
         .await
         .context("failed to download/install Desktop app")?;
     eprintln!(
-        "Launching Desktop app from {installed_app}...",
-        installed_app = installed_app.display()
+        "{}",
+        message(
+            "cli-entry-desktop-mac-launch",
+            &[("path", &installed_app.display().to_string())]
+        )
     );
     open_codex_app(&installed_app, &workspace).await?;
     Ok(())
@@ -102,8 +113,11 @@ fn is_codex_app_bundle(app_path: &Path) -> bool {
 async fn open_codex_app(app_path: &Path, workspace: &Path) -> anyhow::Result<()> {
     verify_codex_app_bundle(app_path).await?;
     eprintln!(
-        "Opening workspace {workspace}...",
-        workspace = workspace.display()
+        "{}",
+        message(
+            "cli-entry-desktop-mac-open-workspace",
+            &[("workspace", &workspace.display().to_string())]
+        )
     );
     let url = codex_new_thread_url(workspace);
     let status = Command::new("open")
@@ -167,11 +181,14 @@ async fn download_and_install_codex_to_user_applications(dmg_url: &str) -> anyho
     let dmg_path = tmp_root.join("Codex.dmg");
     download_dmg(dmg_url, &dmg_path).await?;
 
-    eprintln!("Mounting Desktop app installer...");
+    eprintln!("{}", text("Mounting Desktop app installer..."));
     let mount_point = mount_dmg(&dmg_path).await?;
     eprintln!(
-        "Installer mounted at {mount_point}.",
-        mount_point = mount_point.display()
+        "{}",
+        message(
+            "cli-entry-desktop-mac-mounted",
+            &[("path", &mount_point.display().to_string())]
+        )
     );
     let result = async {
         let app_in_volume = find_codex_app_in_mount(&mount_point)
@@ -186,8 +203,14 @@ async fn download_and_install_codex_to_user_applications(dmg_url: &str) -> anyho
     let detach_result = detach_dmg(&mount_point).await;
     if let Err(err) = detach_result {
         eprintln!(
-            "warning: failed to detach dmg at {mount_point}: {err}",
-            mount_point = mount_point.display()
+            "{}",
+            message(
+                "cli-entry-desktop-mac-detach-error",
+                &[
+                    ("path", &mount_point.display().to_string()),
+                    ("error", &err.to_string())
+                ]
+            )
         );
     }
 
@@ -197,8 +220,11 @@ async fn download_and_install_codex_to_user_applications(dmg_url: &str) -> anyho
 async fn install_codex_app_bundle(app_in_volume: &Path) -> anyhow::Result<PathBuf> {
     for applications_dir in candidate_applications_dirs()? {
         eprintln!(
-            "Installing Desktop app into {applications_dir}...",
-            applications_dir = applications_dir.display()
+            "{}",
+            message(
+                "cli-entry-desktop-mac-installing",
+                &[("path", &applications_dir.display().to_string())]
+            )
         );
         std::fs::create_dir_all(&applications_dir).with_context(|| {
             format!(
@@ -216,8 +242,14 @@ async fn install_codex_app_bundle(app_in_volume: &Path) -> anyhow::Result<PathBu
             Ok(()) => return Ok(dest_app),
             Err(err) => {
                 eprintln!(
-                    "warning: failed to install Codex.app to {applications_dir}: {err}",
-                    applications_dir = applications_dir.display()
+                    "{}",
+                    message(
+                        "cli-entry-desktop-mac-install-error",
+                        &[
+                            ("path", &applications_dir.display().to_string()),
+                            ("error", &err.to_string())
+                        ]
+                    )
                 );
             }
         }
@@ -233,7 +265,7 @@ fn candidate_applications_dirs() -> anyhow::Result<Vec<PathBuf>> {
 }
 
 async fn download_dmg(url: &str, dest: &Path) -> anyhow::Result<()> {
-    eprintln!("Downloading installer...");
+    eprintln!("{}", text("Downloading installer..."));
     let status = Command::new("curl")
         .arg("-fL")
         .arg("--retry")

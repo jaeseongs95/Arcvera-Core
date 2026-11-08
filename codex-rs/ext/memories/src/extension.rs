@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use codex_config::types::MemoryScope;
 use codex_core::config::Config;
 use codex_core::context::ContextualUserFragment;
 use codex_core::context::MemoryContextFragment;
@@ -13,13 +14,15 @@ use codex_extension_api::PromptFragment;
 use codex_extension_api::ThreadLifecycleContributor;
 use codex_extension_api::ThreadStartInput;
 use codex_extension_api::ToolContributor;
+use codex_extension_api::TurnInputContext;
+use codex_extension_api::TurnInputContributor;
 use codex_features::Feature;
 use codex_otel::MetricsClient;
 use codex_protocol::MemoryVersion;
 use codex_utils_absolute_path::AbsolutePathBuf;
 
 use crate::local::LocalMemoriesBackend;
-use crate::prompts::build_memory_instructions_from_root;
+use crate::prompts::build_memory_context_from_root;
 use crate::tools;
 
 /// Contributes Codex memory read-path prompt context and memory read tools.
@@ -40,6 +43,7 @@ pub(crate) struct MemoriesExtensionConfig {
     pub(crate) dedicated_tools: bool,
     pub(crate) root: Option<AbsolutePathBuf>,
     pub(crate) version: MemoryVersion,
+    pub(crate) scope: MemoryScope,
 }
 
 impl MemoriesExtensionConfig {
@@ -49,6 +53,7 @@ impl MemoriesExtensionConfig {
             dedicated_tools: config.memories.dedicated_tools,
             root: config.memories.memory_root(&config.codex_home),
             version: config.memories.version,
+            scope: config.memories.scope,
         }
     }
 }
@@ -70,39 +75,56 @@ impl ContextContributor for MemoriesExtension {
             let Some(root) = config.root.as_ref() else {
                 return Vec::new();
             };
-            let Some(instructions) =
-                build_memory_instructions_from_root(root, config.version).await
+            let Some((instructions, policy_only)) =
+                build_memory_context_from_root(root, config.version).await
             else {
                 return Vec::new();
             };
-            let instructions = match config.version {
-                MemoryVersion::V1 => vec![instructions],
-                MemoryVersion::V2 => {
-                    // Keep the complete summary while respecting each fragment's byte cap.
-                    let mut remaining = instructions.as_str();
-                    let mut fragments = Vec::new();
-                    while !remaining.is_empty() {
-                        let end = remaining.floor_char_boundary(remaining.len().min(8_900));
-                        fragments.push(
-                            MemoryContextFragment::ReadInstructions(remaining[..end].to_string())
-                                .render()
-                                .into_text()
-                                .unwrap_or_default(),
-                        );
-                        remaining = &remaining[end..];
+            vec![PromptFragment::developer_policy(
+                instructions,
+                ContentItemKind(
+                    if policy_only {
+                        "memories.policy"
+                    } else {
+                        MemoryContextFragment::READ_INSTRUCTIONS_KIND
                     }
-                    fragments
-                }
+                    .to_string(),
+                ),
+            )]
+        })
+    }
+}
+
+impl TurnInputContributor for MemoriesExtension {
+    fn contribute<'a>(
+        &'a self,
+        input: TurnInputContext<'a>,
+        _extension_metrics: Option<Arc<dyn codex_extension_api::ExtensionMetrics>>,
+        _session_store: &'a ExtensionData,
+        thread_store: &'a ExtensionData,
+        _turn_store: &'a ExtensionData,
+    ) -> ExtensionFuture<'a, Vec<Box<dyn ContextualUserFragment + Send>>> {
+        Box::pin(async move {
+            let Some(config) = thread_store.get::<MemoriesExtensionConfig>() else {
+                return Vec::new();
             };
-            instructions
-                .into_iter()
-                .map(|instructions| {
-                    PromptFragment::developer_policy(
-                        instructions,
-                        ContentItemKind(MemoryContextFragment::READ_INSTRUCTIONS_KIND.to_string()),
-                    )
-                })
-                .collect()
+            // A content-free host marker lets prompt projection distinguish v2
+            // legacy payloads from the shared v1 instruction kind. Emit it even
+            // without candidates or when memory has just been disabled.
+            let (boundary, candidate) = crate::retrieval::prepare_for_version(
+                config.root.as_ref(),
+                &input.user_input,
+                config.enabled,
+                config.version,
+                config.scope == MemoryScope::Global,
+            )
+            .await;
+            let mut fragments: Vec<Box<dyn ContextualUserFragment + Send>> =
+                vec![Box::new(boundary)];
+            if let Some(fragment) = candidate {
+                fragments.push(Box::new(fragment));
+            }
+            fragments
         })
     }
 }
@@ -138,6 +160,7 @@ impl ConfigContributor<Config> for MemoriesExtension {
             // The initial summary and retrieval tools must use the same namespace.
             config.version = previous.version;
             config.root = previous.root.clone();
+            config.scope = previous.scope;
         }
         thread_store.insert(config);
     }
@@ -162,7 +185,7 @@ impl ToolContributor for MemoriesExtension {
             return Vec::new();
         };
         tools::memory_tools(
-            LocalMemoriesBackend::from_memory_root(root.to_path_buf()),
+            LocalMemoriesBackend::from_memory_root_and_version(root.to_path_buf(), config.version),
             self.metrics_client.clone(),
         )
     }
@@ -177,5 +200,6 @@ pub fn install(
     registry.thread_lifecycle_contributor(extension.clone());
     registry.config_contributor(extension.clone());
     registry.prompt_contributor(extension.clone());
+    registry.turn_input_contributor(extension.clone());
     registry.tool_contributor(extension);
 }

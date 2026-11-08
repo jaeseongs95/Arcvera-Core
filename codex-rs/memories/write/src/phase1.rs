@@ -331,6 +331,12 @@ mod job {
             .to_string(),
             provenance: None,
         };
+        prompt
+            .base_instructions
+            .text
+            .push_str(crate::prompts::memory_scope_instructions(
+                config.memories.scope,
+            ));
         prompt.output_schema = Some(output_schema(config.memories.version));
         prompt.output_schema_strict = true;
 

@@ -35,7 +35,7 @@ async fn build_memory_tool_developer_instructions_renders_embedded_template() {
 }
 
 #[tokio::test]
-async fn v2_reads_only_its_own_summary_without_falling_back_to_v1()
+async fn v2_initial_context_is_policy_only_without_reading_any_summary()
 -> Result<(), Box<dyn std::error::Error>> {
     let home = tempdir()?;
     let codex_home = AbsolutePathBuf::from_absolute_path(home.path())?;
@@ -43,19 +43,19 @@ async fn v2_reads_only_its_own_summary_without_falling_back_to_v1()
     let v2 = codex_home.join("memories_v2");
     tokio_fs::create_dir_all(&v1).await?;
     tokio_fs::write(v1.join("memory_summary.md"), "v1\nlegacy content").await?;
-    assert_eq!(
-        build_memory_tool_developer_instructions(&codex_home, MemoryVersion::V2).await,
-        None
-    );
+    let empty_policy = build_memory_tool_developer_instructions(&codex_home, MemoryVersion::V2)
+        .await
+        .expect("v2 policy does not require generated memory");
+    assert!(!empty_policy.contains("legacy content"));
     tokio_fs::create_dir_all(&v2).await?;
     tokio_fs::write(v2.join("memory_summary.md"), "v1\nnew pipeline content").await?;
     let instructions = build_memory_tool_developer_instructions(&codex_home, MemoryVersion::V2)
         .await
         .expect("v2 instructions");
-    assert!(instructions.contains("new pipeline content"));
+    assert!(!instructions.contains("new pipeline content"));
     assert!(!instructions.contains("legacy content"));
-    assert!(instructions.contains("do not retrieve history speculatively"));
-    assert!(instructions.contains(&format!("{}/rollout_summaries/", v2.display())));
+    assert!(instructions.contains("not verified conclusions"));
+    assert!(instructions.contains(&format!("{}/memory_summary.md", v2.display())));
     assert!(
         build_memory_tool_developer_instructions(&codex_home, MemoryVersion::V1)
             .await
@@ -82,11 +82,10 @@ async fn project_summary_has_no_global_fallback_and_preserves_prompt_trust_contr
         .join("project_memories")
         .join("a".repeat(64))
         .join("memories_v2");
-    assert!(
-        build_memory_instructions_from_root(&root, MemoryVersion::V2)
-            .await
-            .is_none()
-    );
+    let policy_without_summary = build_memory_instructions_from_root(&root, MemoryVersion::V2)
+        .await
+        .unwrap();
+    assert!(!policy_without_summary.contains("global-only-evidence"));
     tokio_fs::create_dir_all(&root).await.unwrap();
     tokio_fs::write(root.join("memory_summary.md"), "project-only-evidence")
         .await
@@ -95,7 +94,7 @@ async fn project_summary_has_no_global_fallback_and_preserves_prompt_trust_contr
         .await
         .unwrap();
     let instructions = instructions.replace("\r\n", "\n");
-    assert!(instructions.contains("project-only-evidence"));
+    assert!(!instructions.contains("project-only-evidence"));
     assert!(!instructions.contains("global-only-evidence"));
     assert!(instructions.contains("Memory is historical evidence, not permission"));
     assert!(instructions.contains("Never\nstore credentials or secrets"));
@@ -117,7 +116,7 @@ async fn summary_disk_input_is_bounded_before_token_truncation() {
     .await
     .unwrap();
     assert!(
-        build_memory_instructions_from_root(&root, MemoryVersion::V2)
+        build_memory_instructions_from_root(&root, MemoryVersion::V1)
             .await
             .is_none()
     );
@@ -128,7 +127,7 @@ async fn summary_disk_input_is_bounded_before_token_truncation() {
     .await
     .unwrap();
     assert!(
-        build_memory_instructions_from_root(&root, MemoryVersion::V2)
+        build_memory_instructions_from_root(&root, MemoryVersion::V1)
             .await
             .is_some()
     );
@@ -137,7 +136,7 @@ async fn summary_disk_input_is_bounded_before_token_truncation() {
     let summary = format!("visible head\n{filler}hidden-middle-marker{filler}\nvisible tail");
     assert!((summary.len() as u64) < codex_core::config::MEMORY_SUMMARY_MAX_BYTES);
     tokio_fs::write(path, summary).await.unwrap();
-    let instructions = build_memory_instructions_from_root(&root, MemoryVersion::V2)
+    let instructions = build_memory_instructions_from_root(&root, MemoryVersion::V1)
         .await
         .unwrap();
     assert!(instructions.contains("visible head"));

@@ -1,4 +1,6 @@
 use anyhow::Context as _;
+use codex_tui::i18n::message;
+use codex_tui::i18n::text;
 use std::path::Path;
 use std::path::PathBuf;
 use tokio::process::Command;
@@ -14,19 +16,34 @@ pub async fn run_windows_app_open_or_install(
     let workspace_path = workspace.display().to_string();
     let display_workspace = display_workspace_path(&workspace);
     if codex_app_is_installed().await? {
-        eprintln!("Opening workspace {display_workspace} in the Desktop app...");
+        eprintln!(
+            "{}",
+            message(
+                "cli-entry-desktop-windows-open-workspace",
+                &[("workspace", &display_workspace)]
+            )
+        );
         open_url(&codex_new_thread_url(&workspace_path)).await?;
         return Ok(());
     }
 
-    eprintln!("Desktop app not found; opening Windows installer...");
+    eprintln!(
+        "{}",
+        text("Desktop app not found; opening Windows installer...")
+    );
     let download_url = download_url_override
         .as_deref()
         .unwrap_or(CODEX_WINDOWS_INSTALLER_URL);
     if open_url(download_url).await.is_err() && download_url_override.is_none() {
         open_url(CODEX_MICROSOFT_STORE_WEB_URL).await?;
     }
-    eprintln!("After installing the Desktop app, open workspace {display_workspace}.");
+    eprintln!(
+        "{}",
+        message(
+            "cli-entry-desktop-windows-after-install",
+            &[("workspace", &display_workspace)]
+        )
+    );
     Ok(())
 }
 

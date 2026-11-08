@@ -67,8 +67,8 @@ impl<T: Send + 'static> Load<T> {
                         .await
                     {
                         Ok(Ok(result)) => result,
-                        Ok(Err(_)) => Err("Request interrupted. Press R to retry.".into()),
-                        Err(_) => Err("Request timed out. Press R to retry.".into()),
+                        Ok(Err(_)) => Err(crate::i18n::text("Request interrupted. Press R to retry.").into()),
+                        Err(_) => Err(crate::i18n::text("Request timed out. Press R to retry.").into()),
                     };
                 let _ = sender.send(result);
                 frame.schedule_frame();
@@ -83,7 +83,7 @@ impl<T: Send + 'static> Load<T> {
                 Ok(Ok(None)) => Self::Unavailable,
                 Ok(Err(message)) => Self::Error(message),
                 Err(oneshot::error::TryRecvError::Closed) => {
-                    Self::Error("Request interrupted. Press R to retry.".into())
+                    Self::Error(crate::i18n::text("Request interrupted. Press R to retry.").into())
                 }
                 Err(oneshot::error::TryRecvError::Empty) => return,
             };
@@ -101,8 +101,8 @@ impl<T: Send + 'static> Load<T> {
     pub(super) fn message(&self) -> Option<&str> {
         match self {
             Self::Ready(_) => None,
-            Self::Loading(_) => Some("Loading…"),
-            Self::Unavailable => Some("No history has been reported."),
+            Self::Loading(_) => Some(crate::i18n::text("Loading…")),
+            Self::Unavailable => Some(crate::i18n::text("No history has been reported.")),
             Self::Error(message) => Some(message),
         }
     }
@@ -110,7 +110,7 @@ impl<T: Send + 'static> Load<T> {
 
 /// Keep untyped server and transport diagnostics out of account reports.
 pub(super) fn error(_error: codex_app_server_client::TypedRequestError) -> String {
-    "Couldn't load analytics. Press R to retry.".into()
+    crate::i18n::text("Couldn't load analytics. Press R to retry.").into()
 }
 
 /// Keep tiny refunds visible while avoiding noise on ordinary credit amounts.

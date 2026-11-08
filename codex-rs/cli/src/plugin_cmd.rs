@@ -211,10 +211,22 @@ pub async fn run_plugin_add(
     }
 
     println!(
-        "Added plugin `{}` from marketplace `{}`.",
-        output.name, output.marketplace_name
+        "{}",
+        codex_tui::i18n::message(
+            "r39-cli-plugin-added",
+            &[
+                ("name", &output.name),
+                ("marketplace", &output.marketplace_name)
+            ]
+        )
     );
-    println!("Installed plugin root: {}", output.installed_path);
+    println!(
+        "{}",
+        codex_tui::i18n::message(
+            "r39-cli-plugin-installed-root",
+            &[("path", &output.installed_path)]
+        )
+    );
 
     Ok(())
 }
@@ -266,7 +278,7 @@ pub async fn run_plugin_list(
             &[],
             /*include_openai_curated*/ !remote_listing.uses_global_catalog,
         )
-        .context("failed to list marketplace plugins")?;
+        .context(codex_tui::i18n::text("failed to list marketplace plugins"))?;
     ensure_configured_marketplace_snapshots_loaded(
         codex_home.as_path(),
         &plugins_input,
@@ -348,25 +360,36 @@ fn render_plugin_list(
         if let Some(marketplace_name) = args.marketplace_name {
             writeln!(
                 writer,
-                "No plugins found in marketplace `{marketplace_name}`."
+                "{}",
+                codex_tui::i18n::message(
+                    "r39-cli-plugin-none-marketplace",
+                    &[("marketplace", &marketplace_name)]
+                )
             )?;
         } else {
-            writeln!(writer, "No marketplace plugins found.")?;
+            writeln!(
+                writer,
+                "{}",
+                codex_tui::i18n::text("No marketplace plugins found.")
+            )?;
         }
     } else {
         for (index, marketplace) in marketplaces.into_iter().enumerate() {
             let mut rows = Vec::new();
-            let mut plugin_width = "PLUGIN".len();
-            let mut status_width = "STATUS".len();
-            let mut installed_version_width = "VERSION".len();
+            let mut plugin_width =
+                crate::localization::display_width(codex_tui::i18n::text("PLUGIN"));
+            let mut status_width =
+                crate::localization::display_width(codex_tui::i18n::text("STATUS"));
+            let mut installed_version_width =
+                crate::localization::display_width(codex_tui::i18n::text("VERSION"));
 
             for plugin in &marketplace.plugins {
                 let state = if plugin.installed && plugin.enabled {
-                    "installed, enabled"
+                    codex_tui::i18n::text("installed, enabled")
                 } else if plugin.installed {
-                    "installed, disabled"
+                    codex_tui::i18n::text("installed, disabled")
                 } else {
-                    "not installed"
+                    codex_tui::i18n::text("not installed")
                 };
                 let installed_version = plugin.display_version.clone().unwrap_or_default();
                 let path = match &plugin.source {
@@ -378,10 +401,16 @@ fn render_plugin_list(
                     } => {
                         let mut parts = vec![url.clone()];
                         if let JsonPluginSource::GitSubdir { path, .. } = &plugin.source {
-                            parts.push(format!("path `{path}`"));
+                            parts.push(codex_tui::i18n::message(
+                                "r39-cli-plugin-source-path",
+                                &[("value", path)],
+                            ));
                         }
                         if let Some(ref_name) = ref_name {
-                            parts.push(format!("ref `{ref_name}`"));
+                            parts.push(codex_tui::i18n::message(
+                                "r39-cli-plugin-source-ref",
+                                &[("value", ref_name)],
+                            ));
                         }
                         if let Some(sha) = sha {
                             parts.push(format!("sha `{sha}`"));
@@ -395,39 +424,64 @@ fn render_plugin_list(
                     } => {
                         let mut parts = vec![package.clone()];
                         if let Some(version) = version {
-                            parts.push(format!("version `{version}`"));
+                            parts.push(codex_tui::i18n::message(
+                                "r39-cli-plugin-source-version",
+                                &[("value", version)],
+                            ));
                         }
                         if let Some(registry) = registry {
-                            parts.push(format!("registry `{registry}`"));
+                            parts.push(codex_tui::i18n::message(
+                                "r39-cli-plugin-source-registry",
+                                &[("value", registry)],
+                            ));
                         }
                         parts.join(", ")
                     }
                 };
-                plugin_width = plugin_width.max(plugin.plugin_id.len());
-                status_width = status_width.max(state.len());
-                installed_version_width = installed_version_width.max(installed_version.len());
+                plugin_width =
+                    plugin_width.max(crate::localization::display_width(&plugin.plugin_id));
+                status_width = status_width.max(crate::localization::display_width(state));
+                installed_version_width = installed_version_width
+                    .max(crate::localization::display_width(&installed_version));
                 rows.push((plugin.plugin_id.clone(), state, installed_version, path));
             }
 
             if index > 0 {
                 writeln!(writer)?;
             }
-            writeln!(writer, "Marketplace `{}`", marketplace.name)?;
+            writeln!(
+                writer,
+                "{}",
+                codex_tui::i18n::message(
+                    "r39-cli-plugin-marketplace-title",
+                    &[("marketplace", &marketplace.name)]
+                )
+            )?;
             if let Some(path) = &marketplace.path {
                 writeln!(writer, "{}", path.display())?;
             } else {
-                writeln!(writer, "Remote catalog")?;
+                writeln!(writer, "{}", codex_tui::i18n::text("Remote catalog"))?;
             }
             writeln!(writer)?;
             writeln!(
                 writer,
-                "{:<plugin_width$}  {:<status_width$}  {:<installed_version_width$}  SOURCE",
-                "PLUGIN", "STATUS", "VERSION"
+                "{}  {}  {}  {}",
+                crate::localization::pad_to_width(codex_tui::i18n::text("PLUGIN"), plugin_width),
+                crate::localization::pad_to_width(codex_tui::i18n::text("STATUS"), status_width),
+                crate::localization::pad_to_width(
+                    codex_tui::i18n::text("VERSION"),
+                    installed_version_width
+                ),
+                codex_tui::i18n::text("SOURCE")
             )?;
             for (plugin, status, installed_version, path) in rows {
                 writeln!(
                     writer,
-                    "{plugin:<plugin_width$}  {status:<status_width$}  {installed_version:<installed_version_width$}  {path}"
+                    "{}  {}  {}  {}",
+                    crate::localization::pad_to_width(&plugin, plugin_width),
+                    crate::localization::pad_to_width(status, status_width),
+                    crate::localization::pad_to_width(&installed_version, installed_version_width),
+                    path
                 )?;
             }
         }
@@ -693,7 +747,7 @@ pub async fn run_plugin_remove(
     if selection.marketplace_name == REMOTE_GLOBAL_MARKETPLACE_NAME {
         ensure!(
             context.plugins_input.plugins_enabled,
-            "remote plugins are not enabled"
+            codex_tui::i18n::text("remote plugins are not enabled")
         );
         let auth = context.auth.as_ref();
         // Installed plugins may no longer appear in the directory or curated collection.
@@ -732,8 +786,14 @@ pub async fn run_plugin_remove(
     }
 
     println!(
-        "Removed plugin `{}` from marketplace `{}`.",
-        selection.plugin_name, selection.marketplace_name
+        "{}",
+        codex_tui::i18n::message(
+            "r39-cli-plugin-removed",
+            &[
+                ("name", &selection.plugin_name),
+                ("marketplace", &selection.marketplace_name)
+            ]
+        )
     );
 
     Ok(())
@@ -767,10 +827,11 @@ struct PluginCommandContext {
 async fn load_plugin_command_context(
     overrides: Vec<(String, toml::Value)>,
 ) -> Result<PluginCommandContext> {
-    let codex_home = find_codex_home().context("failed to resolve CODEX_HOME")?;
+    let codex_home =
+        find_codex_home().context(codex_tui::i18n::text("failed to resolve CODEX_HOME"))?;
     let config = Config::load_with_cli_overrides(overrides)
         .await
-        .context("failed to load configuration")?;
+        .context(codex_tui::i18n::text("failed to load configuration"))?;
     let plugins_input = config.plugins_config_input();
     let auth_manager = load_cli_auth_manager(&config).await?;
     let manager = Arc::new(plugins_manager_for_config(
@@ -815,10 +876,15 @@ fn parse_plugin_selection(
         (Ok(plugin_id), Some(marketplace_name)) => {
             if plugin_id.marketplace_name != marketplace_name {
                 bail!(
-                    "plugin id `{}` belongs to marketplace `{}`, but --marketplace specified `{}`",
-                    plugin,
-                    plugin_id.marketplace_name,
-                    marketplace_name
+                    "{}",
+                    codex_tui::i18n::message(
+                        "r39-cli-plugin-marketplace-mismatch",
+                        &[
+                            ("plugin", &plugin),
+                            ("actual", &plugin_id.marketplace_name),
+                            ("requested", &marketplace_name)
+                        ]
+                    )
                 );
             }
             Ok(PluginSelection::from_plugin_id(plugin_id))
@@ -828,7 +894,9 @@ fn parse_plugin_selection(
             marketplace_name,
         )?)),
         (Err(_), None) => {
-            bail!("plugin requires --marketplace unless passed as <plugin>@<marketplace>")
+            bail!(codex_tui::i18n::text(
+                "plugin requires --marketplace unless passed as <plugin>@<marketplace>"
+            ))
         }
     }
 }
@@ -850,14 +918,17 @@ async fn fetch_remote_marketplaces(
         return Ok(RemoteMarketplaceListing::default());
     }
     if !context.plugins_input.plugins_enabled {
-        ensure!(marketplace_name.is_none(), "remote plugins are not enabled");
+        ensure!(
+            marketplace_name.is_none(),
+            codex_tui::i18n::text("remote plugins are not enabled")
+        );
         return Ok(RemoteMarketplaceListing::default());
     }
     let auth = context.auth.as_ref();
     if !auth.is_some_and(CodexAuth::uses_codex_backend) {
         ensure!(
             marketplace_name.is_none(),
-            "chatgpt authentication required for remote plugin catalog"
+            codex_tui::i18n::text("chatgpt authentication required for remote plugin catalog")
         );
         return Ok(RemoteMarketplaceListing::default());
     }
@@ -893,10 +964,18 @@ async fn fetch_remote_marketplaces(
     match result {
         Ok(listing) => Ok(listing),
         Err(err) if marketplace_name.is_none() => {
-            eprintln!("Warning: failed to list remote marketplace plugins: {err}");
+            eprintln!(
+                "{}",
+                codex_tui::i18n::message(
+                    "r39-cli-plugin-remote-warning",
+                    &[("error", &err.to_string())]
+                )
+            );
             Ok(RemoteMarketplaceListing::default())
         }
-        Err(err) => Err(err).context("failed to list remote marketplace plugins"),
+        Err(err) => Err(err).context(codex_tui::i18n::text(
+            "failed to list remote marketplace plugins",
+        )),
     }
 }
 
@@ -912,13 +991,21 @@ fn resolve_remote_plugin(
     match matches.as_slice() {
         [plugin] => Ok(plugin.clone()),
         [] => bail!(
-            "plugin `{}` was not found in remote marketplace `{}`",
-            selection.plugin_name,
-            selection.marketplace_name
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-plugin-remote-not-found",
+                &[
+                    ("plugin", &selection.plugin_name),
+                    ("marketplace", &selection.marketplace_name)
+                ]
+            )
         ),
         _ => bail!(
-            "plugin `{}` matched multiple remote plugins",
-            selection.plugin_key
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-plugin-remote-multiple",
+                &[("plugin", &selection.plugin_key)]
+            )
         ),
     }
 }
@@ -932,7 +1019,7 @@ fn find_marketplace_for_plugin(
 ) -> Result<ConfiguredMarketplace> {
     let outcome = manager
         .list_marketplaces_for_config(plugins_input, &[], /*include_openai_curated*/ true)
-        .context("failed to list marketplace plugins")?;
+        .context(codex_tui::i18n::text("failed to list marketplace plugins"))?;
     ensure_configured_marketplace_snapshots_loaded(
         codex_home,
         plugins_input,
@@ -952,10 +1039,20 @@ fn find_marketplace_for_plugin(
         .collect::<Vec<_>>();
 
     match matches.as_slice() {
-        [] => bail!("plugin `{plugin_name}` was not found in marketplace `{marketplace_name}`"),
+        [] => bail!(
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-plugin-not-found",
+                &[("plugin", plugin_name), ("marketplace", marketplace_name)]
+            )
+        ),
         [marketplace] => Ok(marketplace.clone()),
         _ => bail!(
-            "plugin `{plugin_name}` in marketplace `{marketplace_name}` matched multiple marketplace roots"
+            "{}",
+            codex_tui::i18n::message(
+                "r39-cli-plugin-multiple-roots",
+                &[("plugin", plugin_name), ("marketplace", marketplace_name)]
+            )
         ),
     }
 }
@@ -985,16 +1082,24 @@ fn ensure_configured_marketplace_snapshots_loaded(
     let issue_lines = issues
         .iter()
         .map(|issue| {
-            format!(
-                "- `{}` at {}: {}",
-                issue.marketplace_name,
-                issue.path.display(),
-                issue.message
+            codex_tui::i18n::message(
+                "r39-cli-plugin-snapshot-issue",
+                &[
+                    ("name", &issue.marketplace_name),
+                    ("path", &issue.path.display().to_string()),
+                    ("error", &issue.message),
+                ],
             )
         })
         .collect::<Vec<_>>()
         .join("\n");
-    bail!("failed to load configured marketplace snapshot(s):\n{issue_lines}");
+    bail!(
+        "{}",
+        codex_tui::i18n::message(
+            "r39-cli-plugin-snapshot-load-failed",
+            &[("issues", &issue_lines)]
+        )
+    );
 }
 
 pub(crate) fn configured_marketplace_snapshot_issues(
@@ -1027,7 +1132,8 @@ pub(crate) fn configured_marketplace_snapshot_issues(
             issues.push(ConfiguredMarketplaceSnapshotIssue {
                 marketplace_name: configured_name.clone(),
                 path: PathBuf::from("<invalid config>"),
-                message: "configured marketplace entry must be a table".to_string(),
+                message: codex_tui::i18n::text("configured marketplace entry must be a table")
+                    .to_string(),
             });
             continue;
         }
@@ -1048,7 +1154,10 @@ pub(crate) fn configured_marketplace_snapshot_issues(
             issues.push(ConfiguredMarketplaceSnapshotIssue {
                 marketplace_name: configured_name.clone(),
                 path: PathBuf::from("<invalid source>"),
-                message: "configured local marketplace source is missing or empty".to_string(),
+                message: codex_tui::i18n::text(
+                    "configured local marketplace source is missing or empty",
+                )
+                .to_string(),
             });
             continue;
         }
@@ -1068,7 +1177,10 @@ pub(crate) fn configured_marketplace_snapshot_issues(
                 issues.push(ConfiguredMarketplaceSnapshotIssue {
                     marketplace_name: configured_name.clone(),
                     path: root,
-                    message: "marketplace root does not contain a supported manifest".to_string(),
+                    message: codex_tui::i18n::text(
+                        "marketplace root does not contain a supported manifest",
+                    )
+                    .to_string(),
                 });
             }
         }

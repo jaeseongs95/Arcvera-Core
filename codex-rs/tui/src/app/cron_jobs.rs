@@ -345,6 +345,7 @@ impl App {
             .await
         {
             Ok(message) => codex_app_server_protocol::DynamicToolCallResponse {
+                memory_context: None,
                 success: true,
                 content_items: vec![
                     codex_app_server_protocol::DynamicToolCallOutputContentItem::InputText {

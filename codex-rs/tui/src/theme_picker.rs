@@ -290,13 +290,13 @@ fn theme_picker_subtitle(codex_home: Option<&Path>, terminal_width: Option<u16>)
     if let Some(path) = themes_dir_display
         && path.starts_with('~')
     {
-        let subtitle = format!("Custom .tmTheme files can be added to the {path} directory.");
+        let subtitle = crate::i18n::message("r39-followup-theme-directory", &[("path", &path)]);
         if UnicodeWidthStr::width(subtitle.as_str()) <= available_width {
             return subtitle;
         }
     }
 
-    PREVIEW_FALLBACK_SUBTITLE.to_string()
+    crate::i18n::text(PREVIEW_FALLBACK_SUBTITLE).to_string()
 }
 
 /// Builds [`SelectionViewParams`] for the `/theme` picker dialog.
@@ -339,7 +339,7 @@ pub(crate) fn build_theme_picker_params(
         .enumerate()
         .map(|(idx, entry)| {
             let display_name = if entry.is_custom {
-                format!("{} (custom)", entry.name)
+                crate::i18n::message("r39-followup-theme-custom", &[("name", &entry.name)])
             } else {
                 entry.name.clone()
             };
@@ -389,7 +389,7 @@ pub(crate) fn build_theme_picker_params(
     );
     SelectionViewParams {
         allow_input_when_disconnected: true,
-        title: Some("Select Syntax Theme".to_string()),
+        title: Some(crate::i18n::text("Select Syntax Theme").to_string()),
         subtitle: Some(theme_picker_subtitle(
             codex_home_owned.as_deref(),
             terminal_width,
@@ -397,7 +397,7 @@ pub(crate) fn build_theme_picker_params(
         footer_hint: Some(standard_popup_hint_line()),
         items,
         is_searchable: true,
-        search_placeholder: Some("Type to filter themes...".to_string()),
+        search_placeholder: Some(crate::i18n::text("Type to filter themes...").to_string()),
         initial_selected_idx: initial_idx,
         side_content: Box::new(ThemePreviewWideRenderable),
         side_content_width: SideContentWidth::Half,

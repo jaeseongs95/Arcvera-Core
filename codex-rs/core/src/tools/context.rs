@@ -303,6 +303,7 @@ pub struct FunctionToolOutput {
     pub body: Vec<FunctionCallOutputContentItem>,
     pub success: Option<bool>,
     pub post_tool_use_response: Option<JsonValue>,
+    memory_context: Option<codex_protocol::dynamic_tools::DynamicToolMemoryContext>,
 }
 
 impl FunctionToolOutput {
@@ -311,6 +312,7 @@ impl FunctionToolOutput {
             body: vec![FunctionCallOutputContentItem::InputText { text }],
             success,
             post_tool_use_response: None,
+            memory_context: None,
         }
     }
 
@@ -322,15 +324,27 @@ impl FunctionToolOutput {
             body: content,
             success,
             post_tool_use_response: None,
+            memory_context: None,
         }
     }
 
     pub fn into_text(self) -> String {
         function_call_output_content_items_to_text(&self.body).unwrap_or_default()
     }
+
+    pub fn with_memory_context(
+        mut self,
+        context: Option<codex_protocol::dynamic_tools::DynamicToolMemoryContext>,
+    ) -> Self {
+        self.memory_context = context;
+        self
+    }
 }
 
 impl ToolOutput for FunctionToolOutput {
+    fn memory_context(&self) -> Option<codex_protocol::dynamic_tools::DynamicToolMemoryContext> {
+        self.memory_context
+    }
     fn log_output(&self) -> String {
         function_call_output_content_items_to_text(&self.body).unwrap_or_default()
     }

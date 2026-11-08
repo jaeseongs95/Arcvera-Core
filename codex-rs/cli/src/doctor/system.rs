@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::env;
 
 use super::DoctorCheck;
+use super::DoctorHumanOrigin;
 use super::LOCALE_ENV_VARS;
 
 const EDITOR_ENV_VARS: &[&str] = &["VISUAL", "EDITOR"];
@@ -15,6 +16,7 @@ struct SystemCheckInputs {
     os_language: Option<String>,
     locale_env: BTreeMap<String, String>,
     editor_env: BTreeMap<String, String>,
+    missing_editor_env: Vec<&'static str>,
     pager_env: BTreeMap<String, String>,
 }
 
@@ -29,12 +31,16 @@ impl SystemCheckInputs {
                     .map(|value| ((*name).to_string(), value))
             })
             .collect();
+        let mut missing_editor_env = Vec::new();
         let editor_env = EDITOR_ENV_VARS
             .iter()
             .map(|name| {
                 let value = env::var_os(name)
                     .map(|value| value.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| "not set".to_string());
+                    .unwrap_or_else(|| {
+                        missing_editor_env.push(*name);
+                        "not set".to_string()
+                    });
                 ((*name).to_string(), value)
             })
             .collect();
@@ -52,6 +58,7 @@ impl SystemCheckInputs {
             os_language: sys_locale::get_locale(),
             locale_env,
             editor_env,
+            missing_editor_env,
             pager_env,
         }
     }
@@ -93,13 +100,20 @@ fn system_check_from_inputs(inputs: SystemCheckInputs) -> DoctorCheck {
         .as_deref()
         .map(|language| format!("OS language {language}"))
         .unwrap_or_else(|| "OS language unavailable".to_string());
-    DoctorCheck::new(
+    let mut check = DoctorCheck::new(
         "system.environment",
         "system",
         super::CheckStatus::Ok,
         summary,
     )
-    .details(details)
+    .details(details);
+    if inputs.os_language.is_none() || !inputs.missing_editor_env.is_empty() {
+        check.human_origin = DoctorHumanOrigin::SystemEnvironment {
+            os_language_missing: inputs.os_language.is_none(),
+            missing_editor_env: inputs.missing_editor_env,
+        };
+    }
+    check
 }
 
 #[cfg(test)]
@@ -129,6 +143,7 @@ mod tests {
             os_language: Some("en-US".to_string()),
             locale_env,
             editor_env,
+            missing_editor_env: Vec::new(),
             pager_env,
         });
 
@@ -163,6 +178,7 @@ mod tests {
                 ("EDITOR".to_string(), "not set".to_string()),
                 ("VISUAL".to_string(), "not set".to_string()),
             ]),
+            missing_editor_env: vec!["VISUAL", "EDITOR"],
             pager_env: BTreeMap::new(),
         });
 
@@ -177,6 +193,33 @@ mod tests {
                 "VISUAL: not set",
                 "EDITOR: not set",
             ]
+        );
+    }
+
+    #[test]
+    fn missing_origins_preserve_the_same_json_as_real_sentinel_values() {
+        let actual_values = SystemCheckInputs {
+            os_language: Some("unavailable".to_string()),
+            editor_env: BTreeMap::from([
+                ("EDITOR".to_string(), "not set".to_string()),
+                ("VISUAL".to_string(), "not set".to_string()),
+            ]),
+            ..SystemCheckInputs::default()
+        };
+        let missing_values = SystemCheckInputs {
+            os_language: None,
+            missing_editor_env: vec!["EDITOR"],
+            ..actual_values.clone()
+        };
+        let actual = system_check_from_inputs(actual_values);
+        let missing = system_check_from_inputs(missing_values);
+        assert_eq!(
+            serde_json::to_vec(&actual).unwrap(),
+            serde_json::to_vec(&missing).unwrap()
+        );
+        assert!(matches!(actual.human_origin, DoctorHumanOrigin::None));
+        assert!(
+            matches!(missing.human_origin, DoctorHumanOrigin::SystemEnvironment { os_language_missing: true, ref missing_editor_env } if missing_editor_env == &["EDITOR"])
         );
     }
 }

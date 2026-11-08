@@ -127,6 +127,7 @@ async fn interrupt_completes_cancelled_dynamic_call(hook: Option<HookEventName>)
             .submit(Op::DynamicToolResponse {
                 id: "gate-call".to_string(),
                 response: DynamicToolResponse {
+                    memory_context: None,
                     content_items: Vec::new(),
                     success: true,
                 },
@@ -266,6 +267,7 @@ async fn terminated_cell_persists_failure_and_excludes_late_reply_from_context()
     )
     .await;
     let barrier_reply = DynamicToolResponse {
+        memory_context: None,
         content_items: Vec::new(),
         success: true,
     };
@@ -305,6 +307,7 @@ async fn terminated_cell_persists_failure_and_excludes_late_reply_from_context()
         .submit(Op::DynamicToolResponse {
             id: original.clone(),
             response: DynamicToolResponse {
+                memory_context: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputText {
                     text: "LATE_RESULT_MUST_NOT_REACH_MODEL".into(),
                 }],

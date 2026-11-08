@@ -13,6 +13,8 @@ use std::env;
 
 use super::DoctorCheck;
 use super::HumanOutputOptions;
+use super::localized_value;
+use super::localized_value::Surface;
 use super::redact_detail;
 
 const LIST_LIMIT: usize = 7;
@@ -51,7 +53,7 @@ pub(super) fn detail_lines(check: &DoctorCheck, options: HumanOutputOptions) -> 
     let mut details = details
         .into_iter()
         .map(|detail| attach_issue_metadata(detail, check))
-        .map(|detail| humanize_detail(detail, options, check.category != "mcp"))
+        .map(|detail| humanize_detail(detail, options, check))
         .collect::<Vec<_>>();
     details.extend(issue_remedies(check));
     details
@@ -629,23 +631,33 @@ fn push_remaining(
 fn humanize_detail(
     detail: HumanDetail,
     options: HumanOutputOptions,
-    localize_label: bool,
+    check: &DoctorCheck,
 ) -> HumanDetail {
     match detail {
         HumanDetail::Row {
             label,
             value,
             expected,
-        } => HumanDetail::Row {
-            // MCP row labels may be user-configured server names. Keep them opaque.
-            label: if localize_label {
+        } => {
+            // Metadata was attached using the raw field. Localize only the human view.
+            let value = localized_value::for_display(check, Surface::Detail(&label), &value);
+            let expected = expected.map(|raw| {
+                localized_value::for_display(check, Surface::Expected, &raw).into_owned()
+            });
+            let label = if check.category != "mcp" {
+                let label = localized_value::for_display(check, Surface::Label(&label), &label)
+                    .into_owned();
                 localized_detail_label(label)
             } else {
+                // MCP row labels may be user-configured server names. Keep them opaque.
                 label
-            },
-            value: humanize_value(&value, options),
-            expected,
-        },
+            };
+            HumanDetail::Row {
+                label,
+                value: humanize_value(&value, options),
+                expected,
+            }
+        }
         HumanDetail::Continuation(value) => {
             HumanDetail::Continuation(humanize_value(&value, options))
         }
@@ -736,8 +748,11 @@ fn issue_remedies(check: &DoctorCheck) -> Vec<HumanDetail> {
         .iter()
         .filter_map(|issue| issue.remedy.as_ref())
         .filter(|remedy| seen.insert((*remedy).clone()))
-        .cloned()
-        .map(HumanDetail::Remedy)
+        .map(|raw| {
+            HumanDetail::Remedy(
+                localized_value::for_display(check, Surface::Remedy, raw).into_owned(),
+            )
+        })
         .collect()
 }
 

@@ -44,11 +44,11 @@ impl TokenActivityView {
     }
 
     pub(crate) fn label(self) -> &'static str {
-        match self {
+        crate::i18n::text(match self {
             Self::Daily => "Daily",
             Self::Weekly => "Weekly",
             Self::Cumulative => "Cumulative",
-        }
+        })
     }
 }
 
@@ -62,7 +62,7 @@ pub(super) fn chart_lines(
     let values = daily_values(buckets, today);
     let shown_columns = shown_columns(width);
     if shown_columns == 0 {
-        lines.push("   Widen terminal to show activity graph".dim().into());
+        lines.push(crate::i18n::text("   Widen terminal to show activity graph").dim().into());
         return lines;
     }
 
@@ -126,7 +126,7 @@ fn weekday_label(view: TokenActivityView, row: usize) -> Span<'static> {
         // as a coarse Y-axis: peak at the top, baseline at the bottom.
         return Span::styled(
             match row {
-                0 => "max ",
+                0 => crate::i18n::text("max "),
                 6 => "  0 ",
                 _ => "    ",
             },
@@ -134,7 +134,7 @@ fn weekday_label(view: TokenActivityView, row: usize) -> Span<'static> {
         );
     }
     Span::styled(
-        match row {
+        crate::i18n::text(match row {
             0 => " Su ",
             1 => " Mo ",
             2 => " Tu ",
@@ -143,13 +143,13 @@ fn weekday_label(view: TokenActivityView, row: usize) -> Span<'static> {
             5 => " Fr ",
             6 => " Sa ",
             _ => "    ",
-        },
+        }),
         label_style(),
     )
 }
 
 fn legend_line(palette: &TokenActivityPalette) -> Line<'static> {
-    let mut spans = vec![Span::styled("   Less ", label_style())];
+    let mut spans = vec![Span::styled(crate::i18n::text("   Less "), label_style())];
     for level in 0..=4 {
         if level > 0 {
             spans.push(" ".into());
@@ -159,7 +159,7 @@ fn legend_line(palette: &TokenActivityPalette) -> Line<'static> {
             palette.for_level(level),
         ));
     }
-    spans.push(Span::styled(" More", label_style()));
+    spans.push(Span::styled(crate::i18n::text(" More"), label_style()));
     spans.into()
 }
 
@@ -169,11 +169,11 @@ fn bar_caption(view: TokenActivityView, values: &[i64]) -> Line<'static> {
     let weeks = weekly_totals(values);
     let (lead, peak) = match view {
         TokenActivityView::Weekly => (
-            "Each column = 1 week · tallest ",
+            crate::i18n::text("Each column = 1 week · tallest "),
             weeks.iter().copied().max().unwrap_or(/*default*/ 0),
         ),
         TokenActivityView::Cumulative => (
-            "Running total · top ",
+            crate::i18n::text("Running total · top "),
             weeks
                 .iter()
                 .fold(/*init*/ 0_i64, |sum, value| sum.saturating_add(*value)),
@@ -181,7 +181,7 @@ fn bar_caption(view: TokenActivityView, values: &[i64]) -> Line<'static> {
         TokenActivityView::Daily => ("", 0),
     };
     if peak <= 0 {
-        return Span::styled("   No token activity in the last 12 months", label_style()).into();
+        return Span::styled(crate::i18n::text("   No token activity in the last 12 months"), label_style()).into();
     }
     vec![
         Span::styled(format!("   {lead}"), label_style()),

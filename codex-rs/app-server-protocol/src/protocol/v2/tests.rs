@@ -5160,6 +5160,7 @@ fn codex_error_info_serializes_active_turn_not_steerable_turn_kind_in_camel_case
 #[test]
 fn dynamic_tool_response_serializes_content_items() {
     let value = serde_json::to_value(DynamicToolCallResponse {
+        memory_context: None,
         content_items: vec![DynamicToolCallOutputContentItem::InputText {
             text: "dynamic-ok".to_string(),
         }],
@@ -5182,8 +5183,22 @@ fn dynamic_tool_response_serializes_content_items() {
 }
 
 #[test]
+fn optional_memory_result_lifetime_preserves_old_client_response_shape() {
+    let old = r#"{"contentItems":[],"success":false}"#;
+    let mut response: DynamicToolCallResponse = serde_json::from_str(old).unwrap();
+    assert_eq!(response.memory_context, None);
+    assert_eq!(serde_json::to_string(&response).unwrap(), old);
+    response.memory_context =
+        Some(codex_protocol::dynamic_tools::DynamicToolMemoryContext::Snapshot);
+    let value = serde_json::to_value(&response).unwrap();
+    assert_eq!(value["memoryContext"], "snapshot");
+    assert_eq!(value["success"], false);
+}
+
+#[test]
 fn dynamic_tool_response_serializes_text_image_and_audio_content_items() {
     let value = serde_json::to_value(DynamicToolCallResponse {
+        memory_context: None,
         content_items: vec![
             DynamicToolCallOutputContentItem::InputText {
                 text: "dynamic-ok".to_string(),

@@ -6,14 +6,25 @@ and a later memory-writing agent will distill it with other records into brief
 context injected into future tasks. It is important to not write over-confidently
 and not over-generally to avoid misleading future agents.
 
-Write a faithful, self-contained Markdown account. Give primary weight to the
+Select information only when a concrete future task would benefit from it:
+an explicit reusable preference, a consequential correction that prevents a
+repeated mistake, a scoped decision needed to resume work, or a verified
+non-obvious finding whose source makes it useful to recheck. Retaining more
+history is not a goal. Routine progress, repeated instructions, generic advice,
+transient process state, and facts easily recovered from the current project
+do not by themselves justify a record. Return empty strings when nothing meets
+this usefulness gate, even if the rollout contained substantial activity.
+
+Write a faithful, self-contained Markdown record of the selected information.
+Give primary weight to the
 user's actual requests, corrections, decisions, constraints, and stated ways of
 working; distinguish the human user's words from assistant or delegated-agent
 suggestions, assumptions, and omitted evidence.
-Preserve substantive tasks and changes of objective in chronological order,
-including consequential earlier, interrupted, superseded, or unfinished work.
+Retain earlier, interrupted, superseded, or unfinished work only when it changes
+how a future related task should proceed. Preserve the ordering needed to
+understand a correction without reproducing the whole activity history.
 
-For each material task, retain the relevant scope and ownership, working
+For each retained item, state when it is useful, the relevant scope and ownership, working
 directory or branch applicability, significant findings, actions and their
 provenance, final state, and open questions. Keep concrete user corrections,
 negative feedback, and authorization limits with their relevant tasks.
@@ -40,7 +51,13 @@ deployment, ownership, a stable preference, or user approval beyond what the
 evidence supports; preserve uncertainty and potentially stale status.
 Keep project choices and ordinary agent
 behavior separate from how the user wants to work, even within task history;
-later user corrections supersede earlier claims within that task.
+later user corrections supersede earlier claims within that task. Keep a
+temporary request tied to its task and end condition; do not turn it into a
+lasting default. An approval in the past is historical evidence, never authority
+to perform a new action. Merge repeated statements of the same fact and retain
+the evidence needed to resolve contradictions instead of copying both as
+current truth. Mark time-sensitive status as observed at its source time so it
+cannot silently become a current fact.
 
 Write task history, not a user profile. Use separate task headings when they
 clarify the history. Omit generic advice, decorative commentary, repeated logs,

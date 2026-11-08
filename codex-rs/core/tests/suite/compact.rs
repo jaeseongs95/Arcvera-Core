@@ -686,8 +686,8 @@ async fn summarize_context_three_requests_and_instructions(
         "third request should include the new user message"
     );
     assert!(
-        input3.contains(&original_user_message),
-        "third request should include the original user message"
+        !input3.contains(&original_user_message),
+        "third request must not reinstall the original task transcript"
     );
     assert!(
         messages
@@ -708,24 +708,11 @@ async fn summarize_context_three_requests_and_instructions(
 
     let replacement_history = replacement_history_from_rollout(&rollout_path)
         .expect("local compaction should persist replacement history");
-    let compacted_user_message = replacement_history
-        .iter()
-        .find(|item| item["content"][0]["text"] == ORIGINAL_FIRST_PART)
-        .expect("persisted replacement history should contain the compacted user message");
-    assert_eq!(
-        json!({
-            "type": compacted_user_message["type"],
-            "role": compacted_user_message["role"],
-            "content": compacted_user_message["content"],
-            "content_item_kinds": compacted_user_message
-                ["internal_chat_message_metadata_passthrough"]["content_item_kinds"],
-        }),
-        json!({
-            "type": "message",
-            "role": "user",
-            "content": original_user_message["content"],
-            "content_item_kinds": ["user.text", "user.text", "user.text"],
-        }),
+    assert!(
+        !replacement_history
+            .iter()
+            .any(|item| item["content"][0]["text"] == ORIGINAL_FIRST_PART),
+        "persisted replacement history must not reinstall completed original messages"
     );
 
     // Verify rollout contains user-turn TurnContext entries and a Compacted entry.
@@ -914,7 +901,7 @@ async fn compact_hooks_respect_matchers_and_post_runs_after_compaction() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn manual_compact_uses_custom_prompt() {
+async fn manual_compact_keeps_custom_style_and_mandatory_handoff_policy() {
     skip_if_no_network!();
 
     let server = start_mock_server().await;
@@ -981,19 +968,14 @@ async fn manual_compact_uses_custom_prompt() {
         }
     }
 
-    let used_prompt = found_custom_prompt || found_default_prompt;
-    if used_prompt {
-        assert!(found_custom_prompt, "custom prompt should be injected");
-        assert!(
-            !found_default_prompt,
-            "default prompt should be replaced when a compact prompt is used"
-        );
-    } else {
-        assert!(
-            !found_default_prompt,
-            "summarization prompt should not appear if compaction omits a prompt"
-        );
-    }
+    assert!(
+        found_custom_prompt,
+        "custom prompt should still be injected"
+    );
+    assert!(
+        found_default_prompt,
+        "custom formatting must retain the mandatory handoff policy"
+    );
 }
 
 #[test_case::test_case(false; "success")]
@@ -2310,12 +2292,12 @@ async fn auto_compact_runs_after_token_limit_hit() {
         })
         .collect();
     assert!(
-        user_texts.iter().any(|text| text == FIRST_AUTO_MSG),
-        "auto compact follow-up request should include the first user message"
+        user_texts.iter().all(|text| text != FIRST_AUTO_MSG),
+        "auto compact follow-up must not reinstall the first old user message"
     );
     assert!(
-        user_texts.iter().any(|text| text == SECOND_AUTO_MSG),
-        "auto compact follow-up request should include the second user message"
+        user_texts.iter().all(|text| text != SECOND_AUTO_MSG),
+        "auto compact follow-up must not reinstall the second old user message"
     );
     assert!(
         user_texts.iter().any(|text| text == POST_AUTO_USER_MSG),
@@ -4699,8 +4681,8 @@ async fn manual_compact_twice_preserves_latest_user_messages() {
         "regular requests after compaction should not be marked as compact requests"
     );
     assert!(
-        contains_user_text(&requests[2], first_user_message),
-        "second turn request should include the compacted user history"
+        !contains_user_text(&requests[2], first_user_message),
+        "second turn request must not reinstall the old compacted user history"
     );
 
     assert!(
@@ -4749,9 +4731,8 @@ async fn manual_compact_twice_preserves_latest_user_messages() {
         final_request_last_user_text, final_user_message,
         "final turn request should end with the submitted user message"
     );
-    let mut expected_history = vec![first_user_message.to_string()];
-    expected_history.extend_from_slice(initial_seeded_user_prefix);
-    expected_history.extend([second_user_message.to_string(), expected_second_summary]);
+    let mut expected_history = initial_seeded_user_prefix.to_vec();
+    expected_history.push(expected_second_summary);
     assert_eq!(final_request_before_last_user, expected_history.as_slice());
 }
 
