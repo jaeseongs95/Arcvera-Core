@@ -42,9 +42,23 @@ try {
     $bindingName = "src_binding_ptrcomp_sandbox_release_$target.rs"
     $directory = Join-Path $env:RUNNER_TEMP 'r40-v8'
     New-Item -ItemType Directory -Path $directory | Out-Null
-    $base = "https://github.com/openai/codex/releases/download/rusty-v8-v$version"
+    # The original browser-download route returned HTTP504 before compilation.
+    # Use the explicit public REST asset route; keep the same checked-in trust root.
+    $receipt.downloadPhase = 'public V8 release metadata'
+    $release = Invoke-RestMethod "https://api.github.com/repos/openai/codex/releases/tags/rusty-v8-v$version" -Headers @{ 'User-Agent' = 'OpenDIY-R40-release-build' }
+    if ($release.tag_name -cne "rusty-v8-v$version") { throw 'Wrong V8 release metadata' }
+    $receipt.downloads = @()
+    function Get-CheckedReleaseAsset([string]$Name, [string]$Destination) {
+        $asset = @($release.assets | Where-Object { $_.name -ceq $Name })
+        if ($asset.Count -ne 1 -or $asset[0].state -cne 'uploaded' -or $asset[0].url -notmatch '^https://api\.github\.com/repos/openai/codex/releases/assets/[0-9]+$') { throw "Missing or invalid V8 asset: $Name" }
+        $receipt.downloadPhase = $Name
+        & curl.exe -q --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --max-time 180 --max-filesize 67108864 --header 'Accept: application/octet-stream' --output $Destination $asset[0].url
+        if ($LASTEXITCODE -ne 0) { throw "V8 REST download failed for ${Name}: curl exit $LASTEXITCODE" }
+        if ((Get-Item -LiteralPath $Destination).Length -ne $asset[0].size) { throw "V8 REST size mismatch: $Name" }
+        $receipt.downloads += @{ name = $Name; url = $asset[0].url; id = $asset[0].id; bytes = $asset[0].size; sha256 = (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash.ToLowerInvariant() }
+    }
     $checksumPath = Join-Path $directory $checksumName
-    Invoke-WebRequest "$base/$checksumName" -OutFile $checksumPath
+    Get-CheckedReleaseAsset $checksumName $checksumPath
     $trustedPath = Join-Path $env:GITHUB_WORKSPACE "third_party/v8/rusty_v8_$($version.Replace('.', '_'))_release_manifests.sha256"
     $trustedLines = @(Get-Content $trustedPath | Where-Object { $_ -match "^[0-9a-f]{64}  $([regex]::Escape($checksumName))$" })
     if ($trustedLines.Count -ne 1) { throw 'Missing or ambiguous trusted V8 manifest' }
@@ -57,12 +71,13 @@ try {
         $expected = @($checksums | Where-Object { $_ -match "^[0-9a-f]{64}  $([regex]::Escape($name))$" })
         if ($expected.Count -ne 1) { throw "Missing or ambiguous V8 checksum: $name" }
         $path = Join-Path $directory $name
-        Invoke-WebRequest "$base/$name" -OutFile $path
+        Get-CheckedReleaseAsset $name $path
         $digest = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
         if ($digest -ne $expected[0].Substring(0, 64)) { throw "V8 input checksum mismatch: $name" }
         $v8Inputs += @{ name = $name; sha256 = $digest }
     }
     $receipt.v8Inputs = $v8Inputs
+    $receipt.downloadPhase = 'completed'
     $env:RUSTY_V8_ARCHIVE = Join-Path $directory $archiveName
     $env:RUSTY_V8_SRC_BINDING_PATH = Join-Path $directory $bindingName
     $env:STABLE_GIT_COMMIT = $productCommit
@@ -120,6 +135,7 @@ try {
     $receipt.status = 'passed'
 } catch {
     $receipt.failure = $_.Exception.Message
+    $receipt.failureLineNumber = $_.InvocationInfo.ScriptLineNumber
     Write-Error -Message $_ -ErrorAction Continue
 } finally {
     if ($null -ne $buildProcess -and -not $buildProcess.HasExited) {
