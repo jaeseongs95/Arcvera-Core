@@ -2,87 +2,92 @@
 
 [English](README.md) · [한국어](README.ko.md)
 
-An unofficial Windows edition of Codex CLI and Rust App Server. It repairs confirmed defects and reuses upstream functionality rather than duplicating it.
+An unofficial Windows edition of Codex CLI and Rust App Server, based on OpenAI Codex. It adds conversation controls and repairs confirmed defects while preserving authentication, permission checks, stored conversations, and ongoing work.
 
-[Download latest release](https://github.com/jaeseongs95/opendiy-codex/releases/latest) · [Build from source](docs/source-import.md) · [Validation](docs/TESTING.md) · [Changes](MODIFICATIONS.md)
+[Download latest release](https://github.com/jaeseongs95/opendiy-codex/releases/latest) · [Release history](https://github.com/jaeseongs95/opendiy-codex/releases) · [Build from source](docs/source-import.md)
 
-## Release status
+## Start on Windows
 
-| Version | Official base | State |
+1. Download the complete Windows x86-64 ZIP and `SHA256SUMS.txt` from the release page.
+2. Compare the ZIP's SHA-256 with the checksum file, then extract it into a new folder with its directory layout intact.
+3. Run `bin\codex.exe`. Source compilation and CMD launchers are optional.
+
+For R40, run the first command in the download folder and the second in the extracted package folder:
+
+```powershell
+Get-FileHash .\opendiy-codex-r40-windows-x86_64.zip -Algorithm SHA256
+```
+
+```powershell
+.\bin\codex.exe
+```
+
+Keep `codex-package.json`, `package-receipt.json`, and the `bin` folder together. Retain the previous package for recovery.
+
+### Choose a connection
+
+| Entry point | Behavior |
+| --- | --- |
+| `bin\codex.exe` or `codex-patched.cmd` | Default startup; may reuse a compatible local shared server, depending on installation and settings. |
+| `codex-local.cmd` | Uses `--no-daemon` to start a separate embedded backend. |
+| `bin\codex.exe --remote <address>` | Connects to an explicit remote server; requires the appropriate authentication. |
+
+The ZIP already includes `codex-patched.cmd`, which passes arguments to `bin\codex.exe`. It provides a convenient default launch that can reuse the shared server. It does not replace a server version, configure a remote address, or pair a mobile device. An incompatible or unverified implicit server can cause startup to use the embedded backend. Check the actual server identity separately from the selected CLI file.
+
+To replace the managed shared server, follow the [R40 server update procedure](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108). Use the complete ZIP and a separate PowerShell window after finishing active work. Changing an EXE path alone does not update a running server.
+
+### Individual executables
+
+Releases also provide `codex.exe`, `codex-app-server.exe`, and `codex-code-mode-host.exe` separately. Use the same release for all three. Keep the helper beside the executable being run, with the exact name `codex-code-mode-host.exe`; a missing helper can cause `os error 2`. If the CLI and server share a folder, put all three files there.
+
+These three files are not a complete managed-server installation package. Voice resources, launchers, updater support, and `app-server daemon update --from-cli` require the complete ZIP. Download and version checks do not establish first-time installation on a new PC.
+
+## Current releases
+
+| Release | Main change | Verification boundary |
 | --- | --- | --- |
-| R39 | 0.167.0 | Compact-only R39 based on frozen R38. The final package and 15 isolated runtime checks are complete. Desktop joint testing is excluded by the release scope; it was not run. See the [R39 release](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r39.20261107) for publication and verification status. Real-model summary quality remains unverified. See [scope and limits](docs/native-cli-r39.ko.md). |
-| R38 | 0.167.0 | [Published and frozen (`v0.167.0-r38.20261106`)](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r38.20261106). See the tagged release notes for final package validation. Publication does not establish the version installed on a PC. |
-| R37 | 0.166.0 + selected upstream changes | Published and frozen (`v0.166.0-r37.20261104`). Source pinned to `2289ae3aa847cd64e7e987f56180160ce67a8694`: daemon version selection guards, scoped memory writes and consolidation, shared language preferences, plugin cache handling, replay filtering, selectable subagent footer and input-dispatch fixes. Development tests include 81 input regressions and four Desktop submission/save/restart-restore scenarios in English and Korean UI. Managed Windows memory policy and the unsupported busy connection-close scenario remain outside that verified scope. Tagged release notes report final package verification; a source checkout or development test is not an installed release. |
-| R36 | 0.166.0 + selected upstream changes | Published stable Windows release integrating R35 changes. Frozen after publication. |
-| R35 | 0.166.0 | Integrated into R36 without a separate release. |
-| R34 | 0.166.0 + selected upstream changes | Published Windows CLI, standalone App Server, and full package. Frozen after publication. |
-| R33 | 0.166.0 | Historical package; Windows updater defects were repaired in R34. |
-| R32 | 0.166.0 | Historical package. |
-| R31 | 0.166.0 | No separate release; integrated into R32. |
+| [R40](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108) | Temporary MCP reconnection, nonblocking context lookup, hook boundaries, scrolling, Korean text, and confirmed memory/provenance fixes | Final CLI, RPC, ConPTY, and isolated TEST Desktop checks; see the notes for failures and unrun cases. |
+| [R39](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r39.20261107) | Compaction focused on unfinished work | 15 isolated final-package checks plus source compaction tests. Final Desktop joint testing was not run. |
 
-Published Windows packages and checksums are listed in [Releases](https://github.com/jaeseongs95/opendiy-codex/releases). Source merges and development builds do not establish publication or the version installed on a PC. Check the tagged release notes for final binary validation and verify the executable path and version after installation. The [R35 guide](docs/native-cli-r35.ko.md) describes the memory, language, and update changes integrated into R36.
+Both are based on official Codex 0.167.0. Publication does not establish the version installed on a PC. Earlier versions remain in the [release history](https://github.com/jaeseongs95/opendiy-codex/releases).
 
-## Features
+## Conversation controls
 
-- Cancellation propagation, bounded capacity retries, and owned-child process cleanup.
-- Per-conversation context/tier controls, memory activation/corrections, subagent display, and confirmed cleanup.
-- CLI-lifetime scheduling: busy conversations skip an occurrence; schedules disappear when the CLI exits.
-- R36: one-line subagent summary with at most three expanded rows, distinct Cloud discovery errors, read-only `codex ci` observation, and fast propagation/compaction phase diagnostics.
-- Bounded display history independent of model context, and globally selected English/Korean UI.
-- Optional asynchronous diagnostics published as completed immutable batch files.
-- A package launcher/updater that retains previous packages and does not automatically replace an active shared daemon.
-
-The changes integrated into R36 distinguish a server's optional capability declaration from a successful attachment or completed model turn. Its cache change fixes missing completed-usage observations; it does not change cache policy or establish a better live hit rate.
-
-## Run on Windows
-
-1. Download the complete ZIP and `SHA256SUMS.txt` from the release.
-2. Verify SHA-256 and follow the package's `USAGE.ko.md`; retain your existing installation.
-3. Use `codex-local.cmd` for an engine separate from an existing shared server.
-
-The complete ZIP is recommended: extract it with its directory layout intact. An individual `codex.exe` or `codex-app-server.exe` is not a complete package. To use code-mode tools (including `functions`), place the matching release's `codex-code-mode-host.exe` in the **same folder as the executable being run**, keeping that exact filename. If it is missing, code-mode host startup can fail with `os error 2`.
-
-R38 did not provide the helper as an individual release asset; obtain it from the R38 complete ZIP. The R39 release includes `codex-code-mode-host.exe` as a separate asset; check its tagged release page for availability. Voice and other additional resources still require the complete ZIP. The default CLI may attach to an existing server: verify its identity and that server's helper location separately from the selected CLI.
-
-## Conversation commands
-
-These commands go in the CLI conversation input, not PowerShell.
+Enter these in the CLI conversation input, not PowerShell.
 
 | Command | Purpose |
 | --- | --- |
-| `/cron add --every 10m -- Check whether the build has finished` | Repeating prompt |
-| `/cron list` · `/cron remove 1` | List/remove the actual schedule ID |
-| `/context 120000` · `/context reset` | Conversation context override |
-| `/memory view` · `/memory enable on` | Inspect memory / explicitly enable it |
+| `/context 120000` · `/context reset` | Set or reset the conversation context override |
+| `/memory view` · `/memory enable on` | Inspect memory or explicitly enable it |
+| `/cron add --every 10m -- Check whether the build has finished` | Schedule a repeating prompt for this CLI session |
+| `/cron list` · `/cron remove 1` | Inspect schedules or remove the actual schedule ID |
 | `/subagents` | Inspect child sessions |
 | `/background` or `F6` | Background a supported terminal task |
 | `/reload_plugin` | Request plugin reload |
-| `/language ko` · `/language en` | Save global language for next launch |
+| `/language ko` · `/language en` | Save the global UI language for the next launch |
 
-Context overrides cannot exceed the model limit. Saving a memory correction is not immediate summary consolidation. Natural-language controls require the tools supplied by the running CLI version. Plugin reload acknowledgement does not prove every MCP server is ready.
+Context overrides cannot exceed the model limit. Memory corrections are not immediate summary consolidation. Schedules skip busy occurrences and disappear when the CLI exits. Natural-language controls need the running CLI's tools. Reload acknowledgement does not prove every MCP server is ready.
 
-Updater commands run in PowerShell: `codex update --check`, `--status`, `--enable-updates`, `--disable-updates`, or `codex update`. They require a supported installed package; see [updater requirements](tools/windows-cli/UPDATE.ko.md).
+Run updater commands in PowerShell: `codex update --check`, `codex update --status`, or `codex update`. They require a supported installed package; see the [updater guide](tools/windows-cli/UPDATE.ko.md).
 
-## OpenDIY Desktop compatibility
+## Desktop and shared servers
 
-[OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop) owns the desktop UI and multi-session workflows. This repository owns the CLI, App Server, and their package. The projects coordinate protocol and release compatibility.
+[OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop) is a separate project for the desktop UI and multi-session workflows. This repository supplies the CLI, App Server, and Windows package. Selecting a new CLI in Desktop does not replace an already running shared server.
 
-**Minimum for OpenDIY extensions in Desktop 1.1.0: OpenDIY CLI R36 and App Server R36.** The published R36 version is `0.166.0+native-r36.20261103`; the complete package from the same release is recommended. Versions before R36, including R28, are outside the supported range. Official Codex CLI 0.166.0 has bounded basic-function compatibility only; OpenDIY extensions are not guaranteed.
+Desktop 1.1.0 OpenDIY extensions require at least CLI and App Server R36 (`0.166.0+native-r36.20261103`). This minimum does not prove compatibility with every later combination. R40 integration checks cover the isolated TEST Desktop candidate used in the tests, not every published Desktop installation. R39 final Desktop joint testing was not run.
 
-Existing servers, stored data, and in-progress work are preserved without automatic replacement. This preservation policy is separate from the supported-version range. The isolated tests below record verification history; R28 preservation checks do not establish official R28 support.
+A connection, initialize response, or matching version alone does not prove full compatibility. Existing data and active work are preserved without automatic server replacement.
 
-| CLI/server | Desktop | Verification scope |
-| --- | --- | --- |
-| R33 | 1.0.2 | Historical bounded joint tests; see the R33 release record. |
-| R34 | Release-specific tested candidate | Startup, isolated engine/catalog, and restoration checks; see the R34 release record. |
-| R36 trial CLI/server | 1.1.0 candidate `5eda4e5` | Isolated GUI input, Korean IME/paste, HTTP/SSE, same-backend completion, normal exit, and restart/restore checks passed. These results apply to the trial binaries named in this row. |
-| Official Codex CLI 0.166.0 | Same 1.1.0 candidate | Six isolated basic-function checks passed. OpenDIY extensions are not guaranteed. |
-| R36 trial CLI/isolated R28 server | Same 1.1.0 candidate | Seven isolated preservation checks passed. Historical test coverage only; R28 is outside the supported range. |
+## Validation and limits
 
-A connection, initialize response, or build-string match alone is not proof of full compatibility. Actual mobile connection, sustained workloads, and live cache effects need separate evidence. File creation does not prove cloud upload, and display-history limits are not total process-memory caps.
+Tagged release notes identify tested binaries, original failures, and unrun cases. Real-model compaction quality, physical keyboard/IME and voice behavior, first-time installation, and sustained workloads have the gaps specified there. These tests do not establish that all GUI delays or memory growth have been resolved.
 
-## Build and license
+R40 excludes a full memory redesign, a new CodeMode architecture, broad refactoring, and structural caching improvements. Display-history bounds are not total process-memory limits; file creation is not proof of cloud upload.
 
-[Source build guide](docs/source-import.md) · [Windows packaging](tools/windows-cli/README.md). Git stores source and build tools; Releases stores executable assets. Source provenance is not a fresh public-checkout build. Credentials and operational logs are excluded.
+[Validation](docs/TESTING.md) · [Release note format](docs/releases/FORMAT.md) · [Source build](docs/source-import.md) · [Windows packaging](tools/windows-cli/README.md) · [Modifications](MODIFICATIONS.md)
 
-Independent work based on [OpenAI Codex](https://github.com/openai/codex), not an official OpenAI product. [Apache-2.0](LICENSE) · [NOTICE](NOTICE).
+## License
+
+Independent work based on [OpenAI Codex](https://github.com/openai/codex); not an official OpenAI product. Git stores source and build tools; Releases stores executable assets. Credentials and operational logs are excluded.
+
+[Apache-2.0](LICENSE) · [NOTICE](NOTICE)
