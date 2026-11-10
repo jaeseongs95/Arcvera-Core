@@ -1,31 +1,63 @@
-# 릴리스 노트 작성 포맷
+# Release note format / 릴리스 노트 작성 포맷
 
-제목은 `OpenDIY Codex R번호 — 사용자에게 달라지는 핵심 동작`으로 작성합니다. 사용자에게 필요한 변경·시작 방법을 먼저 배치하고, 빌드 세부사항과 출처는 뒤에 둡니다.
+## English
 
-## 고정 구성
+Write English and Korean together in **one release note**. Keep both sections current; language links must not replace either section. Store the source as `docs/releases/R<number>.md` and use the same complete text for the GitHub release body.
 
-아래 7개 절의 제목과 순서를 유지합니다.
+Use the title `OpenDIY Codex R<number> — <English summary> / <한국어 요약>`. Place `## English` first and `## 한국어` second. Each language section follows the existing seven-part structure below, using level-three headings.
 
-| 순서 | 제목 | 필수 내용 |
-| --- | --- | --- |
-| 1 | 개요 | 한 문단 요약, 실행본 버전·운영체제·공식 기반·공개 상태 표 |
-| 2 | 변경 사항 | 해당 버전에서 달라지는 동작과 사용자 영향 |
-| 3 | 시작하기 | 전체 ZIP·SHA 확인, EXE 기본 실행, 공유 기본 CMD·분리 CMD, helper 배치 |
-| 4 | 공유 서버 업데이트 | 전체 패키지 조건, 작업 중단 영향, 명시적 update/start/status, 기대 버전·오류 대응 |
-| 5 | 검증 | 시험 대상·환경·결과. 최종 실행본 검사와 과거 소스 시험을 구분 |
-| 6 | 알려진 제한 | 원 실패·제외·미실행(NOT_RUN), 사용자에게 미치는 영향과 미포함 범위 |
-| 7 | 소스와 무결성 | 제품·빌드 소스, 중요한 빌드 차이, 공개 자산 이름과 SHA-256 표 |
+### Required structure
 
-## 작성 규칙
+| Order | English heading | Korean heading | Required content |
+| --- | --- | --- | --- |
+| 1 | Overview | 개요 | Summary; version, platform, upstream base, release status |
+| 2 | Changes | 변경 사항 | Behavior changed in this release and its user impact |
+| 3 | Getting started | 시작하기 | Complete ZIP, SHA verification, direct EXE startup, default/shared and isolated CMD launchers, helper placement |
+| 4 | Shared server update | 공유 서버 업데이트 | Complete-package requirement, interruption impact, explicit update/start/status commands, expected version and error recovery |
+| 5 | Validation | 검증 | Targets, environments, results; distinguish final executables from historical source tests |
+| 6 | Known limitations | 알려진 제한 | Original failures, exclusions, NOT_RUN cases, user impact and excluded changes |
+| 7 | Source and integrity | 소스와 무결성 | Product/build sources, significant build differences, asset names and SHA-256 |
 
-- 실행·공유 서버 연결·서버 버전 교체를 구분합니다. EXE 직접 실행을 기본으로 안내합니다.
-- 개별 EXE 세 개를 전체 설치 패키지라고 안내하지 않습니다. 인증·권한·기존 데이터 보존 조건을 유지합니다.
-- 원 실패를 삭제하거나 통과로 바꾸지 않습니다. 소스 시험·mock·합성 provider·격리 Desktop·최종 바이너리 결과는 각각 실제 범위로 설명합니다.
-- 연결 성공·버전 일치를 전체 호환성·성능 개선의 증거로 사용하지 않습니다.
-- 내부 장부 번호, 시험 회차 이름, 로컬 작업 경로와 승인 경위는 공개 사용 안내에서 제외합니다. 재현에 필요한 소스·환경·제한은 남깁니다.
-- 문서만 고친 경우 새 빌드가 아님을 밝힙니다. 기존 자산·태그·체크섬을 변경하지 않습니다.
-- `docs/releases/R번호.ko.md`를 노트 원본으로 보관하고 GitHub 릴리스 본문과 일치시킵니다. 제목은 파일의 첫 줄에서 가져옵니다.
-- 이번 재작성은 R39·R40에만 적용합니다. 이전 릴리스는 일괄 수정하지 않습니다.
-- 문서 브랜치 반영, 기본 브랜치 병합, 태그·실행 자산 공개의 승인 경계를 구분합니다.
+### Writing and maintenance
 
-[R39 노트](R39.ko.md) · [R40 노트](R40.ko.md)
+- Use formal, public-facing language. Omit private remarks, internal ledger identifiers, local work paths, test-round labels, and approval history. Retain technical information needed to assess or reproduce results.
+- Keep versions, commands, counts, source references, checksums, failures, and unrun cases equivalent across languages. Put matching checksum tables in both sections.
+- Distinguish startup, shared-server connection, and server-version replacement. Present direct EXE startup as the default. Three individual executables are not a complete installation package.
+- Preserve authentication, permission checks, and existing data. Describe interruption risks before server-update commands.
+- Do not convert failures or unrun cases into passes. Identify mocks, synthetic providers, isolated Desktop candidates, historical source tests, and final binaries by their actual scope.
+- A successful connection or matching version alone does not prove compatibility or performance improvement.
+- Documentation-only revisions are not new builds. Keep existing assets, tags, and checksums unchanged.
+- Maintain the English main README and linked Korean README together, updating release information with each release. Each README links to the same bilingual release note.
+- Apply this format to R39 and R40. Earlier release notes remain unchanged.
+
+## 한국어
+
+**한 릴리스 노트 안에 영문과 한글을 함께 작성합니다.** 두 언어를 함께 최신화하며, 언어 링크로 본문을 대신하지 않습니다. 원본은 `docs/releases/R번호.md`에 보관하고 GitHub 릴리스 본문에도 같은 전체 내용을 사용합니다.
+
+제목은 `OpenDIY Codex R번호 — <English summary> / <한국어 요약>`으로 작성합니다. `## English`를 먼저, `## 한국어`를 뒤에 배치합니다. 각 언어는 기존의 아래 7절 구성을 유지하고 3단계 제목을 사용합니다.
+
+### 고정 구성
+
+| 순서 | 영문 제목 | 한글 제목 | 필수 내용 |
+| --- | --- | --- | --- |
+| 1 | Overview | 개요 | 요약; 실행본 버전·운영체제·공식 기반·공개 상태 |
+| 2 | Changes | 변경 사항 | 해당 릴리스에서 바뀐 동작과 사용자 영향 |
+| 3 | Getting started | 시작하기 | 전체 ZIP·SHA 확인, EXE 직접 실행, 공유 기본·분리 CMD, helper 배치 |
+| 4 | Shared server update | 공유 서버 업데이트 | 전체 패키지 조건, 작업 중단 영향, 명시적 update/start/status, 기대 버전·오류 대응 |
+| 5 | Validation | 검증 | 대상·환경·결과. 최종 실행본과 과거 소스 시험 구분 |
+| 6 | Known limitations | 알려진 제한 | 원 실패·제외·NOT_RUN, 사용자 영향과 미포함 변경 |
+| 7 | Source and integrity | 소스와 무결성 | 제품·빌드 소스, 중요한 빌드 차이, 자산 이름과 SHA-256 |
+
+### 작성·유지 규칙
+
+- 공개 문서에 맞는 공식적인 표현을 사용합니다. 사적인 표현, 내부 장부 번호, 로컬 작업 경로, 시험 회차 이름, 승인 경위는 제외합니다. 결과 판단·재현에 필요한 기술 정보는 유지합니다.
+- 버전·명령·수치·소스·체크섬·실패·미실행 범위를 두 언어에서 동일하게 유지합니다. 양쪽 절에 같은 체크섬 표를 둡니다.
+- 실행·공유 서버 연결·서버 버전 교체를 구분합니다. EXE 직접 실행을 기본으로 안내합니다. 개별 실행 파일 세 개는 전체 설치 패키지가 아닙니다.
+- 인증·권한 검사·기존 데이터를 보존합니다. 서버 업데이트 명령 전에 작업 중단 영향을 설명합니다.
+- 실패·미실행을 통과로 바꾸지 않습니다. mock·합성 provider·격리 Desktop 후보·과거 소스 시험·최종 실행본은 실제 검증 범위로 구분합니다.
+- 연결 성공이나 버전 일치만으로 호환성·성능 개선을 주장하지 않습니다.
+- 문서 개정만으로 새 빌드가 되지는 않습니다. 기존 자산·태그·체크섬을 유지합니다.
+- 영문 메인 README와 연결된 한글 README를 함께 관리하고 릴리스마다 정보를 최신화합니다. 두 README는 같은 영한 병기 릴리스 노트에 연결합니다.
+- 이 포맷은 R39·R40에 적용합니다. 이전 릴리스 노트는 변경하지 않습니다.
+
+[R39 — English / 한국어](R39.md) · [R40 — English / 한국어](R40.md)

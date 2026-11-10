@@ -46,8 +46,8 @@ ZIP에는 `codex-patched.cmd`가 이미 포함돼 있습니다. 인자를 `bin\c
 
 | 릴리스 | 주요 변경 | 검증 범위 |
 | --- | --- | --- |
-| [R40](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108) | 임시 MCP 재연결, 비차단 컨텍스트 조회, 후크 경계, 스크롤, 한국어 문구, 확인된 메모리·상속 출처 결함 수정 | 최종 CLI·RPC·ConPTY와 격리 TEST Desktop 검사. 실패·미실행 항목은 노트 참조. |
-| [R39](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r39.20261107) | 미완 작업 중심 압축 | 최종 패키지 격리 검사 15개와 소스 압축 시험. 최종 Desktop 공동시험은 미실행. |
+| [R40](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108) · [노트 (EN/KO)](docs/releases/R40.md) | 임시 MCP 재연결, 비차단 컨텍스트 조회, 후크 경계, 스크롤, 한국어 문구, 확인된 메모리·상속 출처 결함 수정 | 최종 CLI·RPC·ConPTY와 격리 TEST Desktop 검사. 실패·미실행 항목은 노트 참조. |
+| [R39](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r39.20261107) · [노트 (EN/KO)](docs/releases/R39.md) | 미완 작업 중심 압축 | 최종 패키지 격리 검사 15개와 소스 압축 시험. 최종 Desktop 공동시험은 미실행. |
 
 두 버전 모두 공식 Codex 0.167.0을 기반으로 합니다. 공개됐다는 사실이 해당 PC의 설치 버전을 뜻하지는 않습니다. 이전 버전은 [릴리스 이력](https://github.com/jaeseongs95/opendiy-codex/releases)에서 확인할 수 있습니다.
 
