@@ -46,8 +46,8 @@ These three files are not a complete managed-server installation package. Voice 
 
 | Release | Main change | Verification boundary |
 | --- | --- | --- |
-| [R40](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108) | Temporary MCP reconnection, nonblocking context lookup, hook boundaries, scrolling, Korean text, and confirmed memory/provenance fixes | Final CLI, RPC, ConPTY, and isolated TEST Desktop checks; see the notes for failures and unrun cases. |
-| [R39](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r39.20261107) | Compaction focused on unfinished work | 15 isolated final-package checks plus source compaction tests. Final Desktop joint testing was not run. |
+| [R40](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108) · [Notes (EN/KO)](docs/releases/R40.md) | Temporary MCP reconnection, nonblocking context lookup, hook boundaries, scrolling, Korean text, and confirmed memory/provenance fixes | Final CLI, RPC, ConPTY, and isolated TEST Desktop checks; see the notes for failures and unrun cases. |
+| [R39](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r39.20261107) · [Notes (EN/KO)](docs/releases/R39.md) | Compaction focused on unfinished work | 15 isolated final-package checks plus source compaction tests. Final Desktop joint testing was not run. |
 
 Both are based on official Codex 0.167.0. Publication does not establish the version installed on a PC. Earlier versions remain in the [release history](https://github.com/jaeseongs95/opendiy-codex/releases).
 
