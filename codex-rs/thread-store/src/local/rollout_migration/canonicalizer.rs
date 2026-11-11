@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Replays normalized legacy rollout records into canonical paginated JSONL.
 //!
 //! `line_parser` makes old JSON shapes parseable, `legacy_event` converts obsolete completion
@@ -294,6 +295,7 @@ impl LegacyRolloutCanonicalizer {
             | RolloutItem::TokenUsageRecord(_)
             | RolloutItem::RealtimeItem(_)
             | RolloutItem::RetainedContext(_)
+            | RolloutItem::ContextIndex(_)
             | RolloutItem::SecurityRiskScore(_)
             | RolloutItem::WorldState(_)) => {
                 self.write_item(writer, &timestamp, item).await?;

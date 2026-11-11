@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use super::prompt::GuardianTranscriptHistory;
 use super::*;
@@ -2674,6 +2675,7 @@ async fn guardian_reuses_prompt_cache_key_and_appends_prior_reviews() -> anyhow:
             turn.to_turn_context_item(),
             crate::context::world_state::WorldStateSnapshot::default(),
             crate::compact::CompactedHistoryMetadata {
+                context_index_revision: None,
                 input_goal_ids: Default::default(),
                 message: String::new(),
                 window_number,

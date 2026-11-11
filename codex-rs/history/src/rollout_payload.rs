@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use std::borrow::Cow;
 
 use super::CodexHarnessMetadata;
@@ -62,6 +63,9 @@ pub(super) enum RolloutItemWire<'a> {
     },
     RetainedContext {
         payload: Cow<'a, crate::RetainedContextEvent>,
+    },
+    ContextIndex {
+        payload: Cow<'a, crate::context_index::ContextIndexEvent>,
     },
     SecurityRiskScore {
         payload: Cow<'a, SecurityRiskScore>,
@@ -165,6 +169,9 @@ impl<'a> From<&'a RolloutItem> for RolloutItemWire<'a> {
             RolloutItem::RetainedContext(payload) => Self::RetainedContext {
                 payload: Cow::Borrowed(payload),
             },
+            RolloutItem::ContextIndex(payload) => Self::ContextIndex {
+                payload: Cow::Borrowed(payload),
+            },
             RolloutItem::SecurityRiskScore(payload) => Self::SecurityRiskScore {
                 payload: Cow::Borrowed(payload),
             },
@@ -250,6 +257,7 @@ impl From<RolloutItemWire<'_>> for RolloutItem {
             RolloutItemWire::RetainedContext { payload } => {
                 Self::RetainedContext(payload.into_owned())
             }
+            RolloutItemWire::ContextIndex { payload } => Self::ContextIndex(payload.into_owned()),
             RolloutItemWire::SecurityRiskScore { payload } => {
                 Self::SecurityRiskScore(payload.into_owned())
             }

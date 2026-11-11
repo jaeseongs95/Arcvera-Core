@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Background model warmup shared by startup and idle-thread resume.
 //! One scheduled task owns the prepared client session until the next regular
 //! turn consumes it; shutdown and turn cancellation use the same handoff.
@@ -28,6 +29,7 @@ use codex_otel::STARTUP_PREWARM_AGE_AT_FIRST_TURN_METRIC;
 use codex_otel::STARTUP_PREWARM_DURATION_METRIC;
 use codex_otel::SessionTelemetry;
 use codex_protocol::error::Result as CodexResult;
+use codex_protocol::error::CodexErr;
 use codex_protocol::models::BaseInstructions;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::SubAgentSource;
@@ -396,6 +398,7 @@ async fn schedule_startup_prewarm_inner(
         ),
     )?;
     let build_prompt_started_at = Instant::now();
+    let context_index_revision = session.clone_history().await.context_index_revision();
     let prompt_input = match input {
         PrewarmInput::Base => Vec::new(),
         PrewarmInput::History => {
@@ -404,7 +407,7 @@ async fn schedule_startup_prewarm_inner(
             let mut history = session
                 .clone_history()
                 .await
-                .for_prompt(
+                .projected_for_prompt(
                     &step_context.settings.model_info.input_modalities,
                     session.services.image_store.as_ref(),
                 )
@@ -437,6 +440,11 @@ async fn schedule_startup_prewarm_inner(
         .responses_metadata(step_context.as_ref(), CodexResponsesRequestKind::Prewarm)
         .await;
     let websocket_warmup_started_at = Instant::now();
+    session.ensure_context_index_ready().await?;
+    if session.clone_history().await.context_index_revision() != context_index_revision {
+        return Err(CodexErr::TurnAborted);
+    }
+    client_session.bind_context_index_revision(context_index_revision);
     // Prewarm establishes the request baseline before the first turn can change effort.
     client_session
         .prewarm_websocket(

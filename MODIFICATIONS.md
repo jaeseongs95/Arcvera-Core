@@ -1,3 +1,33 @@
+# Arcvera-Core 0.168.0 indexed context development candidate / 인덱스 컨텍스트 개발 후보 (R41 scope, 2026-11-10)
+
+## English
+
+The historical import metadata in `SOURCE_BASELINE.json` and `upstream/source-inventory.json` remains unchanged. `CURRENT_SOURCE.json` records the R41 derivative, its complete change list and external modification notices for data/document files; `upstream/arcvera-r41.patch` records the reproducible delta from the public baseline.
+
+R41 adds a current-conversation, body-free index of source IDs, task lifetimes, dependencies, and exclusion/reactivation history. `set_focus` selects the current task and its dependency closure, retaining referenced completed tasks while excluding unrelated classified details even when active. User/control/unknown/unclassified/legacy opaque sources and incomplete tool groups remain conservative roots; new host-scoped summaries follow their captured focus. Native `context_index` provides related metadata by default, explicit archive navigation, bounded original lookup, revision-checked atomic changes and paginated audit. A successful native apply's completed group leaves model replay while its raw history/audit remains preserved. Policy-revision changes invalidate WebSocket continuation and fence stale compaction adoption. Existing summary compaction remains available, with required roots preserved independently. External-memory retrieval remains disabled where disabled.
+
+Latest completed sampling usage yields response-level cache status, host observation time and the request's captured index revision. Aggregate counters cannot identify per-source hits. Upstream TTL/expiry is not provided and remains unknown; no adapter-confirmed expiry support is claimed. Cache state does not delete originals/required context, and observation timestamps are not automatically added to prompt navigation. Uncertain durable index commits block new sampling/mutation/compaction pending cold resume.
+
+Original and host-prepared view digests are separate. Core checkpoint restore and local-store migration reconcile both identities consistently, including anonymous occurrence counts and resident sources omitted from a general snapshot. A new raw item cannot acquire original identity by matching a previous truncated view. Actual rollback/destructive replacement clears abandoned index policy. Inter-agent message persistence waits for delivery before taking the persistence permit and marks uncertain appends before releasing it. Official Codex CLI compatibility is outside support scope; OpenAI server API and authentication paths remain supported.
+
+This is a development candidate from repository baseline `676d6233`, not a frozen product/build commit or a verified published package. Final-source local regression passed 89 distinct tests in 20 suites, including sampling/compaction/resume/fork and preservation failure boundaries. The 180 synthetic projection samples reduced request bytes by 89.0–90.0%. Windows artifacts, independent audit and publication remain pending; see the [R41 release note](docs/releases/R41.md) for exact scope and unmeasured runtime conditions. Builds and tests run locally; GitHub/Actions builds are excluded. Intended version: `0.168.0`, pending final executable verification. Publication does not perform installation or operational switching. Existing R39/R40 public assets remain unchanged.
+
+The previously assigned broader R41 memory/CodeMode/Core-store/runtime/history/QSC/cache/refactoring/multi-vendor scope moves to [R42](docs/roadmap/R42.md). See the [design, migration, and recovery guide](docs/context-index.md).
+
+## 한국어
+
+`SOURCE_BASELINE.json`과 `upstream/source-inventory.json`의 과거 가져오기 메타데이터를 보존합니다. `CURRENT_SOURCE.json`은 R41 파생본의 전체 변경 목록과 데이터·문서 파일의 외부 수정 고지를 기록하며, `upstream/arcvera-r41.patch`는 공개 기준에서의 재현 가능한 변경분을 기록합니다.
+
+R41은 현재 대화의 출처 ID·작업 수명·의존관계·활성 제외 및 재활성화 이력을 원문 없이 관리하는 인덱스를 추가합니다. `set_focus`로 현재 작업과 참조 폐포를 선택해 참조 중인 완료 작업을 유지하고, 무관한 작업의 분류된 상세 내용은 활성 상태여도 제외합니다. 사용자·제어·알 수 없는 종류·미분류·기존의 불투명한 출처와 불완전한 도구 그룹은 보수적으로 유지하며, 새로 생성한 호스트 출처 확인 요약은 캡처한 focus를 따릅니다. 네이티브 `context_index`는 기본 관련 메타데이터, 명시적 보관 항목 탐색, 크기가 제한된 원문 조회, 리비전을 검사하는 원자적 변경, 페이지 단위 감사를 제공합니다. 성공한 네이티브 apply의 완료 그룹은 모델 재전송에서 제외하되 원시 이력·감사는 보존합니다. 정책 리비전이 바뀌면 WebSocket 연결 문맥을 무효화하고 이전 정책의 압축 결과 채택을 막습니다. 기존 요약 압축을 유지하며 필수 출처는 요약과 별도로 보존합니다. 외부 메모리 조회가 비활성화된 경우 그 상태를 유지합니다.
+
+최근 완료한 sampling usage에서 응답 단위 캐시 상태, 호스트 관측 시각, 요청 시 캡처한 인덱스 리비전을 제공합니다. 합계 수치로 출처별 적중을 판단할 수 없습니다. upstream TTL·만료 시각은 미제공으로 알 수 없는 상태이며 adapter가 확인한 만료 지원을 주장하지 않습니다. 캐시 상태로 원문·필수 문맥을 삭제하지 않고 관측 시각을 요청 탐색 메타데이터에 자동 삽입하지 않습니다. 영속 인덱스 변경 결과가 불확실하면 cold resume 전까지 새 sampling·변경·압축을 차단합니다.
+
+원문과 호스트가 준비한 본문의 해시를 구분합니다. Core 체크포인트 복원과 로컬 저장소 이관은 ID 없는 항목의 출현 횟수와 일반 snapshot에서 빠진 메모리 내 출처를 포함해 같은 식별 규칙으로 대조합니다. 새 원문이 과거의 잘린 본문과 같아도 과거 원문으로 간주하지 않습니다. 실제 rollback·파괴적 교체는 폐기한 인덱스 정책을 초기화합니다. 에이전트 간 메시지는 전달 완료를 기다린 뒤 영속화 permit을 취득하며, append가 불확실하면 permit을 해제하기 전에 오류를 표시합니다. 공식 Codex CLI 호환은 지원 범위에서 제외하며 OpenAI 서버 API·인증 경로는 지원합니다.
+
+저장소 기준 `676d6233`에서 시작한 개발 후보이며 제품·빌드의 동결 커밋이나 검증된 공개 패키지가 아닙니다. 최종 소스의 로컬 회귀시험 20개 묶음에서 sampling·압축·resume/fork와 보존 실패 경계를 포함한 중복 제외 89개 시험이 통과했습니다. 합성 문맥 구성 표본 180개에서 요청 크기는 89.0–90.0% 줄었습니다. Windows 실행물·독립감사·발행은 대기 중이며, 정확한 범위와 미측정 실행 조건은 [R41 릴리스 노트](docs/releases/R41.md)에 기록합니다. 빌드와 시험은 로컬에서 수행하며 GitHub/Actions 빌드는 제외합니다. 예정 버전은 `0.168.0`이며 최종 실행본 확인 전입니다. 발행으로 설치·운영 전환을 수행하지 않습니다. 기존 R39·R40 공개 자산은 유지합니다.
+
+기존 R41의 광범위한 memory/CodeMode/Core-store/runtime/history/QSC/cache/refactoring/multi-vendor 범위는 [R42](docs/roadmap/R42.md)로 이관합니다. [설계·이전·복구 안내](docs/context-index.ko.md)를 따릅니다.
+
 # R39 compact 개발 후보 (2026-11-07)
 
 정식 발행·동결된 R38과 같은 공식 0.167.0 기반에서 압축 동작만 변경합니다. 버전은 `0.167.0+native-r39.20261107`이며, 고정 소스는 `c4399dce957bb63fe1fdc276aa4306c06f6cf47f`입니다. 메모리 리팩토링·후크·캐싱·스크롤 감도·한글화·컨텍스트 조회의 미완 작업은 R40으로 이관하며 이번 변경에 포함하지 않습니다. 현재 소스·시험 후보이며 최종 빌드·발행은 미완료입니다.

@@ -1,10 +1,12 @@
-# OpenDIY Codex
+# Arcvera-Core
 
 [English](README.md) · [한국어](README.ko.md)
 
-An unofficial Windows edition of Codex CLI and Rust App Server, based on OpenAI Codex. It adds conversation controls and repairs confirmed defects while preserving authentication, permission checks, stored conversations, and ongoing work.
+An independently maintained Windows CLI and Rust App Server derived from OpenAI Codex. It adds conversation controls and repairs confirmed defects while preserving authentication, permission checks, stored conversations, and ongoing work.
 
-[Download latest release](https://github.com/jaeseongs95/opendiy-codex/releases/latest) · [Release history](https://github.com/jaeseongs95/opendiy-codex/releases) · [Build from source](docs/source-import.md)
+Arcvera-Core supports communication with OpenAI servers. Compatibility or interchangeability with the official Codex CLI is outside its support scope. Upstream version references identify source provenance; Arcvera-Core maintains its own commands, protocol, storage and release contracts.
+
+[Download latest release](https://github.com/jaeseongs95/Arcvera-Core/releases/latest) · [Release history](https://github.com/jaeseongs95/Arcvera-Core/releases) · [Build from source](docs/source-import.md)
 
 ## Start on Windows
 
@@ -34,7 +36,7 @@ Keep `codex-package.json`, `package-receipt.json`, and the `bin` folder together
 
 The ZIP already includes `codex-patched.cmd`, which passes arguments to `bin\codex.exe`. It provides a convenient default launch that can reuse the shared server. It does not replace a server version, configure a remote address, or pair a mobile device. An incompatible or unverified implicit server can cause startup to use the embedded backend. Check the actual server identity separately from the selected CLI file.
 
-To replace the managed shared server, follow the [R40 server update procedure](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108). Use the complete ZIP and a separate PowerShell window after finishing active work. Changing an EXE path alone does not update a running server.
+To replace the managed shared server, follow the [R40 server update procedure](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v0.167.0-r40.20261108). Use the complete ZIP and a separate PowerShell window after finishing active work. Changing an EXE path alone does not update a running server.
 
 ### Individual executables
 
@@ -44,12 +46,14 @@ These three files are not a complete managed-server installation package. Voice 
 
 ## Current releases
 
+Arcvera-Core 0.168.0 (R41 scope) is in development: [draft notes and SemVer policy (EN/KO)](docs/releases/R41.md), [indexed-context design and recovery](docs/context-index.md). A selected task and its dependency closure define eligible model API context, alongside preserved user/control and unclassified inputs. Cache observations report response-level counters; unprovided TTL/expiry remains unknown. This is not a verified downloadable release. The broader architecture work previously assigned to R41 moves to [R42](docs/roadmap/R42.md). Release versions are independent of upstream Codex 0.167.0; R41/R42 track scope. Final-source local regression passed 89 distinct tests in 20 suites, and 180 synthetic projection samples reduced request bytes by 89.0–90.0%. Final executables and independent audit remain pending; actual app/model/network performance is unmeasured; R39/R40 results do not establish acceptance. Builds and tests run locally; GitHub/Actions builds are excluded.
+
 | Release | Main change | Verification boundary |
 | --- | --- | --- |
-| [R40](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108) · [Notes (EN/KO)](docs/releases/R40.md) | Temporary MCP reconnection, nonblocking context lookup, hook boundaries, scrolling, Korean text, and confirmed memory/provenance fixes | Final CLI, RPC, ConPTY, and isolated TEST Desktop checks; see the notes for failures and unrun cases. |
-| [R39](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r39.20261107) · [Notes (EN/KO)](docs/releases/R39.md) | Compaction focused on unfinished work | 15 isolated final-package checks plus source compaction tests. Final Desktop joint testing was not run. |
+| [R40](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v0.167.0-r40.20261108) · [Notes (EN/KO)](docs/releases/R40.md) | Temporary MCP reconnection, nonblocking context lookup, hook boundaries, scrolling, Korean text, and confirmed memory/provenance fixes | Final CLI, RPC, ConPTY, and isolated TEST Desktop checks; see the notes for failures and unrun cases. |
+| [R39](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v0.167.0-r39.20261107) · [Notes (EN/KO)](docs/releases/R39.md) | Compaction focused on unfinished work | 15 isolated final-package checks plus source compaction tests. Final Desktop joint testing was not run. |
 
-Both are based on official Codex 0.167.0. Publication does not establish the version installed on a PC. Earlier versions remain in the [release history](https://github.com/jaeseongs95/opendiy-codex/releases).
+Both are based on official Codex 0.167.0. Publication does not establish the version installed on a PC. Earlier versions remain in the [release history](https://github.com/jaeseongs95/Arcvera-Core/releases).
 
 ## Conversation controls
 

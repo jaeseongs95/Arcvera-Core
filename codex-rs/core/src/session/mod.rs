@@ -1,4 +1,7 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
+pub(crate) mod context_cache;
+mod indexed_context;
 pub(crate) mod startup;
 
 use crate::PromptCacheKey;
@@ -422,6 +425,7 @@ use codex_utils_stream_parser::ProposedPlanSegment;
 pub(crate) enum TokenUsageContext {
     Sampling {
         includes_reasoning: bool,
+        context_index_revision: Option<u64>,
         /// Input history length before the response, including requests with no output items.
         input_item_count: usize,
     },
@@ -543,6 +547,7 @@ pub(crate) enum ForkPersistence {
 #[derive(Clone, Copy)]
 pub(crate) struct CompactionPrefix {
     pub(crate) generation: u64,
+    pub(crate) context_index_revision: u64,
     pub(crate) len: usize,
     pub(crate) auth_owner_generation: Option<u64>,
 }
@@ -1899,7 +1904,7 @@ impl Session {
         turn_context: &TurnContext,
     ) -> Option<i64> {
         let history = self.clone_history().await;
-        history.estimate_token_count(turn_context)
+        history.estimate_projected_token_count(turn_context)
     }
 
     pub(crate) async fn get_base_instructions(&self) -> BaseInstructions {
@@ -2157,6 +2162,8 @@ impl Session {
     ) -> Option<PreviousTurnSettings> {
         let rollout_reconstruction::RolloutReconstruction {
             mut history,
+            context_index,
+            context_index_error,
             retained_context,
             guardian_history,
             last_started_turn_id,
@@ -2219,12 +2226,19 @@ impl Session {
             None
         };
         {
+            let _guard = thread_settings::acquire_persistence_lock(self).await;
             let mut state = self.state.lock().await;
             state.replace_annotated_history(
                 history,
                 reference_context_item,
                 HistoryReplacement::Reset,
             );
+            state.context_index_error = context_index_error;
+            if state.context_index_error.is_none()
+                && let Err(error) = state.history.install_context_index(context_index)
+            {
+                state.context_index_error = Some(error.to_string());
+            }
             state.history.restore_review_context(
                 Some(&retained_context),
                 guardian_history.as_ref(),
@@ -2253,7 +2267,7 @@ impl Session {
         ) {
             let history = self.clone_history().await;
             let base_instructions = self.get_base_instructions().await;
-            history.estimate_token_count_with_base_instructions(&base_instructions)
+            history.estimate_projected_token_count_with_base_instructions(&base_instructions)
         } else {
             None
         };
@@ -4225,6 +4239,9 @@ impl Session {
         mut items: Vec<ResponseItemEnvelope>,
         image_preparations: Vec<ImagePreparationMetadata>,
     ) {
+        // Serialize source publication and its persisted batch with index policy commits and
+        // compaction snapshots. Readers can never bind an unpersisted concurrently added ID.
+        let settings_guard = Some(thread_settings::acquire_persistence_lock(self).await);
         // Save the originating history budget for replay.
         // Preserve any existing tool-specific override.
         let policy: codex_utils_output_truncation::TruncationPolicy =
@@ -4321,13 +4338,7 @@ impl Session {
                     metadata: image,
                 });
         }
-        let settings_guard =
-            if force_mcp_checkpoint && self.reference_context_item().await.is_none() {
-                Some(thread_settings::acquire_persistence_lock(self).await)
-            } else {
-                None
-            };
-        let initial_settings = if settings_guard.is_some()
+        let initial_settings = if force_mcp_checkpoint
             && self.reference_context_item().await.is_none()
             && self.state.lock().await.take_initial_settings_pending()
         {
@@ -4341,6 +4352,13 @@ impl Session {
             .chain(items.into_iter().map(RolloutItem::ResponseItem))
             .collect::<Vec<_>>();
         let persisted = self.persist_rollout_items(&rollout_items).await;
+        if !persisted {
+            let mut state = self.state.lock().await;
+            state.context_index_error = Some(
+                "response item append outcome is uncertain; cold resume is required".to_owned(),
+            );
+            state.history_reset.cancel();
+        }
         drop(settings_guard);
         if persisted && let Some(revision) = mcp_revision {
             self.services
@@ -4476,6 +4494,7 @@ impl Session {
         required_servers: &[String],
         required_plugins: &HashSet<String>,
     ) -> CodexResult<Arc<StepContext>> {
+        self.ensure_context_index_ready().await?;
         // Read the step's model and record its environments together so an update cannot split them.
         // Match apply_turn_settings and activate_turn_environments: active_turn before state.
         // Wait for executor startup below, after releasing both locks.
@@ -4750,6 +4769,9 @@ impl Session {
         for mut recording in pending {
             let _ = recording.changed().await;
         }
+        // Earlier delivered recordings need this same permit. Wait for them before
+        // serializing source publication with durable context-index policy changes.
+        let persistence_guard = thread_settings::acquire_persistence_lock(self).await;
         {
             let mut state = self.state.lock().await;
             state.current_time_reminder.note_recorded_items(items);
@@ -4761,13 +4783,21 @@ impl Session {
         if let Some(delivery) = &communication.delivery {
             delivery.consumed(self.thread_id);
         }
-        self.persist_rollout_items(&[
-            RolloutItem::InterAgentCommunicationMetadata {
-                trigger_turn: communication.trigger_turn,
-            },
-            RolloutItem::ResponseItem(response_item),
-        ])
-        .await;
+        let persisted = self
+            .persist_rollout_items(&[
+                RolloutItem::InterAgentCommunicationMetadata {
+                    trigger_turn: communication.trigger_turn,
+                },
+                RolloutItem::ResponseItem(response_item),
+            ])
+            .await;
+        if !persisted {
+            let mut state = self.state.lock().await;
+            state.context_index_error =
+                Some("inter-agent append outcome is uncertain; cold resume is required".to_owned());
+            state.history_reset.cancel();
+        }
+        drop(persistence_guard);
         drop(boundary);
         self.send_raw_response_items(turn_context, items).await;
     }
@@ -4850,6 +4880,9 @@ impl Session {
         mut world_state_baseline: WorldStateSnapshot,
         installation: impl Into<CompactedHistoryInstallation<'a>>,
     ) -> bool {
+        if self.ensure_context_index_ready().await.is_err() {
+            return false;
+        }
         let installation = installation.into();
         let compaction_model_hash = match &installation {
             CompactedHistoryInstallation::Complete(metadata) => &metadata.compaction_model_hash,
@@ -4881,10 +4914,21 @@ impl Session {
         let _settings_guard = thread_settings::acquire_persistence_lock(self).await;
         let (compacted_item, started_item) = {
             let mut state = self.state.lock().await;
+            if state.context_index_error.is_some() {
+                return false;
+            }
             let complete_replacement =
                 matches!(&installation, CompactedHistoryInstallation::Complete(_));
             let (metadata, started_item) = match installation {
-                CompactedHistoryInstallation::Complete(metadata) => (metadata, None),
+                CompactedHistoryInstallation::Complete(metadata) => {
+                    if metadata
+                        .context_index_revision
+                        .is_some_and(|revision| revision != state.history.context_index_revision())
+                    {
+                        return false;
+                    }
+                    (metadata, None)
+                }
                 CompactedHistoryInstallation::Prefix {
                     prefix,
                     prefix_context,
@@ -4897,6 +4941,7 @@ impl Session {
                 } => {
                     // Validate immediately before slicing and replacing the captured prefix.
                     if state.history.history_version() != prefix.generation
+                        || state.history.context_index_revision() != prefix.context_index_revision
                         || state.history.annotated_items().len() < prefix.len
                         || self.services.model_client.auth_owner_generation()
                             != prefix.auth_owner_generation
@@ -4930,6 +4975,7 @@ impl Session {
                     let (window_number, window_ids) = state.advance_auto_compact_window();
                     (
                         CompactedHistoryMetadata {
+                            context_index_revision: Some(prefix.context_index_revision),
                             input_goal_ids,
                             message: String::new(),
                             window_number,
@@ -4945,6 +4991,7 @@ impl Session {
             for envelope in &mut items {
                 Self::assign_missing_response_item_id(&mut envelope.item);
             }
+            state.history.preserve_context_index_roots(&mut items);
             // Goal edits are published outside the running task. Keep edits accepted after
             // the compaction input snapshot, in their original order, after its replacement.
             if complete_replacement {
@@ -4994,6 +5041,7 @@ impl Session {
                 compaction_response_id: metadata.compaction_response_id,
                 latest_token_usage_record: state.latest_token_usage_record.clone(),
                 resume_metadata: Some(CompactionResumeMetadata {
+                    context_index: Some(state.history.context_index().clone()),
                     dynamic_tools: Some(Box::new(DynamicToolsSnapshot {
                         thread_id: self.thread_id(),
                         tools: state.persisted_dynamic_tools.to_vec(),
@@ -5019,9 +5067,16 @@ impl Session {
             // The frozen turn context must not override current settings in persisted metadata.
             RolloutItem::EventMsg(thread_settings::applied_event(self).await),
         ];
-        if self.persist_rollout_items(&rollout_items).await
-            && let Some(revision) = mcp_revision
-        {
+        if !self.persist_rollout_items(&rollout_items).await {
+            let mut state = self.state.lock().await;
+            state.context_index_error = Some(
+                "compaction checkpoint append outcome is uncertain; cold resume is required"
+                    .to_owned(),
+            );
+            state.history_reset.cancel();
+            return false;
+        }
+        if let Some(revision) = mcp_revision {
             self.services
                 .executed_tool_calls
                 .mark_mcp_attribution_persisted(revision);
@@ -5473,7 +5528,8 @@ impl Session {
         &self,
         step_context: &StepContext,
         world_state: Arc<WorldState>,
-    ) {
+    ) -> CodexResult<()> {
+        self.ensure_context_index_ready().await?;
         let turn_context = step_context.turn.as_ref();
         let history = self.clone_history().await;
         let input_goal_ids = crate::context::UserGoalUpdate::message_ids(history.raw_items());
@@ -5509,22 +5565,28 @@ impl Session {
                 .chain(retained_client_items)
                 .collect();
         let turn_context_item = step_context.to_turn_context_item();
-        self.replace_compacted_history(
-            context_items,
-            turn_context_item,
-            world_state_snapshot,
-            CompactedHistoryMetadata {
-                input_goal_ids,
-                message: String::new(),
-                window_number,
-                window_ids,
-                compaction_response_id: None,
-                compaction_model_hash: None,
-                reviewer_compaction_hash: None,
-            },
-        )
-        .await;
+        let installed = self
+            .replace_compacted_history(
+                context_items,
+                turn_context_item,
+                world_state_snapshot,
+                CompactedHistoryMetadata {
+                    context_index_revision: Some(history.context_index_revision()),
+                    input_goal_ids,
+                    message: String::new(),
+                    window_number,
+                    window_ids,
+                    compaction_response_id: None,
+                    compaction_model_hash: None,
+                    reviewer_compaction_hash: None,
+                },
+            )
+            .await;
+        if !installed {
+            return Err(CodexErr::TurnAborted);
+        }
         self.recompute_token_usage(turn_context).await;
+        Ok(())
     }
 
     pub(crate) async fn reference_context_item(&self) -> Option<TurnContextItem> {
@@ -5673,6 +5735,7 @@ impl Session {
         token_usage: Option<&TokenUsage>,
         includes_reasoning: bool,
     ) -> CodexResult<()> {
+        let context_index_revision = self.state.lock().await.history.context_index_revision();
         let result = self
             .record_token_usage_info(
                 turn_context,
@@ -5680,6 +5743,7 @@ impl Session {
                 token_usage,
                 TokenUsageContext::Sampling {
                     includes_reasoning,
+                    context_index_revision: Some(context_index_revision),
                     input_item_count: 0,
                 },
             )
@@ -5746,6 +5810,7 @@ impl Session {
                     TokenUsageContext::Sampling {
                         includes_reasoning,
                         input_item_count,
+                        context_index_revision,
                     } => {
                         state.update_token_info_from_usage(
                             token_usage,
@@ -5753,6 +5818,9 @@ impl Session {
                             includes_reasoning,
                             input_item_count,
                         );
+                        state
+                            .history
+                            .mark_last_usage_context_index_revision(context_index_revision);
                         if matches!(
                             turn_context.config.model_auto_compact_token_limit_scope,
                             AutoCompactTokenLimitScope::BodyAfterPrefix
@@ -5814,7 +5882,7 @@ impl Session {
         let history = self.clone_history().await;
         let base_instructions = self.get_base_instructions().await;
         let Some(estimated_total_tokens) =
-            history.estimate_token_count_with_base_instructions(&base_instructions)
+            history.estimate_projected_token_count_with_base_instructions(&base_instructions)
         else {
             return;
         };

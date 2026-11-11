@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Loads stored agent context and prepares the history a child inherits when it forks.
 
 use crate::agent::types::SpawnAgentOptions;
@@ -82,6 +83,8 @@ fn keep_forked_rollout_item(item: &RolloutItem, preserve_context_baselines: bool
         RolloutItem::TurnContext(_) | RolloutItem::WorldState(_) => preserve_context_baselines,
         // Child threads inherit model context, not the parent's cumulative usage state.
         RolloutItem::TokenUsageRecord(_) => false,
+        // Reduced forks remove source records; their task bindings cannot be replayed safely.
+        RolloutItem::ContextIndex(_) => false,
         RolloutItem::DynamicToolsUpdated { .. }
         | RolloutItem::Compacted(_)
         | RolloutItem::EventMsg(_)
@@ -362,7 +365,11 @@ pub(super) async fn prepare_forked_history(
         true
     };
     forked_rollout_items.retain_mut(|item| {
-        let keep = (preserve_fork_prefix && matches!(item, RolloutItem::ResponseItem(_)))
+        let keep = (preserve_fork_prefix
+            && matches!(
+                item,
+                RolloutItem::ResponseItem(_) | RolloutItem::ContextIndex(_)
+            ))
             || keep_forked_rollout_item(item, preserve_context_baselines);
         if !keep
             || destination_history_mode == Some(ThreadHistoryMode::Paginated)
@@ -388,6 +395,9 @@ pub(super) async fn prepare_forked_history(
                 // metadata to describe the child rather than the parent.
                 compacted.latest_token_usage_record = None;
                 if let Some(resume_metadata) = &mut compacted.resume_metadata {
+                    if !preserve_fork_prefix {
+                        resume_metadata.context_index = None;
+                    }
                     resume_metadata.multi_agent_version = Some(multi_agent_version);
                     resume_metadata.turn_attribution = None;
                     if !preserve_context_baselines {
@@ -421,6 +431,7 @@ pub(super) async fn prepare_forked_history(
             }
             RolloutItem::RealtimeItem(_) => false,
             RolloutItem::DynamicToolsUpdated { .. }
+            | RolloutItem::ContextIndex(_)
             | RolloutItem::EventMsg(_)
             | RolloutItem::SessionMeta(_)
             | RolloutItem::TurnContext(_)

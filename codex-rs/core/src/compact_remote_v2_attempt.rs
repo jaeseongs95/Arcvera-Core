@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Builds and sends foreground and speculative remote V2 compaction attempts.
 
@@ -36,6 +37,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 pub(super) struct RemoteCompactV2Attempt {
+    pub(super) context_index_revision: u64,
     pub(super) input_goal_ids: HashSet<ResponseItemId>,
     pub(super) trace_input_history: Option<Vec<ResponseItem>>,
     pub(super) prompt_input: Vec<ResponseItem>,
@@ -76,6 +78,7 @@ pub(super) async fn run_remote_compact_v2_attempt(
     analytics_details: &mut CompactionAnalyticsDetails,
     input: RemoteCompactV2AttemptInput<'_>,
 ) -> CodexResult<RemoteCompactV2Attempt> {
+    sess.ensure_context_index_ready().await?;
     let turn_context = &step_context.turn;
     let preparation_timer =
         crate::compact::CompactionPhaseTimer::new(sess, turn_context, "prepare_request");
@@ -89,10 +92,12 @@ pub(super) async fn run_remote_compact_v2_attempt(
         prompt_input_metadata,
         transport,
         captured_window,
+        context_index_revision,
     ) = match input {
         RemoteCompactV2AttemptInput::Foreground(client_session) => {
             let model_info = turn_context.model_info();
             let mut history = sess.clone_history().await;
+            let context_index_revision = history.context_index_revision();
             let input_goal_ids = UserGoalUpdate::message_ids(history.raw_items());
             let tools_in_history = step_context.settings.model_info.use_responses_lite
                 && history
@@ -133,7 +138,7 @@ pub(super) async fn run_remote_compact_v2_attempt(
                 .is_enabled()
                 .then(|| history.raw_items().cloned().collect());
             let (mut input, metadata): (Vec<_>, Vec<_>) = history
-                .for_prompt_annotated(
+                .projected_for_prompt_annotated(
                     &model_info.input_modalities,
                     sess.services.image_store.as_ref(),
                 )
@@ -147,6 +152,7 @@ pub(super) async fn run_remote_compact_v2_attempt(
             let client_session = client_session.unwrap_or_else(|| {
                 owned_client_session.insert(sess.services.model_client.new_session())
             });
+            client_session.bind_context_index_revision(context_index_revision);
             (
                 model_info,
                 input_goal_ids,
@@ -156,6 +162,7 @@ pub(super) async fn run_remote_compact_v2_attempt(
                 metadata,
                 CompactionRequestTransport::Foreground(client_session),
                 None,
+                context_index_revision,
             )
         }
         RemoteCompactV2AttemptInput::Background(input) => (
@@ -170,6 +177,7 @@ pub(super) async fn run_remote_compact_v2_attempt(
                 input.prefix.auth_owner_generation,
             ),
             Some(input.window),
+            input.prefix.context_index_revision,
         ),
     };
     let tools_in_history = model_info.use_responses_lite
@@ -204,13 +212,26 @@ pub(super) async fn run_remote_compact_v2_attempt(
         }
     };
     responses_metadata.tool_namespaces_info = tool_router.tool_namespaces_info().cloned();
-    let trace_attempt = compaction_trace.start_attempt(&serde_json::json!({
-        "model": model_info.slug.as_str(),
-        "instructions": prompt.base_instructions.text.as_str(),
-        "input": &prompt.input,
-        "parallel_tool_calls": prompt.parallel_tool_calls,
-    }));
+    // Constructing a JSON Value eagerly clones every input body even when tracing is disabled.
+    // Borrow the request fields; start_attempt only serializes them for an enabled trace.
+    #[derive(serde::Serialize)]
+    struct TraceRequest<'a> {
+        model: &'a str,
+        instructions: &'a str,
+        input: &'a [ResponseItem],
+        parallel_tool_calls: bool,
+    }
+    let trace_attempt = compaction_trace.start_attempt(&TraceRequest {
+        model: model_info.slug.as_str(),
+        instructions: prompt.base_instructions.text.as_str(),
+        input: &prompt.input,
+        parallel_tool_calls: prompt.parallel_tool_calls,
+    });
     preparation_timer.finish();
+    sess.ensure_context_index_ready().await?;
+    if sess.clone_history().await.context_index_revision() != context_index_revision {
+        return Err(CodexErr::TurnAborted);
+    }
     let compaction_output_result = run_remote_compaction_request_v2(
         sess,
         step_context,
@@ -234,6 +255,7 @@ pub(super) async fn run_remote_compact_v2_attempt(
     // sidecar aligned, and never reintroduce the policy into the installed model window.
     prompt_input.truncate(prompt_input_len);
     Ok(RemoteCompactV2Attempt {
+        context_index_revision,
         input_goal_ids,
         trace_input_history,
         prompt_input,
@@ -271,6 +293,7 @@ pub(crate) async fn capture_background_input(
     };
     let prefix = CompactionPrefix {
         generation: snapshot.history_version(),
+        context_index_revision: snapshot.context_index_revision(),
         len: snapshot.annotated_items().len(),
         auth_owner_generation,
     };
@@ -280,9 +303,12 @@ pub(crate) async fn capture_background_input(
         step_context.settings.model_info.usable_context_window(),
         &base_instructions,
     );
-    snapshot.normalize_history(&step_context.settings.model_info.input_modalities);
     let (mut input, metadata): (Vec<_>, Vec<_>) = snapshot
-        .into_annotated_items()
+        .projected_for_prompt_annotated(
+            &step_context.settings.model_info.input_modalities,
+            sess.services.image_store.as_ref(),
+        )
+        .await
         .into_iter()
         .map(|envelope| (envelope.item, envelope.metadata))
         .unzip();

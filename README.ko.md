@@ -1,10 +1,12 @@
-# OpenDIY Codex
+# Arcvera-Core
 
 [English](README.md) · [한국어](README.ko.md)
 
-OpenAI Codex를 기반으로 한 비공식 Windows용 Codex CLI·Rust App Server입니다. 대화 제어 기능을 제공하고 확인된 결함을 수정하며, 인증·권한 검사·저장된 대화·진행 중 작업을 보존합니다.
+OpenAI Codex에서 파생되어 독립적으로 개발하는 Windows용 CLI·Rust App Server입니다. 대화 제어 기능을 제공하고 확인된 결함을 수정하며, 인증·권한 검사·저장된 대화·진행 중 작업을 보존합니다.
 
-[최신 버전 다운로드](https://github.com/jaeseongs95/opendiy-codex/releases/latest) · [릴리스 이력](https://github.com/jaeseongs95/opendiy-codex/releases) · [소스 빌드](docs/source-import.md)
+Arcvera-Core는 OpenAI 서버와의 통신을 지원합니다. 공식 Codex CLI와의 호환성이나 상호 교체는 지원 범위에 포함하지 않습니다. upstream 버전은 소스 출처를 나타내며, 명령·프로토콜·저장 형식·릴리스 계약은 Arcvera-Core가 독립적으로 관리합니다.
+
+[최신 버전 다운로드](https://github.com/jaeseongs95/Arcvera-Core/releases/latest) · [릴리스 이력](https://github.com/jaeseongs95/Arcvera-Core/releases) · [소스 빌드](docs/source-import.md)
 
 ## Windows에서 시작하기
 
@@ -34,7 +36,7 @@ Get-FileHash .\opendiy-codex-r40-windows-x86_64.zip -Algorithm SHA256
 
 ZIP에는 `codex-patched.cmd`가 이미 포함돼 있습니다. 인자를 `bin\codex.exe`에 전달하므로 공유 서버를 재사용할 수 있는 기본 실행을 CMD로도 시작할 수 있습니다. 서버 버전 교체, 원격 주소 설정, 모바일 페어링은 수행하지 않습니다. 자동 선택한 서버가 호환되지 않거나 버전을 확인할 수 없으면 내장 백엔드로 실행될 수 있습니다. 선택한 CLI 파일과 실제 서버의 식별 정보를 각각 확인해야 합니다.
 
-관리형 공유 서버를 교체하려면 [R40 서버 업데이트 절차](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108)를 따릅니다. 전체 ZIP이 필요하며 진행 중 작업을 마친 뒤 별도 PowerShell에서 실행합니다. EXE 경로만 바꿔도 실행 중인 서버가 업데이트되지는 않습니다.
+관리형 공유 서버를 교체하려면 [R40 서버 업데이트 절차](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v0.167.0-r40.20261108)를 따릅니다. 전체 ZIP이 필요하며 진행 중 작업을 마친 뒤 별도 PowerShell에서 실행합니다. EXE 경로만 바꿔도 실행 중인 서버가 업데이트되지는 않습니다.
 
 ### 개별 실행 파일
 
@@ -44,12 +46,14 @@ ZIP에는 `codex-patched.cmd`가 이미 포함돼 있습니다. 인자를 `bin\c
 
 ## 현재 릴리스
 
+Arcvera-Core 0.168.0(R41 범위)은 개발 중입니다. [영한 초안 노트·SemVer 정책](docs/releases/R41.md), [인덱스 컨텍스트 설계·복구 안내](docs/context-index.ko.md)를 확인하십시오. 선택한 작업과 의존관계를 따라 도달하는 작업을 모델 API 문맥의 기준으로 삼고 사용자·제어·미분류 입력을 보존합니다. 캐시는 응답 단위 수치로 관측하며, 제공되지 않은 TTL·만료 시각은 알 수 없는 상태로 유지합니다. 검증된 다운로드용 릴리스는 아직 아닙니다. 기존 R41의 광범위한 아키텍처 작업은 [R42](docs/roadmap/R42.md)로 이관합니다. 릴리스 버전은 공식 기반 Codex 0.167.0과 독립적이며 R41·R42는 범위 추적명입니다. 최종 소스의 로컬 회귀시험 20개 묶음에서 중복 제외 89개가 통과했고 합성 문맥 구성 표본 180개에서 요청 크기가 89.0–90.0% 줄었습니다. 최종 실행본·독립감사는 대기 중이며 실제 앱·모델·네트워크 성능은 미측정입니다. R39·R40 결과는 수용 근거가 아닙니다. 빌드와 시험은 로컬에서 수행하며 GitHub/Actions 빌드는 제외합니다.
+
 | 릴리스 | 주요 변경 | 검증 범위 |
 | --- | --- | --- |
-| [R40](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108) · [노트 (EN/KO)](docs/releases/R40.md) | 임시 MCP 재연결, 비차단 컨텍스트 조회, 후크 경계, 스크롤, 한국어 문구, 확인된 메모리·상속 출처 결함 수정 | 최종 CLI·RPC·ConPTY와 격리 TEST Desktop 검사. 실패·미실행 항목은 노트 참조. |
-| [R39](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r39.20261107) · [노트 (EN/KO)](docs/releases/R39.md) | 미완 작업 중심 압축 | 최종 패키지 격리 검사 15개와 소스 압축 시험. 최종 Desktop 공동시험은 미실행. |
+| [R40](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v0.167.0-r40.20261108) · [노트 (EN/KO)](docs/releases/R40.md) | 임시 MCP 재연결, 비차단 컨텍스트 조회, 후크 경계, 스크롤, 한국어 문구, 확인된 메모리·상속 출처 결함 수정 | 최종 CLI·RPC·ConPTY와 격리 TEST Desktop 검사. 실패·미실행 항목은 노트 참조. |
+| [R39](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v0.167.0-r39.20261107) · [노트 (EN/KO)](docs/releases/R39.md) | 미완 작업 중심 압축 | 최종 패키지 격리 검사 15개와 소스 압축 시험. 최종 Desktop 공동시험은 미실행. |
 
-두 버전 모두 공식 Codex 0.167.0을 기반으로 합니다. 공개됐다는 사실이 해당 PC의 설치 버전을 뜻하지는 않습니다. 이전 버전은 [릴리스 이력](https://github.com/jaeseongs95/opendiy-codex/releases)에서 확인할 수 있습니다.
+두 버전 모두 공식 Codex 0.167.0을 기반으로 합니다. 공개됐다는 사실이 해당 PC의 설치 버전을 뜻하지는 않습니다. 이전 버전은 [릴리스 이력](https://github.com/jaeseongs95/Arcvera-Core/releases)에서 확인할 수 있습니다.
 
 ## 대화 제어
 

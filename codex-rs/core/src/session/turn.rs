@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -1838,6 +1839,7 @@ async fn run_sampling_request(
     let mut executed_tool_calls_by_output = HashMap::new();
     let mut capacity_retry_active = false;
     loop {
+        sess.ensure_context_index_ready().await?;
         if capacity_retry_active && sess.services.model_client.auth_owner_generation() != auth_owner
         {
             return Err(CodexErr::TurnAborted);
@@ -1851,8 +1853,9 @@ async fn run_sampling_request(
             sess.clone_history().await
         };
         let input_item_count = history.raw_items().len();
+        let context_index_revision = history.context_index_revision();
         let mut prompt_input = history
-            .for_prompt(
+            .projected_for_prompt(
                 &step_context.settings.model_info.input_modalities,
                 sess.services.image_store.as_ref(),
             )
@@ -1883,6 +1886,13 @@ async fn run_sampling_request(
         }
         let mut draining_for_mailbox = false;
         let mut capacity_retry_safe = true;
+        sess.ensure_context_index_ready().await?;
+        if sess.clone_history().await.context_index_revision() != context_index_revision {
+            // Tool policy commits can finish while image/tool preparation yields. Rebuild the
+            // request rather than transmitting a projection from an older policy revision.
+            continue;
+        }
+        client_session.bind_context_index_revision(context_index_revision);
         let err = match try_run_sampling_request(
             tool_runtime.clone(),
             Arc::clone(&sess),
@@ -2873,6 +2883,9 @@ async fn try_run_sampling_request(
     } else {
         None
     };
+    // Bind cache evidence to the context sent with this request, never the index revision at
+    // completion time: tools or other work may have changed the policy while streaming.
+    let request_context_index_revision = client_session.bound_context_index_revision();
     let stream_result = {
         let request = client_session
             .stream(
@@ -3420,6 +3433,11 @@ async fn try_run_sampling_request(
             } => {
                 response_completed = true;
                 request_token_usage = token_usage.clone();
+                sess.record_context_cache_metadata(
+                    usage_metadata.as_ref(),
+                    request_context_index_revision,
+                )
+                .await;
                 sess.services
                     .analytics_events_client
                     .track_code_mode_tool_call(
@@ -3452,6 +3470,7 @@ async fn try_run_sampling_request(
                         super::TokenUsageContext::Sampling {
                             includes_reasoning,
                             input_item_count,
+                            context_index_revision: request_context_index_revision,
                         },
                     )
                     .await;

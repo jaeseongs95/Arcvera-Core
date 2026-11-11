@@ -1,4 +1,6 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use codex_protocol::ThreadId;
+use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::ThreadHistoryMode;
 use codex_rollout::RolloutItem;
 use std::any::Any;
@@ -65,6 +67,28 @@ use crate::UpdatedProject;
 
 /// Future returned by [`ThreadStore`] operations.
 pub type ThreadStoreFuture<'a, T> = Pin<Box<dyn Future<Output = ThreadStoreResult<T>> + Send + 'a>>;
+
+pub(crate) fn retain_unique_original(
+    original: &mut Option<ResponseItem>,
+    candidate: &ResponseItem,
+    source_id: &str,
+) -> ThreadStoreResult<()> {
+    if codex_history::context_index::ContextIndex::source_id(candidate).as_deref()
+        != Some(source_id)
+    {
+        return Ok(());
+    }
+    match original {
+        Some(previous) if previous != candidate => Err(ThreadStoreError::Conflict {
+            message: "ambiguous original source in the current thread".to_string(),
+        }),
+        Some(_) => Ok(()),
+        None => {
+            *original = Some(candidate.clone());
+            Ok(())
+        }
+    }
+}
 
 /// Data a [`ThreadStore`] has already loaded while preparing a thread for resume.
 ///
@@ -253,6 +277,22 @@ pub trait ThreadStore: Any + Send + Sync {
         &self,
         params: LoadThreadHistoryParams,
     ) -> ThreadStoreFuture<'_, StoredThreadHistory>;
+
+    /// Reads a raw original by its stable context-index source ID, including only authorized
+    /// inherited history. Compaction replacement views and display projections are not originals.
+    /// Equal duplicates are permitted; different bodies sharing a locator must fail explicitly.
+    /// Errors and cancellation must never be converted to a successfully absent source.
+    fn read_original_response_item(
+        &self,
+        _params: LoadThreadHistoryParams,
+        _source_id: String,
+    ) -> ThreadStoreFuture<'_, Option<ResponseItem>> {
+        Box::pin(async {
+            Err(ThreadStoreError::Unsupported {
+                operation: "read_original_response_item",
+            })
+        })
+    }
 
     /// Loads the persisted rollout items needed to reconstruct the latest model-visible context.
     ///

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use crate::session::tests::update_turn_settings_for_test;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -935,6 +936,25 @@ async fn update_plan_tool_respects_config_gate() {
     .await;
     enabled.assert_visible_contains(&["update_plan"]);
     enabled.assert_registered_contains(&["update_plan"]);
+}
+
+#[tokio::test]
+async fn context_index_tool_is_registered_in_native_and_code_mode_paths() {
+    let native = probe(|_| {}).await;
+    native.assert_registered_contains(&["context_index"]);
+    native.assert_visible_contains(&["context_index"]);
+
+    let code_mode = probe(|turn| {
+        set_features(turn, &[Feature::CodeMode, Feature::CodeModeOnly]);
+    })
+    .await;
+    code_mode.assert_registered_contains(&["context_index"]);
+    assert!(
+        code_mode
+            .code_mode_tool_names
+            .values()
+            .any(|name| name == &ToolName::plain("context_index"))
+    );
 }
 
 #[tokio::test]

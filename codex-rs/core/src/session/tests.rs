@@ -1,5 +1,8 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use crate::agent::LocalAgentControl;
+#[path = "indexed_context_tests.rs"]
+mod indexed_context_tests;
 #[path = "notification_tests.rs"]
 mod notification_tests;
 
@@ -3619,7 +3622,7 @@ async fn recompute_token_usage_updates_model_context_window() {
     assert_eq!(actual.model_context_window, Some(128_000));
 }
 
-#[test_case(crate::session::TokenUsageContext::Sampling { includes_reasoning: false, input_item_count: 0 }; "sampling")]
+#[test_case(crate::session::TokenUsageContext::Sampling { includes_reasoning: false, input_item_count: 0, context_index_revision: Some(0) }; "sampling")]
 #[test_case(crate::session::TokenUsageContext::SpendingOnly; "spending_only")]
 #[tokio::test]
 async fn record_token_usage_info_notifies_extension_contributors(
@@ -3709,6 +3712,7 @@ async fn record_token_usage_info_notifies_extension_contributors(
             crate::session::TokenUsageContext::Sampling {
                 includes_reasoning: true,
                 input_item_count: 0,
+                context_index_revision: Some(0),
             },
         )
         .await
@@ -4229,7 +4233,8 @@ async fn start_new_context_window_persists_checkpoint_state(clear_tools: bool) {
     let expected_snapshot = world_state.render_full().0.into_object();
     session
         .start_new_context_window(&step_context, world_state)
-        .await;
+        .await
+        .expect("fresh context window should install");
 
     let live_history = session.clone_history().await;
     assert_eq!(
@@ -4290,6 +4295,7 @@ async fn start_new_context_window_persists_checkpoint_state(clear_tools: bool) {
         | RolloutItem::TurnContext(_)
         | RolloutItem::WorldState(_)
         | RolloutItem::RetainedContext(_)
+        | RolloutItem::ContextIndex(_)
         | RolloutItem::SecurityRiskScore(_)
         | RolloutItem::TokenUsageRecord(_)
         | RolloutItem::RealtimeItem(_)
@@ -4391,6 +4397,7 @@ async fn record_initial_history_assigns_and_persists_id_for_forked_response_item
         | RolloutItem::TurnContext(_)
         | RolloutItem::WorldState(_)
         | RolloutItem::RetainedContext(_)
+        | RolloutItem::ContextIndex(_)
         | RolloutItem::SecurityRiskScore(_)
         | RolloutItem::TokenUsageRecord(_)
         | RolloutItem::RealtimeItem(_)
@@ -6137,6 +6144,7 @@ async fn settings_checkpoint_waits_for_accepted_settings_persistence() {
             turn_context.to_turn_context_item(),
             WorldStateSnapshot::default(),
             CompactedHistoryMetadata {
+                context_index_revision: None,
                 input_goal_ids: Default::default(),
                 message: "summary".to_string(),
                 window_number,
@@ -6271,6 +6279,7 @@ async fn mcp_attribution_checkpoints_cover_batch_prefixes_compaction_and_restore
             turn_context.to_turn_context_item(),
             WorldStateSnapshot::default(),
             CompactedHistoryMetadata {
+                context_index_revision: None,
                 input_goal_ids: Default::default(),
                 message: "summary".to_string(),
                 window_number,
@@ -6501,7 +6510,8 @@ async fn compaction_persists_resume_metadata_and_companion_records() {
         .await;
 
     session.multi_agent_version = std::sync::OnceLock::from(MultiAgentVersion::V2);
-    let expected = CompactionResumeMetadata {
+    let mut expected = CompactionResumeMetadata {
+        context_index: None,
         dynamic_tools: Some(Box::new(DynamicToolsSnapshot {
             thread_id: session.thread_id(),
             tools: Vec::new(),
@@ -6560,6 +6570,7 @@ async fn compaction_persists_resume_metadata_and_companion_records() {
             turn_context_baseline.clone(),
             world_state.render_full().0,
             CompactedHistoryMetadata {
+                context_index_revision: None,
                 input_goal_ids,
                 message: String::new(),
                 window_number,
@@ -6571,6 +6582,7 @@ async fn compaction_persists_resume_metadata_and_companion_records() {
         )
         .await;
     let live_history = session.clone_history().await.annotated_items().to_vec();
+    expected.context_index = Some(session.clone_history().await.context_index().clone());
     assert_eq!(&live_history[1..], &[accepted_goal]);
 
     session.flush_rollout().await.expect("flush checkpoints");

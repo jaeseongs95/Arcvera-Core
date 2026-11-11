@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Materializes and installs foreground or prepared V2 compaction through a shared path.
 //! A rejected or still-over-budget prepared result may fall back to one foreground request.
@@ -177,6 +178,7 @@ async fn build_and_install_compaction(
     let installation_timer =
         crate::compact::CompactionPhaseTimer::new(sess, turn_context, "install_history");
     let RemoteCompactV2Attempt {
+        context_index_revision,
         input_goal_ids,
         trace_input_history,
         prompt_input,
@@ -239,6 +241,7 @@ async fn build_and_install_compaction(
         .await;
         let (window_number, window_ids) = sess.advance_auto_compact_window().await;
         let installation = CompactedHistoryMetadata {
+            context_index_revision: Some(context_index_revision),
             input_goal_ids,
             message: String::new(),
             window_number,

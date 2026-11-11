@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 // Aggregates all former standalone integration tests as modules.
 mod test_binary_dispatch;
@@ -44,6 +45,7 @@ mod compact;
 mod compact_remote;
 mod compact_resume_fork;
 mod context_annotations;
+mod context_index;
 mod current_time_reminder;
 mod cyber_access_program;
 mod cyber_exec_policy;

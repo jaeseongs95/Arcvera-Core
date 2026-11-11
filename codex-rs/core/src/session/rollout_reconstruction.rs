@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use super::*;
 use crate::context::world_state::WorldStateSnapshot;
 use crate::context_manager::is_user_turn_boundary;
@@ -13,6 +14,8 @@ use uuid::Uuid;
 #[derive(Debug, PartialEq)]
 pub(crate) struct RolloutReconstruction {
     pub(super) history: Vec<ResponseItemEnvelope>,
+    pub(super) context_index: codex_history::context_index::ContextIndex,
+    pub(super) context_index_error: Option<String>,
     pub(crate) retained_context: codex_history::RetainedContext,
     pub(super) guardian_history: Option<codex_history::GuardianHistoryCheckpoint>,
     pub(super) last_started_turn_id: Option<String>,
@@ -250,6 +253,7 @@ impl ContextManager {
                 | RolloutItem::TurnContext(_)
                 | RolloutItem::WorldState(_)
                 | RolloutItem::RetainedContext(_)
+                | RolloutItem::ContextIndex(_)
                 | RolloutItem::SecurityRiskScore(_)
                 | RolloutItem::TokenUsageRecord(_)
                 | RolloutItem::RealtimeItem(_)
@@ -444,6 +448,7 @@ impl ContextManager {
                 | RolloutItem::SessionMeta(_)
                 | RolloutItem::RealtimeItem(_)
                 | RolloutItem::RetainedContext(_)
+                | RolloutItem::ContextIndex(_)
                 | RolloutItem::SecurityRiskScore(_)
                 | RolloutItem::TokenUsageRecord(_)
                 | RolloutItem::InterAgentCommunicationMetadata { .. } => {}
@@ -492,6 +497,7 @@ impl ContextManager {
         .unwrap_or(u64::MAX);
 
         // Build model-visible history from the selected compaction and its newer suffix.
+        let mut context_index_error = None;
         let mut saw_legacy_compaction_without_replacement_history = false;
         if let Some(checkpoint) = history_checkpoint
             && let Some(items) = &checkpoint.compacted.replacement_history
@@ -504,6 +510,15 @@ impl ContextManager {
                 /*reviewer_compaction_hash*/
                 None,
             );
+            if let Some(index) = checkpoint
+                .compacted
+                .resume_metadata
+                .as_ref()
+                .and_then(|metadata| metadata.context_index.as_ref())
+                && let Err(error) = history.restore_context_index(index.clone())
+            {
+                context_index_error = Some(format!("Invalid context index checkpoint: {error}"));
+            }
         }
         let rollout_suffix =
             history_checkpoint.map_or(rollout_items, |checkpoint| checkpoint.suffix);
@@ -511,6 +526,12 @@ impl ContextManager {
             match item {
                 RolloutItem::RetainedContext(event) => {
                     history.record_retained_context(event);
+                }
+                RolloutItem::ContextIndex(event) => {
+                    if let Err(error) = history.replay_context_index(event) {
+                        context_index_error
+                            .get_or_insert_with(|| format!("Invalid context index event: {error}"));
+                    }
                 }
                 RolloutItem::ResponseItem(response_item) => {
                     history.replay_annotated_item(response_item, truncation_policy);
@@ -560,6 +581,14 @@ impl ContextManager {
             }
         }
 
+        // Reconcile resident sources before host media preparation changes their representation.
+        // Keep invalid checkpoint/event errors sticky even when later history can be reconstructed.
+        if context_index_error.is_none()
+            && let Err(error) = history.restore_context_index(history.context_index().clone())
+        {
+            context_index_error = Some(format!("Invalid reconstructed context index: {error}"));
+        }
+
         let reference_context_item = match reference_context_item {
             TurnReferenceContextItem::NeverSet | TurnReferenceContextItem::Cleared => None,
             TurnReferenceContextItem::Latest(turn_reference_context_item) => {
@@ -598,6 +627,7 @@ impl ContextManager {
                 | RolloutItem::RealtimeItem(_)
                 | RolloutItem::TokenUsageRecord(_)
                 | RolloutItem::RetainedContext(_)
+                | RolloutItem::ContextIndex(_)
                 | RolloutItem::SecurityRiskScore(_)
                 | RolloutItem::EventMsg(_) => {
                     unreachable!("only world-state replay items are collected")
@@ -612,6 +642,8 @@ impl ContextManager {
             id: None,
         });
         RolloutReconstruction {
+            context_index: history.context_index().clone(),
+            context_index_error,
             retained_context: history.retained_context().clone(),
             guardian_history: history.guardian_history_checkpoint(),
             last_started_turn_id,

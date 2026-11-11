@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Mirrors the part of legacy cold resume that chooses the model-history checkpoint.
 //!
 //! Legacy rollback has two jobs. The forward history reducer decides which turns remain visible,
@@ -79,6 +80,7 @@ impl ModelReplayPlanner {
             | RolloutItem::RealtimeItem(_)
             | RolloutItem::TokenUsageRecord(_)
             | RolloutItem::RetainedContext(_)
+            | RolloutItem::ContextIndex(_)
             | RolloutItem::SecurityRiskScore(_)
             | RolloutItem::WorldState(_) => return,
         };

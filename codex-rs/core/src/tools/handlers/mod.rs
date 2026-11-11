@@ -1,5 +1,8 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 pub(crate) mod apply_patch;
 pub(crate) mod apply_patch_spec;
+mod context_index;
+pub(crate) mod context_index_spec;
 mod current_time;
 mod dynamic;
 pub(crate) mod extension_tools;
@@ -60,6 +63,7 @@ pub(crate) use crate::tools::code_mode::CodeModeWaitHandler;
 pub use apply_patch::ApplyPatchHandler;
 use codex_protocol::models::AdditionalPermissionProfile;
 use codex_protocol::protocol::AskForApproval;
+pub use context_index::ContextIndexHandler;
 pub use current_time::CurrentTimeHandler;
 pub use dynamic::DynamicToolHandler;
 pub use get_context_remaining::GetContextRemainingHandler;

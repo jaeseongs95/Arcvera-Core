@@ -1,4 +1,7 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Model-history and persisted-rollout domain types.
+
+pub mod context_index;
 
 mod heartbeat;
 pub use heartbeat::HEARTBEAT_CONTENT_KIND;
@@ -231,6 +234,8 @@ pub enum RolloutItem {
     WorldState(WorldStateItem),
     SecurityRiskScore(SecurityRiskScore),
     RetainedContext(RetainedContextEvent),
+    /// Explicit host-owned lifetime changes; never a model-visible response item.
+    ContextIndex(context_index::ContextIndexEvent),
     EventMsg(EventMsg),
     /// Sparse, model-invisible facts used to reconstruct realtime presentation.
     RealtimeItem(RealtimeItem),

@@ -1,5 +1,8 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use super::*;
+#[path = "history_indexed_tests.rs"]
+mod history_indexed_tests;
 #[path = "management_tests.rs"]
 mod management_tests;
 use crate::CodexThread;
@@ -2723,6 +2726,7 @@ async fn spawn_agent_fork_sanitizes_inherited_compaction_metadata() {
 
     let (parent_thread_id, parent_thread) = harness.start_paginated_thread().await;
     let parent_resume_metadata = codex_history::CompactionResumeMetadata {
+        context_index: None,
         dynamic_tools: None,
         multi_agent_version: Some(MultiAgentVersion::V2),
         last_started_turn_id: Some("parent-turn".to_string()),
@@ -2857,6 +2861,7 @@ async fn spawn_agent_fork_sanitizes_inherited_compaction_metadata() {
     assert_eq!(
         inherited_resume_metadata,
         &codex_history::CompactionResumeMetadata {
+            context_index: None,
             multi_agent_version: Some(MultiAgentVersion::V1),
             turn_attribution: None,
             ..parent_resume_metadata
@@ -3881,6 +3886,7 @@ async fn spawn_agent_full_fork_legacy_compaction_rebuilds_child_instructions_onc
                 compaction_response_id: None,
                 latest_token_usage_record: None,
                 resume_metadata: Some(codex_history::CompactionResumeMetadata {
+                    context_index: None,
                     dynamic_tools: None,
                     multi_agent_version: Some(MultiAgentVersion::V2),
                     last_started_turn_id: None,
@@ -4016,6 +4022,7 @@ async fn spawn_agent_full_fork_legacy_compaction_rebuilds_child_instructions_onc
         assert_eq!(
             inherited_state,
             Some(codex_history::CompactionResumeMetadata {
+                context_index: None,
                 dynamic_tools: None,
                 multi_agent_version: Some(MultiAgentVersion::V2),
                 last_started_turn_id: None,

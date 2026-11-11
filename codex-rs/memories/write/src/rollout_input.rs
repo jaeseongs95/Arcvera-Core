@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Reads recent rollout evidence and selects v2 input by provenance in chronological order.
 //! Human replies retain their questions; message media is replaced with placeholders.
@@ -167,6 +168,7 @@ pub(crate) fn serialize_tiered_input(
             | RolloutItem::SecurityRiskScore(_)
             | RolloutItem::TokenUsageRecord(_)
             | RolloutItem::RetainedContext(_)
+            | RolloutItem::ContextIndex(_)
             | RolloutItem::EventMsg(_) => None,
         };
         let Some(mut item) = item else { continue };

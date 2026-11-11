@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Defines resume metadata stored directly on a compaction.
 
 use crate::RolloutItem;
@@ -16,6 +17,9 @@ use serde::Serialize;
 /// compactions that did not.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct CompactionResumeMetadata {
+    /// Body-free context lifetimes and source locators, including sources outside this window.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_index: Option<crate::context_index::ContextIndex>,
     /// Catalog owned by the producing thread; absent in older checkpoints.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dynamic_tools: Option<Box<DynamicToolsSnapshot>>,
@@ -63,6 +67,7 @@ pub fn resume_multi_agent_version(item: &RolloutItem) -> Option<MultiAgentVersio
         | RolloutItem::TokenUsageRecord(_)
         | RolloutItem::WorldState(_)
         | RolloutItem::RetainedContext(_)
+        | RolloutItem::ContextIndex(_)
         | RolloutItem::SecurityRiskScore(_)
         | RolloutItem::RealtimeItem(_)
         | RolloutItem::EventMsg(_) => None,
