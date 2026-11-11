@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Exercises login lifetime boundaries through public RPCs and a real relay websocket.
 
 use super::*;
@@ -160,7 +161,7 @@ async fn open_relay(app: &mut TestAppServer, listener: &TcpListener) -> Result<R
     relay
         .send(json!({"id": 1, "method": "initialize", "params": {
             "clientInfo": {"name": "remote-auth-test", "version": "0.1.0"},
-            "capabilities": {"experimentalApi": true},
+            "capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},"experimentalApi": true},
         }}))
         .await?;
     assert!(relay.response(/*id*/ 1).await?.get("result").is_some());

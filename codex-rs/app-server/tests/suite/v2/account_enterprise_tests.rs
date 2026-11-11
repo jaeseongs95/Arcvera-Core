@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Account API regressions for enterprise policy, persisted authority, and login attempts.
 
 use super::*;
@@ -494,7 +495,8 @@ oauth = {{ client_id = "mcp-client", client_secret = "resource-secret", token_en
                 experimental_api: true,
                 ..Default::default()
             }),
-        },
+        }
+        .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
         channel_capacity: in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
     })
     .await?;
@@ -1744,7 +1746,8 @@ oauth = {{ client_id = "mcp-client", authorization_server_issuer = "{origin}/as"
                     experimental_api: true,
                     ..Default::default()
                 }),
-            },
+            }
+            .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
             channel_capacity: in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
         })
         .await?;

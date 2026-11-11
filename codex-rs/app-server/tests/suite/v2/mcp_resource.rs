@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use std::path::Path;
 use std::pin::pin;
 use std::sync::Arc;
@@ -1297,7 +1298,8 @@ async fn start_resource_in_process_client(
                 experimental_api: true,
                 ..Default::default()
             }),
-        },
+        }
+        .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
         channel_capacity: in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
     })
     .await?)

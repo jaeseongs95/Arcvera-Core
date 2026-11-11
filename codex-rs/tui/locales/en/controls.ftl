@@ -141,20 +141,6 @@ controls-memory-runtime-differs = Memory settings were saved, but the current ru
 
 controls-memory-confirmed = Memory settings and current runtime were confirmed. Reading applies to future context, generation to new work; running work may finish. No summary generation or model turn was started.
 
-diagnostics-status = Startup mode and saved settings are shown separately. General logging alone does not enable cache observation.
-
-diagnostics-saved-next-launch = Saved for the next launch. The current process keeps its startup mode. General logging alone does not enable cache observation.
-
-diagnostics-home-failed = Could not find the local diagnostics settings directory: { $error }
-
-diagnostics-operation-failed = The diagnostics operation failed: { $error }. Query status before retrying any change.
-
-diagnostics-settings-busy = Diagnostics settings are busy. Query status before retrying the change.
-
-diagnostics-operation-unconfirmed = The diagnostics operation could not be confirmed: { $error }. Query status before retrying any change.
-
-diagnostics-cache-wire-requires-response = Wire cache observation requires response observation. Select both explicitly.
-
 controls-memory-command-hint = /memory enable on|off · /memory edit <correction> · /memory read on|off · /memory generate on|off
 controls-memory-usage = Usage: /memory view | enable on|off | edit <correction> | read on|off | generate on|off | scope project|global
 daemon-auto-selected-mismatch = The selected shared server executable { $managed_path } differs from this CLI { $cli_path }. This session will use this CLI's bundled server; the shared installation was preserved. To explicitly change the selection, run `codex app-server daemon update --from-cli --yes --no-force`.

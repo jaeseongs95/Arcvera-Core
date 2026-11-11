@@ -5,10 +5,10 @@ Creates a **new local package** with the built CLI and matching official helper 
 
 ## Arcvera-Core release packaging / 릴리스 패키징
 
-Arcvera-Core 0.168.0 uses official Codex 0.167.0 helper resources. Pass the upstream version separately and supply all three built candidates from one frozen commit:
+Arcvera-Core 1.0.0 uses official Codex 0.167.0 helper resources. Pass the upstream version separately and supply all three built candidates from one frozen commit:
 
 ```text
-python package_cli.py --source CHECKOUT --freeze source-freeze.json --binary BUILT_CODEX_EXE --app-server BUILT_APP_SERVER_EXE --code-mode-host BUILT_CODE_MODE_HOST_EXE --upstream-version 0.167.0 --vendor OFFICIAL_VENDOR_DIRECTORY --output NEW_DIRECTORY --version 0.168.0
+python package_cli.py --source CHECKOUT --freeze source-freeze.json --binary BUILT_CODEX_EXE --app-server BUILT_APP_SERVER_EXE --code-mode-host BUILT_CODE_MODE_HOST_EXE --upstream-version 0.167.0 --vendor OFFICIAL_VENDOR_DIRECTORY --output NEW_DIRECTORY --version 1.0.0
 ```
 
 In addition to `candidateCommit` and `files`, the freeze manifest must contain:
@@ -25,7 +25,7 @@ In addition to `candidateCommit` and `files`, the freeze manifest must contain:
 
 The build owner creates these entries from the actual build receipts. Every executable must match that commit and hash, and report its exact project version through `--version`. The tool checks the copied executables again before writing `package-receipt.json`. The receipt confirms package completeness and identity; runtime and release acceptance require separate evidence. Existing single-CLI callers remain supported. Independent project/upstream versions require the explicit options above; do not use the single-CLI fallback for a new Arcvera-Core release.
 
-Arcvera-Core 0.168.0은 공식 Codex 0.167.0의 보조 리소스를 사용합니다. 위 명령처럼 공식 기반 버전을 별도로 지정하고, 같은 고정 커밋에서 빌드한 CLI·앱 서버·CodeMode 호스트를 모두 전달합니다. 동결 명세에는 `candidateCommit`·`files`와 위 `executables` 항목이 필요합니다. 빌드 담당자가 실제 빌드 영수증을 기준으로 각 실행 파일의 전체 소스 커밋과 SHA-256을 기록해야 합니다.
+Arcvera-Core 1.0.0은 공식 Codex 0.167.0의 보조 리소스를 사용합니다. 위 명령처럼 공식 기반 버전을 별도로 지정하고, 같은 고정 커밋에서 빌드한 CLI·앱 서버·CodeMode 호스트를 모두 전달합니다. 동결 명세에는 `candidateCommit`·`files`와 위 `executables` 항목이 필요합니다. 빌드 담당자가 실제 빌드 영수증을 기준으로 각 실행 파일의 전체 소스 커밋과 SHA-256을 기록해야 합니다.
 
 도구는 실행 파일의 커밋·해시·실제 `--version` 출력과 복사 후 신원을 확인한 뒤 완료 영수증을 씁니다. 이 영수증은 패키지 완결성과 신원을 나타내며 실제 동작·릴리스 수용 증거는 별도로 필요합니다. 기존 CLI 단독 API 호출은 유지됩니다. 프로젝트 버전과 공식 기반 버전이 다른 새 릴리스에는 위 명시 옵션을 사용합니다.
 

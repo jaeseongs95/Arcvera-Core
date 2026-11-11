@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Exercises the best-effort SiWC cost happy path through real app-server startup and OTLP.
 //! The public in-process transport permits advancing the production timer without test-only hooks.
 
@@ -167,7 +168,8 @@ metrics_exporter = {{ otlp-http = {{ endpoint = "{}/metrics", protocol = "json" 
                 experimental_api: true,
                 ..Default::default()
             }),
-        },
+        }
+        .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
         channel_capacity: in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
     })
     .await?;

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
@@ -477,7 +478,7 @@ async fn websocket_disconnect_cancels_guardian_review_and_releases_thread() -> R
             /*id*/ 1,
             Some(json!({
                 "clientInfo": {"name":"guardian-test","version":"1"},
-                "capabilities": {"experimentalApi":true}
+                "capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},"experimentalApi":true}
             })),
         )
         .await?;
@@ -781,7 +782,8 @@ pub(super) async fn send_initialize_request(
             version: "0.1.0".to_string(),
         },
         capabilities: None,
-    };
+    }
+    .with_arcvera_core_version(env!("CARGO_PKG_VERSION"));
     send_request(
         stream,
         "initialize",

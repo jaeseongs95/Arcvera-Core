@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Local controls use the originating model call and the existing confirmed APIs.
 use super::App;
@@ -80,30 +81,6 @@ impl App {
         command: Command,
     ) -> Result<Value, String> {
         match command {
-            Command::LoggingStatus => {
-                super::diagnostics_control::handle(
-                    super::diagnostics_control::Action::LoggingStatus,
-                )
-                .await
-            }
-            Command::LoggingSet { enabled } => {
-                super::diagnostics_control::handle(super::diagnostics_control::Action::LoggingSet {
-                    enabled,
-                })
-                .await
-            }
-            Command::CacheDiagnosticsStatus => {
-                super::diagnostics_control::handle(
-                    super::diagnostics_control::Action::CacheDiagnosticsStatus,
-                )
-                .await
-            }
-            Command::CacheDiagnosticsSet { response, wire } => {
-                super::diagnostics_control::handle(
-                    super::diagnostics_control::Action::CacheDiagnosticsSet { response, wire },
-                )
-                .await
-            }
             Command::Status => Ok(json!({
                 "threadId": thread,
                 "uiLanguage": crate::i18n::locale().as_str(),

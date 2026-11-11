@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Exercise gateway sign-in and managed-provider checks through JSON-RPC with a mock keyring.
 
 use super::ConnectionSessionState;
@@ -114,7 +115,7 @@ delivery = {{ kind = "header", name = "X-Gateway-Authorization" }}
         &processor,
         &session,
         json!({
-            "id": 1, "method": "initialize", "params": {
+            "id": 1, "method": "initialize", "params": {"capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},},
                 "clientInfo": {"name": "gateway-test", "version": "1"}
             }
         }),
@@ -236,7 +237,7 @@ delivery = {{ kind = "header", name = "X-Gateway-Authorization" }}
         &session,
         json!({"id": 1, "method": "initialize", "params": {
             "clientInfo": {"name": "gateway-test", "version": "1"},
-            "capabilities": {"explicitGatewayOauth": true},
+            "capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},"explicitGatewayOauth": true},
         }}),
     )
     .await;

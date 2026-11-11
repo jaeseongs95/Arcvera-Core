@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! In-process app-server runtime host for local embedders.
 //!
@@ -952,7 +953,8 @@ mod tests {
                     version: "0.0.0".to_string(),
                 },
                 capabilities,
-            },
+            }
+            .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
             channel_capacity,
         };
         let mut client = start(args).await.expect("in-process runtime should start");

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Exercises background routing call sites and explicit account reads through JSON-RPC.
 
 use super::message_processor_tracing_tests::TEST_CONNECTION_ID;
@@ -106,7 +107,7 @@ async fn background_routing_call_sites_skip_config(api_key: Option<&str>) -> any
         .process_request(
             TEST_CONNECTION_ID,
             serde_json::from_value(json!({
-                "id": 1, "method": "initialize", "params": {
+                "id": 1, "method": "initialize", "params": {"capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},},
                     "clientInfo": {"name": "workspace-routing-test", "version": "1"}
                 }
             }))?,

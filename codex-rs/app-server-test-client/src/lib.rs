@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::fs;
@@ -1621,7 +1622,8 @@ impl CodexClient {
                     mcp_server_openai_form_elicitation: false,
                     extensions: None,
                 }),
-            },
+            }
+            .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
         };
 
         let response: InitializeResponse = self.send_request(request, request_id, "initialize")?;

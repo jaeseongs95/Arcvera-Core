@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 use std::path::Path;
 use std::time::Duration;
@@ -123,21 +124,20 @@ where
     let initialize = JSONRPCMessage::Request(JSONRPCRequest {
         id: INITIALIZE_REQUEST_ID,
         method: "initialize".to_string(),
-        params: Some(serde_json::to_value(InitializeParams {
-            client_info: ClientInfo {
-                name: CLIENT_NAME.to_string(),
-                title: Some("Codex App Server Daemon".to_string()),
-                version: env!("CARGO_PKG_VERSION").to_string(),
-            },
-            capabilities: if experimental_api {
-                Some(InitializeCapabilities {
-                    experimental_api: true,
+        params: Some(serde_json::to_value(
+            InitializeParams {
+                client_info: ClientInfo {
+                    name: CLIENT_NAME.to_string(),
+                    title: Some("Codex App Server Daemon".to_string()),
+                    version: env!("CARGO_PKG_VERSION").to_string(),
+                },
+                capabilities: Some(InitializeCapabilities {
+                    experimental_api,
                     ..Default::default()
-                })
-            } else {
-                None
-            },
-        })?),
+                }),
+            }
+            .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
+        )?),
         trace: None,
     });
     send_message(websocket, &initialize)
@@ -148,10 +148,18 @@ where
         let message = timeout(CONTROL_SOCKET_RESPONSE_TIMEOUT, read_message(websocket))
             .await
             .context("timed out waiting for initialize response")??;
-        if let JSONRPCMessage::Response(response) = message
-            && response.id == INITIALIZE_REQUEST_ID
-        {
-            break response;
+        match message {
+            JSONRPCMessage::Response(response) if response.id == INITIALIZE_REQUEST_ID => {
+                break response;
+            }
+            JSONRPCMessage::Error(error) if error.id == INITIALIZE_REQUEST_ID => {
+                anyhow::bail!(
+                    "app-server rejected initialize ({}): {}",
+                    error.error.code,
+                    error.error.message
+                );
+            }
+            _ => {}
         }
     };
     serde_json::from_value::<InitializeResponse>(response.result)
@@ -208,6 +216,64 @@ mod tests {
     use tokio_tungstenite::tungstenite::Message;
 
     use super::parse_version_from_user_agent;
+
+    #[tokio::test]
+    async fn initialize_reports_server_rejection_without_timeout() {
+        use tokio_tungstenite::tungstenite::protocol::Role;
+
+        for experimental_api in [false, true] {
+            let (client, server) = tokio::io::duplex(8192);
+            let mut client =
+                tokio_tungstenite::WebSocketStream::from_raw_socket(client, Role::Client, None)
+                    .await;
+            let (release, hold) = tokio::sync::oneshot::channel::<()>();
+            let peer =
+                tokio::spawn(async move {
+                    let mut server = tokio_tungstenite::WebSocketStream::from_raw_socket(
+                        server,
+                        Role::Server,
+                        None,
+                    )
+                    .await;
+                    let super::JSONRPCMessage::Request(request) =
+                        super::read_message(&mut server).await.unwrap()
+                    else {
+                        panic!("expected initialize request");
+                    };
+                    assert_eq!(request.method, "initialize");
+                    let params: super::InitializeParams =
+                        serde_json::from_value(request.params.unwrap()).unwrap();
+                    assert!(params.supports_arcvera_core_version(env!("CARGO_PKG_VERSION")));
+                    assert_eq!(
+                        params.capabilities.unwrap().experimental_api,
+                        experimental_api
+                    );
+                    // An unrelated response must not be mistaken for this request's rejection.
+                    for id in [999, 1] {
+                        server.send(Message::Text(serde_json::json!({
+                        "id": id,
+                        "error": {"code": -32600, "message": "incompatible Core version"}
+                    }).to_string().into())).await.unwrap();
+                    }
+                    // Keep the transport open so EOF cannot disguise the ignored-error bug.
+                    let _ = hold.await;
+                });
+            let result = tokio::time::timeout(
+                std::time::Duration::from_secs(1),
+                super::initialize(&mut client, experimental_api),
+            )
+            .await;
+            release.send(()).unwrap();
+            peer.await.unwrap();
+            let error = result
+                .expect("initialize must return before its two-second timeout")
+                .expect_err("server rejection must not be accepted");
+            assert_eq!(
+                error.to_string(),
+                "app-server rejected initialize (-32600): incompatible Core version"
+            );
+        }
+    }
 
     #[tokio::test]
     async fn graceful_shutdown_requires_its_own_ack_and_never_falls_back_to_legacy() {

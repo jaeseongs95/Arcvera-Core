@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use anyhow::Result;
 use app_test_support::MockResponsesConfig;
 use app_test_support::TestAppServer;
@@ -1224,7 +1225,8 @@ async fn thread_list_db_only_errors_distinguish_unavailable_database_from_empty_
                     version: "0.1.0".into(),
                 },
                 capabilities: None,
-            },
+            }
+            .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
             channel_capacity: in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
         })
         .await?;

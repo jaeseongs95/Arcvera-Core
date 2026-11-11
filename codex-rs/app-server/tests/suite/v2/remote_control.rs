@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use codex_utils_absolute_path::test_support::PathExt;
 use std::ffi::OsStr;
@@ -1147,7 +1148,7 @@ impl ConnectedRemoteControlBackend {
                             "message": {
                                 "id": 1,
                                 "method": "initialize",
-                                "params": {
+                                "params": {"capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},},
                                     "clientInfo": {
                                         "name": "remote-test-client",
                                         "version": "0.1.0",

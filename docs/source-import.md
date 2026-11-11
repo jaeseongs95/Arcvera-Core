@@ -2,7 +2,7 @@
 
 ## English
 
-Arcvera-Core `0.168.0` retains the historical Codex `0.167.0` import as source attribution. Official Codex CLI compatibility and interchangeability are outside the support scope; OpenAI server API and authentication communication remain supported. The historical records below describe earlier snapshots, not the current R41 candidate or its verification results.
+Arcvera-Core `1.0.0` retains the historical Codex `0.167.0` import as source attribution. Official Codex CLI compatibility and interchangeability are outside the support scope; OpenAI server API and authentication communication remain supported. The historical records below describe earlier snapshots, not the current R41 candidate or its verification results.
 
 `SOURCE_BASELINE.json`, `upstream/source-inventory.json`, the official patch and the Windows prompt catalog retain their original bytes. They identify the historical import. `CURRENT_SOURCE.json` separately inventories the current derivative, including added, modified and deleted files, modes, canonical hashes and modification notices. `upstream/arcvera-r41.patch` reconstructs that derivative from public repository commit `676d6233d8601f87f82d5fd6fb3d4c5e04ffa8aa`. The manifest and derivative patch are the two explicit self-reference exclusions; the final external source freeze and release checksums bind both files and the complete final commit.
 
@@ -20,7 +20,7 @@ Generation validates historical inputs, current payload and patch replay before 
 
 ## 한국어
 
-Arcvera-Core `0.168.0`은 역사적 Codex `0.167.0` 수입 기록을 소스 출처로 유지합니다. 공식 Codex CLI 호환성과 상호 교체는 지원 범위에서 제외하며 OpenAI 서버 API·인증 통신은 지원합니다. 아래 과거 기록은 당시 스냅샷의 기록이며 현재 R41 후보의 검증 결과가 아닙니다.
+Arcvera-Core `1.0.0`은 역사적 Codex `0.167.0` 수입 기록을 소스 출처로 유지합니다. 공식 Codex CLI 호환성과 상호 교체는 지원 범위에서 제외하며 OpenAI 서버 API·인증 통신은 지원합니다. 아래 과거 기록은 당시 스냅샷의 기록이며 현재 R41 후보의 검증 결과가 아닙니다.
 
 `SOURCE_BASELINE.json`, `upstream/source-inventory.json`, 공식 patch와 Windows 프롬프트 catalog는 원래 바이트를 유지합니다. 현재 파생 소스는 `CURRENT_SOURCE.json`에 파일 추가·수정·삭제, 모드, 정규화 해시와 수정 고지를 별도로 기록합니다. `upstream/arcvera-r41.patch`는 공개 기준 커밋 `676d6233d8601f87f82d5fd6fb3d4c5e04ffa8aa`에서 현재 파생 소스를 재현합니다. 두 파일만 자기참조에서 제외하며 최종 외부 소스 동결 기록과 릴리스 체크섬으로 두 파일 및 전체 최종 커밋을 결속합니다.
 

@@ -14,10 +14,10 @@ Arcvera-Core supports communication with OpenAI servers. Compatibility or interc
 2. Compare the ZIP's SHA-256 with the checksum file, then extract it into a new folder with its directory layout intact.
 3. Run `bin\codex.exe`. Source compilation and CMD launchers are optional.
 
-For R40, run the first command in the download folder and the second in the extracted package folder:
+After the verified 1.0.0 package is published, run the first command in the download folder and the second in the extracted package folder:
 
 ```powershell
-Get-FileHash .\opendiy-codex-r40-windows-x86_64.zip -Algorithm SHA256
+Get-FileHash .\arcvera-core-1.0.0-windows-x86_64.zip -Algorithm SHA256
 ```
 
 ```powershell
@@ -36,7 +36,7 @@ Keep `codex-package.json`, `package-receipt.json`, and the `bin` folder together
 
 The ZIP already includes `codex-patched.cmd`, which passes arguments to `bin\codex.exe`. It provides a convenient default launch that can reuse the shared server. It does not replace a server version, configure a remote address, or pair a mobile device. An incompatible or unverified implicit server can cause startup to use the embedded backend. Check the actual server identity separately from the selected CLI file.
 
-To replace the managed shared server, follow the [R40 server update procedure](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v0.167.0-r40.20261108). Use the complete ZIP and a separate PowerShell window after finishing active work. Changing an EXE path alone does not update a running server.
+To replace the managed shared server, follow the [1.0.0 server update procedure and compatibility boundary](docs/releases/R41.md#shared-server-update). Use the complete ZIP and a separate PowerShell window after finishing active work. Changing an EXE path alone does not update a running server.
 
 ### Individual executables
 
@@ -46,7 +46,7 @@ These three files are not a complete managed-server installation package. Voice 
 
 ## Current releases
 
-Arcvera-Core 0.168.0 (R41 scope) is in development: [draft notes and SemVer policy (EN/KO)](docs/releases/R41.md), [indexed-context design and recovery](docs/context-index.md). A selected task and its dependency closure define eligible model API context, alongside preserved user/control and unclassified inputs. Cache observations report response-level counters; unprovided TTL/expiry remains unknown. This is not a verified downloadable release. The broader architecture work previously assigned to R41 moves to [R42](docs/roadmap/R42.md). Release versions are independent of upstream Codex 0.167.0; R41/R42 track scope. Final-source local regression passed 89 distinct tests in 20 suites, and 180 synthetic projection samples reduced request bytes by 89.0–90.0%. Final executables and independent audit remain pending; actual app/model/network performance is unmeasured; R39/R40 results do not establish acceptance. Builds and tests run locally; GitHub/Actions builds are excluded.
+Arcvera-Core 1.0.0 (R41 scope) is in development: [draft notes and SemVer policy (EN/KO)](docs/releases/R41.md), [indexed-context design and recovery](docs/context-index.md). A selected task and its dependency closure define eligible model API context, alongside preserved user/control and unclassified inputs. Cache observations report response-level counters; unprovided TTL/expiry remains unknown. Clients must declare the server's exact full Core version during initialization; earlier clients are unsupported. Seven unused workspace packages have been removed. OpenDIY-specific batch logging, cache response/wire diagnostic recording, Drive export and their session controls have been removed. Official Codex logging, telemetry and conversation storage remain. Legacy logging settings are ignored; existing settings and log files are not deleted or migrated automatically. This is not a verified downloadable release. The broader architecture work previously assigned to R41 moves to [R42](docs/roadmap/R42.md). Release versions are independent of upstream Codex 0.167.0; R41/R42 track scope. Current-source context regression passed 20 local suites (89 distinct tests) with 180 projection samples. Current-source version-contract tests (3), official diagnostics tests (2), API tests (194), SQLite filter test (1) and TUI session-control tests (15) passed. Final executables, Desktop integration and independent audit remain pending; actual app/model/network performance is unmeasured. Builds and tests run locally; GitHub/Actions builds are excluded.
 
 | Release | Main change | Verification boundary |
 | --- | --- | --- |
@@ -78,11 +78,15 @@ Run updater commands in PowerShell: `codex update --check`, `codex update --stat
 
 [OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop) is a separate project for the desktop UI and multi-session workflows. This repository supplies the CLI, App Server, and Windows package. Selecting a new CLI in Desktop does not replace an already running shared server.
 
-Desktop 1.1.0 OpenDIY extensions require at least CLI and App Server R36 (`0.166.0+native-r36.20261103`). This minimum does not prove compatibility with every later combination. R40 integration checks cover the isolated TEST Desktop candidate used in the tests, not every published Desktop installation. R39 final Desktop joint testing was not run.
+Core 1.0.0 requires a Desktop client that explicitly declares the exact full Core version during initialization; the Desktop UI version remains independent. See the [client protocol and migration guidance](codex-rs/app-server/README.md#arcvera-core-100-initialization--초기화). Final Core 1.0.0 and Desktop integration remains pending.
+
+Historically, Desktop 1.1.0 extensions required at least CLI and App Server R36 (`0.166.0+native-r36.20261103`). That earlier minimum does not establish compatibility with Core 1.0.0. R40 integration checks cover the isolated TEST Desktop candidate used in the tests, not every published Desktop installation. R39 final Desktop joint testing was not run.
 
 A connection, initialize response, or matching version alone does not prove full compatibility. Existing data and active work are preserved without automatic server replacement.
 
 ## Validation and limits
+
+Three version-contract tests on isolated 1.0.0 source each failed with production mutation and passed after restoration. They verify exact Core version declarations, rejection before session admission with a corrected retry, and prompt server-rejection reporting. The same three tests passed again on the current source; this is a separate successful rerun, not new mutation evidence. Final release executables and Desktop integration remain pending; see the [validation scope](docs/releases/R41.md#validation).
 
 Tagged release notes identify tested binaries, original failures, and unrun cases. Real-model compaction quality, physical keyboard/IME and voice behavior, first-time installation, and sustained workloads have the gaps specified there. These tests do not establish that all GUI delays or memory growth have been resolved.
 

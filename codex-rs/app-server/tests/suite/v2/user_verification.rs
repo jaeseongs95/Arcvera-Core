@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use super::connection_handling_websocket::connect_websocket;
 use super::connection_handling_websocket::read_error_for_id;
 use super::connection_handling_websocket::read_response_for_id;
@@ -192,7 +193,7 @@ async fn user_verification_websocket_blocks_native_operations_before_validation(
         /*id*/ 0,
         Some(json!({
             "clientInfo": {"name": "codex-tui", "version": "1"},
-            "capabilities": {"experimentalApi": true},
+            "capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},"experimentalApi": true},
         })),
     )
     .await?;

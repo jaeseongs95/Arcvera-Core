@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Best-effort loaded-thread snapshots during managed app-server shutdown.
 
 use super::connection_handling_websocket::DEFAULT_READ_TIMEOUT;
@@ -881,11 +882,20 @@ async fn connect_initialized(
     })
     .await
     .context("server did not open its control socket")?;
+    let params = codex_app_server_protocol::InitializeParams {
+        client_info: codex_app_server_protocol::ClientInfo {
+            name: client_name.to_string(),
+            title: None,
+            version: client_version.to_string(),
+        },
+        capabilities: Some(capabilities),
+    }
+    .with_arcvera_core_version(env!("CARGO_PKG_VERSION"));
     request(
         &mut websocket,
         /*id*/ 1,
         "initialize",
-        json!({"clientInfo":{"name":client_name,"version":client_version},"capabilities":capabilities}),
+        serde_json::to_value(params)?,
     )
     .await?;
     websocket

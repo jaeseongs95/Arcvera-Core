@@ -1,4 +1,44 @@
 <!-- Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md. -->
+# Arcvera-Core 1.0.0 initialization / 초기화
+
+Every app-server client must declare the server's exact full Core release version
+in `capabilities.extensions["arcvera/core"].version`. This is separate from the
+client application's version in `clientInfo.version`. For a verified Core 1.0.0
+server, send the following request, then send `initialized` only after a successful
+response:
+
+```json
+{"id":1,"method":"initialize","params":{"clientInfo":{"name":"example-client","version":"2.0.0"},"capabilities":{"extensions":{"arcvera/core":{"version":"1.0.0"}}}}}
+```
+
+Missing, malformed or unequal declarations return JSON-RPC error `-32600` before
+session admission. Versions are compared as complete strings, including
+prerelease and build metadata. Read the intended server version from the verified
+release package or daemon status; do not infer it from a Desktop version or retry
+guessed versions. A corrected initialization can use the same connection.
+Authentication and experimental feature opt-ins retain their own requirements.
+
+Rust clients can use `InitializeParams::with_arcvera_core_version` with their
+verified target Core version. Bundled clients use their own `CARGO_PKG_VERSION`.
+Generated bindings, including the Python `InitializeCapabilities.extensions`
+map, represent this field but do not supply or discover the version automatically.
+Older clients must be updated before connecting. Preserve existing configuration,
+authentication and conversations; see the [migration and recovery guidance](../../docs/releases/R41.md#getting-started).
+
+모든 app-server 클라이언트는 `capabilities.extensions["arcvera/core"].version`에
+서버의 정확한 Core 전체 버전을 선언해야 합니다. `clientInfo.version`은 클라이언트
+앱 자체 버전이며 별도 값입니다. 위 예시는 검증한 Core 1.0.0 서버에 연결하는
+요청입니다. 성공 응답을 받은 뒤에만 `initialized`를 전송합니다. 선언 누락·잘못된
+형식·버전 불일치는 세션 초기화 전에 `-32600`으로 거절하며, 사전 릴리스와 빌드
+메타데이터까지 문자열 전체를 비교합니다. 검증한 릴리스 패키지나 daemon 상태에서
+대상 버전을 확인하고, 거절된 선언은 같은 연결에서 바로잡을 수 있습니다.
+
+Rust의 `with_arcvera_core_version`과 Python 생성 바인딩의 `extensions` 맵으로
+선언할 수 있습니다. 생성 바인딩이 대상 버전을 자동으로 알아내거나 채우지는
+않습니다. 기존 클라이언트를 먼저 갱신하고 설정·인증·대화 파일을 보존합니다.
+인증과 실험 기능의 사용 조건은 별도로 충족해야 합니다.
+[이전·복구 안내](../../docs/releases/R41.md#시작하기)를 확인하십시오.
+
 # OpenDIY optional server capabilities (R35)
 
 The `initialize` result may contain `opendiyCapabilities`, an object with four

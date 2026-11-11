@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Exercises client attachment, approval routing, and cleanup across thread creation.
 
 use codex_app_server_protocol::TurnStartResponse;
@@ -86,7 +87,7 @@ MCP_TEST_PID_FILE = {}
             &owner,
             json!({"id": 1, "method": "initialize", "params": {
                 "clientInfo": {"name": "startup-owner", "version": "1"},
-                "capabilities": {"experimentalApi": true}
+                "capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},"experimentalApi": true}
             }}),
         )
         .await;
@@ -185,7 +186,7 @@ MCP_TEST_PID_FILE = {}
             &processor,
             observer_id,
             &observer,
-            json!({"id": 3, "method": "initialize", "params": {
+            json!({"id": 3, "method": "initialize", "params": {"capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},},
                 "clientInfo": {"name": "loaded-thread-observer", "version": "1"}
             }}),
         )
@@ -325,7 +326,7 @@ async fn disconnected_v2_child_lifecycle(unload_delay_secs: u64, ephemeral: bool
             &owner,
             json!({"id": 1, "method": "initialize", "params": {
                 "clientInfo": {"name": "parent-owner", "version": "1"},
-                "capabilities": {"experimentalApi": true}
+                "capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},"experimentalApi": true}
             }}),
         )
         .await;
@@ -598,7 +599,7 @@ decision = "prompt-user"
                 session,
                 json!({"id": 1, "method": "initialize", "params": {
                     "clientInfo": {"name": "attachment-test", "version": "1"},
-                    "capabilities": {
+                    "capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},
                         "experimentalApi": true,
                         "requiredHumanApproval": required_human_approval
                     }
@@ -673,7 +674,7 @@ decision = "prompt-user"
             &unrelated,
             json!({"id": 1, "method": "initialize", "params": {
                 "clientInfo": {"name": "unrelated-client", "version": "1"},
-                "capabilities": {"experimentalApi": true, "requiredHumanApproval": true}
+                "capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},"experimentalApi": true, "requiredHumanApproval": true}
             }}),
         )
         .await;

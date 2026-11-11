@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -31,6 +32,94 @@ pub struct InitializeParams {
     pub client_info: ClientInfo,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<InitializeCapabilities>,
+}
+
+impl InitializeParams {
+    /// Declare the exact Core build used by this client, independently of its UI version.
+    pub fn with_arcvera_core_version(mut self, version: &str) -> Self {
+        self.capabilities
+            .get_or_insert_with(InitializeCapabilities::default)
+            .extensions
+            .get_or_insert_with(HashMap::new)
+            .insert(
+                "arcvera/core".to_string(),
+                serde_json::json!({ "version": version }),
+            );
+        self
+    }
+
+    /// Deliberately compare the full version, including prerelease and build metadata.
+    /// Missing and malformed declarations never opt a client into compatibility.
+    pub fn supports_arcvera_core_version(&self, version: &str) -> bool {
+        self.capabilities
+            .as_ref()
+            .and_then(|capabilities| capabilities.extensions.as_ref())
+            .and_then(|extensions| extensions.get("arcvera/core"))
+            .and_then(|declaration| declaration.as_object())
+            .and_then(|declaration| declaration.get("version"))
+            .and_then(serde_json::Value::as_str)
+            == Some(version)
+    }
+}
+
+#[cfg(test)]
+mod core_version_tests {
+    use super::*;
+
+    #[test]
+    fn core_version_declaration_is_explicit_and_exact() {
+        let expected = "1.0.0-rc.1+build.7";
+        let missing = InitializeParams::default();
+        assert!(!missing.supports_arcvera_core_version(expected));
+        for declaration in [
+            serde_json::Value::Null,
+            serde_json::json!(expected),
+            serde_json::json!({}),
+            serde_json::json!({"version": 1}),
+            serde_json::json!({"version": "0.168.0"}),
+            serde_json::json!({"version": "1.0.0"}),
+            serde_json::json!({"version": "1.0.0-rc.1+build.8"}),
+        ] {
+            let mut params = missing.clone().with_arcvera_core_version(expected);
+            params
+                .capabilities
+                .as_mut()
+                .unwrap()
+                .extensions
+                .as_mut()
+                .unwrap()
+                .insert("arcvera/core".to_string(), declaration);
+            assert!(!params.supports_arcvera_core_version(expected));
+        }
+        let mut params = InitializeParams {
+            client_info: ClientInfo {
+                version: "2.0.0".to_string(),
+                ..Default::default()
+            },
+            capabilities: Some(InitializeCapabilities {
+                extensions: Some(HashMap::from([(
+                    "openai/form".to_string(),
+                    serde_json::json!({"userVerification": {}}),
+                )])),
+                ..Default::default()
+            }),
+        }
+        .with_arcvera_core_version(expected);
+        assert!(params.supports_arcvera_core_version(expected));
+        assert_eq!(params.client_info.version, "2.0.0");
+        assert!(
+            params
+                .capabilities
+                .as_ref()
+                .unwrap()
+                .extensions
+                .as_ref()
+                .unwrap()
+                .contains_key("openai/form")
+        );
+        params = params.with_arcvera_core_version("1.0.0");
+        assert!(!params.supports_arcvera_core_version(expected));
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema, TS)]

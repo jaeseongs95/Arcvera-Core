@@ -1,6 +1,4 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use super::responses_error::parse_failed_response;
-use crate::cache_wire_observation::WireObservation;
 use crate::common::ResponseEvent;
 use crate::common::ResponseStream;
 use crate::common::SafetyBuffering;
@@ -30,11 +28,7 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 use tokio::time::timeout;
 use tracing::debug;
-use tracing::instrument::WithSubscriber;
 use tracing::trace;
-
-#[path = "cache_observation.rs"]
-mod cache_observation;
 
 const X_REASONING_INCLUDED_HEADER: &str = "x-reasoning-included";
 const X_CODEX_TURN_STATE_HEADER: &str = "x-codex-turn-state";
@@ -47,16 +41,6 @@ pub fn spawn_response_stream(
     idle_timeout: Duration,
     telemetry: Option<Arc<dyn SseTelemetry>>,
     turn_state: Option<Arc<OnceLock<String>>>,
-) -> ResponseStream {
-    spawn_response_stream_observed(stream_response, idle_timeout, telemetry, turn_state, None)
-}
-
-pub(crate) fn spawn_response_stream_observed(
-    stream_response: StreamResponse,
-    idle_timeout: Duration,
-    telemetry: Option<Arc<dyn SseTelemetry>>,
-    turn_state: Option<Arc<OnceLock<String>>>,
-    observation: Option<WireObservation>,
 ) -> ResponseStream {
     let rate_limit_snapshots = parse_all_rate_limits(&stream_response.headers);
     let models_etag = stream_response
@@ -89,34 +73,30 @@ pub(crate) fn spawn_response_stream_observed(
         let _ = turn_state.set(header_value.to_string());
     }
     let (tx_event, rx_event) = mpsc::channel::<Result<ResponseEvent, ApiError>>(1600);
-    tokio::spawn(
-        async move {
-            if let Some(model) = server_model {
-                let _ = tx_event.send(Ok(ResponseEvent::ServerModel(model))).await;
-            }
-            for snapshot in rate_limit_snapshots {
-                let _ = tx_event.send(Ok(ResponseEvent::RateLimits(snapshot))).await;
-            }
-            if let Some(etag) = models_etag {
-                let _ = tx_event.send(Ok(ResponseEvent::ModelsEtag(etag))).await;
-            }
-            if reasoning_included {
-                let _ = tx_event
-                    .send(Ok(ResponseEvent::ServerReasoningIncluded(true)))
-                    .await;
-            }
-            process_sse_with_treatment(
-                stream_response.bytes,
-                tx_event,
-                idle_timeout,
-                telemetry,
-                safety_buffering_treatment,
-                observation,
-            )
-            .await;
+    tokio::spawn(async move {
+        if let Some(model) = server_model {
+            let _ = tx_event.send(Ok(ResponseEvent::ServerModel(model))).await;
         }
-        .with_current_subscriber(),
-    );
+        for snapshot in rate_limit_snapshots {
+            let _ = tx_event.send(Ok(ResponseEvent::RateLimits(snapshot))).await;
+        }
+        if let Some(etag) = models_etag {
+            let _ = tx_event.send(Ok(ResponseEvent::ModelsEtag(etag))).await;
+        }
+        if reasoning_included {
+            let _ = tx_event
+                .send(Ok(ResponseEvent::ServerReasoningIncluded(true)))
+                .await;
+        }
+        process_sse_with_treatment(
+            stream_response.bytes,
+            tx_event,
+            idle_timeout,
+            telemetry,
+            safety_buffering_treatment,
+        )
+        .await;
+    });
 
     ResponseStream {
         routing_affinity: None,
@@ -206,10 +186,6 @@ where
 }
 
 impl ResponsesStreamEvent {
-    pub(crate) fn response(&self) -> Option<&Value> {
-        self.response.as_ref()
-    }
-
     pub fn kind(&self) -> &str {
         &self.kind
     }
@@ -516,9 +492,6 @@ pub fn process_responses_event(
                 }
             }
             if let Some(resp_val) = event.response {
-                if !interrupted {
-                    cache_observation::observe(&resp_val);
-                }
                 let metadata = resp_val
                     .get("usage")
                     .filter(|usage| !usage.is_null())
@@ -602,7 +575,6 @@ pub async fn process_sse(
         idle_timeout,
         telemetry,
         SafetyBufferingTreatment::default(),
-        None,
     )
     .await;
 }
@@ -613,7 +585,6 @@ async fn process_sse_with_treatment(
     idle_timeout: Duration,
     telemetry: Option<Arc<dyn SseTelemetry>>,
     safety_buffering_treatment: SafetyBufferingTreatment,
-    mut observation: Option<WireObservation>,
 ) {
     let mut stream = stream.eventsource();
     let mut response_error: Option<ApiError> = None;
@@ -672,16 +643,10 @@ async fn process_sse_with_treatment(
                 continue;
             }
         };
-        if let Some(observation) = observation.as_mut() {
-            observation.response(event.kind(), event.response.as_ref());
-        }
         let safety_buffering = event.safety_buffering(&safety_buffering_treatment);
         let metadata_events = event.metadata_events(safety_buffering);
-        let response_model = event.response_model();
-        // Observe terminal usage before consumer notifications can block or close.
-        let processed_event = process_responses_event(event);
 
-        if let Some(model) = response_model
+        if let Some(model) = event.response_model()
             && last_server_model.as_deref() != Some(model.as_str())
         {
             if tx_event
@@ -699,7 +664,7 @@ async fn process_sse_with_treatment(
             }
         }
 
-        match processed_event {
+        match process_responses_event(event) {
             Ok(Some(event)) => {
                 let is_completed = matches!(event, ResponseEvent::Completed { .. });
                 if tx_event.send(Ok(event)).await.is_err() {

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 // - In the default output mode, it is paramount that the only thing written to
 //   stdout is the final message (if any).
@@ -692,16 +693,10 @@ pub async fn run_main(cli: Cli, arg0_paths: Arg0DispatchPaths) -> anyhow::Result
 
     let otel_tracing_layer = otel.as_ref().and_then(|o| o.tracing_layer());
 
-    let (batch_layer, batch_guard) = codex_diagnostics::batch_log::start(&config.codex_home)?;
-    let batch_layer = batch_layer.map(|layer| {
-        let filter = layer.metadata_filter();
-        layer.with_filter(tracing_subscriber::filter::filter_fn(filter))
-    });
     let _ = tracing_subscriber::registry()
         .with(fmt_layer)
         .with(otel_tracing_layer)
         .with(otel_logger_layer)
-        .with(batch_layer)
         .try_init();
 
     let exec_span = exec_root_span();
@@ -790,7 +785,6 @@ pub async fn run_main(cli: Cli, arg0_paths: Arg0DispatchPaths) -> anyhow::Result
     .await?;
     // process::exit skips destructors. Finish the bounded local log drain first;
     // streaming-drive export remains asynchronous and is never awaited here.
-    drop(batch_guard);
     if exit_code != 0 {
         std::process::exit(exit_code);
     }

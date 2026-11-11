@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Top-level TUI application state and runtime wiring.
 //!
@@ -229,7 +230,6 @@ mod daemon_menu;
 mod daybreak;
 #[cfg(windows)]
 pub(crate) mod desktop_cron;
-mod diagnostics_control;
 mod empty_state_policy;
 mod event_dispatch;
 mod exit_summary;

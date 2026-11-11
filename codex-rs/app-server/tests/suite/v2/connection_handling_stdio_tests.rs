@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Stdio shutdown cleans up owned commands and bounds teardown when I/O stalls.
 
 use anyhow::Context;
@@ -72,7 +73,7 @@ async fn stdio_sigterm_times_out_with_blocked_stderr() -> Result<()> {
     let initialize = json!({
         "id": 1,
         "method": "initialize",
-        "params": { "clientInfo": { "name": "stdio-stderr-test", "version": "1" } }
+        "params": {"capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},}, "clientInfo": { "name": "stdio-stderr-test", "version": "1" } }
     });
     stdin
         .write_all(format!("{initialize}\n").as_bytes())

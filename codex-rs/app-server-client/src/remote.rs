@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 /*
 This module implements the remote app-server client transport.
@@ -119,6 +120,7 @@ impl RemoteAppServerConnectArgs {
             },
             capabilities: Some(capabilities),
         }
+        .with_arcvera_core_version(env!("CARGO_PKG_VERSION"))
     }
 }
 

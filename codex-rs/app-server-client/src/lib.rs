@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 // Release builds exceed rustc's default query depth when laying out the async
 // MessageProcessor::handle_initialized_client_request future.
@@ -277,6 +278,7 @@ impl InProcessClientStartArgs {
             },
             capabilities: Some(capabilities),
         }
+        .with_arcvera_core_version(env!("CARGO_PKG_VERSION"))
     }
 
     fn into_runtime_start_args(self) -> InProcessStartArgs {

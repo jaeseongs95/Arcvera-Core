@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use anyhow::Result;
 use app_test_support::MockResponsesConfig;
 use app_test_support::TestAppServer;
@@ -177,7 +178,7 @@ async fn thread_environments_are_returned_to_a_late_subscriber() -> Result<()> {
     let mut first = connect_websocket(address).await?;
     let initialize = json!({
         "clientInfo": { "name": "environment-test", "version": "1" },
-        "capabilities": { "experimentalApi": true }
+        "capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}}, "experimentalApi": true }
     });
     send_request(
         &mut first,
