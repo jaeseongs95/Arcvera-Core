@@ -24,7 +24,9 @@ def licensing_payload(source, commit, frozen):
     notices = {name: checked_child(source, name).read_bytes() for name in LICENSE_FILES}
     if hashlib.sha256(notices['LICENSE']).hexdigest() != AGPL_SHA256:
         raise ValueError('AGPL license text differs from the complete pinned official text')
-    archive = subprocess.check_output(['git', '-C', str(source), 'archive', '--format=zip', commit])
+    # Git archive applies checkout conversion; native Windows EOL must not alter blobs.
+    archive = subprocess.check_output(['git', '-C', str(source), '-c', 'core.autocrlf=false',
+                                       '-c', 'core.eol=lf', 'archive', '--format=zip', commit])
     # Detect export-ignore/export-subst, omitted inputs or an altered Git archive.
     entries = {}
     for row in subprocess.check_output(['git', '-C', str(source), 'ls-tree', '-r', '-z', commit]).split(b'\0'):

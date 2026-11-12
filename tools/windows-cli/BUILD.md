@@ -6,7 +6,9 @@ The package's `source/arcvera-core-source.zip` contains the complete committed p
 
 Use an isolated Windows x86-64 build directory. Install the MSVC x64 C/C++ build tools and Windows SDK, Rust `1.99.1-x86_64-pc-windows-msvc`, Python 3.11 or later, Git, CMake and the native tools required by the locked dependencies. The upstream `rust-toolchain.toml` remains a historical input; explicitly select the release compiler below. Preserve `Cargo.lock`. Do not copy authentication, user profiles or operational logs into the source/build directory. Consult `third_party/voice/sources.json` and the matching notices when acquiring separately built native helpers.
 
-From the extracted `codex-rs` directory, in a Developer PowerShell with the x64 MSVC environment, the following profile reproduces the release settings. The actual final release appendix is authoritative if it records a later verified override. Resource guards and caches are local build controls; never change machine-wide memory settings.
+The source ZIP preserves canonical Git blob bytes. For the Windows build, check out the exact commit recorded in `SOURCE.md` with Git settings `core.autocrlf=true` and `core.eol=native`; the tracked `.gitattributes` materializes the 40 embedded prompt inputs with their recorded Windows bytes. Check their SHA-256 values against `upstream/windows-prompt-inputs.json` before compilation. Plain ZIP extraction does not perform this checkout conversion. Preserve binary inputs unchanged.
+
+From the resulting `codex-rs` directory, in a Developer PowerShell with the x64 MSVC environment, the following profile reproduces the release settings. Set `STABLE_GIT_COMMIT` to the full source commit recorded in `SOURCE.md`. The actual final release appendix is authoritative if it records a later verified override. Resource guards and caches are local build controls; never change machine-wide memory settings.
 
 ```powershell
 $env:CARGO_BUILD_JOBS = '1'
@@ -35,6 +37,8 @@ These commands describe compilation; they do not claim bit-for-bit reproducibili
 
 격리된 Windows x86-64 빌드 폴더에서 MSVC x64 C/C++ 빌드 도구·Windows SDK, Rust `1.99.1-x86_64-pc-windows-msvc`, Python 3.11 이상, Git, CMake와 잠금 의존성이 요구하는 네이티브 도구를 준비합니다. 공식 기반 `rust-toolchain.toml`은 과거 입력으로 보존하고 위 명령에서 릴리스 컴파일러를 명시적으로 선택합니다. `Cargo.lock`을 유지하며 인증·사용자 프로필·운영 로그를 복사하지 않습니다. 별도 네이티브 도우미는 `third_party/voice/sources.json`과 고지를 확인합니다.
 
-압축을 푼 `codex-rs` 폴더에서 x64 MSVC 환경이 설정된 Developer PowerShell로 위 명령을 실행합니다. 최종 부록에 후속 검증된 override가 있으면 그 설정을 따릅니다. 자원 가드와 캐시는 해당 빌드에만 적용하고 시스템 전역 메모리 설정을 바꾸지 않습니다. 위 명령은 컴파일 절차이며 모든 환경의 성공이나 바이트 단위 재현을 보장하지 않습니다.
+소스 ZIP에는 정규화된 Git blob 바이트가 들어 있습니다. Windows 빌드에서는 `core.autocrlf=true`와 `core.eol=native`로 설정한 Git으로 `SOURCE.md`의 정확한 커밋을 체크아웃합니다. 추적된 `.gitattributes`가 내장 프롬프트 입력 40개를 기록된 Windows 바이트로 구성합니다. 컴파일 전에 `upstream/windows-prompt-inputs.json`의 SHA-256과 대조하며 바이너리 입력을 변환하지 않습니다. ZIP을 단순히 푸는 동작은 이 체크아웃 변환을 수행하지 않습니다.
+
+이렇게 구성한 `codex-rs` 폴더에서 x64 MSVC 환경이 설정된 Developer PowerShell로 위 명령을 실행합니다. `STABLE_GIT_COMMIT`에는 `SOURCE.md`의 전체 소스 커밋을 설정합니다. 최종 부록에 후속 검증된 override가 있으면 그 설정을 따릅니다. 자원 가드와 캐시는 해당 빌드에만 적용하고 시스템 전역 메모리 설정을 바꾸지 않습니다. 위 명령은 컴파일 절차이며 모든 환경의 성공이나 바이트 단위 재현을 보장하지 않습니다.
 
 실제 실행 파일 세 개의 `--version`·전체 소스 동결·해시를 확인한 뒤 [README.md](README.md)에 따라 공식 `0.167.0` 도우미와 새 패키지를 만듭니다. 패키징은 설치나 실행 중 서버 교체를 수행하지 않습니다. 원 사용자 데이터와 이전 전체 패키지를 보존하며 운영 교체는 별도 승인을 따릅니다.

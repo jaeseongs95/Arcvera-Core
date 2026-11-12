@@ -62,6 +62,17 @@ class LicensingTests(unittest.TestCase):
             self.build()
         self.assertFalse(self.output.exists())
 
+    def test_source_archive_uses_git_blobs_with_windows_native_text(self):
+        (self.source/'.gitattributes').write_bytes(b'asset.md -text\ntext-input.md text\n')
+        (self.source/'text-input.md').write_bytes(b'canonical Git text\n')
+        subprocess.run(['git', '-C', str(self.source), 'config', 'core.autocrlf', 'true'],
+                       check=True, capture_output=True)
+        self.commit_and_freeze()
+        self.build()
+        with zipfile.ZipFile(self.output/'source/arcvera-core-source.zip') as zipped:
+            self.assertEqual(zipped.read('text-input.md'), b'canonical Git text\n')
+            self.assertEqual(zipped.read('asset.md'), b'frozen prompt\r\n')
+
     def test_corrupted_agpl_is_rejected_before_output(self):
         (self.source/'LICENSE').write_bytes(b'corrupt AGPL')
         self.commit_and_freeze()

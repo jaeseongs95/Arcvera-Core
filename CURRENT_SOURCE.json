@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "6d2331eb3070f2253fb41d5d5a5f64f4a4478801db196b707d5ab99843ba9c2a",
+  "sourceTreeSha256": "1f149d057ef976bb98e9692eb78bf15c436ac2aec5256dede6a5498092f956f4",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "b3a13a0cf87b485926f7919bad7324c9c277a5b7c3a92befa0ab9bf3376e5c63"
+    "sha256": "717f5da80f1242bf125b79cd0b6e69f0eff3eb2d7d3b0015585ce487a59adf74"
   },
   "files": [
     {
@@ -66997,9 +66997,9 @@
     {
       "path": "tools/windows-cli/BUILD.md",
       "gitMode": "100644",
-      "bytes": 5239,
-      "sha256": "a592f5358fea5d5dd2254d7b4dc5e6ff46489a4e2121406a5dfb9368ddacef87",
-      "gitBlob": "0a5b4f382fd530a753e7d6c4f91b488ddd7e82a2"
+      "bytes": 6443,
+      "sha256": "fc47c3836386f101d03e2a1f63faef02d2290ffba6d8280ae629ca12ef54d4af",
+      "gitBlob": "f01569f90683d2f07e9a040a42b0a81c72020f1b"
     },
     {
       "path": "tools/windows-cli/README.md",
@@ -67025,9 +67025,9 @@
     {
       "path": "tools/windows-cli/package_cli.py",
       "gitMode": "100644",
-      "bytes": 13811,
-      "sha256": "54f5b55cd38df4e6d7739cbfbd10c5b820c250a89f58a80d3a09456cba04bba3",
-      "gitBlob": "b3886a92d3928691cc605f063283f3f5a8838e0c"
+      "bytes": 13988,
+      "sha256": "8d5e3ccc350324aedbef1117c8fe39b07a923fed0d61655c8880513b0d6eea8b",
+      "gitBlob": "3619c79618aed77a6eefe759a0bc0e0c8e8ddf29"
     },
     {
       "path": "tools/windows-cli/test_package_cli.py",
@@ -67039,9 +67039,9 @@
     {
       "path": "tools/windows-cli/test_package_licensing.py",
       "gitMode": "100644",
-      "bytes": 4333,
-      "sha256": "1585d92ef1535cdeb7711b852a48b08bfd49fd5f0f3584e7fb5cdfb2a999fdee",
-      "gitBlob": "46d353e9dbd8071129851f3d4bfa6b828488f0bc"
+      "bytes": 5023,
+      "sha256": "8d08247277bf11965f400424ccc56d640b7197452f3eba6c6ee963a003a6d9f5",
+      "gitBlob": "1d2baa647a1f68bf722e1378e670817e44e735ee"
     },
     {
       "path": "tools/windows-cli/test_update.ps1",
