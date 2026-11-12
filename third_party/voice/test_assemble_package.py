@@ -19,6 +19,35 @@ from runtime import PLUGINS, digest, required_library_paths
 
 
 class AssembleTests(unittest.TestCase):
+    def test_rejects_microsoft_files_in_original_package(self):
+        target = "x86_64-pc-windows-msvc"
+        self.metadata.update(target=target, entrypoint="bin/codex.exe")
+        (self.package / "bin/codex.exe").write_bytes(b"unchanged app")
+        runtime, manifest = self.make_runtime(target, "bin/gst{}.dll")
+        for public in (False, True):
+            self.metadata["version"] = "1.0.0" if public else f"0.0.0+{self.commit}"
+            (self.package / "codex-package.json").write_text(json.dumps(self.metadata))
+            manifest.update(developmentOnly=not public, sourceCommit=self.commit)
+            if public:
+                manifest["distribution"] = "publicRelease"
+            (runtime / "runtime.json").write_text(json.dumps(manifest))
+            for index, name in enumerate(("bin/vcruntime140.dll", "bin/VCRUNTIME140.DLL", "tools/VC_REDIST.X64.EXE")):
+                with self.subTest(public=public, name=name):
+                    forbidden = self.package / name
+                    forbidden.parent.mkdir(exist_ok=True)
+                    forbidden.write_bytes(b"Microsoft payload fixture")
+                    output = self.root / f"policy-{public}-{index}"
+                    try:
+                        with patch("assemble_package.shutil.copytree", wraps=shutil.copytree) as copier:
+                            with self.assertRaisesRegex(ValueError, "installed separately"):
+                                assemble(self.package, self.helper, target, self.commit, output,
+                                         runtime=runtime, release_version="1.0.0" if public else None)
+                            copier.assert_not_called()
+                        self.assertFalse(output.exists())
+                        self.assertEqual(forbidden.read_bytes(), b"Microsoft payload fixture")
+                    finally:
+                        forbidden.unlink()
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="voice package ")
         self.addCleanup(temporary.cleanup)

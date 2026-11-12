@@ -741,3 +741,13 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미�
 Core 1.0.0 and every subsequent version use AGPL-3.0-or-later. The original Apache license and NOTICE remain preserved; see [LICENSING.md](LICENSING.md) for third-party rights and corresponding-source obligations.
 
 Core 1.0.0과 이후 모든 버전은 AGPL-3.0-or-later를 적용합니다. 원 Apache 라이선스·NOTICE를 보존하며, 제삼자 권리와 대응소스 제공 의무는 [LICENSING.md](LICENSING.md)에 기록합니다.
+# Packaging policy modification / 패키징 정책 수정 — 2026-11-13
+
+Arcvera excludes Microsoft CRT DLLs/installers, rejects their reinsertion at
+Windows packaging boundaries, and documents direct installation in English and
+Korean. Existing frozen executables and native source identity remain unchanged;
+the packaging revision and corresponding source are recorded separately.
+
+Microsoft CRT DLL·설치기를 제외하고 Windows 패키징 단계의 재포함을 거부합니다.
+영문·한글 공식 설치 안내를 제공하며 기존 실행 파일과 네이티브 소스 출처는
+변경하지 않습니다. 패키징 변경의 커밋과 대응소스는 별도로 기록합니다.

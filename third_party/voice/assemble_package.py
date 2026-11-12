@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core (2026-11-13); see MODIFICATIONS.md.
 """Add a helper and its prepared runtime to a fresh private Codex package."""
 
 import argparse
@@ -12,6 +13,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from package_runtime import runtime_files
 from runtime import digest
+from distribution_policy import require_distributable
 
 
 def assemble(
@@ -77,6 +79,8 @@ def assemble(
     for path in package.rglob("*"):
         if path.is_symlink() or not (path.is_file() or path.is_dir()):
             raise ValueError("package inputs must be regular files or directories")
+        if path.is_file():
+            require_distributable(path.relative_to(package).as_posix())
     if not helper.is_file() or not (package / entrypoint).is_file():
         raise ValueError("helper and app entrypoint must be regular files")
     if not suffix and not helper.stat().st_mode & 0o111:
@@ -114,7 +118,6 @@ def assemble(
             for relative in (
                 "NOTICE.md",
                 "sources.json",
-                *(("windows-crt.json",) if suffix else ()),
                 "licenses/LGPL-2.1.txt",
                 "licenses/Opus.txt",
                 "licenses/PCRE2.md",
@@ -142,6 +145,9 @@ def assemble(
             "appVersion": metadata["version"],
             "sha256": digests,
         }
+        for path in output.rglob("*"):
+            if path.is_file():
+                require_distributable(path.relative_to(output).as_posix())
         (destination.parent.parent / "manifest.json").write_text(
             json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
         )
