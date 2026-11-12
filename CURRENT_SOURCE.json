@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "1f149d057ef976bb98e9692eb78bf15c436ac2aec5256dede6a5498092f956f4",
+  "sourceTreeSha256": "793edd554d94a17ff47a41db3417fd56206b9db4209b8a6e419df3bbd062cece",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "717f5da80f1242bf125b79cd0b6e69f0eff3eb2d7d3b0015585ce487a59adf74"
+    "sha256": "46acf02960f15c555a95ed61223683ea9b3788f3e71a702b6d1f736985ce519b"
   },
   "files": [
     {
@@ -84,16 +84,16 @@
     {
       "path": "README.ko.md",
       "gitMode": "100644",
-      "bytes": 12481,
-      "sha256": "ab4be64f5748b265f2a6512f4ac5573014663e5b0b5e2161ddb21bc8bfa610b6",
-      "gitBlob": "4da02ee2ea3e37f7412e7a9266dbcdba71b41586"
+      "bytes": 12771,
+      "sha256": "4ecdbcddbbc59b57e324f35b822d4f3fa2935b9912cbfae0e73c78aac4e5ea4e",
+      "gitBlob": "b7c4ddf2189a5ea123de2c8a76fac308d13e1a3a"
     },
     {
       "path": "README.md",
       "gitMode": "100644",
-      "bytes": 10918,
-      "sha256": "b76d908d72d6e5859c871fd065a23ecc37c2c4f9fcadfcaaebddb217e71171bf",
-      "gitBlob": "d735def1d79146677c187a7a42092ea9c9acc22b"
+      "bytes": 11179,
+      "sha256": "ad3333e7353c4cb639e10769120b2569e8f24fd85e1e5ce4ba887acd0565b9ad",
+      "gitBlob": "8cca74ae38ec550a55801b6a9ce16de31232b059"
     },
     {
       "path": "SOURCE_BASELINE.json",
@@ -66015,6 +66015,13 @@
       "gitBlob": "20d1c7e77eab2ec44ef9205482c33ef1ad8c9d8a"
     },
     {
+      "path": "docs/releases/1.0.0-licensing.md",
+      "gitMode": "100644",
+      "bytes": 8639,
+      "sha256": "ef55f7fb4e4f403e4352cd64c2a364460813680b9a192a20d1f8c9aa7c0336f7",
+      "gitBlob": "9f6e9abdcf5f69edcfd5e6e0e85bc285f743f505"
+    },
+    {
       "path": "docs/releases/FORMAT.md",
       "gitMode": "100644",
       "bytes": 9942,
@@ -66038,9 +66045,9 @@
     {
       "path": "docs/releases/R41.md",
       "gitMode": "100644",
-      "bytes": 40894,
-      "sha256": "d8b18a14d995541ae8de97b63dc6f897f7eec56c6484318b85d21b3a1c494ce1",
-      "gitBlob": "a8755c88a636b5803b4ff18806eefc2351908647"
+      "bytes": 54488,
+      "sha256": "4b99d1dea74aa20e02942b2afd548252e4f5390606b221243c5ee5b6196ff2f8",
+      "gitBlob": "1f0e776bea6e8f6fd1287ca3c801d7f9717ca429"
     },
     {
       "path": "docs/releases/private-patch-history-2026-10-27.en.md",
@@ -68021,6 +68028,11 @@
     },
     {
       "path": "docs/context-index.md",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "docs/releases/1.0.0-licensing.md",
       "status": "added",
       "notice": "external-in-CURRENT_SOURCE.json"
     },

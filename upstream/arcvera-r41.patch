@@ -1152,7 +1152,7 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..73818895b85c260900649aef2e09b7b0
 +
 +Core 1.0.0과 이후 모든 버전은 AGPL-3.0-or-later를 적용합니다. 원 Apache 라이선스·NOTICE를 보존하며, 제삼자 권리와 대응소스 제공 의무는 [LICENSING.md](LICENSING.md)에 기록합니다.
 diff --git a/README.ko.md b/README.ko.md
-index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..4da02ee2ea3e37f7412e7a9266dbcdba71b41586 100644
+index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..b7c4ddf2189a5ea123de2c8a76fac308d13e1a3a 100644
 --- a/README.ko.md
 +++ b/README.ko.md
 @@ -1,10 +1,12 @@
@@ -1197,7 +1197,7 @@ index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..4da02ee2ea3e37f7412e7a9266dbcdba
  
  ## 현재 릴리스
  
-+Arcvera-Core 1.0.0(R41 범위)의 [영한 릴리스 노트·SemVer 정책](docs/releases/R41.md), [인덱스 컨텍스트 설계·복구 안내](docs/context-index.ko.md)를 확인하십시오. 선택한 작업과 의존관계를 따라 도달하는 작업을 모델 API 문맥의 기준으로 삼고 사용자·제어·미분류 입력을 보존합니다. 캐시는 응답 단위 수치로 관측하며, 제공되지 않은 TTL·만료 시각은 알 수 없는 상태로 유지합니다. 클라이언트는 초기화할 때 서버의 정확한 Core 전체 버전을 선언해야 하며 이전 클라이언트는 지원하지 않습니다. 사용하지 않는 워크스페이스 패키지 7개를 제거했습니다. OpenDIY가 추가한 배치 로그·캐시 응답/wire 진단 기록·Drive 내보내기와 해당 세션 제어를 제거했습니다. 공식 Codex 로그·텔레메트리·대화 저장은 유지합니다. 이전 로그 설정은 읽지 않으며, 기존 설정·로그 파일은 자동 삭제하거나 이전하지 않습니다. 기존 R41의 광범위한 아키텍처 작업은 [R42](docs/roadmap/R42.md)로 이관합니다. 릴리스 버전은 공식 기반 Codex 0.167.0과 독립적이며 R41·R42는 범위 추적명입니다. 시험 모듈 이동 전 소스의 컨텍스트 회귀시험은 로컬 20개 묶음, 중복 제외 89개 시험이 통과했으며 문맥 구성 표본 180개를 확보했습니다. 시험 모듈 이동 전 소스의 버전 계약 시험 3건, 공식 diagnostics 시험 2건, API 시험 194건, SQLite 필터 시험 1건, TUI 세션 제어 시험 15건이 통과했습니다. 최종 실행본·Desktop 통합·감사·발행 결과는 공개 릴리스의 검증 부록에 기록하며 소스 시험 결과만으로 대신하지 않습니다. 실제 앱·모델·네트워크 성능은 미측정입니다. 빌드와 시험은 로컬에서 수행하며 GitHub/Actions 빌드는 제외합니다.
++Arcvera-Core 1.0.0(R41 범위)의 [영한 릴리스 노트·SemVer 정책](docs/releases/R41.md), [인덱스 컨텍스트 설계·복구 안내](docs/context-index.ko.md)를 확인하십시오. 선택한 작업과 의존관계를 따라 도달하는 작업을 모델 API 문맥의 기준으로 삼고 사용자·제어·미분류 입력을 보존합니다. 캐시는 응답 단위 수치로 관측하며, 제공되지 않은 TTL·만료 시각은 알 수 없는 상태로 유지합니다. 클라이언트는 초기화할 때 서버의 정확한 Core 전체 버전을 선언해야 하며 이전 클라이언트는 지원하지 않습니다. 사용하지 않는 워크스페이스 패키지 7개를 제거했습니다. OpenDIY가 추가한 배치 로그·캐시 응답/wire 진단 기록·Drive 내보내기와 해당 세션 제어를 제거했습니다. 공식 Codex 로그·텔레메트리·대화 저장은 유지합니다. 이전 로그 설정은 읽지 않으며, 기존 설정·로그 파일은 자동 삭제하거나 이전하지 않습니다. 기존 R41의 광범위한 아키텍처 작업은 [R42](docs/roadmap/R42.md)로 이관합니다. 릴리스 버전은 공식 기반 Codex 0.167.0과 독립적이며 R41·R42는 범위 추적명입니다. 시험 모듈 이동 전 소스의 컨텍스트 회귀시험은 로컬 20개 묶음, 중복 제외 89개 시험이 통과했으며 문맥 구성 표본 180개를 확보했습니다. 시험 모듈 이동 전 소스의 버전 계약 시험 3건, 공식 diagnostics 시험 2건, API 시험 194건, SQLite 필터 시험 1건, TUI 세션 제어 시험 15건이 통과했습니다. 최종 로컬 빌드와 553개 파일의 전체 패키지는 [날짜별 검증 기록](docs/releases/R41.md#final-verification-record--2026-11-13-kst)에서 식별합니다. 실행 파일 세 개의 버전·도움말, 기존 설정 시작 6사례, 실제 stdio·버전 재시도와 명시한 격리 Desktop 수명 제어 결과를 기록했습니다. 감사·발행 결과는 별도로 기록하며 소스 시험 결과만으로 대신하지 않습니다. 실제 앱·모델·네트워크 성능은 미측정입니다. 빌드와 시험은 로컬에서 수행하며 GitHub/Actions 빌드는 제외합니다.
 +
 +위 회귀시험과 측정은 `#[cfg(test)]` 모듈 두 개를 별도 파일로 옮기기 전에 실행했습니다. 전체 빌드 입력을 대조해 두 모듈의 배치와 필수 파일 고지만 변경됐고, 원래 시험 본문과 제품 코드의 바이트가 정확히 복원됨을 확인했습니다. 새 배치의 버전 계약 세 사례는 각각 RED/GREEN으로 결함 탐지 능력을 확인했고 daemon 모듈 네 시험도 통과했습니다. AppServer 시험 쌍은 기존 initialize 모듈을 변경 없이 포함한 r41_initialize 대상을 사용했으며, 원래 all 대상의 GREEN은 실행하지 않았습니다. Protocol과 daemon 결과는 실제 실행 당시의 소스 식별 정보를 유지하며, 추가된 대상과의 관계는 전체 입력의 정확한 비교로 확인했습니다. 최종 실행본·Desktop·발행의 별도 검증 근거는 릴리스 검증 부록에 기록합니다. 과거 시험을 새 파일 배치에서 실행한 결과로 표시하지 않습니다.
 +
@@ -1238,7 +1238,7 @@ index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..4da02ee2ea3e37f7412e7a9266dbcdba
 -[Apache-2.0](LICENSE) · [NOTICE](NOTICE)
 +[AGPL-3.0-or-later](LICENSE) · [Licensing / 라이선스](LICENSING.md) · [Original Apache-2.0](LICENSE-APACHE-2.0) · [NOTICE](NOTICE)
 diff --git a/README.md b/README.md
-index 4fbf1c87d2f614904d8f43660f15495977558d7d..d735def1d79146677c187a7a42092ea9c9acc22b 100644
+index 4fbf1c87d2f614904d8f43660f15495977558d7d..8cca74ae38ec550a55801b6a9ce16de31232b059 100644
 --- a/README.md
 +++ b/README.md
 @@ -1,10 +1,12 @@
@@ -1283,7 +1283,7 @@ index 4fbf1c87d2f614904d8f43660f15495977558d7d..d735def1d79146677c187a7a42092ea9
  
  ## Current releases
  
-+Arcvera-Core 1.0.0 (R41 scope): [release notes and SemVer policy (EN/KO)](docs/releases/R41.md), [indexed-context design and recovery](docs/context-index.md). A selected task and its dependency closure define eligible model API context, alongside preserved user/control and unclassified inputs. Cache observations report response-level counters; unprovided TTL/expiry remains unknown. Clients must declare the server's exact full Core version during initialization; earlier clients are unsupported. Seven unused workspace packages have been removed. OpenDIY-specific batch logging, cache response/wire diagnostic recording, Drive export and their session controls have been removed. Official Codex logging, telemetry and conversation storage remain. Legacy logging settings are ignored; existing settings and log files are not deleted or migrated automatically. The broader architecture work previously assigned to R41 moves to [R42](docs/roadmap/R42.md). Release versions are independent of upstream Codex 0.167.0; R41/R42 track scope. Pre-relocation source context regression passed 20 local suites (89 distinct tests) with 180 projection samples. Pre-relocation source version-contract tests (3), official diagnostics tests (2), API tests (194), SQLite filter test (1) and TUI session-control tests (15) passed. Final executable, Desktop integration, audit and publication results are recorded in the published release verification appendix; source-test results alone do not establish those results. Actual app/model/network performance is unmeasured. Builds and tests run locally; GitHub/Actions builds are excluded.
++Arcvera-Core 1.0.0 (R41 scope): [release notes and SemVer policy (EN/KO)](docs/releases/R41.md), [indexed-context design and recovery](docs/context-index.md). A selected task and its dependency closure define eligible model API context, alongside preserved user/control and unclassified inputs. Cache observations report response-level counters; unprovided TTL/expiry remains unknown. Clients must declare the server's exact full Core version during initialization; earlier clients are unsupported. Seven unused workspace packages have been removed. OpenDIY-specific batch logging, cache response/wire diagnostic recording, Drive export and their session controls have been removed. Official Codex logging, telemetry and conversation storage remain. Legacy logging settings are ignored; existing settings and log files are not deleted or migrated automatically. The broader architecture work previously assigned to R41 moves to [R42](docs/roadmap/R42.md). Release versions are independent of upstream Codex 0.167.0; R41/R42 track scope. Pre-relocation source context regression passed 20 local suites (89 distinct tests) with 180 projection samples. Pre-relocation source version-contract tests (3), official diagnostics tests (2), API tests (194), SQLite filter test (1) and TUI session-control tests (15) passed. The final local build and complete 553-file package are identified in the [dated verification record](docs/releases/R41.md#final-verification-record--2026-11-13-kst). Three executable version/help checks, six legacy-setting startup cases, actual stdio/version retries and the stated isolated Desktop lifecycle controls are recorded there. Audit/publication outcomes are recorded separately; source-test results alone do not establish those results. Actual app/model/network performance is unmeasured. Builds and tests run locally; GitHub/Actions builds are excluded.
 +
 +The regression runs and measurements above predate moving two `#[cfg(test)]` modules into sibling files. A complete build-input comparison verified that only the two module placements and their required file notices changed; the original test bodies and production bytes reconstruct exactly. Fresh version-contract RED/GREEN demonstrated all three cases, and all four moved daemon tests passed. The AppServer pair uses the r41_initialize target, which includes the unchanged original initialize module; the original all-target GREEN was not run. Protocol and daemon results retain their original source identities, reconciled with the added target by exact input comparison. Final binaries, Desktop checks and publication have separate evidence recorded in the release verification appendix. Historical runs are not reported as executions of the new file layout.
 +
@@ -21736,6 +21736,92 @@ index 0000000000000000000000000000000000000000..817b7cf5417d023162e0613cf8a73fb7
 +The release must connect each claim to tests of the actual sampling/compaction/native-tool and persistence paths. Required boundaries include focused-task filtering of serialized HTTP/WebSocket payloads, completed-but-referenced sources, unrelated active tasks and labels, transitive/cyclic dependencies, latest user corrections and permission evidence, incomplete call/result groups, successful native-apply metadata replay, stale revisions and atomic failed batches, bounded audit/read output, unavailable originals, UTF-8 reads, durable append uncertainty and cancelled waiters, stale foreground/background compaction adoption, policy-change WebSocket reset with unchanged input, stable-policy continuation, and resume/fork recovery. Cache checks must distinguish absent/malformed/zero/positive counters, late revision-bound observations, unknown TTL/expiry, and lack of per-source attribution. Performance comparisons must identify the same workload, binaries, active/total source counts, elapsed time, and memory observations. Missing measurements are unverified.
 +
 +[R41 release status](releases/R41.md) · [R42 deferred scope](roadmap/R42.md) · [Validation](TESTING.md)
+diff --git a/docs/releases/1.0.0-licensing.md b/docs/releases/1.0.0-licensing.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..9f6e9abdcf5f69edcfd5e6e0e85bc285f743f505
+--- /dev/null
++++ b/docs/releases/1.0.0-licensing.md
+@@ -0,0 +1,80 @@
++# Arcvera-Core 1.0.0 component license record / 구성요소 라이선스 기록
++
++## English
++
++The project release uses AGPL-3.0-or-later. Independently licensed source retains its original notices and rights. This record selects the alternatives below from the exact 1,296-package Cargo.lock source superset delivered with build source `5c789f501b5cc82187976a1e916d239e0710415a`. All 54 distinct declarations are covered. An `AND` obligation is retained; legacy Cargo slash declarations are treated as alternatives and identified by their original spelling. Package declarations do not override additional file-level licenses. Original source archives, 2,551 copied original notice texts and supplemental notices remain in the complete package. This table is not an exact inventory of code linked into the executable.
++
++The ten MPL-only packages retain their original MPL-2.0 source and notices. For their combination with this AGPL Larger Work, the covered source is additionally distributed under AGPL-3.0-or-later pursuant to MPL section 3.3. The delivered complete-source inspection found no actual Exhibit B incompatible-source declaration; the standard license's example Exhibit B is not such a declaration. See `source/dependencies/manifests/mpl-source-review.json`. This treatment follows the [MPL text](https://www.mozilla.org/en-US/MPL/2.0/) and [Mozilla's combination guidance](https://www.mozilla.org/en-US/MPL/2.0/FAQ/#q14-may-i-combine-mpl-licensed-code-and-lgpl-licensed-code-in-the-same-executable-program).
++
++GLib/GStreamer remain separate LGPL shared libraries. Their exact source, notices and build scripts are supplied; recipients retain library modification, interface-compatible replacement and reverse engineering to debug modifications. Unchanged OpenAI helpers retain Apache/other upstream terms; matching complete upstream source is included. The byte-matched ripgrep 15.2.0 source, locked dependency superset and PCRE2 10.45 source retain their own original licenses. Microsoft vcruntime140.dll retains its separate redistributable terms and signed retail identity. No project license claim is made over it. Windows system/toolchain components are not relicensed by this project.
++
++The 23 original missing-notice questions and their source-specific dispositions are preserved in `source/dependencies/manifests/notice-dispositions.json`. Explicit uncertainties remain: the Android AAR producer revision and fxhash extraction revision were not established; absent standalone wrapper copyright notices were not invented. Cargo publisher grants and full original source are distinguished from separately recovered historical/reference notices. Native/bit-identical rebuilding and complete restore extraction were not run. The complete source README explains restoration and actual build controls. Network operators must additionally provide the source offer required by AGPL section 13 in their actual user interface.
++
++## 한국어
++
++프로젝트 릴리스에는 AGPL-3.0-or-later를 적용하며 별도 라이선스 소스의 원 고지와 권리를 유지합니다. 아래 표는 빌드 소스 `5c789f501b5cc82187976a1e916d239e0710415a`와 함께 제공하는 정확한 Cargo.lock 소스 1,296개 패키지의 대안 선택 기록입니다. 서로 다른 선언 54종 전체를 포함합니다. `AND` 의무를 유지하며 과거 Cargo의 슬래시 선언은 대안으로 해석하되 원 표기를 보존합니다. 패키지 선언이 파일별 추가 라이선스를 덮어쓰지 않습니다. 전체 패키지는 원 소스, 복사한 원 고지 2,551개와 보충 고지를 유지합니다. 이 표는 실행 파일에 연결된 코드의 정확한 목록을 뜻하지 않습니다.
++
++MPL 단독 패키지 10개의 원 소스·고지는 MPL-2.0을 유지합니다. 이 AGPL Larger Work와 결합해 배포하는 해당 소스는 MPL 제3.3조에 따라 AGPL-3.0-or-later로도 추가 배포합니다. 제공한 전체 소스 검사에서는 실제 Exhibit B 비호환 선언을 찾지 못했습니다. 표준 라이선스 본문에 포함된 Exhibit B 예시 자체를 비호환 선언으로 판정하지 않습니다. `source/dependencies/manifests/mpl-source-review.json`, 위 Mozilla 공식 약관과 결합 안내를 참조하십시오.
++
++GLib/GStreamer는 별도의 LGPL 공유 라이브러리를 유지합니다. 정확한 소스·고지·빌드 스크립트를 제공하며 수정·인터페이스 호환 라이브러리 교체·수정 디버깅을 위한 역공학 권리를 보존합니다. 변경하지 않은 OpenAI 도우미는 원 Apache 등 upstream 권리를 유지하며 대응하는 전체 원 소스를 제공합니다. 바이트를 대조한 ripgrep 15.2.0의 소스·잠금 의존성 소스·PCRE2 10.45 소스도 각각 원 라이선스를 유지합니다. Microsoft vcruntime140.dll은 별도의 재배포 약관과 원본 retail 서명 식별 정보를 유지하며 프로젝트 AGPL이 그 권리를 부여한다고 주장하지 않습니다. Windows 시스템·도구 체인 구성요소도 프로젝트 라이선스로 변경하지 않습니다.
++
++원래 고지가 부족했던 23항목과 소스별 판단은 `source/dependencies/manifests/notice-dispositions.json`에 보존합니다. Android AAR 제조원 revision과 fxhash 추출 revision은 확정하지 못했으며 없는 wrapper 저작권 고지를 만들지 않았습니다. Cargo 게시자의 명시적 라이선스 부여·전체 원 소스와 별도 확보한 역사적·참조 고지를 구분합니다. 네이티브·바이트 동일 재빌드와 전체 복원 실행은 미실행입니다. 전체 소스 README에 복원과 실제 빌드 설정을 설명합니다. 네트워크 운영자는 실제 사용자 인터페이스에서 AGPL 제13조의 소스 제공 의무도 이행해야 합니다.
++
++## License elections / 라이선스 선택
++
++| Published expression / 원 선언 | Packages / 패키지 | Selected terms / 선택 약관 |
++| --- | ---: | --- |
++| `(Apache-2.0 OR MIT) AND BSD-3-Clause` | 1 | `BSD-3-Clause AND MIT` |
++| `(MIT OR Apache-2.0) AND Apache-2.0` | 1 | `Apache-2.0 AND MIT` |
++| `(MIT OR Apache-2.0) AND Unicode-3.0` | 1 | `MIT AND Unicode-3.0` |
++| `(MIT OR Apache-2.0) AND Unicode-DFS-2016` | 1 | `MIT AND Unicode-DFS-2016` |
++| `0BSD OR Apache-2.0` | 1 | `Apache-2.0` |
++| `0BSD OR MIT OR Apache-2.0` | 1 | `MIT` |
++| `Apache-2.0` | 61 | `Apache-2.0` |
++| `Apache-2.0 / MIT` | 1 | `MIT` |
++| `Apache-2.0 AND ISC` | 1 | `Apache-2.0 AND ISC` |
++| `Apache-2.0 OR BSD-3-Clause` | 1 | `Apache-2.0` |
++| `Apache-2.0 OR BSL-1.0` | 1 | `Apache-2.0` |
++| `Apache-2.0 OR BSL-1.0 OR MIT` | 3 | `MIT` |
++| `Apache-2.0 OR GPL-2.0-only` | 1 | `Apache-2.0` |
++| `Apache-2.0 OR ISC OR MIT` | 3 | `MIT` |
++| `Apache-2.0 OR MIT` | 94 | `MIT` |
++| `Apache-2.0 WITH LLVM-exception` | 1 | `Apache-2.0 WITH LLVM-exception` |
++| `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` | 16 | `MIT` |
++| `Apache-2.0/MIT` | 15 | `MIT` |
++| `BSD-2-Clause` | 2 | `BSD-2-Clause` |
++| `BSD-2-Clause OR Apache-2.0` | 1 | `Apache-2.0` |
++| `BSD-2-Clause OR Apache-2.0 OR MIT` | 2 | `MIT` |
++| `BSD-2-Clause OR MIT OR Apache-2.0` | 1 | `MIT` |
++| `BSD-3-Clause` | 15 | `BSD-3-Clause` |
++| `BSD-3-Clause OR Apache-2.0` | 2 | `Apache-2.0` |
++| `BSD-3-Clause OR MIT OR Apache-2.0` | 2 | `MIT` |
++| `BSL-1.0` | 2 | `BSL-1.0` |
++| `CC0-1.0` | 1 | `CC0-1.0` |
++| `CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception` | 1 | `Apache-2.0` |
++| `CC0-1.0 OR MIT-0 OR Apache-2.0` | 3 | `Apache-2.0` |
++| `CDLA-Permissive-2.0` | 2 | `CDLA-Permissive-2.0` |
++| `ISC` | 8 | `ISC` |
++| `ISC AND (Apache-2.0 OR ISC)` | 1 | `Apache-2.0 AND ISC` |
++| `ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0)` | 1 | `Apache-2.0 AND BSD-3-Clause AND ISC AND MIT` |
++| `MIT` | 304 | `MIT` |
++| `MIT AND BSD-3-Clause` | 2 | `BSD-3-Clause AND MIT` |
++| `MIT AND Unicode-DFS-2016` | 1 | `MIT AND Unicode-DFS-2016` |
++| `MIT OR Apache-2.0` | 557 | `MIT` |
++| `MIT OR Apache-2.0 OR BSD-1-Clause` | 1 | `MIT` |
++| `MIT OR Apache-2.0 OR CC0-1.0` | 1 | `MIT` |
++| `MIT OR Apache-2.0 OR LGPL-2.1-or-later` | 2 | `MIT` |
++| `MIT OR Apache-2.0 OR Zlib` | 6 | `MIT` |
++| `MIT OR MPL-2.0` | 1 | `MIT` |
++| `MIT OR Zlib OR Apache-2.0` | 1 | `MIT` |
++| `MIT/Apache-2.0` | 82 | `MIT` |
++| `MIT/BSD-3-Clause` | 1 | `MIT` |
++| `MPL-2.0` | 10 | `MPL-2.0` |
++| `Unicode-3.0` | 30 | `Unicode-3.0` |
++| `Unlicense OR MIT` | 14 | `MIT` |
++| `Unlicense/MIT` | 4 | `MIT` |
++| `WTFPL` | 1 | `WTFPL` |
++| `Zlib` | 6 | `Zlib` |
++| `Zlib OR Apache-2.0 OR MIT` | 22 | `MIT` |
++| `Zlib OR MIT OR Apache-2.0` | 1 | `MIT` |
++| `bzip2-1.0.6` | 1 | `bzip2-1.0.6` |
 diff --git a/docs/releases/FORMAT.md b/docs/releases/FORMAT.md
 index 47ea49f3a6a34f928b88df84995c1c89549d8c85..cfc21905782ad7fbfe263630273a226d02c4140b 100644
 --- a/docs/releases/FORMAT.md
@@ -21811,10 +21897,10 @@ index 47ea49f3a6a34f928b88df84995c1c89549d8c85..cfc21905782ad7fbfe263630273a226d
  [R39 — English / 한국어](R39.md) · [R40 — English / 한국어](R40.md)
 diff --git a/docs/releases/R41.md b/docs/releases/R41.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..a8755c88a636b5803b4ff18806eefc2351908647
+index 0000000000000000000000000000000000000000..1f0e776bea6e8f6fd1287ca3c801d7f9717ca429
 --- /dev/null
 +++ b/docs/releases/R41.md
-@@ -0,0 +1,253 @@
+@@ -0,0 +1,313 @@
 +# Arcvera-Core 1.0.0 — Indexed context and incremental compaction / 인덱스 기반 컨텍스트와 증분 압축
 +
 +## English
@@ -22068,6 +22154,66 @@ index 0000000000000000000000000000000000000000..a8755c88a636b5803b4ff18806eefc23
 +Core 1.0.0 adopts AGPL-3.0-or-later and retains this policy for all subsequent versions. Original Apache and third-party notices remain applicable. See [licensing](../../LICENSING.md); the final release package must include its exact corresponding source.
 +
 +Core 1.0.0부터 이후 모든 버전에 AGPL-3.0-or-later를 적용합니다. 원 Apache·제삼자 고지는 유지합니다. [라이선스 안내](../../LICENSING.md)를 따르며 최종 배포 패키지에 정확한 대응소스를 포함해야 합니다.
++
++## Final verification record — 2026-11-13 (KST)
++
++### English
++
++This record supersedes the draft build and packaging statuses above. The complete preceding source note is retained unchanged. The product and actual build source is commit `5c789f501b5cc82187976a1e916d239e0710415a` (9,588 tracked files). Documentation revisions after that commit do not constitute another product build. The project source ZIP contains that exact committed tree. The historical upstream basis is OpenAI Codex 0.167.0, commit `086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a`; this is provenance, not official CLI compatibility support.
++
++The three Windows x86-64 MSVC executables were built on one local PC using Rust 1.99.1 (`58cf8f9c35b355199727627d07ae34a4e2846d67`). Final settings: optimization 3, LTO off, debug 0, incremental off, default codegen units 2, `codex-core` 16 and `codex-app-server` 16; Cargo one job, LLD two threads and CMake one job. This overrides the historical Rust 1.95.0 source pin. The complete source-delivery build controls are in `source/dependencies/manifests/project-build-controls.json`. Earlier builds were stopped when the local resource guard reached its available-memory floor; admission was corrected using observed demand and the same floor. This does not establish an allocator defect, compiler ICE or out-of-memory crash. No GitHub/Actions product build was used.
++
++Actual final-binary checks passed: three version commands, three help commands and six isolated startup cases with enabled/malformed legacy logging settings. The full package contains 553 files; every ZIP entry was read back and matched to the package. All runtime files and platform helpers match the previously tested base package; only the source-offer and package-receipt metadata were extended.
++
++The separately built Arcvera-Studio Desktop candidate at commit `da71091` (executable SHA-256 `a6288a967cc894d23d64e3089aa1ec6b3a32cf654b6f9cf0d2bee9c0d800c4f9`) was exercised against these exact Core executables. Five actual stdio cases, managed-server bootstrap/normal shutdown, and an auth-free no-turn fixture with two TUI/PTY sessions and 17 control assertions passed. Three history/compaction/child-mutation controls were NOT_RUN. The default-provider Desktop attempt waited for login and failed its deadline; it remains a failed attempt, not a successful authenticated test. A separate raw-stdio extension rejected 23 missing, malformed and unequal full-version inputs with JSON-RPC -32600, then accepted corrected 1.0.0 on the same retained process and pipes. Its original wrapper exited 1 with `KeyError: serverSHA256Before` after the assertions; separate reconciliation verified all 23 raw results and unchanged inputs. All fixture-owned child Jobs were empty after normal shutdown. These observations establish only the stated protocol and lifecycle boundaries.
++
++Historical source tests retain their original revision: 20 suites, 89 distinct tests and 180 paired projection samples. Exact input comparisons cover the subsequent two test-module relocations, added initialize wrapper and license-only metadata change. They are not reruns of the final file layout. Fresh targeted version-contract RED/GREEN and four moved daemon tests are separate evidence. Local HTTP/WebSocket tests exercise actual product serialization/authentication/error code against synthetic providers; live authenticated OpenAI account/model execution was NOT_RUN. Projection measurements cover local projection/normalization/serialization only, not model quality, network latency or total process memory.
++
++Core 1.0.0 and every subsequent project version use AGPL-3.0-or-later. The complete ZIP supplies the exact project source plus 493 dependency/native source-and-notice files (667,579,909 bytes before ZIP compression), including all 1,296 locked registry packages, nine Cargo Git repositories, 19 native submodules, the exact Windows V8 producer sources/patch, 11 pinned voice archives and matching unchanged helper/ripgrep source materials. The source-delivery manifest SHA-256 is `e631e6c188b813a90a137e90e0c9fbd05fa4f627541d0b626c5d2d7711e44de1`; package-receipt SHA-256 is `6d300900e688961541a3ceebdbf36919c93e97538166c952e93d6baab4cfd4a8`. Run `python restore.py --verify-only` inside `source/dependencies/` before restoring sources into a new directory. Original Apache, Microsoft and all other component notices retain their own terms. Shared GLib/GStreamer libraries retain LGPL source, replacement and debugging rights. Microsoft CRT redistribution is separate from the project AGPL. See the included bilingual source README and component notices. See also the [component license elections](1.0.0-licensing.md).
++
++Source delivery does not claim a native or bit-identical rebuild, complete restore extraction, exact code linkage for optional lockfile packages, an unknown Android AAR producer revision or an unobserved fxhash extraction revision. Desktop GUI, live authentication/model turns, physical IME/keyboard/voice, materialized history/compaction/child mutations, first installation, long-running load and whole-process memory improvement remain unverified. Original data is retained; installation and operational server replacement are separate actions. Preserve the previous complete package and original data; downgrade compatibility with new indexed records has not been validated.
++
++Remote operators must prominently provide their deployed version's complete corresponding source at no charge in the interface their users actually use, under AGPL section 13. The complete ZIP and its embedded source materials are available from [this release](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v1.0.0); an individual EXE is not a complete redistributable package. Publication and independent-audit outcomes are recorded separately below after they are observed.
++
++### Asset integrity
++
++| Asset / 자산 | Bytes / 바이트 | SHA-256 |
++| --- | ---: | --- |
++| `SHA256SUMS.txt` | 436 | `d895ed8818d9446b9c56cda4bef3407499dc94469177f1bcfb278d84a7e14356` |
++| `USAGE.ko.md` | 4352 | `9d0e4c312319d2d11cbda0cc0736e500ebc59e7c43f04e282d55441a89ff0409` |
++| `arcvera-core-1.0.0-windows-x86_64.zip` | 882891299 | `ec8c1a590818f79331a1d463936a1b8e860a8afcf88cbbe5e4cd18e17283c4f9` |
++| `codex-app-server.exe` | 310753792 | `6a4e71245f7ed641a48a37d21537f6d115cc8d1259d1b967583b0522dfafd1ae` |
++| `codex-code-mode-host.exe` | 78544384 | `677718c67be2d67bbd2280b59b831f37f7b1f8c2f4ff29a8ed016ea0b52208c6` |
++| `codex.exe` | 377055744 | `2b376d024f6b5369ba74006d4b67ce2fe38f398828db7b451a9342d899249718` |
++
++### 한국어
++
++이 기록은 앞에 보존한 초안의 빌드·패키징 상태를 갱신합니다. 앞선 소스 노트 본문 전체는 변경 없이 유지합니다. 제품과 실제 빌드 소스는 추적 파일 9,588개인 `5c789f501b5cc82187976a1e916d239e0710415a` 커밋입니다. 이후 문서 개정은 새 제품 빌드가 아닙니다. 프로젝트 소스 ZIP에는 이 커밋의 정확한 트리가 들어 있습니다. 역사적 공식 기반은 OpenAI Codex 0.167.0, `086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a` 커밋이며 공식 CLI 호환 지원을 뜻하지 않습니다.
++
++Windows x86-64 MSVC 실행 파일 세 개를 같은 로컬 PC에서 Rust 1.99.1(`58cf8f9c35b355199727627d07ae34a4e2846d67`)로 빌드했습니다. 최종 설정은 최적화 3, LTO off, debug 0, incremental off, 기본 codegen units 2, `codex-core` 16, `codex-app-server` 16이며 Cargo 1작업·LLD 2스레드·CMake 1작업입니다. 소스의 과거 Rust 1.95.0 고정값을 이 설정으로 재정의했습니다. 실제 설정은 `source/dependencies/manifests/project-build-controls.json`에 있습니다. 이전 빌드는 로컬 자원 가드의 사용 가능 메모리 하한에 도달해 중단됐고 관측 수요와 같은 하한을 반영하도록 진입 조건을 수정했습니다. allocator 결함·컴파일러 ICE·메모리 부족 충돌로 확정한 결과는 아닙니다. GitHub/Actions 제품 빌드는 사용하지 않았습니다.
++
++최종 실행 파일의 버전 명령 3건, 도움말 명령 3건과 활성·비정상 기존 로그 설정을 둔 격리 시작 검사 6건이 통과했습니다. 전체 패키지는 553개 파일이며 ZIP의 모든 엔트리를 읽어 패키지와 대조했습니다. 런타임 파일과 플랫폼 도우미는 실제 시험한 기본 패키지와 동일하며 소스 제공 안내·패키지 명세만 확장했습니다.
++
++별도로 빌드한 `da71091` 커밋의 Arcvera-Studio Desktop 후보(실행 파일 SHA-256 `a6288a967cc894d23d64e3089aa1ec6b3a32cf654b6f9cf0d2bee9c0d800c4f9`)를 이 Core 실행 파일과 연결했습니다. 실제 stdio 5사례, 관리형 서버 bootstrap·정상 종료, 인증 없이 모델 turn을 만들지 않는 격리 환경의 TUI/PTY 세션 2개·제어 assertion 17건이 통과했습니다. history·compaction·child mutation 제어 3건은 NOT_RUN입니다. 기본 provider의 Desktop 시도는 로그인을 기다리다 제한 시간을 넘겨 실패했으며 인증 통과로 바꾸지 않습니다. 별도 실제 stdio 확장 검사는 전체 버전 누락·형식 오류·불일치 입력 23개를 JSON-RPC -32600으로 거절한 뒤, 같은 프로세스·파이프에서 올바른 1.0.0 초기화를 수용했습니다. 원 wrapper는 assertion 이후 `KeyError: serverSHA256Before`로 종료 코드 1을 냈습니다. 별도 대조에서 원 결과 23개와 입력 보존을 확인했습니다. 정상 종료 후 시험 소유 하위 Job은 모두 비어 있었습니다. 이는 명시한 프로토콜·수명 경계만 검증합니다.
++
++과거 소스 시험은 실행 당시 revision을 유지합니다. 20개 묶음·중복 제외 89개 시험·문맥 구성 표본 180개이며, 후속 시험 모듈 2개 이동·초기화 wrapper 추가·라이선스 메타데이터 변경은 입력을 정확히 대조했습니다. 최종 파일 배치에서 다시 실행한 결과로 표시하지 않습니다. 새 버전 계약 RED/GREEN과 이동한 daemon 시험 4건은 별도 근거입니다. 로컬 HTTP/WebSocket 시험은 합성 provider를 상대로 실제 제품의 직렬화·인증·오류 코드를 실행했으며, 실제 OpenAI 계정 인증·모델 실행은 NOT_RUN입니다. 측정 범위는 로컬 projection·정규화·직렬화이며 모델 품질·네트워크 지연·전체 프로세스 메모리 성능이 아닙니다.
++
++Core 1.0.0과 이후 모든 프로젝트 버전에 AGPL-3.0-or-later를 적용합니다. 전체 ZIP은 정확한 프로젝트 소스와 의존성·네이티브 소스·고지 493개 파일(압축 전 667,579,909바이트)을 제공합니다. 잠금된 registry 패키지 1,296개, Cargo Git 저장소 9개, 네이티브 submodule 19개, 정확한 Windows V8 제조원 소스·패치, 고정 voice archive 11개, 보존한 도우미와 ripgrep의 대응소스를 포함합니다. 소스 제공 manifest SHA-256은 `e631e6c188b813a90a137e90e0c9fbd05fa4f627541d0b626c5d2d7711e44de1`, package-receipt SHA-256은 `6d300900e688961541a3ceebdbf36919c93e97538166c952e93d6baab4cfd4a8`입니다. `source/dependencies/`에서 `python restore.py --verify-only`를 실행해 확인한 뒤 새 폴더에 복원합니다. 원 Apache·Microsoft·제삼자 고지는 각각 원 약관을 유지합니다. 별도 공유 GLib/GStreamer 라이브러리의 LGPL 소스·교체·수정 디버깅 권리를 보존하며 Microsoft CRT 재배포 권리는 프로젝트 AGPL과 별개입니다. 포함된 영한 소스 README와 구성요소 고지를 확인하십시오. [구성요소 라이선스 선택 기록](1.0.0-licensing.md)도 참조하십시오.
++
++소스 제공은 네이티브·바이트 동일 재빌드, 전체 소스 복원 실행, 선택적 잠금 패키지의 정확한 machine-code 연결, 미확인 Android AAR 제조원 revision이나 fxhash 추출 revision을 검증한 결과가 아닙니다. Desktop GUI·실제 인증·모델 turn·물리 IME/키보드/음성·materialized history/compaction/child mutation·최초 설치·장시간 부하·전체 프로세스 메모리 개선은 미검증입니다. 원 데이터를 보존하며 설치·운영 서버 교체는 별도 작업입니다. 이전 전체 패키지와 원 데이터를 보관하십시오. 새 인덱스 기록의 하위 버전 호환성은 검증하지 않았습니다.
++
++원격 운영자는 AGPL 제13조에 따라 사용자가 실제 이용하는 인터페이스에 운영 버전의 완전한 대응소스를 무료로 제공한다는 안내를 잘 보이게 표시해야 합니다. [이 릴리스](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v1.0.0)에서 전체 ZIP과 그 안의 소스 자료를 받습니다. 개별 EXE만으로 전체 재배포 패키지를 구성하지 않습니다. 독립감사·발행 결과는 실제 관측한 뒤 아래에 별도로 기록합니다.
++
++### 자산 무결성
++
++| Asset / 자산 | Bytes / 바이트 | SHA-256 |
++| --- | ---: | --- |
++| `SHA256SUMS.txt` | 436 | `d895ed8818d9446b9c56cda4bef3407499dc94469177f1bcfb278d84a7e14356` |
++| `USAGE.ko.md` | 4352 | `9d0e4c312319d2d11cbda0cc0736e500ebc59e7c43f04e282d55441a89ff0409` |
++| `arcvera-core-1.0.0-windows-x86_64.zip` | 882891299 | `ec8c1a590818f79331a1d463936a1b8e860a8afcf88cbbe5e4cd18e17283c4f9` |
++| `codex-app-server.exe` | 310753792 | `6a4e71245f7ed641a48a37d21537f6d115cc8d1259d1b967583b0522dfafd1ae` |
++| `codex-code-mode-host.exe` | 78544384 | `677718c67be2d67bbd2280b59b831f37f7b1f8c2f4ff29a8ed016ea0b52208c6` |
++| `codex.exe` | 377055744 | `2b376d024f6b5369ba74006d4b67ce2fe38f398828db7b451a9342d899249718` |
 diff --git a/docs/roadmap/R42.md b/docs/roadmap/R42.md
 new file mode 100644
 index 0000000000000000000000000000000000000000..2be9a618d8966952d8279562c5d5fb4a183c4295
