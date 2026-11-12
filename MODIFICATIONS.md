@@ -735,3 +735,9 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미�
 고정 소스 `8e9b7eff953e750e8f071d101233920108e5ca26`는 R37 이후의 별도 개발 후보다. 플러그인 payload 비교에서 정확한 `.git`만 제외하고, 암시적 daemon의 전체 버전 확인과 실제 시작·재연결 화면 안내를 보강했다. Stop 속성의 명시적 교정 도구와 재로드 경고의 한국어/영어 안내, 에이전트 목록의 메인 마우스 복귀 및 작은 밑줄만 사용하는 hover를 포함한다.
 
 요구별 실행 결과·원래 실패·미검증 경계는 [R38 범위](docs/native-cli-r38.ko.md)와 연결된 사례 문서를 따른다. 운영 설정 자동 교정·R38 최종 릴리스 빌드·공개·설치는 수행하지 않았다. R37 동결 실행 파일은 변경하지 않았다.
+
+## AGPL transition / AGPL 전환
+
+Core 1.0.0 and every subsequent version use AGPL-3.0-or-later. The original Apache license and NOTICE remain preserved; see [LICENSING.md](LICENSING.md) for third-party rights and corresponding-source obligations.
+
+Core 1.0.0과 이후 모든 버전은 AGPL-3.0-or-later를 적용합니다. 원 Apache 라이선스·NOTICE를 보존하며, 제삼자 권리와 대응소스 제공 의무는 [LICENSING.md](LICENSING.md)에 기록합니다.

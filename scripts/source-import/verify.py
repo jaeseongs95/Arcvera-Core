@@ -187,7 +187,7 @@ def check_historical(root):
 
 
 def check_current_payload(root, document):
-    from current import read_working, git
+    from current import read_working, git, check_original_notices
     from export import WINDOWS_INPUTS
     entries = {i['path']: i['gitMode'] for i in document['files']}
     assert entries.get(LICENSE_LINK) == '120000', 'License link mode changed'
@@ -199,8 +199,8 @@ def check_current_payload(root, document):
             assert sha(data) == WINDOWS_INPUTS[path]['gitBlobSha256'], f'Canonical prompt differs: {path}'
             if os.name == 'nt':
                 assert sha((root/path).read_bytes()) == WINDOWS_INPUTS[path]['windowsSourceSha256'], f'Windows prompt EOL differs: {path}'
-    for name in ['LICENSE', 'NOTICE']:
-        assert read_source(root, {'path': name, 'gitMode': '100644'}) == git(root, 'show', document['baseCommit']+':'+name), name
+    check_original_notices(root, {name: sha(git(root, 'show', document['baseCommit']+':'+name))
+                                 for name in ['LICENSE', 'NOTICE']})
     return check_inputs(entries, lambda p: read_working(root, p, entries[p]))
 
 

@@ -2,6 +2,8 @@
 
 ## English
 
+Core 1.0.0 and all subsequent versions use AGPL-3.0-or-later. Original license/notice verification remains strict: the exact original Apache license is retained as `LICENSE-APACHE-2.0` when the root `LICENSE` matches the pinned complete official AGPL text; original `NOTICE` and historical upstream artifacts remain unchanged. See [LICENSING.md](../LICENSING.md) and the [Windows build instructions](../tools/windows-cli/BUILD.md). The source archive delivered with a package is checked against its complete committed Git tree.
+
 Arcvera-Core `1.0.0` retains the historical Codex `0.167.0` import as source attribution. Official Codex CLI compatibility and interchangeability are outside the support scope; OpenAI server API and authentication communication remain supported. The historical records below describe earlier snapshots, not the current R41 candidate or its verification results.
 
 `SOURCE_BASELINE.json`, `upstream/source-inventory.json`, the official patch and the Windows prompt catalog retain their original bytes. They identify the historical import. `CURRENT_SOURCE.json` separately inventories the current derivative, including added, modified and deleted files, modes, canonical hashes and modification notices. `upstream/arcvera-r41.patch` reconstructs that derivative from public repository commit `676d6233d8601f87f82d5fd6fb3d4c5e04ffa8aa`. The manifest and derivative patch are the two explicit self-reference exclusions; the final external source freeze and release checksums bind both files and the complete final commit.
@@ -19,6 +21,8 @@ python -B -m unittest discover -s scripts/source-import -p 'test*.py'
 Generation validates historical inputs, current payload and patch replay before writing its two outputs. Any later source change requires reviewed, explicit regeneration. The verifier's successful exit concerns the checks it actually performs and retains the legacy README and historical replay limitations above. It does not establish a product build, runtime behavior, live OpenAI account communication or independent release acceptance. Actual source symlink creation can be skipped on Windows hosts without that permission; placeholder and synthetic-link guard coverage must be reported separately. Final packaging requires a clean committed source tree, an exact full-file freeze and three locally built executables from that source. GitHub/Actions builds are excluded.
 
 ## 한국어
+
+Core 1.0.0과 이후 모든 버전에 AGPL-3.0-or-later를 적용합니다. 원 라이선스·고지는 계속 엄격하게 검사합니다. 루트 `LICENSE`가 고정한 공식 AGPL 전문과 일치할 때 원 Apache 라이선스를 `LICENSE-APACHE-2.0`에서 원 바이트 그대로 검증하며, 기존 `NOTICE`와 과거 공식 기반 자료는 변경하지 않습니다. [라이선스 안내](../LICENSING.md)와 [Windows 빌드 절차](../tools/windows-cli/BUILD.md)를 따릅니다. 패키지의 소스 압축파일은 정확한 커밋의 전체 Git 트리와 대조합니다.
 
 Arcvera-Core `1.0.0`은 역사적 Codex `0.167.0` 수입 기록을 소스 출처로 유지합니다. 공식 Codex CLI 호환성과 상호 교체는 지원 범위에서 제외하며 OpenAI 서버 API·인증 통신은 지원합니다. 아래 과거 기록은 당시 스냅샷의 기록이며 현재 R41 후보의 검증 결과가 아닙니다.
 

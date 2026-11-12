@@ -3,6 +3,12 @@
 
 Creates a **new local package** with the built CLI and matching official helper resources. Packaging does not change PATH, authentication, daemon state, or user configuration.
 
+## AGPL and corresponding source / AGPL과 대응소스
+
+Core 1.0.0 and every subsequent project version use `AGPL-3.0-or-later`. Packages carry the full license, original Apache license and preserved notices in `licenses/arcvera-core/`, the exact committed project source in `source/arcvera-core-source.zip`, and the bilingual source offer in `SOURCE.md`. The archive is checked against every Git blob and the complete frozen file set. Vendor files colliding with these delivery paths are rejected before output creation; other vendor notices remain unchanged. Package metadata and launch behavior retain their existing contracts. See [BUILD.md](BUILD.md) and [LICENSING.md](../../LICENSING.md). Dependency/native corresponding source and the source offer visible to actual network users require separate release checks.
+
+Core 1.0.0과 이후 모든 프로젝트 버전에 `AGPL-3.0-or-later`를 적용합니다. 패키지는 `licenses/arcvera-core/`에 전문·원 Apache 라이선스·고지를, `source/arcvera-core-source.zip`에 정확한 커밋의 프로젝트 소스를, `SOURCE.md`에 영한 소스 제공 안내를 포함합니다. 소스 압축파일을 전체 Git blob·동결 파일 집합과 대조합니다. 제공 경로와 충돌하는 벤더 파일은 출력 생성 전에 거부하며 다른 벤더 고지는 보존합니다. 기존 패키지 메타데이터·실행 계약은 유지합니다. 의존성·네이티브 대응소스와 실제 네트워크 사용자에게 보이는 소스 제공 안내는 별도 릴리스 검증 대상입니다.
+
 ## Arcvera-Core release packaging / 릴리스 패키징
 
 Arcvera-Core 1.0.0 uses official Codex 0.167.0 helper resources. Pass the upstream version separately and supply all three built candidates from one frozen commit:

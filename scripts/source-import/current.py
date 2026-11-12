@@ -20,6 +20,22 @@ R41 = 'Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.'
 HISTORICAL = ['SOURCE_BASELINE.json', 'upstream/source-inventory.json',
               'upstream/official-0.167.0.patch', 'upstream/windows-prompt-inputs.json',
               'upstream/LICENSE', 'upstream/NOTICE']
+AGPL_SHA256 = '0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0'
+
+
+def check_original_notices(root, base_documents):
+    """An AGPL transition relocates the original license; it never discards it."""
+    for path in ['LICENSE', 'NOTICE']:
+        if path not in base_documents:
+            continue
+        data = read_working(root, path, '100644')
+        if sha(data) == base_documents[path]:
+            continue
+        if path == 'LICENSE' and sha(data) == AGPL_SHA256:
+            preserved = read_working(root, 'LICENSE-APACHE-2.0', '100644')
+            if sha(preserved) == base_documents[path]:
+                continue
+        raise ValueError(f'Original license/notice changed: {path}')
 
 
 def sha(data):
@@ -228,9 +244,7 @@ def build_manifest(root, base=BASE_COMMIT, scratch=None):
         for p in historical:
             if sha(read_working(root, p, '100644')) != historical[p]:
                 raise ValueError(f'Historical artifact changed: {p}')
-        for p in ['LICENSE', 'NOTICE']:
-            if p in base_documents and sha(read_working(root, p, '100644')) != base_documents[p]:
-                raise ValueError(f'Original license/notice changed: {p}')
+        check_original_notices(root, base_documents)
         for path, mode in sorted(entries.items()):
             data = read_working(root, path, mode)
             oid = hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()

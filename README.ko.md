@@ -100,4 +100,4 @@ R40에는 메모리 전면 개편, 새로운 CodeMode 구조, 전체 리팩토�
 
 [OpenAI Codex](https://github.com/openai/codex)를 기반으로 한 독립 프로젝트이며 OpenAI 공식 제품이 아닙니다. Git에는 소스와 빌드 도구를, Releases에는 실행 자산을 보관합니다. 인증정보와 운영 로그는 포함하지 않습니다.
 
-[Apache-2.0](LICENSE) · [NOTICE](NOTICE)
+[AGPL-3.0-or-later](LICENSE) · [Licensing / 라이선스](LICENSING.md) · [Original Apache-2.0](LICENSE-APACHE-2.0) · [NOTICE](NOTICE)

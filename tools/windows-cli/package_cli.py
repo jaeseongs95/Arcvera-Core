@@ -3,12 +3,62 @@
 """Prepare a separate Windows CLI package; never replace an existing installation."""
 
 import argparse
+import io
 import hashlib
 import json
 import re
 from pathlib import Path
 import shutil
 import subprocess
+import zipfile
+
+AGPL_SHA256 = '0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0'
+LICENSE_FILES = ('LICENSE', 'LICENSE-APACHE-2.0', 'NOTICE', 'LICENSING.md',
+                 'MODIFICATIONS.md', 'upstream/LICENSE', 'upstream/NOTICE')
+
+
+def licensing_payload(source, commit, frozen):
+    """Return notices and exact committed source; legacy Apache callers stay supported."""
+    if not any((source/name).exists() for name in ('LICENSE-APACHE-2.0', 'LICENSING.md')):
+        return None
+    notices = {name: checked_child(source, name).read_bytes() for name in LICENSE_FILES}
+    if hashlib.sha256(notices['LICENSE']).hexdigest() != AGPL_SHA256:
+        raise ValueError('AGPL license text differs from the complete pinned official text')
+    archive = subprocess.check_output(['git', '-C', str(source), 'archive', '--format=zip', commit])
+    # Detect export-ignore/export-subst, omitted inputs or an altered Git archive.
+    entries = {}
+    for row in subprocess.check_output(['git', '-C', str(source), 'ls-tree', '-r', '-z', commit]).split(b'\0'):
+        if row:
+            metadata, name = row.split(b'\t', 1)
+            mode, kind, oid = metadata.decode().split()
+            if kind != 'blob' or mode not in ('100644', '100755', '120000'):
+                raise ValueError('Unsupported corresponding-source Git entry')
+            entries[name.decode('utf-8')] = oid
+    with zipfile.ZipFile(io.BytesIO(archive)) as zipped:
+        files = [item for item in zipped.infolist() if not item.is_dir()]
+        if len(files) != len(entries) or {item.filename for item in files} != frozen or set(entries) != frozen:
+            raise ValueError('Corresponding-source archive differs from complete frozen Git tree')
+        for item in files:
+            data = zipped.read(item)
+            oid = hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+            if oid != entries[item.filename]:
+                raise ValueError(f'Corresponding-source Git blob differs: {item.filename}')
+        if any(zipped.read(name) != data for name, data in notices.items()):
+            raise ValueError('License/notice bytes differ from committed corresponding source')
+    return notices, archive
+
+
+def source_offer(commit):
+    return (f'# Corresponding source / 대응소스\n\n'
+            f'Arcvera-Core: AGPL-3.0-or-later. Source commit / 소스 커밋: `{commit}`.\n\n'
+            'The exact project source is included at [source/arcvera-core-source.zip](source/arcvera-core-source.zip). '
+            'Extract it and consult `docs/source-import.md`, `tools/windows-cli/README.md` and `LICENSING.md` for build, packaging and redistribution requirements. '
+            f'Public source: <https://github.com/jaeseongs95/Arcvera-Core/tree/{commit}>. '
+            'Original Apache and third-party terms remain applicable; see `licenses/arcvera-core/`.\n\n'
+            '정확한 프로젝트 소스는 위 압축파일에 포함됩니다. 압축을 풀고 위 문서의 빌드·패키징·재배포 조건을 확인하십시오. '
+            '원 Apache·제삼자 라이선스와 고지는 `licenses/arcvera-core/` 및 소스 안에 유지됩니다.\n\n'
+            'Network operators must prominently offer remote users their deployed version\'s corresponding source at no charge in the interface they use (AGPL section 13). '
+            '서비스 운영자는 원격 사용자가 실제로 이용하는 인터페이스에 운영 버전의 대응소스를 무료로 받을 수 있다는 안내를 잘 보이게 제공해야 합니다(AGPL 제13조).\n')
 
 
 def digest(path):
@@ -76,6 +126,7 @@ def package(source, freeze_file, binary, vendor, output, expected_version, *,
     dirty = subprocess.run(["git", "-C", str(source), "diff", "--quiet", "HEAD", *scope])
     if dirty.returncode:
         raise ValueError(f"Source differs from its commit (git diff exit {dirty.returncode})")
+    licensing = licensing_payload(source, commit, frozen)
     metadata = json.loads((vendor / "codex-package.json").read_text(encoding="utf-8"))
     if metadata.get("entrypoint") != "bin/codex.exe":
         raise ValueError("Expected the official Windows CLI package layout")
@@ -119,6 +170,12 @@ def package(source, freeze_file, binary, vendor, output, expected_version, *,
         if relative.as_posix() in replacements | {"codex-package.json"}:
             continue
         helpers.append((relative, checked_child(vendor, relative), digest(item)))
+    if licensing:
+        for relative, _item, _hash in helpers:
+            path = relative.as_posix().casefold()
+            if any(path == reserved or path.startswith(reserved+'/') or reserved.startswith(path+'/')
+                   for reserved in ('source', 'source.md', 'licenses/arcvera-core')):
+                raise ValueError(f'Vendor file collides with source/license delivery: {relative}')
     output.mkdir(parents=True)
     for relative, item, expected_hash in helpers:
         target = output / relative
@@ -126,6 +183,15 @@ def package(source, freeze_file, binary, vendor, output, expected_version, *,
         shutil.copy2(item, target)
         if digest(target) != expected_hash:
             raise ValueError(f"Helper changed during copy: {relative}")
+    if licensing:
+        notices, archive = licensing
+        for relative, data in notices.items():
+            target = output/'licenses/arcvera-core'/relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+        (output/'source').mkdir()
+        (output/'source/arcvera-core-source.zip').write_bytes(archive)
+        (output/'SOURCE.md').write_text(source_offer(commit), encoding='utf-8', newline='\n')
     for name, (candidate, relative, _prefix) in candidates.items():
         target = output / relative
         target.parent.mkdir(parents=True, exist_ok=True)

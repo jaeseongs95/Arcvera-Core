@@ -14,6 +14,36 @@ import verify
 
 
 class CurrentSourceChecks(unittest.TestCase):
+    def test_agpl_preserves_original_notices(self):
+        root, _ = self.fixture()
+        original = b'original Apache license\n'
+        (root/'LICENSE').write_bytes(original)
+        (root/'NOTICE').write_bytes(b'original notice\n')
+        current.git(root, 'add', '--', '.')
+        current.git(root, '-c', 'commit.gpgsign=false', '-c', 'user.name=Fixture',
+                    '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'original notices')
+        base = current.git(root, 'rev-parse', 'HEAD').decode().strip()
+        agpl = (Path(__file__).resolve().parents[2]/'LICENSE').read_bytes()
+        self.assertEqual(hashlib.sha256(agpl).hexdigest(),
+                         '0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0')
+        (root/'LICENSE').write_bytes(agpl)
+        (root/'LICENSE-APACHE-2.0').write_bytes(original)
+        doc, delta = current.build_manifest(root, base)
+        current.replay(root, doc, delta)
+        self.assertEqual(doc['publicBaseRepositoryDocuments']['LICENSE'], current.sha(original))
+        for path, bad in [('LICENSE-APACHE-2.0', b'changed original'),
+                          ('LICENSE', agpl+b'corruption'), ('NOTICE', b'changed notice')]:
+            target = root/path
+            good = target.read_bytes()
+            with self.subTest(path=path):
+                target.write_bytes(bad)
+                with self.assertRaisesRegex(ValueError, 'Original license/notice changed'):
+                    current.build_manifest(root, base)
+                target.write_bytes(good)
+        (root/'LICENSE-APACHE-2.0').unlink()
+        with self.assertRaises((ValueError, FileNotFoundError)):
+            current.build_manifest(root, base)
+
     def fixture(self):
         temporary = tempfile.TemporaryDirectory(prefix='derivative-fixture-')
         self.addCleanup(temporary.cleanup)

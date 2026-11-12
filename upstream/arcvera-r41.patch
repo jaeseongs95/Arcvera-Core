@@ -1,5 +1,1106 @@
+diff --git a/LICENSE b/LICENSE
+index 4606e72e042564097e8780d66c1d4dcb611869bd..be3f7b28e564e7dd05eaf59d64adba1a4065ac0e 100644
+--- a/LICENSE
++++ b/LICENSE
+@@ -1,201 +1,661 @@
+-                                 Apache License
+-                           Version 2.0, January 2004
+-                        http://www.apache.org/licenses/
+-
+-TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+-
+-1.  Definitions.
+-
+-    "License" shall mean the terms and conditions for use, reproduction,
+-    and distribution as defined by Sections 1 through 9 of this document.
+-
+-    "Licensor" shall mean the copyright owner or entity authorized by
+-    the copyright owner that is granting the License.
+-
+-    "Legal Entity" shall mean the union of the acting entity and all
+-    other entities that control, are controlled by, or are under common
+-    control with that entity. For the purposes of this definition,
+-    "control" means (i) the power, direct or indirect, to cause the
+-    direction or management of such entity, whether by contract or
+-    otherwise, or (ii) ownership of fifty percent (50%) or more of the
+-    outstanding shares, or (iii) beneficial ownership of such entity.
+-
+-    "You" (or "Your") shall mean an individual or Legal Entity
+-    exercising permissions granted by this License.
+-
+-    "Source" form shall mean the preferred form for making modifications,
+-    including but not limited to software source code, documentation
+-    source, and configuration files.
+-
+-    "Object" form shall mean any form resulting from mechanical
+-    transformation or translation of a Source form, including but
+-    not limited to compiled object code, generated documentation,
+-    and conversions to other media types.
+-
+-    "Work" shall mean the work of authorship, whether in Source or
+-    Object form, made available under the License, as indicated by a
+-    copyright notice that is included in or attached to the work
+-    (an example is provided in the Appendix below).
+-
+-    "Derivative Works" shall mean any work, whether in Source or Object
+-    form, that is based on (or derived from) the Work and for which the
+-    editorial revisions, annotations, elaborations, or other modifications
+-    represent, as a whole, an original work of authorship. For the purposes
+-    of this License, Derivative Works shall not include works that remain
+-    separable from, or merely link (or bind by name) to the interfaces of,
+-    the Work and Derivative Works thereof.
+-
+-    "Contribution" shall mean any work of authorship, including
+-    the original version of the Work and any modifications or additions
+-    to that Work or Derivative Works thereof, that is intentionally
+-    submitted to Licensor for inclusion in the Work by the copyright owner
+-    or by an individual or Legal Entity authorized to submit on behalf of
+-    the copyright owner. For the purposes of this definition, "submitted"
+-    means any form of electronic, verbal, or written communication sent
+-    to the Licensor or its representatives, including but not limited to
+-    communication on electronic mailing lists, source code control systems,
+-    and issue tracking systems that are managed by, or on behalf of, the
+-    Licensor for the purpose of discussing and improving the Work, but
+-    excluding communication that is conspicuously marked or otherwise
+-    designated in writing by the copyright owner as "Not a Contribution."
+-
+-    "Contributor" shall mean Licensor and any individual or Legal Entity
+-    on behalf of whom a Contribution has been received by Licensor and
+-    subsequently incorporated within the Work.
+-
+-2.  Grant of Copyright License. Subject to the terms and conditions of
+-    this License, each Contributor hereby grants to You a perpetual,
+-    worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+-    copyright license to reproduce, prepare Derivative Works of,
+-    publicly display, publicly perform, sublicense, and distribute the
+-    Work and such Derivative Works in Source or Object form.
+-
+-3.  Grant of Patent License. Subject to the terms and conditions of
+-    this License, each Contributor hereby grants to You a perpetual,
+-    worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+-    (except as stated in this section) patent license to make, have made,
+-    use, offer to sell, sell, import, and otherwise transfer the Work,
+-    where such license applies only to those patent claims licensable
+-    by such Contributor that are necessarily infringed by their
+-    Contribution(s) alone or by combination of their Contribution(s)
+-    with the Work to which such Contribution(s) was submitted. If You
+-    institute patent litigation against any entity (including a
+-    cross-claim or counterclaim in a lawsuit) alleging that the Work
+-    or a Contribution incorporated within the Work constitutes direct
+-    or contributory patent infringement, then any patent licenses
+-    granted to You under this License for that Work shall terminate
+-    as of the date such litigation is filed.
+-
+-4.  Redistribution. You may reproduce and distribute copies of the
+-    Work or Derivative Works thereof in any medium, with or without
+-    modifications, and in Source or Object form, provided that You
+-    meet the following conditions:
+-
+-    (a) You must give any other recipients of the Work or
+-    Derivative Works a copy of this License; and
+-
+-    (b) You must cause any modified files to carry prominent notices
+-    stating that You changed the files; and
+-
+-    (c) You must retain, in the Source form of any Derivative Works
+-    that You distribute, all copyright, patent, trademark, and
+-    attribution notices from the Source form of the Work,
+-    excluding those notices that do not pertain to any part of
+-    the Derivative Works; and
+-
+-    (d) If the Work includes a "NOTICE" text file as part of its
+-    distribution, then any Derivative Works that You distribute must
+-    include a readable copy of the attribution notices contained
+-    within such NOTICE file, excluding those notices that do not
+-    pertain to any part of the Derivative Works, in at least one
+-    of the following places: within a NOTICE text file distributed
+-    as part of the Derivative Works; within the Source form or
+-    documentation, if provided along with the Derivative Works; or,
+-    within a display generated by the Derivative Works, if and
+-    wherever such third-party notices normally appear. The contents
+-    of the NOTICE file are for informational purposes only and
+-    do not modify the License. You may add Your own attribution
+-    notices within Derivative Works that You distribute, alongside
+-    or as an addendum to the NOTICE text from the Work, provided
+-    that such additional attribution notices cannot be construed
+-    as modifying the License.
+-
+-    You may add Your own copyright statement to Your modifications and
+-    may provide additional or different license terms and conditions
+-    for use, reproduction, or distribution of Your modifications, or
+-    for any such Derivative Works as a whole, provided Your use,
+-    reproduction, and distribution of the Work otherwise complies with
+-    the conditions stated in this License.
+-
+-5.  Submission of Contributions. Unless You explicitly state otherwise,
+-    any Contribution intentionally submitted for inclusion in the Work
+-    by You to the Licensor shall be under the terms and conditions of
+-    this License, without any additional terms or conditions.
+-    Notwithstanding the above, nothing herein shall supersede or modify
+-    the terms of any separate license agreement you may have executed
+-    with Licensor regarding such Contributions.
+-
+-6.  Trademarks. This License does not grant permission to use the trade
+-    names, trademarks, service marks, or product names of the Licensor,
+-    except as required for reasonable and customary use in describing the
+-    origin of the Work and reproducing the content of the NOTICE file.
+-
+-7.  Disclaimer of Warranty. Unless required by applicable law or
+-    agreed to in writing, Licensor provides the Work (and each
+-    Contributor provides its Contributions) on an "AS IS" BASIS,
+-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+-    implied, including, without limitation, any warranties or conditions
+-    of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+-    PARTICULAR PURPOSE. You are solely responsible for determining the
+-    appropriateness of using or redistributing the Work and assume any
+-    risks associated with Your exercise of permissions under this License.
+-
+-8.  Limitation of Liability. In no event and under no legal theory,
+-    whether in tort (including negligence), contract, or otherwise,
+-    unless required by applicable law (such as deliberate and grossly
+-    negligent acts) or agreed to in writing, shall any Contributor be
+-    liable to You for damages, including any direct, indirect, special,
+-    incidental, or consequential damages of any character arising as a
+-    result of this License or out of the use or inability to use the
+-    Work (including but not limited to damages for loss of goodwill,
+-    work stoppage, computer failure or malfunction, or any and all
+-    other commercial damages or losses), even if such Contributor
+-    has been advised of the possibility of such damages.
+-
+-9.  Accepting Warranty or Additional Liability. While redistributing
+-    the Work or Derivative Works thereof, You may choose to offer,
+-    and charge a fee for, acceptance of support, warranty, indemnity,
+-    or other liability obligations and/or rights consistent with this
+-    License. However, in accepting such obligations, You may act only
+-    on Your own behalf and on Your sole responsibility, not on behalf
+-    of any other Contributor, and only if You agree to indemnify,
+-    defend, and hold each Contributor harmless for any liability
+-    incurred by, or claims asserted against, such Contributor by reason
+-    of your accepting any such warranty or additional liability.
+-
+-END OF TERMS AND CONDITIONS
+-
+-APPENDIX: How to apply the Apache License to your work.
+-
+-      To apply the Apache License to your work, attach the following
+-      boilerplate notice, with the fields enclosed by brackets "[]"
+-      replaced with your own identifying information. (Don't include
+-      the brackets!)  The text should be enclosed in the appropriate
+-      comment syntax for the file format. We also recommend that a
+-      file or class name and description of purpose be included on the
+-      same "printed page" as the copyright notice for easier
+-      identification within third-party archives.
+-
+-Copyright 2025 OpenAI
+-
+-Licensed under the Apache License, Version 2.0 (the "License");
+-you may not use this file except in compliance with the License.
+-You may obtain a copy of the License at
+-
+-       http://www.apache.org/licenses/LICENSE-2.0
+-
+-Unless required by applicable law or agreed to in writing, software
+-distributed under the License is distributed on an "AS IS" BASIS,
+-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-See the License for the specific language governing permissions and
+-limitations under the License.
++                    GNU AFFERO GENERAL PUBLIC LICENSE
++                       Version 3, 19 November 2007
++
++ Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
++ Everyone is permitted to copy and distribute verbatim copies
++ of this license document, but changing it is not allowed.
++
++                            Preamble
++
++  The GNU Affero General Public License is a free, copyleft license for
++software and other kinds of works, specifically designed to ensure
++cooperation with the community in the case of network server software.
++
++  The licenses for most software and other practical works are designed
++to take away your freedom to share and change the works.  By contrast,
++our General Public Licenses are intended to guarantee your freedom to
++share and change all versions of a program--to make sure it remains free
++software for all its users.
++
++  When we speak of free software, we are referring to freedom, not
++price.  Our General Public Licenses are designed to make sure that you
++have the freedom to distribute copies of free software (and charge for
++them if you wish), that you receive source code or can get it if you
++want it, that you can change the software or use pieces of it in new
++free programs, and that you know you can do these things.
++
++  Developers that use our General Public Licenses protect your rights
++with two steps: (1) assert copyright on the software, and (2) offer
++you this License which gives you legal permission to copy, distribute
++and/or modify the software.
++
++  A secondary benefit of defending all users' freedom is that
++improvements made in alternate versions of the program, if they
++receive widespread use, become available for other developers to
++incorporate.  Many developers of free software are heartened and
++encouraged by the resulting cooperation.  However, in the case of
++software used on network servers, this result may fail to come about.
++The GNU General Public License permits making a modified version and
++letting the public access it on a server without ever releasing its
++source code to the public.
++
++  The GNU Affero General Public License is designed specifically to
++ensure that, in such cases, the modified source code becomes available
++to the community.  It requires the operator of a network server to
++provide the source code of the modified version running there to the
++users of that server.  Therefore, public use of a modified version, on
++a publicly accessible server, gives the public access to the source
++code of the modified version.
++
++  An older license, called the Affero General Public License and
++published by Affero, was designed to accomplish similar goals.  This is
++a different license, not a version of the Affero GPL, but Affero has
++released a new version of the Affero GPL which permits relicensing under
++this license.
++
++  The precise terms and conditions for copying, distribution and
++modification follow.
++
++                       TERMS AND CONDITIONS
++
++  0. Definitions.
++
++  "This License" refers to version 3 of the GNU Affero General Public License.
++
++  "Copyright" also means copyright-like laws that apply to other kinds of
++works, such as semiconductor masks.
++
++  "The Program" refers to any copyrightable work licensed under this
++License.  Each licensee is addressed as "you".  "Licensees" and
++"recipients" may be individuals or organizations.
++
++  To "modify" a work means to copy from or adapt all or part of the work
++in a fashion requiring copyright permission, other than the making of an
++exact copy.  The resulting work is called a "modified version" of the
++earlier work or a work "based on" the earlier work.
++
++  A "covered work" means either the unmodified Program or a work based
++on the Program.
++
++  To "propagate" a work means to do anything with it that, without
++permission, would make you directly or secondarily liable for
++infringement under applicable copyright law, except executing it on a
++computer or modifying a private copy.  Propagation includes copying,
++distribution (with or without modification), making available to the
++public, and in some countries other activities as well.
++
++  To "convey" a work means any kind of propagation that enables other
++parties to make or receive copies.  Mere interaction with a user through
++a computer network, with no transfer of a copy, is not conveying.
++
++  An interactive user interface displays "Appropriate Legal Notices"
++to the extent that it includes a convenient and prominently visible
++feature that (1) displays an appropriate copyright notice, and (2)
++tells the user that there is no warranty for the work (except to the
++extent that warranties are provided), that licensees may convey the
++work under this License, and how to view a copy of this License.  If
++the interface presents a list of user commands or options, such as a
++menu, a prominent item in the list meets this criterion.
++
++  1. Source Code.
++
++  The "source code" for a work means the preferred form of the work
++for making modifications to it.  "Object code" means any non-source
++form of a work.
++
++  A "Standard Interface" means an interface that either is an official
++standard defined by a recognized standards body, or, in the case of
++interfaces specified for a particular programming language, one that
++is widely used among developers working in that language.
++
++  The "System Libraries" of an executable work include anything, other
++than the work as a whole, that (a) is included in the normal form of
++packaging a Major Component, but which is not part of that Major
++Component, and (b) serves only to enable use of the work with that
++Major Component, or to implement a Standard Interface for which an
++implementation is available to the public in source code form.  A
++"Major Component", in this context, means a major essential component
++(kernel, window system, and so on) of the specific operating system
++(if any) on which the executable work runs, or a compiler used to
++produce the work, or an object code interpreter used to run it.
++
++  The "Corresponding Source" for a work in object code form means all
++the source code needed to generate, install, and (for an executable
++work) run the object code and to modify the work, including scripts to
++control those activities.  However, it does not include the work's
++System Libraries, or general-purpose tools or generally available free
++programs which are used unmodified in performing those activities but
++which are not part of the work.  For example, Corresponding Source
++includes interface definition files associated with source files for
++the work, and the source code for shared libraries and dynamically
++linked subprograms that the work is specifically designed to require,
++such as by intimate data communication or control flow between those
++subprograms and other parts of the work.
++
++  The Corresponding Source need not include anything that users
++can regenerate automatically from other parts of the Corresponding
++Source.
++
++  The Corresponding Source for a work in source code form is that
++same work.
++
++  2. Basic Permissions.
++
++  All rights granted under this License are granted for the term of
++copyright on the Program, and are irrevocable provided the stated
++conditions are met.  This License explicitly affirms your unlimited
++permission to run the unmodified Program.  The output from running a
++covered work is covered by this License only if the output, given its
++content, constitutes a covered work.  This License acknowledges your
++rights of fair use or other equivalent, as provided by copyright law.
++
++  You may make, run and propagate covered works that you do not
++convey, without conditions so long as your license otherwise remains
++in force.  You may convey covered works to others for the sole purpose
++of having them make modifications exclusively for you, or provide you
++with facilities for running those works, provided that you comply with
++the terms of this License in conveying all material for which you do
++not control copyright.  Those thus making or running the covered works
++for you must do so exclusively on your behalf, under your direction
++and control, on terms that prohibit them from making any copies of
++your copyrighted material outside their relationship with you.
++
++  Conveying under any other circumstances is permitted solely under
++the conditions stated below.  Sublicensing is not allowed; section 10
++makes it unnecessary.
++
++  3. Protecting Users' Legal Rights From Anti-Circumvention Law.
++
++  No covered work shall be deemed part of an effective technological
++measure under any applicable law fulfilling obligations under article
++11 of the WIPO copyright treaty adopted on 20 December 1996, or
++similar laws prohibiting or restricting circumvention of such
++measures.
++
++  When you convey a covered work, you waive any legal power to forbid
++circumvention of technological measures to the extent such circumvention
++is effected by exercising rights under this License with respect to
++the covered work, and you disclaim any intention to limit operation or
++modification of the work as a means of enforcing, against the work's
++users, your or third parties' legal rights to forbid circumvention of
++technological measures.
++
++  4. Conveying Verbatim Copies.
++
++  You may convey verbatim copies of the Program's source code as you
++receive it, in any medium, provided that you conspicuously and
++appropriately publish on each copy an appropriate copyright notice;
++keep intact all notices stating that this License and any
++non-permissive terms added in accord with section 7 apply to the code;
++keep intact all notices of the absence of any warranty; and give all
++recipients a copy of this License along with the Program.
++
++  You may charge any price or no price for each copy that you convey,
++and you may offer support or warranty protection for a fee.
++
++  5. Conveying Modified Source Versions.
++
++  You may convey a work based on the Program, or the modifications to
++produce it from the Program, in the form of source code under the
++terms of section 4, provided that you also meet all of these conditions:
++
++    a) The work must carry prominent notices stating that you modified
++    it, and giving a relevant date.
++
++    b) The work must carry prominent notices stating that it is
++    released under this License and any conditions added under section
++    7.  This requirement modifies the requirement in section 4 to
++    "keep intact all notices".
++
++    c) You must license the entire work, as a whole, under this
++    License to anyone who comes into possession of a copy.  This
++    License will therefore apply, along with any applicable section 7
++    additional terms, to the whole of the work, and all its parts,
++    regardless of how they are packaged.  This License gives no
++    permission to license the work in any other way, but it does not
++    invalidate such permission if you have separately received it.
++
++    d) If the work has interactive user interfaces, each must display
++    Appropriate Legal Notices; however, if the Program has interactive
++    interfaces that do not display Appropriate Legal Notices, your
++    work need not make them do so.
++
++  A compilation of a covered work with other separate and independent
++works, which are not by their nature extensions of the covered work,
++and which are not combined with it such as to form a larger program,
++in or on a volume of a storage or distribution medium, is called an
++"aggregate" if the compilation and its resulting copyright are not
++used to limit the access or legal rights of the compilation's users
++beyond what the individual works permit.  Inclusion of a covered work
++in an aggregate does not cause this License to apply to the other
++parts of the aggregate.
++
++  6. Conveying Non-Source Forms.
++
++  You may convey a covered work in object code form under the terms
++of sections 4 and 5, provided that you also convey the
++machine-readable Corresponding Source under the terms of this License,
++in one of these ways:
++
++    a) Convey the object code in, or embodied in, a physical product
++    (including a physical distribution medium), accompanied by the
++    Corresponding Source fixed on a durable physical medium
++    customarily used for software interchange.
++
++    b) Convey the object code in, or embodied in, a physical product
++    (including a physical distribution medium), accompanied by a
++    written offer, valid for at least three years and valid for as
++    long as you offer spare parts or customer support for that product
++    model, to give anyone who possesses the object code either (1) a
++    copy of the Corresponding Source for all the software in the
++    product that is covered by this License, on a durable physical
++    medium customarily used for software interchange, for a price no
++    more than your reasonable cost of physically performing this
++    conveying of source, or (2) access to copy the
++    Corresponding Source from a network server at no charge.
++
++    c) Convey individual copies of the object code with a copy of the
++    written offer to provide the Corresponding Source.  This
++    alternative is allowed only occasionally and noncommercially, and
++    only if you received the object code with such an offer, in accord
++    with subsection 6b.
++
++    d) Convey the object code by offering access from a designated
++    place (gratis or for a charge), and offer equivalent access to the
++    Corresponding Source in the same way through the same place at no
++    further charge.  You need not require recipients to copy the
++    Corresponding Source along with the object code.  If the place to
++    copy the object code is a network server, the Corresponding Source
++    may be on a different server (operated by you or a third party)
++    that supports equivalent copying facilities, provided you maintain
++    clear directions next to the object code saying where to find the
++    Corresponding Source.  Regardless of what server hosts the
++    Corresponding Source, you remain obligated to ensure that it is
++    available for as long as needed to satisfy these requirements.
++
++    e) Convey the object code using peer-to-peer transmission, provided
++    you inform other peers where the object code and Corresponding
++    Source of the work are being offered to the general public at no
++    charge under subsection 6d.
++
++  A separable portion of the object code, whose source code is excluded
++from the Corresponding Source as a System Library, need not be
++included in conveying the object code work.
++
++  A "User Product" is either (1) a "consumer product", which means any
++tangible personal property which is normally used for personal, family,
++or household purposes, or (2) anything designed or sold for incorporation
++into a dwelling.  In determining whether a product is a consumer product,
++doubtful cases shall be resolved in favor of coverage.  For a particular
++product received by a particular user, "normally used" refers to a
++typical or common use of that class of product, regardless of the status
++of the particular user or of the way in which the particular user
++actually uses, or expects or is expected to use, the product.  A product
++is a consumer product regardless of whether the product has substantial
++commercial, industrial or non-consumer uses, unless such uses represent
++the only significant mode of use of the product.
++
++  "Installation Information" for a User Product means any methods,
++procedures, authorization keys, or other information required to install
++and execute modified versions of a covered work in that User Product from
++a modified version of its Corresponding Source.  The information must
++suffice to ensure that the continued functioning of the modified object
++code is in no case prevented or interfered with solely because
++modification has been made.
++
++  If you convey an object code work under this section in, or with, or
++specifically for use in, a User Product, and the conveying occurs as
++part of a transaction in which the right of possession and use of the
++User Product is transferred to the recipient in perpetuity or for a
++fixed term (regardless of how the transaction is characterized), the
++Corresponding Source conveyed under this section must be accompanied
++by the Installation Information.  But this requirement does not apply
++if neither you nor any third party retains the ability to install
++modified object code on the User Product (for example, the work has
++been installed in ROM).
++
++  The requirement to provide Installation Information does not include a
++requirement to continue to provide support service, warranty, or updates
++for a work that has been modified or installed by the recipient, or for
++the User Product in which it has been modified or installed.  Access to a
++network may be denied when the modification itself materially and
++adversely affects the operation of the network or violates the rules and
++protocols for communication across the network.
++
++  Corresponding Source conveyed, and Installation Information provided,
++in accord with this section must be in a format that is publicly
++documented (and with an implementation available to the public in
++source code form), and must require no special password or key for
++unpacking, reading or copying.
++
++  7. Additional Terms.
++
++  "Additional permissions" are terms that supplement the terms of this
++License by making exceptions from one or more of its conditions.
++Additional permissions that are applicable to the entire Program shall
++be treated as though they were included in this License, to the extent
++that they are valid under applicable law.  If additional permissions
++apply only to part of the Program, that part may be used separately
++under those permissions, but the entire Program remains governed by
++this License without regard to the additional permissions.
++
++  When you convey a copy of a covered work, you may at your option
++remove any additional permissions from that copy, or from any part of
++it.  (Additional permissions may be written to require their own
++removal in certain cases when you modify the work.)  You may place
++additional permissions on material, added by you to a covered work,
++for which you have or can give appropriate copyright permission.
++
++  Notwithstanding any other provision of this License, for material you
++add to a covered work, you may (if authorized by the copyright holders of
++that material) supplement the terms of this License with terms:
++
++    a) Disclaiming warranty or limiting liability differently from the
++    terms of sections 15 and 16 of this License; or
++
++    b) Requiring preservation of specified reasonable legal notices or
++    author attributions in that material or in the Appropriate Legal
++    Notices displayed by works containing it; or
++
++    c) Prohibiting misrepresentation of the origin of that material, or
++    requiring that modified versions of such material be marked in
++    reasonable ways as different from the original version; or
++
++    d) Limiting the use for publicity purposes of names of licensors or
++    authors of the material; or
++
++    e) Declining to grant rights under trademark law for use of some
++    trade names, trademarks, or service marks; or
++
++    f) Requiring indemnification of licensors and authors of that
++    material by anyone who conveys the material (or modified versions of
++    it) with contractual assumptions of liability to the recipient, for
++    any liability that these contractual assumptions directly impose on
++    those licensors and authors.
++
++  All other non-permissive additional terms are considered "further
++restrictions" within the meaning of section 10.  If the Program as you
++received it, or any part of it, contains a notice stating that it is
++governed by this License along with a term that is a further
++restriction, you may remove that term.  If a license document contains
++a further restriction but permits relicensing or conveying under this
++License, you may add to a covered work material governed by the terms
++of that license document, provided that the further restriction does
++not survive such relicensing or conveying.
++
++  If you add terms to a covered work in accord with this section, you
++must place, in the relevant source files, a statement of the
++additional terms that apply to those files, or a notice indicating
++where to find the applicable terms.
++
++  Additional terms, permissive or non-permissive, may be stated in the
++form of a separately written license, or stated as exceptions;
++the above requirements apply either way.
++
++  8. Termination.
++
++  You may not propagate or modify a covered work except as expressly
++provided under this License.  Any attempt otherwise to propagate or
++modify it is void, and will automatically terminate your rights under
++this License (including any patent licenses granted under the third
++paragraph of section 11).
++
++  However, if you cease all violation of this License, then your
++license from a particular copyright holder is reinstated (a)
++provisionally, unless and until the copyright holder explicitly and
++finally terminates your license, and (b) permanently, if the copyright
++holder fails to notify you of the violation by some reasonable means
++prior to 60 days after the cessation.
++
++  Moreover, your license from a particular copyright holder is
++reinstated permanently if the copyright holder notifies you of the
++violation by some reasonable means, this is the first time you have
++received notice of violation of this License (for any work) from that
++copyright holder, and you cure the violation prior to 30 days after
++your receipt of the notice.
++
++  Termination of your rights under this section does not terminate the
++licenses of parties who have received copies or rights from you under
++this License.  If your rights have been terminated and not permanently
++reinstated, you do not qualify to receive new licenses for the same
++material under section 10.
++
++  9. Acceptance Not Required for Having Copies.
++
++  You are not required to accept this License in order to receive or
++run a copy of the Program.  Ancillary propagation of a covered work
++occurring solely as a consequence of using peer-to-peer transmission
++to receive a copy likewise does not require acceptance.  However,
++nothing other than this License grants you permission to propagate or
++modify any covered work.  These actions infringe copyright if you do
++not accept this License.  Therefore, by modifying or propagating a
++covered work, you indicate your acceptance of this License to do so.
++
++  10. Automatic Licensing of Downstream Recipients.
++
++  Each time you convey a covered work, the recipient automatically
++receives a license from the original licensors, to run, modify and
++propagate that work, subject to this License.  You are not responsible
++for enforcing compliance by third parties with this License.
++
++  An "entity transaction" is a transaction transferring control of an
++organization, or substantially all assets of one, or subdividing an
++organization, or merging organizations.  If propagation of a covered
++work results from an entity transaction, each party to that
++transaction who receives a copy of the work also receives whatever
++licenses to the work the party's predecessor in interest had or could
++give under the previous paragraph, plus a right to possession of the
++Corresponding Source of the work from the predecessor in interest, if
++the predecessor has it or can get it with reasonable efforts.
++
++  You may not impose any further restrictions on the exercise of the
++rights granted or affirmed under this License.  For example, you may
++not impose a license fee, royalty, or other charge for exercise of
++rights granted under this License, and you may not initiate litigation
++(including a cross-claim or counterclaim in a lawsuit) alleging that
++any patent claim is infringed by making, using, selling, offering for
++sale, or importing the Program or any portion of it.
++
++  11. Patents.
++
++  A "contributor" is a copyright holder who authorizes use under this
++License of the Program or a work on which the Program is based.  The
++work thus licensed is called the contributor's "contributor version".
++
++  A contributor's "essential patent claims" are all patent claims
++owned or controlled by the contributor, whether already acquired or
++hereafter acquired, that would be infringed by some manner, permitted
++by this License, of making, using, or selling its contributor version,
++but do not include claims that would be infringed only as a
++consequence of further modification of the contributor version.  For
++purposes of this definition, "control" includes the right to grant
++patent sublicenses in a manner consistent with the requirements of
++this License.
++
++  Each contributor grants you a non-exclusive, worldwide, royalty-free
++patent license under the contributor's essential patent claims, to
++make, use, sell, offer for sale, import and otherwise run, modify and
++propagate the contents of its contributor version.
++
++  In the following three paragraphs, a "patent license" is any express
++agreement or commitment, however denominated, not to enforce a patent
++(such as an express permission to practice a patent or covenant not to
++sue for patent infringement).  To "grant" such a patent license to a
++party means to make such an agreement or commitment not to enforce a
++patent against the party.
++
++  If you convey a covered work, knowingly relying on a patent license,
++and the Corresponding Source of the work is not available for anyone
++to copy, free of charge and under the terms of this License, through a
++publicly available network server or other readily accessible means,
++then you must either (1) cause the Corresponding Source to be so
++available, or (2) arrange to deprive yourself of the benefit of the
++patent license for this particular work, or (3) arrange, in a manner
++consistent with the requirements of this License, to extend the patent
++license to downstream recipients.  "Knowingly relying" means you have
++actual knowledge that, but for the patent license, your conveying the
++covered work in a country, or your recipient's use of the covered work
++in a country, would infringe one or more identifiable patents in that
++country that you have reason to believe are valid.
++
++  If, pursuant to or in connection with a single transaction or
++arrangement, you convey, or propagate by procuring conveyance of, a
++covered work, and grant a patent license to some of the parties
++receiving the covered work authorizing them to use, propagate, modify
++or convey a specific copy of the covered work, then the patent license
++you grant is automatically extended to all recipients of the covered
++work and works based on it.
++
++  A patent license is "discriminatory" if it does not include within
++the scope of its coverage, prohibits the exercise of, or is
++conditioned on the non-exercise of one or more of the rights that are
++specifically granted under this License.  You may not convey a covered
++work if you are a party to an arrangement with a third party that is
++in the business of distributing software, under which you make payment
++to the third party based on the extent of your activity of conveying
++the work, and under which the third party grants, to any of the
++parties who would receive the covered work from you, a discriminatory
++patent license (a) in connection with copies of the covered work
++conveyed by you (or copies made from those copies), or (b) primarily
++for and in connection with specific products or compilations that
++contain the covered work, unless you entered into that arrangement,
++or that patent license was granted, prior to 28 March 2007.
++
++  Nothing in this License shall be construed as excluding or limiting
++any implied license or other defenses to infringement that may
++otherwise be available to you under applicable patent law.
++
++  12. No Surrender of Others' Freedom.
++
++  If conditions are imposed on you (whether by court order, agreement or
++otherwise) that contradict the conditions of this License, they do not
++excuse you from the conditions of this License.  If you cannot convey a
++covered work so as to satisfy simultaneously your obligations under this
++License and any other pertinent obligations, then as a consequence you may
++not convey it at all.  For example, if you agree to terms that obligate you
++to collect a royalty for further conveying from those to whom you convey
++the Program, the only way you could satisfy both those terms and this
++License would be to refrain entirely from conveying the Program.
++
++  13. Remote Network Interaction; Use with the GNU General Public License.
++
++  Notwithstanding any other provision of this License, if you modify the
++Program, your modified version must prominently offer all users
++interacting with it remotely through a computer network (if your version
++supports such interaction) an opportunity to receive the Corresponding
++Source of your version by providing access to the Corresponding Source
++from a network server at no charge, through some standard or customary
++means of facilitating copying of software.  This Corresponding Source
++shall include the Corresponding Source for any work covered by version 3
++of the GNU General Public License that is incorporated pursuant to the
++following paragraph.
++
++  Notwithstanding any other provision of this License, you have
++permission to link or combine any covered work with a work licensed
++under version 3 of the GNU General Public License into a single
++combined work, and to convey the resulting work.  The terms of this
++License will continue to apply to the part which is the covered work,
++but the work with which it is combined will remain governed by version
++3 of the GNU General Public License.
++
++  14. Revised Versions of this License.
++
++  The Free Software Foundation may publish revised and/or new versions of
++the GNU Affero General Public License from time to time.  Such new versions
++will be similar in spirit to the present version, but may differ in detail to
++address new problems or concerns.
++
++  Each version is given a distinguishing version number.  If the
++Program specifies that a certain numbered version of the GNU Affero General
++Public License "or any later version" applies to it, you have the
++option of following the terms and conditions either of that numbered
++version or of any later version published by the Free Software
++Foundation.  If the Program does not specify a version number of the
++GNU Affero General Public License, you may choose any version ever published
++by the Free Software Foundation.
++
++  If the Program specifies that a proxy can decide which future
++versions of the GNU Affero General Public License can be used, that proxy's
++public statement of acceptance of a version permanently authorizes you
++to choose that version for the Program.
++
++  Later license versions may give you additional or different
++permissions.  However, no additional obligations are imposed on any
++author or copyright holder as a result of your choosing to follow a
++later version.
++
++  15. Disclaimer of Warranty.
++
++  THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY
++APPLICABLE LAW.  EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT
++HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY
++OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO,
++THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
++PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM
++IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
++ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
++
++  16. Limitation of Liability.
++
++  IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
++WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MODIFIES AND/OR CONVEYS
++THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY
++GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE
++USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED TO LOSS OF
++DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD
++PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS),
++EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
++SUCH DAMAGES.
++
++  17. Interpretation of Sections 15 and 16.
++
++  If the disclaimer of warranty and limitation of liability provided
++above cannot be given local legal effect according to their terms,
++reviewing courts shall apply local law that most closely approximates
++an absolute waiver of all civil liability in connection with the
++Program, unless a warranty or assumption of liability accompanies a
++copy of the Program in return for a fee.
++
++                     END OF TERMS AND CONDITIONS
++
++            How to Apply These Terms to Your New Programs
++
++  If you develop a new program, and you want it to be of the greatest
++possible use to the public, the best way to achieve this is to make it
++free software which everyone can redistribute and change under these terms.
++
++  To do so, attach the following notices to the program.  It is safest
++to attach them to the start of each source file to most effectively
++state the exclusion of warranty; and each file should have at least
++the "copyright" line and a pointer to where the full notice is found.
++
++    <one line to give the program's name and a brief idea of what it does.>
++    Copyright (C) <year>  <name of author>
++
++    This program is free software: you can redistribute it and/or modify
++    it under the terms of the GNU Affero General Public License as published by
++    the Free Software Foundation, either version 3 of the License, or
++    (at your option) any later version.
++
++    This program is distributed in the hope that it will be useful,
++    but WITHOUT ANY WARRANTY; without even the implied warranty of
++    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++    GNU Affero General Public License for more details.
++
++    You should have received a copy of the GNU Affero General Public License
++    along with this program.  If not, see <https://www.gnu.org/licenses/>.
++
++Also add information on how to contact you by electronic and paper mail.
++
++  If your software can interact with users remotely through a computer
++network, you should also make sure that it provides a way for users to
++get its source.  For example, if your program is a web application, its
++interface could display a "Source" link that leads users to an archive
++of the code.  There are many ways you could offer source, and different
++solutions will be better for different programs; see section 13 for the
++specific requirements.
++
++  You should also get your employer (if you work as a programmer) or school,
++if any, to sign a "copyright disclaimer" for the program, if necessary.
++For more information on this, and how to apply and follow the GNU AGPL, see
++<https://www.gnu.org/licenses/>.
+diff --git a/LICENSE-APACHE-2.0 b/LICENSE-APACHE-2.0
+new file mode 100644
+index 0000000000000000000000000000000000000000..4606e72e042564097e8780d66c1d4dcb611869bd
+--- /dev/null
++++ b/LICENSE-APACHE-2.0
+@@ -0,0 +1,201 @@
++                                 Apache License
++                           Version 2.0, January 2004
++                        http://www.apache.org/licenses/
++
++TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
++
++1.  Definitions.
++
++    "License" shall mean the terms and conditions for use, reproduction,
++    and distribution as defined by Sections 1 through 9 of this document.
++
++    "Licensor" shall mean the copyright owner or entity authorized by
++    the copyright owner that is granting the License.
++
++    "Legal Entity" shall mean the union of the acting entity and all
++    other entities that control, are controlled by, or are under common
++    control with that entity. For the purposes of this definition,
++    "control" means (i) the power, direct or indirect, to cause the
++    direction or management of such entity, whether by contract or
++    otherwise, or (ii) ownership of fifty percent (50%) or more of the
++    outstanding shares, or (iii) beneficial ownership of such entity.
++
++    "You" (or "Your") shall mean an individual or Legal Entity
++    exercising permissions granted by this License.
++
++    "Source" form shall mean the preferred form for making modifications,
++    including but not limited to software source code, documentation
++    source, and configuration files.
++
++    "Object" form shall mean any form resulting from mechanical
++    transformation or translation of a Source form, including but
++    not limited to compiled object code, generated documentation,
++    and conversions to other media types.
++
++    "Work" shall mean the work of authorship, whether in Source or
++    Object form, made available under the License, as indicated by a
++    copyright notice that is included in or attached to the work
++    (an example is provided in the Appendix below).
++
++    "Derivative Works" shall mean any work, whether in Source or Object
++    form, that is based on (or derived from) the Work and for which the
++    editorial revisions, annotations, elaborations, or other modifications
++    represent, as a whole, an original work of authorship. For the purposes
++    of this License, Derivative Works shall not include works that remain
++    separable from, or merely link (or bind by name) to the interfaces of,
++    the Work and Derivative Works thereof.
++
++    "Contribution" shall mean any work of authorship, including
++    the original version of the Work and any modifications or additions
++    to that Work or Derivative Works thereof, that is intentionally
++    submitted to Licensor for inclusion in the Work by the copyright owner
++    or by an individual or Legal Entity authorized to submit on behalf of
++    the copyright owner. For the purposes of this definition, "submitted"
++    means any form of electronic, verbal, or written communication sent
++    to the Licensor or its representatives, including but not limited to
++    communication on electronic mailing lists, source code control systems,
++    and issue tracking systems that are managed by, or on behalf of, the
++    Licensor for the purpose of discussing and improving the Work, but
++    excluding communication that is conspicuously marked or otherwise
++    designated in writing by the copyright owner as "Not a Contribution."
++
++    "Contributor" shall mean Licensor and any individual or Legal Entity
++    on behalf of whom a Contribution has been received by Licensor and
++    subsequently incorporated within the Work.
++
++2.  Grant of Copyright License. Subject to the terms and conditions of
++    this License, each Contributor hereby grants to You a perpetual,
++    worldwide, non-exclusive, no-charge, royalty-free, irrevocable
++    copyright license to reproduce, prepare Derivative Works of,
++    publicly display, publicly perform, sublicense, and distribute the
++    Work and such Derivative Works in Source or Object form.
++
++3.  Grant of Patent License. Subject to the terms and conditions of
++    this License, each Contributor hereby grants to You a perpetual,
++    worldwide, non-exclusive, no-charge, royalty-free, irrevocable
++    (except as stated in this section) patent license to make, have made,
++    use, offer to sell, sell, import, and otherwise transfer the Work,
++    where such license applies only to those patent claims licensable
++    by such Contributor that are necessarily infringed by their
++    Contribution(s) alone or by combination of their Contribution(s)
++    with the Work to which such Contribution(s) was submitted. If You
++    institute patent litigation against any entity (including a
++    cross-claim or counterclaim in a lawsuit) alleging that the Work
++    or a Contribution incorporated within the Work constitutes direct
++    or contributory patent infringement, then any patent licenses
++    granted to You under this License for that Work shall terminate
++    as of the date such litigation is filed.
++
++4.  Redistribution. You may reproduce and distribute copies of the
++    Work or Derivative Works thereof in any medium, with or without
++    modifications, and in Source or Object form, provided that You
++    meet the following conditions:
++
++    (a) You must give any other recipients of the Work or
++    Derivative Works a copy of this License; and
++
++    (b) You must cause any modified files to carry prominent notices
++    stating that You changed the files; and
++
++    (c) You must retain, in the Source form of any Derivative Works
++    that You distribute, all copyright, patent, trademark, and
++    attribution notices from the Source form of the Work,
++    excluding those notices that do not pertain to any part of
++    the Derivative Works; and
++
++    (d) If the Work includes a "NOTICE" text file as part of its
++    distribution, then any Derivative Works that You distribute must
++    include a readable copy of the attribution notices contained
++    within such NOTICE file, excluding those notices that do not
++    pertain to any part of the Derivative Works, in at least one
++    of the following places: within a NOTICE text file distributed
++    as part of the Derivative Works; within the Source form or
++    documentation, if provided along with the Derivative Works; or,
++    within a display generated by the Derivative Works, if and
++    wherever such third-party notices normally appear. The contents
++    of the NOTICE file are for informational purposes only and
++    do not modify the License. You may add Your own attribution
++    notices within Derivative Works that You distribute, alongside
++    or as an addendum to the NOTICE text from the Work, provided
++    that such additional attribution notices cannot be construed
++    as modifying the License.
++
++    You may add Your own copyright statement to Your modifications and
++    may provide additional or different license terms and conditions
++    for use, reproduction, or distribution of Your modifications, or
++    for any such Derivative Works as a whole, provided Your use,
++    reproduction, and distribution of the Work otherwise complies with
++    the conditions stated in this License.
++
++5.  Submission of Contributions. Unless You explicitly state otherwise,
++    any Contribution intentionally submitted for inclusion in the Work
++    by You to the Licensor shall be under the terms and conditions of
++    this License, without any additional terms or conditions.
++    Notwithstanding the above, nothing herein shall supersede or modify
++    the terms of any separate license agreement you may have executed
++    with Licensor regarding such Contributions.
++
++6.  Trademarks. This License does not grant permission to use the trade
++    names, trademarks, service marks, or product names of the Licensor,
++    except as required for reasonable and customary use in describing the
++    origin of the Work and reproducing the content of the NOTICE file.
++
++7.  Disclaimer of Warranty. Unless required by applicable law or
++    agreed to in writing, Licensor provides the Work (and each
++    Contributor provides its Contributions) on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
++    implied, including, without limitation, any warranties or conditions
++    of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
++    PARTICULAR PURPOSE. You are solely responsible for determining the
++    appropriateness of using or redistributing the Work and assume any
++    risks associated with Your exercise of permissions under this License.
++
++8.  Limitation of Liability. In no event and under no legal theory,
++    whether in tort (including negligence), contract, or otherwise,
++    unless required by applicable law (such as deliberate and grossly
++    negligent acts) or agreed to in writing, shall any Contributor be
++    liable to You for damages, including any direct, indirect, special,
++    incidental, or consequential damages of any character arising as a
++    result of this License or out of the use or inability to use the
++    Work (including but not limited to damages for loss of goodwill,
++    work stoppage, computer failure or malfunction, or any and all
++    other commercial damages or losses), even if such Contributor
++    has been advised of the possibility of such damages.
++
++9.  Accepting Warranty or Additional Liability. While redistributing
++    the Work or Derivative Works thereof, You may choose to offer,
++    and charge a fee for, acceptance of support, warranty, indemnity,
++    or other liability obligations and/or rights consistent with this
++    License. However, in accepting such obligations, You may act only
++    on Your own behalf and on Your sole responsibility, not on behalf
++    of any other Contributor, and only if You agree to indemnify,
++    defend, and hold each Contributor harmless for any liability
++    incurred by, or claims asserted against, such Contributor by reason
++    of your accepting any such warranty or additional liability.
++
++END OF TERMS AND CONDITIONS
++
++APPENDIX: How to apply the Apache License to your work.
++
++      To apply the Apache License to your work, attach the following
++      boilerplate notice, with the fields enclosed by brackets "[]"
++      replaced with your own identifying information. (Don't include
++      the brackets!)  The text should be enclosed in the appropriate
++      comment syntax for the file format. We also recommend that a
++      file or class name and description of purpose be included on the
++      same "printed page" as the copyright notice for easier
++      identification within third-party archives.
++
++Copyright 2025 OpenAI
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
+diff --git a/LICENSING.md b/LICENSING.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..60bca99ef4c4a371fbf0903a87992323ec9b917f
+--- /dev/null
++++ b/LICENSING.md
+@@ -0,0 +1,21 @@
++# Licensing / 라이선스
++
++## English
++
++Arcvera-Core 1.0.0 and all subsequent project versions are licensed under the GNU Affero General Public License, version 3 or (at your option) any later version (`AGPL-3.0-or-later`). See [LICENSE](LICENSE) for the complete terms. This continuing release policy covers maintenance and major versions.
++
++This work incorporates Apache-2.0 software. The original repository license is preserved byte for byte in [LICENSE-APACHE-2.0](LICENSE-APACHE-2.0). The original [NOTICE](NOTICE), [upstream license](upstream/LICENSE), [upstream notices](upstream/NOTICE), file copyright notices and [modification notices](MODIFICATIONS.md) remain applicable. Original Apache notices do not license the complete Arcvera-Core derivative under Apache-2.0. Independently licensed dependencies, vendored code, examples and resources retain their own licenses. This policy does not relicense third-party material or proprietary OpenAI Desktop software.
++
++The Windows release package includes the exact committed project source under `source/`, together with a `SOURCE.md` identifying the full commit, archive and build instructions. The public repository is <https://github.com/jaeseongs95/Arcvera-Core>. Release source must match the executable build commit. Keep the source archive, source offer, licenses and notices when redistributing a package. Supply the complete corresponding source required by the license, including changes and scripts needed to control compilation and installation; a link to a different revision is insufficient. See [source build](docs/source-import.md) and [Windows packaging](tools/windows-cli/README.md).
++
++When running a modified version for users interacting remotely through a computer network, prominently offer those users access to its corresponding source at no charge through a standard or customary means. Operators of a client or service exposing Core must make that offer visible in the interface those users actually access and identify their deployed revision and changes. A local file invisible to network users is insufficient. This obligation also applies to later modified versions; preserve the source offer when integrating Core into another application. See section 13 of LICENSE. Packaging and repository publication alone do not verify a deployed service's offer.
++
++## 한국어
++
++Arcvera-Core 1.0.0과 이후 모든 프로젝트 버전에는 GNU Affero General Public License 제3판 또는 이용자가 선택하는 그 이후 판(`AGPL-3.0-or-later`)을 적용합니다. 전문은 [LICENSE](LICENSE)에 있습니다. 유지보수 버전과 주 버전 변경에도 이 정책을 유지합니다.
++
++이 프로젝트에는 Apache-2.0 소프트웨어가 포함됩니다. 기존 저장소 라이선스는 [LICENSE-APACHE-2.0](LICENSE-APACHE-2.0)에 원래 바이트 그대로 보존하며, 기존 [NOTICE](NOTICE), [공식 기반 라이선스](upstream/LICENSE)·[고지](upstream/NOTICE), 파일별 저작권과 [수정 고지](MODIFICATIONS.md)를 유지합니다. 원 Apache 고지가 Arcvera-Core 파생물 전체에 Apache-2.0을 적용한다는 뜻은 아닙니다. 별도 라이선스의 의존성·벤더 코드·예제·리소스는 각 라이선스를 유지하며, 이 정책으로 제삼자 자료나 독점 OpenAI Desktop 소프트웨어의 라이선스를 변경하지 않습니다.
++
++Windows 배포 패키지는 `source/`에 정확한 커밋의 프로젝트 소스를 포함하고, `SOURCE.md`에 전체 커밋·소스 압축파일·빌드 안내를 기록합니다. 공개 저장소는 <https://github.com/jaeseongs95/Arcvera-Core>입니다. 배포 소스는 실행 파일의 빌드 커밋과 일치해야 합니다. 재배포할 때 소스 압축파일·소스 제공 안내·라이선스·고지를 유지하고, 수정 내용과 컴파일·설치를 제어하는 스크립트를 포함해 라이선스가 요구하는 완전한 대응소스를 제공해야 합니다. 다른 리비전의 링크만 제공하는 것으로 대신할 수 없습니다. [소스 빌드](docs/source-import.md)와 [Windows 패키징](tools/windows-cli/README.md)을 따릅니다.
++
++수정 버전을 컴퓨터 네트워크로 원격 이용하는 사용자가 있다면, 표준적이거나 통상적인 방법으로 대응소스에 무료 접근할 수 있다는 안내를 그 사용자에게 잘 보이게 제공해야 합니다. Core를 노출하는 클라이언트·서비스 운영자는 사용자가 실제로 접근하는 화면에 이 안내를 표시하고, 운영 중인 리비전과 수정 내용을 식별해야 합니다. 원격 사용자가 볼 수 없는 로컬 파일만으로 대신할 수 없습니다. 후속 수정 버전에도 적용되며, 다른 애플리케이션에 통합할 때 소스 제공 안내를 유지해야 합니다. LICENSE 제13조를 따릅니다. 패키지와 저장소 공개만으로 운영 서비스의 안내를 검증한 것은 아닙니다.
 diff --git a/MODIFICATIONS.md b/MODIFICATIONS.md
-index c3febe7112813d655a8b6c2367e9057cca8d1705..3b7befd3e24c47fe08aabede457f4cf35c6af77f 100644
+index c3febe7112813d655a8b6c2367e9057cca8d1705..73818895b85c260900649aef2e09b7b0a7da6e42 100644
 --- a/MODIFICATIONS.md
 +++ b/MODIFICATIONS.md
 @@ -1,3 +1,37 @@
@@ -40,8 +1141,18 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..3b7befd3e24c47fe08aabede457f4cf3
  # R39 compact 개발 후보 (2026-11-07)
  
  정식 발행·동결된 R38과 같은 공식 0.167.0 기반에서 압축 동작만 변경합니다. 버전은 `0.167.0+native-r39.20261107`이며, 고정 소스는 `c4399dce957bb63fe1fdc276aa4306c06f6cf47f`입니다. 메모리 리팩토링·후크·캐싱·스크롤 감도·한글화·컨텍스트 조회의 미완 작업은 R40으로 이관하며 이번 변경에 포함하지 않습니다. 현재 소스·시험 후보이며 최종 빌드·발행은 미완료입니다.
+@@ -701,3 +735,9 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
+ 고정 소스 `8e9b7eff953e750e8f071d101233920108e5ca26`는 R37 이후의 별도 개발 후보다. 플러그인 payload 비교에서 정확한 `.git`만 제외하고, 암시적 daemon의 전체 버전 확인과 실제 시작·재연결 화면 안내를 보강했다. Stop 속성의 명시적 교정 도구와 재로드 경고의 한국어/영어 안내, 에이전트 목록의 메인 마우스 복귀 및 작은 밑줄만 사용하는 hover를 포함한다.
+ 
+ 요구별 실행 결과·원래 실패·미검증 경계는 [R38 범위](docs/native-cli-r38.ko.md)와 연결된 사례 문서를 따른다. 운영 설정 자동 교정·R38 최종 릴리스 빌드·공개·설치는 수행하지 않았다. R37 동결 실행 파일은 변경하지 않았다.
++
++## AGPL transition / AGPL 전환
++
++Core 1.0.0 and every subsequent version use AGPL-3.0-or-later. The original Apache license and NOTICE remain preserved; see [LICENSING.md](LICENSING.md) for third-party rights and corresponding-source obligations.
++
++Core 1.0.0과 이후 모든 버전은 AGPL-3.0-or-later를 적용합니다. 원 Apache 라이선스·NOTICE를 보존하며, 제삼자 권리와 대응소스 제공 의무는 [LICENSING.md](LICENSING.md)에 기록합니다.
 diff --git a/README.ko.md b/README.ko.md
-index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..f3aeaf9a48853b0329cfa4ec0d15e286fc56391b 100644
+index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..4da02ee2ea3e37f7412e7a9266dbcdba71b41586 100644
 --- a/README.ko.md
 +++ b/README.ko.md
 @@ -1,10 +1,12 @@
@@ -120,8 +1231,14 @@ index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..f3aeaf9a48853b0329cfa4ec0d15e286
  시험한 실행본, 원 실패와 미실행 항목은 해당 태그의 릴리스 노트에서 확인합니다. 실제 모델의 압축 의미 품질, 물리 키보드·IME·음성 동작, 최초 설치, 장시간 부하에는 노트에 명시한 검증 공백이 있습니다. 이 시험으로 모든 GUI 지연이나 메모리 증가가 해결됐다고 판단할 수는 없습니다.
  
  R40에는 메모리 전면 개편, 새로운 CodeMode 구조, 전체 리팩토링, 구조적 캐싱 개선이 포함되지 않습니다. 화면 이력 제한은 전체 프로세스 메모리 제한이 아니며 파일 생성은 클라우드 업로드 성공의 증거가 아닙니다.
+@@ -90,4 +100,4 @@ R40에는 메모리 전면 개편, 새로운 CodeMode 구조, 전체 리팩토
+ 
+ [OpenAI Codex](https://github.com/openai/codex)를 기반으로 한 독립 프로젝트이며 OpenAI 공식 제품이 아닙니다. Git에는 소스와 빌드 도구를, Releases에는 실행 자산을 보관합니다. 인증정보와 운영 로그는 포함하지 않습니다.
+ 
+-[Apache-2.0](LICENSE) · [NOTICE](NOTICE)
++[AGPL-3.0-or-later](LICENSE) · [Licensing / 라이선스](LICENSING.md) · [Original Apache-2.0](LICENSE-APACHE-2.0) · [NOTICE](NOTICE)
 diff --git a/README.md b/README.md
-index 4fbf1c87d2f614904d8f43660f15495977558d7d..b8e01584f81710a9bce7e44adf52c2e22d45c82c 100644
+index 4fbf1c87d2f614904d8f43660f15495977558d7d..d735def1d79146677c187a7a42092ea9c9acc22b 100644
 --- a/README.md
 +++ b/README.md
 @@ -1,10 +1,12 @@
@@ -200,6 +1317,12 @@ index 4fbf1c87d2f614904d8f43660f15495977558d7d..b8e01584f81710a9bce7e44adf52c2e2
  Tagged release notes identify tested binaries, original failures, and unrun cases. Real-model compaction quality, physical keyboard/IME and voice behavior, first-time installation, and sustained workloads have the gaps specified there. These tests do not establish that all GUI delays or memory growth have been resolved.
  
  R40 excludes a full memory redesign, a new CodeMode architecture, broad refactoring, and structural caching improvements. Display-history bounds are not total process-memory limits; file creation is not proof of cloud upload.
+@@ -90,4 +100,4 @@ R40 excludes a full memory redesign, a new CodeMode architecture, broad refactor
+ 
+ Independent work based on [OpenAI Codex](https://github.com/openai/codex); not an official OpenAI product. Git stores source and build tools; Releases stores executable assets. Credentials and operational logs are excluded.
+ 
+-[Apache-2.0](LICENSE) · [NOTICE](NOTICE)
++[AGPL-3.0-or-later](LICENSE) · [Licensing / 라이선스](LICENSING.md) · [Original Apache-2.0](LICENSE-APACHE-2.0) · [NOTICE](NOTICE)
 diff --git a/codex-rs/Cargo.lock b/codex-rs/Cargo.lock
 index f8b7fd6e4a7d337e612095667ba872fa4e2cea7f..1b44a551e516255fd7e632a8de1482a470548813 100644
 --- a/codex-rs/Cargo.lock
@@ -1809,7 +2932,7 @@ index f8b7fd6e4a7d337e612095667ba872fa4e2cea7f..1b44a551e516255fd7e632a8de1482a4
   "anyhow",
   "assert_cmd",
 diff --git a/codex-rs/Cargo.toml b/codex-rs/Cargo.toml
-index 5f7cdaa26b1526802dcd9b1b17d9d6ad56da62fa..6f0c7ba06d6b57c1bb9381e3831bc5fde142d86b 100644
+index 5f7cdaa26b1526802dcd9b1b17d9d6ad56da62fa..82958b569dc9aab61aebd010d1d4ef7df93eb141 100644
 --- a/codex-rs/Cargo.toml
 +++ b/codex-rs/Cargo.toml
 @@ -1,3 +1,4 @@
@@ -1873,7 +2996,7 @@ index 5f7cdaa26b1526802dcd9b1b17d9d6ad56da62fa..6f0c7ba06d6b57c1bb9381e3831bc5fd
      "thread-store",
      "uds",
      "codex-experimental-api-macros",
-@@ -171,7 +165,7 @@ members = [
+@@ -171,13 +165,13 @@ members = [
  resolver = "2"
  
  [workspace.package]
@@ -1882,6 +3005,13 @@ index 5f7cdaa26b1526802dcd9b1b17d9d6ad56da62fa..6f0c7ba06d6b57c1bb9381e3831bc5fd
  # Track the edition for all workspace crates in one place. Individual
  # crates can still override this value, but keeping it here means new
  # crates created with `cargo new -w ...` automatically inherit the 2024
+ # edition.
+ edition = "2024"
+-license = "Apache-2.0"
++license = "AGPL-3.0-or-later"
+ 
+ [workspace.dependencies]
+ # Internal
 @@ -226,7 +220,6 @@ codex-message-board-mcp = { path = "message-board-mcp" }
  codex-connectors-extension = { path = "ext/connectors" }
  codex-context-fragments = { path = "context-fragments" }
@@ -20681,10 +21811,10 @@ index 47ea49f3a6a34f928b88df84995c1c89549d8c85..cfc21905782ad7fbfe263630273a226d
  [R39 — English / 한국어](R39.md) · [R40 — English / 한국어](R40.md)
 diff --git a/docs/releases/R41.md b/docs/releases/R41.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..e45d5fd1f8d960202ab5d63fbf560831ca363914
+index 0000000000000000000000000000000000000000..a8755c88a636b5803b4ff18806eefc2351908647
 --- /dev/null
 +++ b/docs/releases/R41.md
-@@ -0,0 +1,247 @@
+@@ -0,0 +1,253 @@
 +# Arcvera-Core 1.0.0 — Indexed context and incremental compaction / 인덱스 기반 컨텍스트와 증분 압축
 +
 +## English
@@ -20932,6 +22062,12 @@ index 0000000000000000000000000000000000000000..e45d5fd1f8d960202ab5d63fbf560831
 +| `arcvera-core-1.0.0-windows-x86_64.zip` | NOT_BUILT / UNVERIFIED |
 +| `SHA256SUMS.txt` | NOT_GENERATED / UNVERIFIED |
 +| `USAGE.ko.md` | NOT_PACKAGED / UNVERIFIED |
++
++## AGPL transition / AGPL 전환
++
++Core 1.0.0 adopts AGPL-3.0-or-later and retains this policy for all subsequent versions. Original Apache and third-party notices remain applicable. See [licensing](../../LICENSING.md); the final release package must include its exact corresponding source.
++
++Core 1.0.0부터 이후 모든 버전에 AGPL-3.0-or-later를 적용합니다. 원 Apache·제삼자 고지는 유지합니다. [라이선스 안내](../../LICENSING.md)를 따르며 최종 배포 패키지에 정확한 대응소스를 포함해야 합니다.
 diff --git a/docs/roadmap/R42.md b/docs/roadmap/R42.md
 new file mode 100644
 index 0000000000000000000000000000000000000000..2be9a618d8966952d8279562c5d5fb4a183c4295
@@ -20974,13 +22110,15 @@ index 0000000000000000000000000000000000000000..2be9a618d8966952d8279562c5d5fb4a
 +
 +범위 이관은 구현·검증 완료, 발행일 확정, 설치·운영 서비스 전환 권한을 뜻하지 않습니다. 원문·권한·최신 사용자 정정·활성 참조·진행 중 작업은 계속 보존해야 합니다. 외부 메모리 조회가 비활성화된 경우 그 상태를 유지하며, 조회 불가를 정보 부재로 해석하거나 우회하지 않습니다.
 diff --git a/docs/source-import.md b/docs/source-import.md
-index ff71838836f56086461b5385ea415be2f32f1da5..fe373386cdb2d2cd7fe5a0a0f2f34ebf959c9d0d 100644
+index ff71838836f56086461b5385ea415be2f32f1da5..c65d1e6a294fe0509d4e164fa95e829d596327f7 100644
 --- a/docs/source-import.md
 +++ b/docs/source-import.md
-@@ -1,3 +1,35 @@
+@@ -1,3 +1,39 @@
 +# R41 source provenance / R41 소스 출처
 +
 +## English
++
++Core 1.0.0 and all subsequent versions use AGPL-3.0-or-later. Original license/notice verification remains strict: the exact original Apache license is retained as `LICENSE-APACHE-2.0` when the root `LICENSE` matches the pinned complete official AGPL text; original `NOTICE` and historical upstream artifacts remain unchanged. See [LICENSING.md](../LICENSING.md) and the [Windows build instructions](../tools/windows-cli/BUILD.md). The source archive delivered with a package is checked against its complete committed Git tree.
 +
 +Arcvera-Core `1.0.0` retains the historical Codex `0.167.0` import as source attribution. Official Codex CLI compatibility and interchangeability are outside the support scope; OpenAI server API and authentication communication remain supported. The historical records below describe earlier snapshots, not the current R41 candidate or its verification results.
 +
@@ -21000,6 +22138,8 @@ index ff71838836f56086461b5385ea415be2f32f1da5..fe373386cdb2d2cd7fe5a0a0f2f34ebf
 +
 +## 한국어
 +
++Core 1.0.0과 이후 모든 버전에 AGPL-3.0-or-later를 적용합니다. 원 라이선스·고지는 계속 엄격하게 검사합니다. 루트 `LICENSE`가 고정한 공식 AGPL 전문과 일치할 때 원 Apache 라이선스를 `LICENSE-APACHE-2.0`에서 원 바이트 그대로 검증하며, 기존 `NOTICE`와 과거 공식 기반 자료는 변경하지 않습니다. [라이선스 안내](../LICENSING.md)와 [Windows 빌드 절차](../tools/windows-cli/BUILD.md)를 따릅니다. 패키지의 소스 압축파일은 정확한 커밋의 전체 Git 트리와 대조합니다.
++
 +Arcvera-Core `1.0.0`은 역사적 Codex `0.167.0` 수입 기록을 소스 출처로 유지합니다. 공식 Codex CLI 호환성과 상호 교체는 지원 범위에서 제외하며 OpenAI 서버 API·인증 통신은 지원합니다. 아래 과거 기록은 당시 스냅샷의 기록이며 현재 R41 후보의 검증 결과가 아닙니다.
 +
 +`SOURCE_BASELINE.json`, `upstream/source-inventory.json`, 공식 patch와 Windows 프롬프트 catalog는 원래 바이트를 유지합니다. 현재 파생 소스는 `CURRENT_SOURCE.json`에 파일 추가·수정·삭제, 모드, 정규화 해시와 수정 고지를 별도로 기록합니다. `upstream/arcvera-r41.patch`는 공개 기준 커밋 `676d6233d8601f87f82d5fd6fb3d4c5e04ffa8aa`에서 현재 파생 소스를 재현합니다. 두 파일만 자기참조에서 제외하며 최종 외부 소스 동결 기록과 릴리스 체크섬으로 두 파일 및 전체 최종 커밋을 결속합니다.
@@ -21015,10 +22155,10 @@ index ff71838836f56086461b5385ea415be2f32f1da5..fe373386cdb2d2cd7fe5a0a0f2f34ebf
  고정 소스는 `8a3b7d35a83467504c59448087f27c7a5c0e0e9b`, 이전 공개 export 기준은 `8c0d816ec3c9256a02334c81a5e965b977ac187a`입니다. 이전 제품 후보 `89139fd7386eaebd9d0cff6ffccb8dc93c2859ea`에서 달라진 파일은 `codex-rs/cli/tests/ui_language.rs` 1개이며 제품 동작 변경은 없습니다. 기본값 false의 disable 키 제거 계약에 맞춰 오래된 시험 assertion을 바로잡았습니다. 이 공개 작업에서는 Cargo·컴파일·실행·설치를 수행하지 않습니다.
 diff --git a/scripts/source-import/current.py b/scripts/source-import/current.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..d6c79dac977c01b4eb5055e9b104f50db7326eef
+index 0000000000000000000000000000000000000000..c9d8317df4528efaa63a0207af223d7d8414b15c
 --- /dev/null
 +++ b/scripts/source-import/current.py
-@@ -0,0 +1,335 @@
+@@ -0,0 +1,349 @@
 +# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 +"""Explicit derivative manifest generation and read-only integrity checks; no builds."""
 +import argparse
@@ -21041,6 +22181,22 @@ index 0000000000000000000000000000000000000000..d6c79dac977c01b4eb5055e9b104f50d
 +HISTORICAL = ['SOURCE_BASELINE.json', 'upstream/source-inventory.json',
 +              'upstream/official-0.167.0.patch', 'upstream/windows-prompt-inputs.json',
 +              'upstream/LICENSE', 'upstream/NOTICE']
++AGPL_SHA256 = '0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0'
++
++
++def check_original_notices(root, base_documents):
++    """An AGPL transition relocates the original license; it never discards it."""
++    for path in ['LICENSE', 'NOTICE']:
++        if path not in base_documents:
++            continue
++        data = read_working(root, path, '100644')
++        if sha(data) == base_documents[path]:
++            continue
++        if path == 'LICENSE' and sha(data) == AGPL_SHA256:
++            preserved = read_working(root, 'LICENSE-APACHE-2.0', '100644')
++            if sha(preserved) == base_documents[path]:
++                continue
++        raise ValueError(f'Original license/notice changed: {path}')
 +
 +
 +def sha(data):
@@ -21249,9 +22405,7 @@ index 0000000000000000000000000000000000000000..d6c79dac977c01b4eb5055e9b104f50d
 +        for p in historical:
 +            if sha(read_working(root, p, '100644')) != historical[p]:
 +                raise ValueError(f'Historical artifact changed: {p}')
-+        for p in ['LICENSE', 'NOTICE']:
-+            if p in base_documents and sha(read_working(root, p, '100644')) != base_documents[p]:
-+                raise ValueError(f'Original license/notice changed: {p}')
++        check_original_notices(root, base_documents)
 +        for path, mode in sorted(entries.items()):
 +            data = read_working(root, path, mode)
 +            oid = hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
@@ -21373,10 +22527,10 @@ index 37caabeaf562bdd774c0e7670fe59ddcd79d4b65..cfd802d7089c70db1bdca91672f21a4c
      'codex-rs/tui/src/app/thread_routing.rs',
 diff --git a/scripts/source-import/test_current.py b/scripts/source-import/test_current.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..4ddd3fa539b7643f1d0b82b98dd6e6f6264bd64b
+index 0000000000000000000000000000000000000000..717a4cc2ce4d1cca771b65dfcb33ecb7a9ec3913
 --- /dev/null
 +++ b/scripts/source-import/test_current.py
-@@ -0,0 +1,277 @@
+@@ -0,0 +1,307 @@
 +# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 +"""Real isolated Git/index tests for derivative provenance failure boundaries."""
 +import hashlib
@@ -21393,6 +22547,36 @@ index 0000000000000000000000000000000000000000..4ddd3fa539b7643f1d0b82b98dd6e6f6
 +
 +
 +class CurrentSourceChecks(unittest.TestCase):
++    def test_agpl_preserves_original_notices(self):
++        root, _ = self.fixture()
++        original = b'original Apache license\n'
++        (root/'LICENSE').write_bytes(original)
++        (root/'NOTICE').write_bytes(b'original notice\n')
++        current.git(root, 'add', '--', '.')
++        current.git(root, '-c', 'commit.gpgsign=false', '-c', 'user.name=Fixture',
++                    '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'original notices')
++        base = current.git(root, 'rev-parse', 'HEAD').decode().strip()
++        agpl = (Path(__file__).resolve().parents[2]/'LICENSE').read_bytes()
++        self.assertEqual(hashlib.sha256(agpl).hexdigest(),
++                         '0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0')
++        (root/'LICENSE').write_bytes(agpl)
++        (root/'LICENSE-APACHE-2.0').write_bytes(original)
++        doc, delta = current.build_manifest(root, base)
++        current.replay(root, doc, delta)
++        self.assertEqual(doc['publicBaseRepositoryDocuments']['LICENSE'], current.sha(original))
++        for path, bad in [('LICENSE-APACHE-2.0', b'changed original'),
++                          ('LICENSE', agpl+b'corruption'), ('NOTICE', b'changed notice')]:
++            target = root/path
++            good = target.read_bytes()
++            with self.subTest(path=path):
++                target.write_bytes(bad)
++                with self.assertRaisesRegex(ValueError, 'Original license/notice changed'):
++                    current.build_manifest(root, base)
++                target.write_bytes(good)
++        (root/'LICENSE-APACHE-2.0').unlink()
++        with self.assertRaises((ValueError, FileNotFoundError)):
++            current.build_manifest(root, base)
++
 +    def fixture(self):
 +        temporary = tempfile.TemporaryDirectory(prefix='derivative-fixture-')
 +        self.addCleanup(temporary.cleanup)
@@ -21686,7 +22870,7 @@ index dd954151c1185e20ed3467dc936d076ede36aec9..92075fe16731c1a05f25793b15926067
 +
  if __name__=='__main__':unittest.main()
 diff --git a/scripts/source-import/verify.py b/scripts/source-import/verify.py
-index 60ead13357df39250af24dcba044c71534316e59..773f88e9f02aad9dcb7fcb6ec0ef1c65f1e7b374 100644
+index 60ead13357df39250af24dcba044c71534316e59..2fd9f8a4e6f0d6ba9b0431fd074c6efb13d5107b 100644
 --- a/scripts/source-import/verify.py
 +++ b/scripts/source-import/verify.py
 @@ -1,124 +1,229 @@
@@ -21984,7 +23168,7 @@ index 60ead13357df39250af24dcba044c71534316e59..773f88e9f02aad9dcb7fcb6ec0ef1c65
 +
 +
 +def check_current_payload(root, document):
-+    from current import read_working, git
++    from current import read_working, git, check_original_notices
 +    from export import WINDOWS_INPUTS
 +    entries = {i['path']: i['gitMode'] for i in document['files']}
 +    assert entries.get(LICENSE_LINK) == '120000', 'License link mode changed'
@@ -21996,8 +23180,8 @@ index 60ead13357df39250af24dcba044c71534316e59..773f88e9f02aad9dcb7fcb6ec0ef1c65
 +            assert sha(data) == WINDOWS_INPUTS[path]['gitBlobSha256'], f'Canonical prompt differs: {path}'
 +            if os.name == 'nt':
 +                assert sha((root/path).read_bytes()) == WINDOWS_INPUTS[path]['windowsSourceSha256'], f'Windows prompt EOL differs: {path}'
-+    for name in ['LICENSE', 'NOTICE']:
-+        assert read_source(root, {'path': name, 'gitMode': '100644'}) == git(root, 'show', document['baseCommit']+':'+name), name
++    check_original_notices(root, {name: sha(git(root, 'show', document['baseCommit']+':'+name))
++                                 for name in ['LICENSE', 'NOTICE']})
 +    return check_inputs(entries, lambda p: read_working(root, p, entries[p]))
 +
 +
@@ -22024,14 +23208,66 @@ index 60ead13357df39250af24dcba044c71534316e59..773f88e9f02aad9dcb7fcb6ec0ef1c65
 +
 +if __name__ == '__main__':
 +    main()
+diff --git a/tools/windows-cli/BUILD.md b/tools/windows-cli/BUILD.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..0a5b4f382fd530a753e7d6c4f91b488ddd7e82a2
+--- /dev/null
++++ b/tools/windows-cli/BUILD.md
+@@ -0,0 +1,40 @@
++# Windows source build / Windows 소스 빌드
++
++## English
++
++The package's `source/arcvera-core-source.zip` contains the complete committed project tree, including Cargo manifests/lockfile, vendored project code, native-source references, build scripts, packaging tools and licensing notices. `SOURCE.md` records the exact executable source commit. The release verification appendix records the actual compiler, dependency inputs, profile, executable hashes and unverified items. Dependency/native corresponding-source completeness and licensing must be checked before release; a project-only archive does not establish those checks.
++
++Use an isolated Windows x86-64 build directory. Install the MSVC x64 C/C++ build tools and Windows SDK, Rust `1.99.1-x86_64-pc-windows-msvc`, Python 3.11 or later, Git, CMake and the native tools required by the locked dependencies. The upstream `rust-toolchain.toml` remains a historical input; explicitly select the release compiler below. Preserve `Cargo.lock`. Do not copy authentication, user profiles or operational logs into the source/build directory. Consult `third_party/voice/sources.json` and the matching notices when acquiring separately built native helpers.
++
++From the extracted `codex-rs` directory, in a Developer PowerShell with the x64 MSVC environment, the following profile reproduces the release settings. The actual final release appendix is authoritative if it records a later verified override. Resource guards and caches are local build controls; never change machine-wide memory settings.
++
++```powershell
++$env:CARGO_BUILD_JOBS = '1'
++$env:CMAKE_BUILD_PARALLEL_LEVEL = '1'
++$env:CARGO_PROFILE_RELEASE_OPT_LEVEL = '3'
++$env:CARGO_PROFILE_RELEASE_LTO = 'off'
++$env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS = '2'
++$env:CARGO_PROFILE_RELEASE_DEBUG = '0'
++$env:CARGO_PROFILE_RELEASE_INCREMENTAL = 'false'
++$env:CARGO_PROFILE_RELEASE_BUILD_OVERRIDE_CODEGEN_UNITS = '2'
++$env:CARGO_PROFILE_RELEASE_BUILD_OVERRIDE_DEBUG = '0'
++$env:CARGO_PROFILE_RELEASE_BUILD_OVERRIDE_OPT_LEVEL = '0'
++$rustRoot = rustc +1.99.1 --print sysroot
++$lld = Join-Path $rustRoot 'lib/rustlib/x86_64-pc-windows-msvc/bin/gcc-ld/lld-link.exe'
++$env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER = $lld
++$env:RUSTFLAGS = '-C link-arg=/STACK:8388608 -C target-feature=+crt-static -C link-arg=/threads:2'
++cargo +1.99.1 fetch --locked --target x86_64-pc-windows-msvc
++cargo +1.99.1 build --locked --release --target x86_64-pc-windows-msvc -j1 --config 'profile.release.package.codex-core.codegen-units=16' -p codex-cli -p codex-app-server -p codex-code-mode-host --bin codex --bin codex-app-server --bin codex-code-mode-host
++```
++
++These commands describe compilation; they do not claim bit-for-bit reproducibility or successful execution on every machine. Verify all three `--version` outputs, the full source freeze and actual executable hashes, then follow [README.md](README.md) to create a new complete package using official `0.167.0` helpers. Packaging does not install or switch a running server. Preserve existing user data and keep a previous complete package for recovery; operational replacement requires separate authorization.
++
++## 한국어
++
++패키지의 `source/arcvera-core-source.zip`에는 Cargo 명세·잠금파일, 프로젝트 벤더 코드, 네이티브 소스 참조, 빌드 스크립트, 패키징 도구와 라이선스 고지를 포함한 정확한 커밋의 프로젝트 트리가 들어 있습니다. `SOURCE.md`는 실행 파일의 소스 커밋을 식별합니다. 실제 컴파일러·의존 입력·프로필·실행 파일 해시·미검증 사항은 최종 릴리스 검증 부록을 따릅니다. 배포 전 의존성·네이티브 구성요소의 대응소스 완결성과 권리를 별도로 검증해야 하며, 프로젝트 소스 압축파일만으로 그 검증을 대신하지 않습니다.
++
++격리된 Windows x86-64 빌드 폴더에서 MSVC x64 C/C++ 빌드 도구·Windows SDK, Rust `1.99.1-x86_64-pc-windows-msvc`, Python 3.11 이상, Git, CMake와 잠금 의존성이 요구하는 네이티브 도구를 준비합니다. 공식 기반 `rust-toolchain.toml`은 과거 입력으로 보존하고 위 명령에서 릴리스 컴파일러를 명시적으로 선택합니다. `Cargo.lock`을 유지하며 인증·사용자 프로필·운영 로그를 복사하지 않습니다. 별도 네이티브 도우미는 `third_party/voice/sources.json`과 고지를 확인합니다.
++
++압축을 푼 `codex-rs` 폴더에서 x64 MSVC 환경이 설정된 Developer PowerShell로 위 명령을 실행합니다. 최종 부록에 후속 검증된 override가 있으면 그 설정을 따릅니다. 자원 가드와 캐시는 해당 빌드에만 적용하고 시스템 전역 메모리 설정을 바꾸지 않습니다. 위 명령은 컴파일 절차이며 모든 환경의 성공이나 바이트 단위 재현을 보장하지 않습니다.
++
++실제 실행 파일 세 개의 `--version`·전체 소스 동결·해시를 확인한 뒤 [README.md](README.md)에 따라 공식 `0.167.0` 도우미와 새 패키지를 만듭니다. 패키징은 설치나 실행 중 서버 교체를 수행하지 않습니다. 원 사용자 데이터와 이전 전체 패키지를 보존하며 운영 교체는 별도 승인을 따릅니다.
 diff --git a/tools/windows-cli/README.md b/tools/windows-cli/README.md
-index eefae4a7c3ce875489ae0c228ad05689d55fa85c..ef0107d37592ed67d527dad983517c4690500810 100644
+index eefae4a7c3ce875489ae0c228ad05689d55fa85c..82b0f7c194705371284b13a6dfb8e57cdca032b5 100644
 --- a/tools/windows-cli/README.md
 +++ b/tools/windows-cli/README.md
-@@ -3,6 +3,32 @@
+@@ -3,6 +3,38 @@
  
  Creates a **new local package** with the built CLI and matching official helper resources. Packaging does not change PATH, authentication, daemon state, or user configuration.
  
++## AGPL and corresponding source / AGPL과 대응소스
++
++Core 1.0.0 and every subsequent project version use `AGPL-3.0-or-later`. Packages carry the full license, original Apache license and preserved notices in `licenses/arcvera-core/`, the exact committed project source in `source/arcvera-core-source.zip`, and the bilingual source offer in `SOURCE.md`. The archive is checked against every Git blob and the complete frozen file set. Vendor files colliding with these delivery paths are rejected before output creation; other vendor notices remain unchanged. Package metadata and launch behavior retain their existing contracts. See [BUILD.md](BUILD.md) and [LICENSING.md](../../LICENSING.md). Dependency/native corresponding source and the source offer visible to actual network users require separate release checks.
++
++Core 1.0.0과 이후 모든 프로젝트 버전에 `AGPL-3.0-or-later`를 적용합니다. 패키지는 `licenses/arcvera-core/`에 전문·원 Apache 라이선스·고지를, `source/arcvera-core-source.zip`에 정확한 커밋의 프로젝트 소스를, `SOURCE.md`에 영한 소스 제공 안내를 포함합니다. 소스 압축파일을 전체 Git blob·동결 파일 집합과 대조합니다. 제공 경로와 충돌하는 벤더 파일은 출력 생성 전에 거부하며 다른 벤더 고지는 보존합니다. 기존 패키지 메타데이터·실행 계약은 유지합니다. 의존성·네이티브 대응소스와 실제 네트워크 사용자에게 보이는 소스 제공 안내는 별도 릴리스 검증 대상입니다.
++
 +## Arcvera-Core release packaging / 릴리스 패키징
 +
 +Arcvera-Core 1.0.0 uses official Codex 0.167.0 helper resources. Pass the upstream version separately and supply all three built candidates from one frozen commit:
@@ -22090,22 +23326,75 @@ index 4c74ab65bced9d51138b78e172b9d05e95b02d13..6d8bb83839268baed460c7dc365214b7
      }
      let output = std::env::var_os("PACKAGE_FIXTURE_ARGV").expect("fixture output path");
 diff --git a/tools/windows-cli/package_cli.py b/tools/windows-cli/package_cli.py
-index 3506ce8c6ad49ede138d2a115d0d17e735962c97..5d690b8868f422c2309a47e511369dec5adedf6b 100644
+index 3506ce8c6ad49ede138d2a115d0d17e735962c97..b3886a92d3928691cc605f063283f3f5a8838e0c 100644
 --- a/tools/windows-cli/package_cli.py
 +++ b/tools/windows-cli/package_cli.py
-@@ -1,9 +1,11 @@
+@@ -1,12 +1,64 @@
 +# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
  # Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
  """Prepare a separate Windows CLI package; never replace an existing installation."""
  
  import argparse
++import io
  import hashlib
  import json
 +import re
  from pathlib import Path
  import shutil
  import subprocess
-@@ -22,7 +24,25 @@ def checked_child(root, relative):
++import zipfile
++
++AGPL_SHA256 = '0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0'
++LICENSE_FILES = ('LICENSE', 'LICENSE-APACHE-2.0', 'NOTICE', 'LICENSING.md',
++                 'MODIFICATIONS.md', 'upstream/LICENSE', 'upstream/NOTICE')
++
++
++def licensing_payload(source, commit, frozen):
++    """Return notices and exact committed source; legacy Apache callers stay supported."""
++    if not any((source/name).exists() for name in ('LICENSE-APACHE-2.0', 'LICENSING.md')):
++        return None
++    notices = {name: checked_child(source, name).read_bytes() for name in LICENSE_FILES}
++    if hashlib.sha256(notices['LICENSE']).hexdigest() != AGPL_SHA256:
++        raise ValueError('AGPL license text differs from the complete pinned official text')
++    archive = subprocess.check_output(['git', '-C', str(source), 'archive', '--format=zip', commit])
++    # Detect export-ignore/export-subst, omitted inputs or an altered Git archive.
++    entries = {}
++    for row in subprocess.check_output(['git', '-C', str(source), 'ls-tree', '-r', '-z', commit]).split(b'\0'):
++        if row:
++            metadata, name = row.split(b'\t', 1)
++            mode, kind, oid = metadata.decode().split()
++            if kind != 'blob' or mode not in ('100644', '100755', '120000'):
++                raise ValueError('Unsupported corresponding-source Git entry')
++            entries[name.decode('utf-8')] = oid
++    with zipfile.ZipFile(io.BytesIO(archive)) as zipped:
++        files = [item for item in zipped.infolist() if not item.is_dir()]
++        if len(files) != len(entries) or {item.filename for item in files} != frozen or set(entries) != frozen:
++            raise ValueError('Corresponding-source archive differs from complete frozen Git tree')
++        for item in files:
++            data = zipped.read(item)
++            oid = hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
++            if oid != entries[item.filename]:
++                raise ValueError(f'Corresponding-source Git blob differs: {item.filename}')
++        if any(zipped.read(name) != data for name, data in notices.items()):
++            raise ValueError('License/notice bytes differ from committed corresponding source')
++    return notices, archive
++
++
++def source_offer(commit):
++    return (f'# Corresponding source / 대응소스\n\n'
++            f'Arcvera-Core: AGPL-3.0-or-later. Source commit / 소스 커밋: `{commit}`.\n\n'
++            'The exact project source is included at [source/arcvera-core-source.zip](source/arcvera-core-source.zip). '
++            'Extract it and consult `docs/source-import.md`, `tools/windows-cli/README.md` and `LICENSING.md` for build, packaging and redistribution requirements. '
++            f'Public source: <https://github.com/jaeseongs95/Arcvera-Core/tree/{commit}>. '
++            'Original Apache and third-party terms remain applicable; see `licenses/arcvera-core/`.\n\n'
++            '정확한 프로젝트 소스는 위 압축파일에 포함됩니다. 압축을 풀고 위 문서의 빌드·패키징·재배포 조건을 확인하십시오. '
++            '원 Apache·제삼자 라이선스와 고지는 `licenses/arcvera-core/` 및 소스 안에 유지됩니다.\n\n'
++            'Network operators must prominently offer remote users their deployed version\'s corresponding source at no charge in the interface they use (AGPL section 13). '
++            '서비스 운영자는 원격 사용자가 실제로 이용하는 인터페이스에 운영 버전의 대응소스를 무료로 받을 수 있다는 안내를 잘 보이게 제공해야 합니다(AGPL 제13조).\n')
+ 
+ 
+ def digest(path):
+@@ -22,7 +74,25 @@ def checked_child(root, relative):
      return child
  
  
@@ -22132,7 +23421,7 @@ index 3506ce8c6ad49ede138d2a115d0d17e735962c97..5d690b8868f422c2309a47e511369dec
      source, vendor = source.resolve(strict=True), vendor.resolve(strict=True)
      binary, freeze_file = binary.resolve(strict=True), freeze_file.resolve(strict=True)
      output = output.resolve()
-@@ -34,28 +54,69 @@ def package(source, freeze_file, binary, vendor, output, expected_version):
+@@ -34,30 +104,78 @@ def package(source, freeze_file, binary, vendor, output, expected_version):
      ).strip()
      if commit != freeze["candidateCommit"]:
          raise ValueError("Source HEAD differs from the frozen candidate")
@@ -22159,6 +23448,7 @@ index 3506ce8c6ad49ede138d2a115d0d17e735962c97..5d690b8868f422c2309a47e511369dec
 +    dirty = subprocess.run(["git", "-C", str(source), "diff", "--quiet", "HEAD", *scope])
      if dirty.returncode:
          raise ValueError(f"Source differs from its commit (git diff exit {dirty.returncode})")
++    licensing = licensing_payload(source, commit, frozen)
      metadata = json.loads((vendor / "codex-package.json").read_text(encoding="utf-8"))
      if metadata.get("entrypoint") != "bin/codex.exe":
          raise ValueError("Expected the official Windows CLI package layout")
@@ -22208,8 +23498,16 @@ index 3506ce8c6ad49ede138d2a115d0d17e735962c97..5d690b8868f422c2309a47e511369dec
 +        if relative.as_posix() in replacements | {"codex-package.json"}:
              continue
          helpers.append((relative, checked_child(vendor, relative), digest(item)))
++    if licensing:
++        for relative, _item, _hash in helpers:
++            path = relative.as_posix().casefold()
++            if any(path == reserved or path.startswith(reserved+'/') or reserved.startswith(path+'/')
++                   for reserved in ('source', 'source.md', 'licenses/arcvera-core')):
++                raise ValueError(f'Vendor file collides with source/license delivery: {relative}')
      output.mkdir(parents=True)
-@@ -65,11 +126,16 @@ def package(source, freeze_file, binary, vendor, output, expected_version):
+     for relative, item, expected_hash in helpers:
+         target = output / relative
+@@ -65,11 +183,25 @@ def package(source, freeze_file, binary, vendor, output, expected_version):
          shutil.copy2(item, target)
          if digest(target) != expected_hash:
              raise ValueError(f"Helper changed during copy: {relative}")
@@ -22218,6 +23516,15 @@ index 3506ce8c6ad49ede138d2a115d0d17e735962c97..5d690b8868f422c2309a47e511369dec
 -    shutil.copy2(binary, target)
 -    if digest(target) != binary_hash:
 -        raise ValueError("CLI binary changed during copy")
++    if licensing:
++        notices, archive = licensing
++        for relative, data in notices.items():
++            target = output/'licenses/arcvera-core'/relative
++            target.parent.mkdir(parents=True, exist_ok=True)
++            target.write_bytes(data)
++        (output/'source').mkdir()
++        (output/'source/arcvera-core-source.zip').write_bytes(archive)
++        (output/'SOURCE.md').write_text(source_offer(commit), encoding='utf-8', newline='\n')
 +    for name, (candidate, relative, _prefix) in candidates.items():
 +        target = output / relative
 +        target.parent.mkdir(parents=True, exist_ok=True)
@@ -22231,7 +23538,7 @@ index 3506ce8c6ad49ede138d2a115d0d17e735962c97..5d690b8868f422c2309a47e511369dec
      metadata["version"] = expected_version
      metadata["opendiyUpdate"] = {"schema": 1, "minLauncher": 1}
      (output / "codex-package.json").write_text(
-@@ -89,6 +155,8 @@ def package(source, freeze_file, binary, vendor, output, expected_version):
+@@ -89,6 +221,8 @@ def package(source, freeze_file, binary, vendor, output, expected_version):
          "sourceFreezeSha256": digest(freeze_file),
          "binarySha256": binary_hash,
          "version": version,
@@ -22240,7 +23547,7 @@ index 3506ce8c6ad49ede138d2a115d0d17e735962c97..5d690b8868f422c2309a47e511369dec
          "files": [
              {"path": item.relative_to(output).as_posix(), "sha256": digest(item)}
              for item in sorted(output.rglob("*")) if item.is_file()
-@@ -105,6 +173,11 @@ if __name__ == "__main__":
+@@ -105,6 +239,11 @@ if __name__ == "__main__":
      for name in ("source", "freeze", "binary", "vendor", "output"):
          parser.add_argument(f"--{name}", type=Path, required=True)
      parser.add_argument("--version", required=True)
@@ -22432,3 +23739,96 @@ index 1a906dacace6eb54fae7b77b20226264e551c4c0..5ce858423cf300c4f639b435e346406a
  
  if __name__ == "__main__":
      unittest.main()
+diff --git a/tools/windows-cli/test_package_licensing.py b/tools/windows-cli/test_package_licensing.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..46d353e9dbd8071129851f3d4bfa6b828488f0bc
+--- /dev/null
++++ b/tools/windows-cli/test_package_licensing.py
+@@ -0,0 +1,87 @@
++# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
++"""Real Git/package licensing boundaries; fixture binaries are not Core runtime."""
++import hashlib
++import json
++from pathlib import Path
++import subprocess
++import unittest
++import zipfile
++
++import test_package_cli
++from package_cli import digest, package
++
++
++class LicensingTests(unittest.TestCase):
++    def setUp(self):
++        test_package_cli.PackageTests.setUp(self)
++        repository = Path(__file__).resolve().parents[2]
++        self.notices = ['LICENSE', 'LICENSE-APACHE-2.0', 'NOTICE', 'LICENSING.md',
++                        'MODIFICATIONS.md', 'upstream/LICENSE', 'upstream/NOTICE']
++        for name in self.notices:
++            target = self.source/name
++            target.parent.mkdir(parents=True, exist_ok=True)
++            target.write_bytes((repository/name).read_bytes())
++        (self.vendor/'NOTICE').write_bytes(b'vendor original notice\n')
++        self.commit_and_freeze()
++
++    def commit_and_freeze(self):
++        for args in [['add', '--', '.'], ['-c', 'commit.gpgsign=false', '-c', 'user.name=Fixture',
++                     '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'license fixture']]:
++            subprocess.run(['git', '-C', str(self.source), *args], check=True, capture_output=True)
++        commit = subprocess.check_output(['git', '-C', str(self.source), 'rev-parse', 'HEAD'], text=True).strip()
++        names = subprocess.check_output(['git', '-C', str(self.source), 'ls-files', '-z']).decode().split('\0')
++        self.freeze.write_text(json.dumps({'candidateCommit':commit,
++            'files':[{'path':name,'sha256':digest(self.source/name)} for name in names if name]}), encoding='utf-8')
++
++    def build(self):
++        return package(self.source, self.freeze, self.binary, self.vendor, self.output, '0.165.0+test')
++
++    def test_exact_source_and_notices_are_delivered_without_changing_vendor(self):
++        receipt = self.build()
++        for name in self.notices:
++            self.assertEqual((self.output/'licenses/arcvera-core'/name).read_bytes(), (self.source/name).read_bytes())
++        self.assertEqual((self.output/'NOTICE').read_bytes(), b'vendor original notice\n')
++        offer = (self.output/'SOURCE.md').read_text(encoding='utf-8')
++        self.assertIn(receipt['sourceCommit'], offer)
++        self.assertIn('AGPL-3.0-or-later', offer)
++        archive = self.output/'source/arcvera-core-source.zip'
++        with zipfile.ZipFile(archive) as zipped:
++            names = {x.filename for x in zipped.infolist() if not x.is_dir()}
++            frozen = json.loads(self.freeze.read_text())
++            self.assertEqual(names, {x['path'] for x in frozen['files']})
++            for name in self.notices:
++                self.assertEqual(zipped.read(name), (self.source/name).read_bytes())
++            # The source archive uses actual Git blob bytes, including CRLF fixture content.
++            self.assertEqual(zipped.read('asset.md'), b'frozen prompt\r\n')
++        self.assertIn('source/arcvera-core-source.zip', {x['path'] for x in receipt['files']})
++
++    def test_missing_preserved_notice_is_rejected_before_output(self):
++        (self.source/'upstream/NOTICE').unlink()
++        self.commit_and_freeze()
++        with self.assertRaises((ValueError, FileNotFoundError)):
++            self.build()
++        self.assertFalse(self.output.exists())
++
++    def test_corrupted_agpl_is_rejected_before_output(self):
++        (self.source/'LICENSE').write_bytes(b'corrupt AGPL')
++        self.commit_and_freeze()
++        with self.assertRaisesRegex(ValueError, 'AGPL'):
++            self.build()
++        self.assertFalse(self.output.exists())
++
++    def test_vendor_collision_is_rejected_without_overwrite(self):
++        (self.vendor/'SOURCE.md').write_bytes(b'vendor content must survive')
++        with self.assertRaisesRegex(ValueError, 'collid'):
++            self.build()
++        self.assertFalse(self.output.exists())
++        self.assertEqual((self.vendor/'SOURCE.md').read_bytes(), b'vendor content must survive')
++
++    def test_tampered_frozen_notice_is_rejected(self):
++        (self.source/'NOTICE').write_bytes(b'changed after freeze')
++        with self.assertRaisesRegex(ValueError, 'Source changed'):
++            self.build()
++        self.assertFalse(self.output.exists())
++
++
++if __name__ == '__main__':
++    unittest.main()

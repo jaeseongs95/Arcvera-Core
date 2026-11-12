@@ -100,4 +100,4 @@ R40 excludes a full memory redesign, a new CodeMode architecture, broad refactor
 
 Independent work based on [OpenAI Codex](https://github.com/openai/codex); not an official OpenAI product. Git stores source and build tools; Releases stores executable assets. Credentials and operational logs are excluded.
 
-[Apache-2.0](LICENSE) · [NOTICE](NOTICE)
+[AGPL-3.0-or-later](LICENSE) · [Licensing / 라이선스](LICENSING.md) · [Original Apache-2.0](LICENSE-APACHE-2.0) · [NOTICE](NOTICE)

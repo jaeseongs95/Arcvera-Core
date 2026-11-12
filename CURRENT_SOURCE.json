@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "11fe58cc77cb4608f5a0342f32db228b6af20c6634b53c443c74d567d3a6ad29",
+  "sourceTreeSha256": "6d2331eb3070f2253fb41d5d5a5f64f4a4478801db196b707d5ab99843ba9c2a",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "669a400063714273ec98a19d1a767080e5741419887d8b204b066cce40cc4640"
+    "sha256": "b3a13a0cf87b485926f7919bad7324c9c277a5b7c3a92befa0ab9bf3376e5c63"
   },
   "files": [
     {
@@ -49,16 +49,30 @@
     {
       "path": "LICENSE",
       "gitMode": "100644",
+      "bytes": 34523,
+      "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0",
+      "gitBlob": "be3f7b28e564e7dd05eaf59d64adba1a4065ac0e"
+    },
+    {
+      "path": "LICENSE-APACHE-2.0",
+      "gitMode": "100644",
       "bytes": 10926,
       "sha256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc",
       "gitBlob": "4606e72e042564097e8780d66c1d4dcb611869bd"
     },
     {
+      "path": "LICENSING.md",
+      "gitMode": "100644",
+      "bytes": 4945,
+      "sha256": "939fc9a52f6045963dee8ad3b1bd2e7ca42b6c7bbc3d282b27be0c0cfa23e5c8",
+      "gitBlob": "60bca99ef4c4a371fbf0903a87992323ec9b917f"
+    },
+    {
       "path": "MODIFICATIONS.md",
       "gitMode": "100644",
-      "bytes": 82550,
-      "sha256": "cf22fa920b4b9ad552d46895a32d4f7b904561c969eb08450a7a300e619a4fee",
-      "gitBlob": "3b7befd3e24c47fe08aabede457f4cf35c6af77f"
+      "bytes": 83024,
+      "sha256": "38712f7ff59d78bb0898182d907ae0ef152a81319dcccb1b5ccc7a91aa7b39f7",
+      "gitBlob": "73818895b85c260900649aef2e09b7b0a7da6e42"
     },
     {
       "path": "NOTICE",
@@ -70,16 +84,16 @@
     {
       "path": "README.ko.md",
       "gitMode": "100644",
-      "bytes": 12385,
-      "sha256": "e9b3ec0c97a3ca569a82244159030066986597819edc7c3ab9859f400de0eb58",
-      "gitBlob": "f3aeaf9a48853b0329cfa4ec0d15e286fc56391b"
+      "bytes": 12481,
+      "sha256": "ab4be64f5748b265f2a6512f4ac5573014663e5b0b5e2161ddb21bc8bfa610b6",
+      "gitBlob": "4da02ee2ea3e37f7412e7a9266dbcdba71b41586"
     },
     {
       "path": "README.md",
       "gitMode": "100644",
-      "bytes": 10822,
-      "sha256": "38832d7b790582cda7d8aba7389db39ff20c9f3282f35beceb5f4cbed77622b0",
-      "gitBlob": "b8e01584f81710a9bce7e44adf52c2e22d45c82c"
+      "bytes": 10918,
+      "sha256": "b76d908d72d6e5859c871fd065a23ecc37c2c4f9fcadfcaaebddb217e71171bf",
+      "gitBlob": "d735def1d79146677c187a7a42092ea9c9acc22b"
     },
     {
       "path": "SOURCE_BASELINE.json",
@@ -133,9 +147,9 @@
     {
       "path": "codex-rs/Cargo.toml",
       "gitMode": "100644",
-      "bytes": 21940,
-      "sha256": "e3d7824fb412eb1273ff32a906ccd76cca3e4f69ad9e21f5805626b955cc5034",
-      "gitBlob": "6f0c7ba06d6b57c1bb9381e3831bc5fde142d86b"
+      "bytes": 21947,
+      "sha256": "9e66d170061bede3d79bce5b6a4cd25792920299b167a499eda6c141a356c1b6",
+      "gitBlob": "82958b569dc9aab61aebd010d1d4ef7df93eb141"
     },
     {
       "path": "codex-rs/README.md",
@@ -66024,9 +66038,9 @@
     {
       "path": "docs/releases/R41.md",
       "gitMode": "100644",
-      "bytes": 40342,
-      "sha256": "69e8c72940fb622c492c3e8a66c9c83a1ba95fb0ec619dd8078ce6e0365fc91f",
-      "gitBlob": "e45d5fd1f8d960202ab5d63fbf560831ca363914"
+      "bytes": 40894,
+      "sha256": "d8b18a14d995541ae8de97b63dc6f897f7eec56c6484318b85d21b3a1c494ce1",
+      "gitBlob": "a8755c88a636b5803b4ff18806eefc2351908647"
     },
     {
       "path": "docs/releases/private-patch-history-2026-10-27.en.md",
@@ -66052,9 +66066,9 @@
     {
       "path": "docs/source-import.md",
       "gitMode": "100644",
-      "bytes": 32688,
-      "sha256": "5b75c056127e1973e3c597bb07c61c9eb8b4ac3e0712ef94083e87153b30290f",
-      "gitBlob": "fe373386cdb2d2cd7fe5a0a0f2f34ebf959c9d0d"
+      "bytes": 33802,
+      "sha256": "9e1db363b378a2d4f370797a9b7b466e09e36e29e1fca7e874773c2094008d1e",
+      "gitBlob": "c65d1e6a294fe0509d4e164fa95e829d596327f7"
     },
     {
       "path": "patches/BUILD.bazel",
@@ -66332,9 +66346,9 @@
     {
       "path": "scripts/source-import/current.py",
       "gitMode": "100644",
-      "bytes": 15862,
-      "sha256": "5a771624fec7f246edf76bc57be5072ea374905fe224d6841b98ec983932f444",
-      "gitBlob": "d6c79dac977c01b4eb5055e9b104f50db7326eef"
+      "bytes": 16418,
+      "sha256": "db12bd2273bfea3e867b770123b52a0e5a9b3b484b29771a7c2b94e78aead1dc",
+      "gitBlob": "c9d8317df4528efaa63a0207af223d7d8414b15c"
     },
     {
       "path": "scripts/source-import/export.py",
@@ -66346,9 +66360,9 @@
     {
       "path": "scripts/source-import/test_current.py",
       "gitMode": "100644",
-      "bytes": 15207,
-      "sha256": "608d96186230c2787572f320b0d757311198b6dbd3e26ae97104622e408e8584",
-      "gitBlob": "4ddd3fa539b7643f1d0b82b98dd6e6f6264bd64b"
+      "bytes": 16927,
+      "sha256": "67c1481a92e7d22b4ce5c08c67ce4b3d12a637f0defd2f979c572b4d5ff86bb5",
+      "gitBlob": "717a4cc2ce4d1cca771b65dfcb33ecb7a9ec3913"
     },
     {
       "path": "scripts/source-import/test_verify.py",
@@ -66360,9 +66374,9 @@
     {
       "path": "scripts/source-import/verify.py",
       "gitMode": "100644",
-      "bytes": 12403,
-      "sha256": "ed86505be4b2f6079c8cf123c9a8b9f4ac84ec98c533d965896235cdeef0ca36",
-      "gitBlob": "773f88e9f02aad9dcb7fcb6ec0ef1c65f1e7b374"
+      "bytes": 12423,
+      "sha256": "1bfe5d60787cd0977026e7485e9fcd89c22e2140c799b59e941e07e875465ce8",
+      "gitBlob": "2fd9f8a4e6f0d6ba9b0431fd074c6efb13d5107b"
     },
     {
       "path": "sdk/python/src/openai_codex/generated/v2_all.py",
@@ -66981,11 +66995,18 @@
       "gitBlob": "69cd8edcb9729d2ae3c18c4625bd77feb55d4661"
     },
     {
+      "path": "tools/windows-cli/BUILD.md",
+      "gitMode": "100644",
+      "bytes": 5239,
+      "sha256": "a592f5358fea5d5dd2254d7b4dc5e6ff46489a4e2121406a5dfb9368ddacef87",
+      "gitBlob": "0a5b4f382fd530a753e7d6c4f91b488ddd7e82a2"
+    },
+    {
       "path": "tools/windows-cli/README.md",
       "gitMode": "100644",
-      "bytes": 5128,
-      "sha256": "b53f2eb0824a447a85576240bd08b8cb58865735190c52082010832a9d7c2bc9",
-      "gitBlob": "ef0107d37592ed67d527dad983517c4690500810"
+      "bytes": 6693,
+      "sha256": "dec35acadf3bfb894006939a9d44e8093ff52cca2dc06bd4d03e4fa45ccb876c",
+      "gitBlob": "82b0f7c194705371284b13a6dfb8e57cdca032b5"
     },
     {
       "path": "tools/windows-cli/UPDATE.ko.md",
@@ -67004,9 +67025,9 @@
     {
       "path": "tools/windows-cli/package_cli.py",
       "gitMode": "100644",
-      "bytes": 9290,
-      "sha256": "a4e01bdc3feec60fae80ee21141894f944cfb586163d8bbc0a54f9f5fe86be4f",
-      "gitBlob": "5d690b8868f422c2309a47e511369dec5adedf6b"
+      "bytes": 13811,
+      "sha256": "54f5b55cd38df4e6d7739cbfbd10c5b820c250a89f58a80d3a09456cba04bba3",
+      "gitBlob": "b3886a92d3928691cc605f063283f3f5a8838e0c"
     },
     {
       "path": "tools/windows-cli/test_package_cli.py",
@@ -67014,6 +67035,13 @@
       "bytes": 16021,
       "sha256": "da333dcdcf77ce8c416ab9bbfaeb69ceee8b413223e89114f3a846471d826075",
       "gitBlob": "5ce858423cf300c4f639b435e346406a75c66d5d"
+    },
+    {
+      "path": "tools/windows-cli/test_package_licensing.py",
+      "gitMode": "100644",
+      "bytes": 4333,
+      "sha256": "1585d92ef1535cdeb7711b852a48b08bfd49fd5f0f3584e7fb5cdfb2a999fdee",
+      "gitBlob": "46d353e9dbd8071129851f3d4bfa6b828488f0bc"
     },
     {
       "path": "tools/windows-cli/test_update.ps1",
@@ -67101,6 +67129,21 @@
     }
   ],
   "changes": [
+    {
+      "path": "LICENSE",
+      "status": "modified",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "LICENSE-APACHE-2.0",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "LICENSING.md",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
     {
       "path": "MODIFICATIONS.md",
       "status": "modified",
@@ -68027,6 +68070,11 @@
       "notice": "inline-r41"
     },
     {
+      "path": "tools/windows-cli/BUILD.md",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
       "path": "tools/windows-cli/README.md",
       "status": "modified",
       "notice": "external-in-CURRENT_SOURCE.json"
@@ -68044,6 +68092,11 @@
     {
       "path": "tools/windows-cli/test_package_cli.py",
       "status": "modified",
+      "notice": "inline-r41"
+    },
+    {
+      "path": "tools/windows-cli/test_package_licensing.py",
+      "status": "added",
       "notice": "inline-r41"
     }
   ]
