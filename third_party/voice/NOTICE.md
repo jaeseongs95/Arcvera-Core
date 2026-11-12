@@ -18,16 +18,20 @@ the package and, on macOS, have valid code signatures. Build tools listed in
 
 ## Microsoft Visual C++ runtime (Windows)
 
-Windows packages also contain the unmodified Microsoft Visual C++ runtime DLL
-`bin/vcruntime140.dll`, relative to this notice in release packages,
-copyright Microsoft Corporation, under Microsoft's applicable software license
-terms, separately from the open-source audio libraries. `windows-crt.json`
-records its version, official download, hashes, and redistribution references.
-The Apache and LGPL licenses for other components do not license this DLL.
-Microsoft's runtime terms and separate developer redistribution terms apply
-to the Microsoft component; the runtime terms alone do not grant redistribution.
-Only retail redistributable files are included; Microsoft signatures are retained.
-App-local runtime security updates must be delivered with Codex updates.
+Arcvera Windows packages do not include Microsoft runtime DLLs or installers.
+Native voice requires a separately installed Microsoft Visual C++ v14 runtime.
+Users must obtain it directly from Microsoft and maintain it separately.
+See the package's `RUNTIME.md` for English and Korean instructions.
+The Apache and LGPL licenses for other components do not license Microsoft files.
+The source's `windows-crt.json` records historical build provenance only;
+it is not a current distribution inventory or permission to redistribute.
+
+Arcvera Windows 패키지에는 Microsoft 런타임 DLL이나 설치기가 포함되지 않습니다.
+네이티브 음성에 필요한 Visual C++ v14 런타임은 사용자가 Microsoft에서 직접
+취득하여 별도로 설치하고 업데이트해야 합니다. 영문·한글 안내는 패키지의
+`RUNTIME.md`를 확인하십시오. 다른 구성요소의 Apache·LGPL 라이선스는 Microsoft
+파일에 대한 권리를 부여하지 않습니다. 소스의 `windows-crt.json`은 과거 빌드
+출처 기록이며 현재 배포 목록이나 재배포 권한을 뜻하지 않습니다.
 
 Microsoft provides the following license terms and redistribution information:
 

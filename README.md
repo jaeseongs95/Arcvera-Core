@@ -14,6 +14,11 @@ Arcvera-Core supports communication with OpenAI servers. Compatibility or interc
 2. Compare the ZIP's SHA-256 with the checksum file, then extract it into a new folder with its directory layout intact.
 3. Run `bin\codex.exe`. Source compilation and CMD launchers are optional.
 
+Native voice requires the Microsoft Visual C++ v14 **X64** runtime installed
+separately by the user. Microsoft DLLs and installers are not bundled. See
+[runtime installation instructions](tools/windows-cli/RUNTIME.md) for the official
+download, supported version and missing-DLL recovery.
+
 For the published 1.0.0 package, run the first command in the download folder and the second in the extracted package folder:
 
 ```powershell

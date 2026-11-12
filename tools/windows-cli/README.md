@@ -54,3 +54,24 @@ rustc --edition=2024 argv_fixture.rs -o argv-fixture.exe
 ```
 
 Set `PACKAGE_FIXTURE_EXE` to that executable's absolute path, then run `python -m unittest -v test_package_cli`. Tests use temporary Git repositories and new output directories; the fixture handles no real Codex requests. Source files and build tools may be published; generated packages, executables, and local receipts are not source deliverables.
+# External runtime packaging / 외부 런타임 패키징
+
+Microsoft CRT DLLs and installers are not distributed. Users install the
+runtime directly from Microsoft as described in [RUNTIME.md](RUNTIME.md).
+`package_cli.py` rejects Microsoft runtime payload names. `external_runtime.py`
+converts a previously frozen package without rebuilding any executable:
+
+```powershell
+python tools/windows-cli/external_runtime.py --base <frozen-package> --base-receipt-sha256 <approved-sha256> --source <clean-committed-source> --output <new-package>
+```
+
+The base inventory must match its approved receipt. The result retains the
+native build commit and original corresponding source; `packaging.sourceCommit`
+and `source/packaging-source.zip` identify the separate packaging revision.
+The original receipt is included at `source/build-package-receipt.json`.
+Run `python -m unittest discover -s tools/windows-cli -p test_external_runtime.py -v`.
+
+Microsoft CRT DLL과 설치기는 배포하지 않습니다. 사용자는 [RUNTIME.md](RUNTIME.md)의
+공식 경로로 직접 설치합니다. 위 명령은 새 출력 경로에만 재포장하며 실행
+파일을 재빌드하지 않습니다. 기존 빌드 커밋과 대응소스는 보존하고 패키징
+커밋·소스·원본 영수증을 별도로 기록합니다. 설치나 운영 버전 교체는 하지 않습니다.

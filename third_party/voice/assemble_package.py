@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core (2026-11-13); see MODIFICATIONS.md.
 """Add a helper and its prepared runtime to a fresh private Codex package."""
 
 import argparse
@@ -114,7 +115,6 @@ def assemble(
             for relative in (
                 "NOTICE.md",
                 "sources.json",
-                *(("windows-crt.json",) if suffix else ()),
                 "licenses/LGPL-2.1.txt",
                 "licenses/Opus.txt",
                 "licenses/PCRE2.md",

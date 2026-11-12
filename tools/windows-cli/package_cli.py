@@ -11,6 +11,10 @@ from pathlib import Path
 import shutil
 import subprocess
 import zipfile
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "third_party" / "voice"))
+from distribution_policy import require_distributable
 
 AGPL_SHA256 = '0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0'
 LICENSE_FILES = ('LICENSE', 'LICENSE-APACHE-2.0', 'NOTICE', 'LICENSING.md',
@@ -169,6 +173,7 @@ def package(source, freeze_file, binary, vendor, output, expected_version, *,
         if not item.is_file():
             continue
         relative = item.relative_to(vendor)
+        require_distributable(relative.as_posix())
         if relative.as_posix() in replacements | {"codex-package.json"}:
             continue
         helpers.append((relative, checked_child(vendor, relative), digest(item)))
@@ -194,6 +199,9 @@ def package(source, freeze_file, binary, vendor, output, expected_version, *,
         (output/'source').mkdir()
         (output/'source/arcvera-core-source.zip').write_bytes(archive)
         (output/'SOURCE.md').write_text(source_offer(commit), encoding='utf-8', newline='\n')
+    runtime_guide = source / 'tools/windows-cli/RUNTIME.md'
+    if runtime_guide.is_file():
+        shutil.copy2(runtime_guide, output / 'RUNTIME.md')
     for name, (candidate, relative, _prefix) in candidates.items():
         target = output / relative
         target.parent.mkdir(parents=True, exist_ok=True)

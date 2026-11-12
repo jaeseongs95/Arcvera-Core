@@ -10,6 +10,11 @@ Arcvera-Core는 OpenAI 서버와의 통신을 지원합니다. 공식 Codex CLI�
 
 ## Windows에서 시작하기
 
+네이티브 음성에 필요한 Microsoft Visual C++ v14 **X64** 런타임은 사용자가
+별도로 설치해야 합니다. Microsoft DLL과 설치기는 동봉하지 않습니다.
+공식 다운로드·지원 버전·DLL 누락 복구는
+[런타임 설치 안내](tools/windows-cli/RUNTIME.md)를 확인하십시오.
+
 1. 릴리스 페이지에서 Windows x86-64 전체 ZIP과 `SHA256SUMS.txt`를 받습니다.
 2. ZIP의 SHA-256을 체크섬 파일과 대조한 뒤, 새 폴더에 폴더 구조를 유지해 압축을 풉니다.
 3. `bin\codex.exe`를 실행합니다. 소스 컴파일이나 CMD 실행 파일 사용은 필수가 아닙니다.
