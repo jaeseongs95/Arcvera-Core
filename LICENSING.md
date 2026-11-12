@@ -23,14 +23,14 @@ Windows 배포 패키지는 `source/`에 정확한 커밋의 프로젝트 소스
 
 Microsoft runtime DLLs and installers are excluded from Arcvera distributions.
 Users obtain the required runtime directly from Microsoft; see
-[RUNTIME.md](tools/windows-cli/RUNTIME.md). A dependency may be distributed only
+the package's `RUNTIME.md` or the [official download guide](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist). A dependency may be distributed only
 when its redistribution conditions can be met alongside this package's terms.
 Otherwise omit it and document installation from the official provider.
 This policy does not remove the source, notices or other duties for bundled OSS.
 
 Microsoft 런타임 DLL과 설치기는 Arcvera 배포물에서 제외합니다. 필요한
 런타임은 사용자가 Microsoft에서 직접 취득하며
-[RUNTIME.md](tools/windows-cli/RUNTIME.md)의 설치 안내를 따릅니다. 패키지의
+패키지의 `RUNTIME.md` 또는 [공식 다운로드 안내](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)를 따릅니다. 패키지의
 조건과 함께 재배포 조건을 충족할 수 있는 의존성만 배포합니다. 충족할 수
 없으면 해당 의존성을 제외하고 공식 제공자의 직접 설치 방법을 안내합니다.
 동봉하는 오픈소스의 소스 제공·고지 등 의무는 계속 유지합니다.
