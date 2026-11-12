@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "793edd554d94a17ff47a41db3417fd56206b9db4209b8a6e419df3bbd062cece",
+  "sourceTreeSha256": "e96bbfe5d75d01fc0533d8edaed751cddfc7a0491294340ab94ddaea273664bf",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "46acf02960f15c555a95ed61223683ea9b3788f3e71a702b6d1f736985ce519b"
+    "sha256": "b41d5cf3ddad9d4bc1250169fe4f76025c2321db2fe2e12826cae7f779c8feff"
   },
   "files": [
     {
@@ -38,6 +38,13 @@
       "bytes": 3098,
       "sha256": "b612d26fb9af8085fd789943c88416c100a3b73f96e92ec8ffb5426f101fa2d7",
       "gitBlob": "5f81a9cc9bde9f1801243c9c32d05350289cc555"
+    },
+    {
+      "path": ".github/workflows/core-1.0.yml",
+      "gitMode": "100644",
+      "bytes": 1293,
+      "sha256": "f1473aeaa5fd69bac38cc8128210c6d7c4631eb33e534c80a4498d617721cac2",
+      "gitBlob": "7cb08aeaf9fd3a8b6c9a9c11618430ab82ca13bd"
     },
     {
       "path": ".gitignore",
@@ -63,16 +70,16 @@
     {
       "path": "LICENSING.md",
       "gitMode": "100644",
-      "bytes": 4945,
-      "sha256": "939fc9a52f6045963dee8ad3b1bd2e7ca42b6c7bbc3d282b27be0c0cfa23e5c8",
-      "gitBlob": "60bca99ef4c4a371fbf0903a87992323ec9b917f"
+      "bytes": 6169,
+      "sha256": "fa7cb6064f6c0bafd8570a757fa76584308f79c9aab752c87c0523e6c6a823e5",
+      "gitBlob": "6c2e29d22f88ea45e9e6e2efad667437d1170742"
     },
     {
       "path": "MODIFICATIONS.md",
       "gitMode": "100644",
-      "bytes": 83024,
-      "sha256": "38712f7ff59d78bb0898182d907ae0ef152a81319dcccb1b5ccc7a91aa7b39f7",
-      "gitBlob": "73818895b85c260900649aef2e09b7b0a7da6e42"
+      "bytes": 83718,
+      "sha256": "1b1911855bec1c003c8bc1d5af5d0d134ba1a47da56163ed7d76c4df34708ad8",
+      "gitBlob": "1cc45fd71ea063678ac56e20a6230684849158b5"
     },
     {
       "path": "NOTICE",
@@ -84,16 +91,16 @@
     {
       "path": "README.ko.md",
       "gitMode": "100644",
-      "bytes": 12771,
-      "sha256": "4ecdbcddbbc59b57e324f35b822d4f3fa2935b9912cbfae0e73c78aac4e5ea4e",
-      "gitBlob": "b7c4ddf2189a5ea123de2c8a76fac308d13e1a3a"
+      "bytes": 13871,
+      "sha256": "cf36a5e7f750568796f371836e2dab7cb9ca1a26fac6a246e1c92c582c375c98",
+      "gitBlob": "982cb8b3282b88ebcb4179ad8ccd4e817e3cf09a"
     },
     {
       "path": "README.md",
       "gitMode": "100644",
-      "bytes": 11179,
-      "sha256": "ad3333e7353c4cb639e10769120b2569e8f24fd85e1e5ce4ba887acd0565b9ad",
-      "gitBlob": "8cca74ae38ec550a55801b6a9ce16de31232b059"
+      "bytes": 12153,
+      "sha256": "77b33bdb684959d37074d2d56696e051ab089e3b85cc7b1901fbe59b0892f8d8",
+      "gitBlob": "5497625b9dba0e9d57bf967083a7096e6690d1c0"
     },
     {
       "path": "SOURCE_BASELINE.json",
@@ -66045,9 +66052,9 @@
     {
       "path": "docs/releases/R41.md",
       "gitMode": "100644",
-      "bytes": 54488,
-      "sha256": "4b99d1dea74aa20e02942b2afd548252e4f5390606b221243c5ee5b6196ff2f8",
-      "gitBlob": "1f0e776bea6e8f6fd1287ca3c801d7f9717ca429"
+      "bytes": 55651,
+      "sha256": "2f7eb589fc7e3c06e4063104acb7628fcc50368e49b2afd18beb6c8ddb18dac2",
+      "gitBlob": "64e25057e906a4a76addb4736ad3e1f2f8967466"
     },
     {
       "path": "docs/releases/private-patch-history-2026-10-27.en.md",
@@ -66626,23 +66633,23 @@
     {
       "path": "third_party/voice/NOTICE.md",
       "gitMode": "100644",
-      "bytes": 2403,
-      "sha256": "40097a1799441051aa0b6645cdc819cceb19be73cdd265eb602aa2b15e0b1f48",
-      "gitBlob": "62f3615ffd4cc11aab68548b12486fc12915dab4"
+      "bytes": 2756,
+      "sha256": "fc0607d62b4dd2fc486f047dd93c770c1579afff9c7a86a6ecac2648c8c3744e",
+      "gitBlob": "600c3c14c0ef12d2b5c41592f61e830164bb0063"
     },
     {
       "path": "third_party/voice/README.md",
       "gitMode": "100644",
-      "bytes": 18949,
-      "sha256": "0e16912e895096602771e20068af67858b2568e932486a1af70b200097275179",
-      "gitBlob": "6cbddf369f559c80bf50146aa8c2c91885cab8a2"
+      "bytes": 19696,
+      "sha256": "dccc5f1a74c103a026672762063b41d1008f2477f6f0999d312355d0e1ef0bb7",
+      "gitBlob": "f0cd3c1fcd1a5f46833f8c8797192c49f52ff85a"
     },
     {
       "path": "third_party/voice/assemble_package.py",
       "gitMode": "100644",
-      "bytes": 7008,
-      "sha256": "13d28ac2d7ddd897e27501ea4147bb2ac8988cd67172affa429c9dc3941e7e8b",
-      "gitBlob": "a8077d4c5f41dd4a538b1f05ea273606b900c1a6"
+      "bytes": 7378,
+      "sha256": "394a9a4ab32189db8cf5457ac4a0bddd62ac1439eaa32ac6cfe7f48fa17cb70b",
+      "gitBlob": "16e905fd38f79baafe11bd88878177a19d1de3e9"
     },
     {
       "path": "third_party/voice/bazel_copy.py",
@@ -66699,6 +66706,13 @@
       "bytes": 5991,
       "sha256": "d07027fde20567409c4828b10f9dadaf1743898aca89491442622853e6f4c4c5",
       "gitBlob": "265c62b91549a45ba79929d6d328a95d57a98b12"
+    },
+    {
+      "path": "third_party/voice/distribution_policy.py",
+      "gitMode": "100644",
+      "bytes": 969,
+      "sha256": "b934beab3a789db8e2d75af46916e53ccdcd9763f0e56c504212faf21e4b280e",
+      "gitBlob": "d4a68c03fdfb3ec16aec1f6eeadb22506d1d78fd"
     },
     {
       "path": "third_party/voice/extensions.bzl",
@@ -66794,9 +66808,9 @@
     {
       "path": "third_party/voice/package_runtime.py",
       "gitMode": "100644",
-      "bytes": 3365,
-      "sha256": "532287e2820fa1398ca101bdbc48338cef9641026eb16735d9d1dc36ac9a6655",
-      "gitBlob": "ca213eb61125198c1610dd8fb116f292d59b1dca"
+      "bytes": 3587,
+      "sha256": "9997d6b90543f281a593546543cf5d843c23f9a2d6845b6ebeabe713099e6374",
+      "gitBlob": "cf50ee4d2a8f84f8dd2e9f22d22537c3dcaf48f7"
     },
     {
       "path": "third_party/voice/pkg_config.bzl",
@@ -66857,9 +66871,9 @@
     {
       "path": "third_party/voice/test_assemble_package.py",
       "gitMode": "100644",
-      "bytes": 26354,
-      "sha256": "6c0cbc8199047cfe33715abf31de29de67e8b354ecd36a45d6a8f901a301016e",
-      "gitBlob": "a9ac9a358898c96a0ed4702cd31f0d05fb3cf856"
+      "bytes": 28322,
+      "sha256": "a38cc65b5cca8b8b44664f2a5f39e6b6ea42a23a8ab2a77bd871a6c1791293bc",
+      "gitBlob": "c90bff9c082f1dc70aca29465b0e2a15b7932310"
     },
     {
       "path": "third_party/voice/test_bazel_windows.py",
@@ -66948,9 +66962,9 @@
     {
       "path": "third_party/voice/windows_crt.py",
       "gitMode": "100644",
-      "bytes": 3290,
-      "sha256": "0c0e2d3c34621cf0521660cefec679bcad2d5356b33fb971b5e61450fcd89419",
-      "gitBlob": "a927c1b19ebae2d5edfc41c41cc99b8081ee8bef"
+      "bytes": 645,
+      "sha256": "d31c545188ec594b0eab635de349b53c1c4ed44d5b2f02f5539193697a3e2494",
+      "gitBlob": "3da229c9beceb7914ef0ec2257ae4ab2796c709f"
     },
     {
       "path": "third_party/voice/windows_link_smoke.cc",
@@ -67011,9 +67025,16 @@
     {
       "path": "tools/windows-cli/README.md",
       "gitMode": "100644",
-      "bytes": 6693,
-      "sha256": "dec35acadf3bfb894006939a9d44e8093ff52cca2dc06bd4d03e4fa45ccb876c",
-      "gitBlob": "82b0f7c194705371284b13a6dfb8e57cdca032b5"
+      "bytes": 8054,
+      "sha256": "eddb7b6b102bace8f28a42d8deaac4e36cf5a7bcf98d763eae1a4710d4586cd1",
+      "gitBlob": "94d5993acb3b946a0e8891ed2648ea8cfaf5488d"
+    },
+    {
+      "path": "tools/windows-cli/RUNTIME.md",
+      "gitMode": "100644",
+      "bytes": 3146,
+      "sha256": "0dc2b62a8006b5e04ec297abaa846db37074ec25bd185a74bbd78832681ccf4d",
+      "gitBlob": "9b1b76add8090936e933b01f5e0332dff2dfe089"
     },
     {
       "path": "tools/windows-cli/UPDATE.ko.md",
@@ -67030,11 +67051,25 @@
       "gitBlob": "6d8bb83839268baed460c7dc365214b7cb2cfaef"
     },
     {
+      "path": "tools/windows-cli/external_runtime.py",
+      "gitMode": "100644",
+      "bytes": 8794,
+      "sha256": "87edda23616964604949970c84d181c67c39e4316d529bb5ed7fe10d2c438c0e",
+      "gitBlob": "8486f8dfcc57355f09f796d2afd9ba74b094c864"
+    },
+    {
       "path": "tools/windows-cli/package_cli.py",
       "gitMode": "100644",
-      "bytes": 13988,
-      "sha256": "8d5e3ccc350324aedbef1117c8fe39b07a923fed0d61655c8880513b0d6eea8b",
-      "gitBlob": "3619c79618aed77a6eefe759a0bc0e0c8e8ddf29"
+      "bytes": 14343,
+      "sha256": "7b8bf7d9721c61785a1dff981bbfaf9d698a8790e25dec44b91e19ec3e60823d",
+      "gitBlob": "6e86767addc09456b0bbcdbaa05274260048fbdd"
+    },
+    {
+      "path": "tools/windows-cli/test_external_runtime.py",
+      "gitMode": "100644",
+      "bytes": 10484,
+      "sha256": "1b7fbe51be66b2f89f47562688f11d94723afff34eddb0477c28c74078f00d05",
+      "gitBlob": "c5ad5ebcb71411025075cb67449b5b180196fb61"
     },
     {
       "path": "tools/windows-cli/test_package_cli.py",
@@ -67136,6 +67171,11 @@
     }
   ],
   "changes": [
+    {
+      "path": ".github/workflows/core-1.0.yml",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
     {
       "path": "LICENSE",
       "status": "modified",
@@ -68082,6 +68122,41 @@
       "notice": "inline-r41"
     },
     {
+      "path": "third_party/voice/NOTICE.md",
+      "status": "modified",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "third_party/voice/README.md",
+      "status": "modified",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "third_party/voice/assemble_package.py",
+      "status": "modified",
+      "notice": "inline-r41"
+    },
+    {
+      "path": "third_party/voice/distribution_policy.py",
+      "status": "added",
+      "notice": "inline-r41"
+    },
+    {
+      "path": "third_party/voice/package_runtime.py",
+      "status": "modified",
+      "notice": "inline-r41"
+    },
+    {
+      "path": "third_party/voice/test_assemble_package.py",
+      "status": "modified",
+      "notice": "inline-r41"
+    },
+    {
+      "path": "third_party/voice/windows_crt.py",
+      "status": "modified",
+      "notice": "inline-r41"
+    },
+    {
       "path": "tools/windows-cli/BUILD.md",
       "status": "added",
       "notice": "external-in-CURRENT_SOURCE.json"
@@ -68092,13 +68167,28 @@
       "notice": "external-in-CURRENT_SOURCE.json"
     },
     {
+      "path": "tools/windows-cli/RUNTIME.md",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
       "path": "tools/windows-cli/argv_fixture.rs",
       "status": "modified",
       "notice": "inline-r41"
     },
     {
+      "path": "tools/windows-cli/external_runtime.py",
+      "status": "added",
+      "notice": "inline-r41"
+    },
+    {
       "path": "tools/windows-cli/package_cli.py",
       "status": "modified",
+      "notice": "inline-r41"
+    },
+    {
+      "path": "tools/windows-cli/test_external_runtime.py",
+      "status": "added",
       "notice": "inline-r41"
     },
     {

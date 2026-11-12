@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 """Exercise private package copies, target pairing, provenance, and failure cleanup."""
 
 import hashlib

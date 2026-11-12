@@ -1,0 +1,41 @@
+name: Core 1.0 source and packaging checks
+
+on:
+  pull_request:
+    branches: [main, release/1.0.0]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-and-packaging:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Source and packaging regression tests
+        shell: bash
+        run: |
+          python3 -B - <<'PY'
+          import sys
+          import unittest
+
+          suite = unittest.TestSuite()
+          for directory, pattern in (
+              ('scripts/source-import', 'test_*.py'),
+              ('tools/windows-cli', 'test_external_runtime.py'),
+              ('third_party/voice', 'test_assemble_package.py'),
+          ):
+              suite.addTests(unittest.TestLoader().discover(directory, pattern=pattern))
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          sys.exit(0 if result.wasSuccessful() and not result.skipped else 1)
+          PY
+      - name: Complete source inventory and patch replay
+        run: python3 -B scripts/source-import/verify.py --scratch-root "${{ runner.temp }}"

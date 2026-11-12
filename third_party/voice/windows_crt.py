@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 """Retired CRT staging entry point (Arcvera 2026-11-13).
 
 Kept so older build commands fail before network or file writes.
