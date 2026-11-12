@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "5469212f6c04d7c788fcb00399ec9b832bfee1cb405610366a9408548c7d5ae4",
+  "sourceTreeSha256": "11fe58cc77cb4608f5a0342f32db228b6af20c6634b53c443c74d567d3a6ad29",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "ec94f7685db642af69d49aaf0332419faa4646b8d0f31cac114e1decf761918f"
+    "sha256": "669a400063714273ec98a19d1a767080e5741419887d8b204b066cce40cc4640"
   },
   "files": [
     {
@@ -70,16 +70,16 @@
     {
       "path": "README.ko.md",
       "gitMode": "100644",
-      "bytes": 11232,
-      "sha256": "5108bad47c7a8920f02e41e65dc32943cb7976190241b19d9094800bd01db49f",
-      "gitBlob": "40da63cd7cb2e9d00a3516f5df3c4413c39c572a"
+      "bytes": 12385,
+      "sha256": "e9b3ec0c97a3ca569a82244159030066986597819edc7c3ab9859f400de0eb58",
+      "gitBlob": "f3aeaf9a48853b0329cfa4ec0d15e286fc56391b"
     },
     {
       "path": "README.md",
       "gitMode": "100644",
-      "bytes": 9802,
-      "sha256": "943e2c8a3555a06c647a765fb15572f55fda344eb273ed6e457475385c5e890d",
-      "gitBlob": "e778007650724851c995e8151cfe678322b676d5"
+      "bytes": 10822,
+      "sha256": "38832d7b790582cda7d8aba7389db39ff20c9f3282f35beceb5f4cbed77622b0",
+      "gitBlob": "b8e01584f81710a9bce7e44adf52c2e22d45c82c"
     },
     {
       "path": "SOURCE_BASELINE.json",
@@ -770,9 +770,16 @@
     {
       "path": "codex-rs/app-server-daemon/src/client.rs",
       "gitMode": "100644",
-      "bytes": 12355,
-      "sha256": "62105f4596f67b75b5fe23d37f55ea4fc3a00c723053ecc4529d4c5b168abcda",
-      "gitBlob": "2326fe0b13c6631a740600899c6d79802ced51af"
+      "bytes": 7353,
+      "sha256": "4cd0f468c2b88b979489077471350db642eb8aa0a1913565163095e431f57c45",
+      "gitBlob": "0667ccb41ec8ebbc19216a5bdac12fc42ab7739f"
+    },
+    {
+      "path": "codex-rs/app-server-daemon/src/client_tests.rs",
+      "gitMode": "100644",
+      "bytes": 4665,
+      "sha256": "f4eba278bb5414db8154aee197103992f38ee45198e790a8f0c0c221e18e727e",
+      "gitBlob": "daa7d8a8e0ca1ad95d856c999efdf3dd5ed5cfcb"
     },
     {
       "path": "codex-rs/app-server-daemon/src/diagnostics.rs",
@@ -8988,9 +8995,16 @@
     {
       "path": "codex-rs/app-server-protocol/src/protocol/v1.rs",
       "gitMode": "100644",
-      "bytes": 14598,
-      "sha256": "3bcaafdb3477acf04aa7bcd8681e124b2966026c34f5dcf28fcfa376ce534e11",
-      "gitBlob": "31d31f3eb3a794114fb8a66d31d345197b65ee38"
+      "bytes": 12559,
+      "sha256": "88b52bf1af9874fbb58b301b4946bee8dcbd70314bf6c95f99a6a6ad12298940",
+      "gitBlob": "c80d5e268db06c2058ca4ceee1ffdce497458e98"
+    },
+    {
+      "path": "codex-rs/app-server-protocol/src/protocol/v1_core_version_tests.rs",
+      "gitMode": "100644",
+      "bytes": 1923,
+      "sha256": "fd86fc5c8d09568cc78612f6bb9fdb0649dbf9fc64ad488936ffe22ccb272dc7",
+      "gitBlob": "f5b71ed6853482751af39c38539d92dc94c16829"
     },
     {
       "path": "codex-rs/app-server-protocol/src/protocol/v2/account.rs",
@@ -11154,6 +11168,13 @@
       "bytes": 5142,
       "sha256": "a54ee0bc038406be8466916713080c08a4196ca569226aa59fbe3e5cce9df6d7",
       "gitBlob": "2281c19b28ab4bee01c6d0d47e43a9a059fbff09"
+    },
+    {
+      "path": "codex-rs/app-server/tests/r41_initialize.rs",
+      "gitMode": "100644",
+      "bytes": 356,
+      "sha256": "226be1fe8df3dd416c2f7f8969d8c7164f02b3fd670d9c012db76118b75b7d39",
+      "gitBlob": "8c6263d7245d65862397d75ac6d347d23a8f693b"
     },
     {
       "path": "codex-rs/app-server/tests/suite/auth.rs",
@@ -65982,9 +66003,9 @@
     {
       "path": "docs/releases/FORMAT.md",
       "gitMode": "100644",
-      "bytes": 9022,
-      "sha256": "3e70bf89b1927fd39d73c6570843565369e2340631ce1782c0b254d4785c9011",
-      "gitBlob": "8b935a7e3a1ada9f32d63759fcbe7e7c06842595"
+      "bytes": 9942,
+      "sha256": "ec2e70d7e49f72e37efad23b593385ab7e80eb52a6261ea559c016dd831a6942",
+      "gitBlob": "cfc21905782ad7fbfe263630273a226d02c4140b"
     },
     {
       "path": "docs/releases/R39.md",
@@ -66003,9 +66024,9 @@
     {
       "path": "docs/releases/R41.md",
       "gitMode": "100644",
-      "bytes": 36707,
-      "sha256": "d15159467bc0ab1db9e59626e56bb98414ac0854fa453a865d38a3a551c831db",
-      "gitBlob": "ab07b0a4c04cf6d371dd90c5d5ed9ea831c19ebd"
+      "bytes": 40342,
+      "sha256": "69e8c72940fb622c492c3e8a66c9c83a1ba95fb0ec619dd8078ce6e0365fc91f",
+      "gitBlob": "e45d5fd1f8d960202ab5d63fbf560831ca363914"
     },
     {
       "path": "docs/releases/private-patch-history-2026-10-27.en.md",
@@ -67121,6 +67142,11 @@
       "notice": "inline-r41"
     },
     {
+      "path": "codex-rs/app-server-daemon/src/client_tests.rs",
+      "status": "added",
+      "notice": "inline-r41"
+    },
+    {
       "path": "codex-rs/app-server-protocol/src/protocol/thread_history.rs",
       "status": "modified",
       "notice": "inline-r41"
@@ -67133,6 +67159,11 @@
     {
       "path": "codex-rs/app-server-protocol/src/protocol/v1.rs",
       "status": "modified",
+      "notice": "inline-r41"
+    },
+    {
+      "path": "codex-rs/app-server-protocol/src/protocol/v1_core_version_tests.rs",
+      "status": "added",
       "notice": "inline-r41"
     },
     {
@@ -67203,6 +67234,11 @@
     {
       "path": "codex-rs/app-server/tests/common/test_app_server.rs",
       "status": "modified",
+      "notice": "inline-r41"
+    },
+    {
+      "path": "codex-rs/app-server/tests/r41_initialize.rs",
+      "status": "added",
       "notice": "inline-r41"
     },
     {
