@@ -38,9 +38,11 @@ class AssembleTests(unittest.TestCase):
                     forbidden.write_bytes(b"Microsoft payload fixture")
                     output = self.root / f"policy-{public}-{index}"
                     try:
-                        with self.assertRaisesRegex(ValueError, "installed separately"):
-                            assemble(self.package, self.helper, target, self.commit, output,
-                                     runtime=runtime, release_version="1.0.0" if public else None)
+                        with patch("assemble_package.shutil.copytree", wraps=shutil.copytree) as copier:
+                            with self.assertRaisesRegex(ValueError, "installed separately"):
+                                assemble(self.package, self.helper, target, self.commit, output,
+                                         runtime=runtime, release_version="1.0.0" if public else None)
+                            copier.assert_not_called()
                         self.assertFalse(output.exists())
                         self.assertEqual(forbidden.read_bytes(), b"Microsoft payload fixture")
                     finally:
