@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use super::*;
 
 #[test]
@@ -12,7 +14,7 @@ fn running_daemon_replacement_prompt() {
     insta::assert_snapshot!(describe_install(&request), @r"
     Replace installed daemon version 0.152.0 with CLI version 0.0.0 from /cli/package.
     The daemon package will be installed in /home/packages/app-server-daemon.
-    The selected package will be pinned. Run `codex app-server daemon update` to return to production updates.
+    The selected package will be pinned. Download a complete Arcvera release and use its CLI to update the daemon manually.
     The running daemon will restart; active or queued work may be interrupted.
     ");
 }

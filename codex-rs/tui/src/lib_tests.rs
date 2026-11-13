@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R34 (2026-11-03); see MODIFICATIONS.md.
 #![cfg(test)]
 
@@ -116,7 +118,7 @@ fn startup_error_reporting_precedes_reports_and_survives_reentry() {
                 "--nocapture",
             ])
             .env(CHILD, case)
-            .env("CODEX_HOME", home.path())
+            .env("ARCVERA_HOME", home.path())
             .env("CODEX_UI_LANGUAGE", "en")
             .output()
             .expect("start isolated hook test");
@@ -839,7 +841,7 @@ fn resolve_remote_addr_accepts_secure_websocket_url() {
 
 #[test]
 fn resolve_remote_addr_accepts_default_socket() -> color_eyre::Result<()> {
-    let codex_home = find_codex_home().wrap_err("failed to resolve CODEX_HOME")?;
+    let codex_home = find_codex_home().wrap_err("failed to resolve ARCVERA_HOME")?;
     assert_eq!(
         resolve_remote_addr("unix://")?,
         RemoteAppServerEndpoint::UnixSocket {

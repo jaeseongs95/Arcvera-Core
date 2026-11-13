@@ -1,4 +1,5 @@
 # Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+# Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 """Explicit derivative manifest generation and read-only integrity checks; no builds."""
 import argparse
 from contextlib import contextmanager
@@ -17,6 +18,7 @@ DELTA = 'upstream/arcvera-r41.patch'
 EXCLUDED = (MANIFEST, DELTA)
 LICENSE_LINK = 'codex-rs/vendor/bubblewrap/LICENSE'
 R41 = 'Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.'
+V101 = 'Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.'
 HISTORICAL = ['SOURCE_BASELINE.json', 'upstream/source-inventory.json',
               'upstream/official-0.167.0.patch', 'upstream/windows-prompt-inputs.json',
               'upstream/LICENSE', 'upstream/NOTICE']
@@ -181,19 +183,21 @@ def notice(path, data, old):
                 lines = lines[2:]
             if previous[:2] == preamble:
                 previous = previous[2:]
-        if lines[0:1] != [(prefix + R41).encode()]:
+        markers = {(prefix + R41).encode(): 'inline-r41',
+                   (prefix + V101).encode(): 'inline-1.0.1'}
+        if not lines or lines[0] not in markers:
             raise ValueError(f'Missing R41 file notice: {path}')
         # Retain any original leading notice, even when the original first line is R41.
         if previous and b'Modified for ' in previous[0] and previous[0] not in lines[:3]:
             raise ValueError(f'Historical file notice removed: {path}')
-        return 'inline-r41'
+        return markers[lines[0]]
     return 'external-in-CURRENT_SOURCE.json'
 
 
 def derivative_notice(root, base, path, mode, oid, data, old):
     required = path.endswith(('.rs', '.toml', '.py')) or PurePosixPath(path).name == 'Cargo.lock'
     if (base == BASE_COMMIT and old is not None and required and
-            R41.encode() not in data.split(b'\n', 1)[0]):
+            not any(marker.encode() in data.split(b'\n', 1)[0] for marker in (R41, V101))):
         # A byte-for-byte upstream restoration has no derivative inline notice.
         # Query only this safe path; never load unrelated upstream tree entries.
         entry = git(root, 'ls-tree', '-z', OFFICIAL, '--', ':(literal)' + path)

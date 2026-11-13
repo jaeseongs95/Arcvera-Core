@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Moves a legacy daemon to its dedicated package only during an explicit update.
 //! Preparation leaves the legacy selection intact; publishing current is the cutover.
 
@@ -95,9 +97,9 @@ pub(super) async fn run(http: &impl InstallerHttp, legacy: &Daemon) -> Result<Up
         "installer did not prepare a latest-channel daemon package"
     );
     let entrypoint = if cfg!(windows) {
-        "bin/codex.exe"
+        "bin/arcvera.exe"
     } else {
-        "bin/codex"
+        "bin/arcvera"
     };
     let binary = release.join(entrypoint);
     let version = managed_install::managed_codex_version(&binary).await?;
@@ -166,14 +168,14 @@ pub(super) async fn run(http: &impl InstallerHttp, legacy: &Daemon) -> Result<Up
     };
     let running_version = if running.is_some() {
         selected.start_managed_backend(&settings).await.context(
-            "daemon migrated but could not start; retry with `codex app-server daemon start`",
+            "daemon migrated but could not start; retry with `arcvera app-server daemon start`",
         )?;
         Some(
             selected
                 .wait_until_ready()
                 .await
                 .context(
-                    "daemon migrated but is not ready; retry with `codex app-server daemon start`",
+                    "daemon migrated but is not ready; retry with `arcvera app-server daemon start`",
                 )?
                 .app_server_version,
         )

@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Enterprise OIDC policy and staged, keyring-only credential commits.
 //! Browser completion never persists a grant; its owner revalidates authority under the commit lock.
 
@@ -45,7 +47,7 @@ use crate::perform_oauth_login::OauthLoginFlow;
 
 /// An exclusive credential mutation guard. Hold it through primary account logout
 /// so a competing process cannot commit between deleting the grant and signing out.
-/// Coordination, like ordinary OAuth refresh, is scoped to the same CODEX_HOME.
+/// Coordination, like ordinary OAuth refresh, is scoped to the same ARCVERA_HOME.
 pub struct EnterpriseOAuthCredentialGuard {
     credential_name: String,
     issuer: String,

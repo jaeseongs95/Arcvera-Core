@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 #[cfg(target_os = "macos")]
 use std::path::Path;
 use std::process::Command;
@@ -44,10 +46,10 @@ async fn local_provider() -> Result<(MockServer, TempDir)> {
 }
 
 fn local_command(home: &TempDir) -> Result<Command> {
-    let mut command = Command::new(codex_utils_cargo_bin::cargo_bin("codex")?);
+    let mut command = Command::new(codex_utils_cargo_bin::cargo_bin("arcvera")?);
     command
         .current_dir(home.path())
-        .env("CODEX_HOME", home.path())
+        .env("ARCVERA_HOME", home.path())
         .env("NO_PROXY", "127.0.0.1,localhost")
         .env("no_proxy", "127.0.0.1,localhost")
         .stdin(Stdio::null());
@@ -242,7 +244,7 @@ async fn network_only_config_failure_human_output() -> Result<()> {
     // Normalize the rendered config-file row while retaining its label and filename.
     let file_row = Regex::new(r"(?m)^(      file +).+[\\/]config\.toml$")?;
     assert!(file_row.is_match(&stdout), "{stdout}");
-    let stdout = file_row.replace_all(&stdout, "${1}<CODEX_HOME>/config.toml");
+    let stdout = file_row.replace_all(&stdout, "${1}<ARCVERA_HOME>/config.toml");
     insta::assert_snapshot!("network_only_config_failure_human_output", stdout);
     Ok(())
 }
@@ -311,9 +313,9 @@ trust_level = "trusted"
             .mount(&server)
             .await;
 
-        let output = Command::new(codex_utils_cargo_bin::cargo_bin("codex")?)
+        let output = Command::new(codex_utils_cargo_bin::cargo_bin("arcvera")?)
             .current_dir(codex_home.path())
-            .env("CODEX_HOME", codex_home.path())
+            .env("ARCVERA_HOME", codex_home.path())
             .env("NO_PROXY", "127.0.0.1,localhost")
             .env("no_proxy", "127.0.0.1,localhost")
             .env_remove("CODEX_ACCESS_TOKEN")
@@ -388,10 +390,10 @@ async fn invalid_custom_ca_falls_back_to_system_roots() -> Result<()> {
         ),
     )?;
     for sandbox in [None, Some("seatbelt")] {
-        let mut command = Command::new(codex_utils_cargo_bin::cargo_bin("codex")?);
+        let mut command = Command::new(codex_utils_cargo_bin::cargo_bin("arcvera")?);
         command
             .args(["doctor", "--json"])
-            .env("CODEX_HOME", codex_home.path())
+            .env("ARCVERA_HOME", codex_home.path())
             .env("CODEX_CA_CERTIFICATE", &certificate)
             .stdin(Stdio::null());
         if let Some(sandbox) = sandbox {
@@ -452,9 +454,9 @@ fn doctor_reports_macos_system_proxy_configuration_and_policy() -> Result<()> {
 
 #[cfg(target_os = "macos")]
 fn doctor_report(codex_home: &Path) -> Result<Value> {
-    let output = Command::new(codex_utils_cargo_bin::cargo_bin("codex")?)
+    let output = Command::new(codex_utils_cargo_bin::cargo_bin("arcvera")?)
         .args(["doctor", "--json"])
-        .env("CODEX_HOME", codex_home)
+        .env("ARCVERA_HOME", codex_home)
         .stdin(Stdio::null())
         .output()
         .context("failed to run the doctor")?;

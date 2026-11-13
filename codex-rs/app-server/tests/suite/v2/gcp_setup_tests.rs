@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! GCP setup validates before saving and shares provider configuration with subsequent requests.
 
 use anyhow::Context;
@@ -236,14 +238,14 @@ async fn setup_gcp_validates_the_auth_override_relative_to_the_startup_directory
     let auth = toml::Value::try_from(json!({"command": script, "cwd": "."}))?;
     let config_path = home.path().join("config.toml");
     std::fs::write(&config_path, "")?;
-    // The same command succeeds in CODEX_HOME but fails in the catalog's startup context.
+    // The same command succeeds in ARCVERA_HOME but fails in the catalog's startup context.
     std::fs::write(startup.path().join("fail"), "")?;
     let mut server = TestAppServer::builder()
         .with_codex_home(startup.path())
         .with_env_overrides(CLEARED_AUTH_ENV)
         .with_env_overrides(&[(
-            "CODEX_HOME",
-            Some(home.path().to_str().context("non-UTF-8 CODEX_HOME")?),
+            "ARCVERA_HOME",
+            Some(home.path().to_str().context("non-UTF-8 ARCVERA_HOME")?),
         )])
         .with_args(&["-c", &format!("model_providers.gcp.auth={auth}")])
         .build_initialized_with_timeout(READ_TIMEOUT)

@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Startup handoff preserves the loading frame until replayed cells can replace it.
 
 use super::*;
@@ -159,7 +161,7 @@ async fn owned_startup_preserves_loading_until_resume_replay_is_applied() -> Res
         if has_answer {
             assert!(rendered.contains("Retained answer after resume."));
         } else {
-            assert!(rendered.contains("OpenAI Codex"));
+            assert!(rendered.contains("Arcvera Core"));
         }
         tui.set_owned_screen(/*owned*/ false)?;
         app_server.shutdown().await?;

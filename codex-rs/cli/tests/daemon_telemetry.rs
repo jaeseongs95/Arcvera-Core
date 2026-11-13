@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Foreground updates honor explicit metrics exporters and never claim unconfirmed installation.
 
 use anyhow::Context as _;
@@ -16,7 +18,7 @@ async fn foreground_update_honors_metrics_exporter_and_reports_unconfirmed() -> 
         ("analytics.enabled = false\n", true, true),
         ("analytics.enabled = true\n", true, false),
     ] {
-        let codex = codex_utils_cargo_bin::cargo_bin("codex")?;
+        let codex = codex_utils_cargo_bin::cargo_bin("arcvera")?;
         let server = MockServer::start().await;
         Mock::given(wiremock::matchers::path("/metrics"))
             .respond_with(ResponseTemplate::new(200))
@@ -34,7 +36,7 @@ async fn foreground_update_honors_metrics_exporter_and_reports_unconfirmed() -> 
         let mut command = tokio::process::Command::new(&codex);
         command
             .current_dir(home.path())
-            .env("CODEX_HOME", home.path())
+            .env("ARCVERA_HOME", home.path())
             .env_remove(codex_app_server_daemon::telemetry::HANDOFF_ENV)
             .arg("app-server");
         if analytics_default_enabled {

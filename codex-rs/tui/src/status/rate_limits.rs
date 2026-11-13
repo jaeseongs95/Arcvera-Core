@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Rate-limit and credits display shaping for status surfaces.
 //!
@@ -100,7 +102,7 @@ impl RateLimitWindowDisplay {
 
 #[derive(Debug, Clone)]
 pub(crate) struct RateLimitSnapshotDisplay {
-    /// Canonical limit identifier (for example: `codex` or `codex_other`).
+    /// Canonical limit identifier (for example: `arcvera` or `codex_other`).
     pub limit_name: String,
     /// Optional normal model associated with this account-read quota alias.
     pub normal_model_slug: Option<String>,

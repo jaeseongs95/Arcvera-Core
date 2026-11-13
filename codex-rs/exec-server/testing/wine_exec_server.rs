@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Test support for running the Windows exec-server under Wine.
 
 use std::future::Future;
@@ -22,7 +24,7 @@ impl WineExecServer {
     {
         let executable = codex_utils_cargo_bin::cargo_bin("wine-windows-exec-server")?;
         let mut exec_server = WineTestCommand::new(executable)
-            .env("CODEX_HOME", r"C:\codex-home")
+            .env("ARCVERA_HOME", r"C:\codex-home")
             .spawn()?;
         let wine_prefix = exec_server.prefix_path().to_path_buf();
         let stdout = exec_server.take_stdout();

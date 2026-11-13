@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Ensure a provisioned CLI still discovers its outer package and install method.
 
 use crate::*;
@@ -59,7 +61,7 @@ fn winget_root_requires_metadata_for_the_actual_executable() -> std::io::Result<
         fs::create_dir_all(package.join(directory))?;
     }
     assert_eq!(CodexPackageLayout::from_exe(executable.as_path()), None);
-    for entrypoint in ["other.exe", "bin/codex.exe", name] {
+    for entrypoint in ["other.exe", "bin/arcvera.exe", name] {
         fs::write(
             package.join(PACKAGE_METADATA_FILENAME),
             serde_json::json!({"layoutVersion": 1, "entrypoint": entrypoint}).to_string(),

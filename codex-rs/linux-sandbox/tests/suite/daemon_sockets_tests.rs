@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use super::*;
 use pretty_assertions::assert_eq;
 use std::os::fd::AsRawFd;
@@ -318,7 +320,7 @@ if sys.argv[6] == 'host-proc' and not os.path.isdir('/run/WSL'):
     );
     let mut env = create_env_from_core_vars();
     env.insert(
-        "CODEX_HOME".to_string(),
+        "ARCVERA_HOME".to_string(),
         workspace.path().display().to_string(),
     );
     env.insert("TMPDIR".to_string(), workspace.path().display().to_string());

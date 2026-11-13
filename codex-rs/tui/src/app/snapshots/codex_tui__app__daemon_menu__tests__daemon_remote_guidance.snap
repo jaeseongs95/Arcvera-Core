@@ -6,10 +6,12 @@ expression: "render_bottom_popup(&app.chat_widget, 80)"
   Not connected to the local background server.
   Manage this server on its host. Local daemon updates are unavailable for
   remote connections.
+  Download Arcvera releases manually; automatic updates are disabled.
 
 
-›    Install latest public stable
-     Use this CLI build
+›    Use this CLI build (disabled)  Manage this server on its host. Local daemon
+                                    updates are unavailable for remote
+                                    connections.
      Restart background server
 
   enter select · esc back

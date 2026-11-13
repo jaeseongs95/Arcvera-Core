@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use super::*;
 use crate::app_event::TranscriptExportDestination;
@@ -1240,7 +1242,7 @@ async fn delete_current_thread_navigates_only_after_success() -> Result<()> {
             exit_info
                 .format_exit_messages(false)
                 .iter()
-                .all(|line| !line.contains("codex resume")),
+                .all(|line| !line.contains("arcvera resume")),
             "deleted threads must not be advertised for resuming"
         );
         assert_eq!(
@@ -1461,7 +1463,7 @@ async fn archive_current_thread_reports_success_only_after_archiving() -> Result
         exit_info
             .format_exit_messages(false)
             .iter()
-            .all(|line| !line.contains("codex resume")),
+            .all(|line| !line.contains("arcvera resume")),
         "archived threads must not be advertised for direct resuming"
     );
     app_server.shutdown().await?;
@@ -1570,7 +1572,7 @@ async fn archive_current_thread_returns_to_agents() -> Result<()> {
             exit_info
                 .format_exit_messages(false)
                 .iter()
-                .all(|line| !line.contains("codex resume")),
+                .all(|line| !line.contains("arcvera resume")),
             "archived threads must not be advertised for direct resuming"
         );
         assert_eq!(
@@ -3417,7 +3419,7 @@ async fn underfilled_scrollback_fetches_older_pages_without_opening_the_transcri
         overlay.set_highlight_cell(Some(0));
         let partial = render_overlay(overlay);
         assert!(partial.contains("Earlier messages available."));
-        assert!(!partial.contains("OpenAI Codex"));
+        assert!(!partial.contains("Arcvera Core"));
         assert!(!partial.contains("This is a test announcement"));
         assert!(!partial.contains('%'));
 
@@ -3427,7 +3429,7 @@ async fn underfilled_scrollback_fetches_older_pages_without_opening_the_transcri
         )?;
         let loading = render_overlay(overlay);
         assert!(loading.contains("Loading earlier messages…"));
-        assert!(!loading.contains("OpenAI Codex"));
+        assert!(!loading.contains("Arcvera Core"));
         assert!(!loading.contains('%'));
     } else {
         panic!("expected transcript overlay");
@@ -5740,9 +5742,8 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
                 )
             })
             .map(|request| {
-                let param = |name: &str| {
-                    request.params.as_ref().and_then(|params| params.get(name))
-                };
+                let param =
+                    |name: &str| request.params.as_ref().and_then(|params| params.get(name));
                 let field = |name: &str| param(name).and_then(serde_json::Value::as_str);
                 serde_json::json!({
                     "method": request.method.as_str(),
@@ -5761,7 +5762,11 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
         assert!(
             app.chat_widget.has_provider_error(),
             "route={} target_thread={thread_id} displayed_thread={:?} safe_requests={safe_requests:?} fixture_history={history_messages:?}",
-            if reopen_via_overview { "overview" } else { "resume_target" },
+            if reopen_via_overview {
+                "overview"
+            } else {
+                "resume_target"
+            },
             app.chat_widget.thread_id(),
         );
         let notice = history_messages

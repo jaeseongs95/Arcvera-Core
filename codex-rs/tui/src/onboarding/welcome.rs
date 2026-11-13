@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Shared welcome header for the existing sign-in and Bedrock onboarding pickers.
 //! The logo occupies a fixed stage so its motion never shifts the choices below it.
@@ -127,7 +129,7 @@ impl WidgetRef for &WelcomeWidget {
         lines.push(Line::from(vec![
             "  ".into(),
             crate::i18n::text("Welcome to ").into(),
-            "Codex".bold(),
+            "Arcvera Core".bold(),
             crate::i18n::text(", OpenAI's command-line coding agent").into(),
         ]));
 

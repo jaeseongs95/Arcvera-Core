@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use crossterm::event::KeyEventKind;
@@ -764,7 +766,9 @@ async fn startup_draft_waits_for_onboarding_before_accepting_input() {
                 codex_home.path(),
                 Ok(system_config_path),
                 || Ok(false),
-                |name| (name == "CODEX_HOME").then(|| codex_home.path().as_os_str().to_os_string()),
+                |name| {
+                    (name == "ARCVERA_HOME").then(|| codex_home.path().as_os_str().to_os_string())
+                },
             )
         {
             StartupDraftInitialScreen::Onboarding

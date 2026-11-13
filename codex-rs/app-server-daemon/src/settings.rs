@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::Duration;
@@ -29,7 +31,7 @@ impl Default for DaemonSettings {
         Self {
             remote_control_enabled: false,
             feature_overrides: BTreeMap::new(),
-            auto_update_enabled: true,
+            auto_update_enabled: false,
             update_interval_minutes: DEFAULT_UPDATE_INTERVAL_MINUTES,
             shutdown_grace_seconds: DEFAULT_SHUTDOWN_GRACE_SECONDS,
         }
@@ -85,7 +87,7 @@ impl Default for UpdaterSettings {
 }
 
 fn default_auto_update_enabled() -> bool {
-    true
+    false
 }
 
 fn default_update_interval_minutes() -> u32 {
@@ -108,8 +110,10 @@ impl UpdaterSettings {
     pub(crate) async fn load(settings_file: &Path) -> Result<Self> {
         let settings: StoredSettings = read_settings(settings_file).await?;
         validate_shutdown_grace(settings.shutdown_grace_seconds)?;
-        let settings = settings.updater;
+        let mut settings = settings.updater;
         settings.validate()?;
+        // The inherited installer targets the upstream product, so it cannot update Arcvera.
+        settings.auto_update_enabled = false;
         Ok(settings)
     }
 
@@ -134,7 +138,7 @@ impl DaemonSettings {
         Ok(Self {
             remote_control_enabled: settings.remote_control_enabled,
             feature_overrides: settings.feature_overrides,
-            auto_update_enabled: settings.updater.auto_update_enabled,
+            auto_update_enabled: false,
             update_interval_minutes: settings.updater.update_interval_minutes,
             shutdown_grace_seconds: settings.shutdown_grace_seconds,
         })
@@ -202,14 +206,7 @@ pub(crate) async fn telemetry_tags(path: &Path) -> Result<[(&'static str, &'stat
     let updater = raw.get("updater");
     let presence = |configured| if configured { "configured" } else { "default" };
     Ok([
-        (
-            "auto_update",
-            if settings.updater.auto_update_enabled {
-                "enabled"
-            } else {
-                "disabled"
-            },
-        ),
+        ("auto_update", "disabled"),
         (
             "auto_update_setting",
             presence(updater.is_some_and(|value| value.get("autoUpdateEnabled").is_some())),

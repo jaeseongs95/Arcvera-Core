@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -72,7 +74,7 @@ fn updater_only_runs_for_stable_installer_owned_releases() {
     let standalone = home.path().join("packages/standalone");
     let current = standalone.join("current");
     let release = standalone.join("releases/0.150.0-aarch64-apple-darwin");
-    let managed = release.join("bin/codex");
+    let managed = release.join("bin/arcvera");
     std::fs::create_dir_all(managed.parent().expect("bin parent")).expect("release");
     std::fs::write(&managed, b"stable").expect("managed bin");
     std::os::unix::fs::symlink(&release, &current).expect("current release");
@@ -87,7 +89,7 @@ fn updater_only_runs_for_stable_installer_owned_releases() {
     assert!(!super::is_stable_standalone_release(home.path(), &managed));
 
     let alpha = standalone.join("releases/0.151.0-alpha.1-aarch64-apple-darwin");
-    let alpha_managed = alpha.join("bin/codex");
+    let alpha_managed = alpha.join("bin/arcvera");
     std::fs::create_dir_all(alpha_managed.parent().expect("alpha bin parent"))
         .expect("alpha release");
     std::fs::write(&alpha_managed, b"alpha").expect("alpha bin");
@@ -99,7 +101,7 @@ fn updater_only_runs_for_stable_installer_owned_releases() {
     ));
 
     let local = standalone.join("local-main");
-    let local_managed = local.join("bin/codex");
+    let local_managed = local.join("bin/arcvera");
     std::fs::create_dir_all(local_managed.parent().expect("local bin parent"))
         .expect("local build");
     std::fs::write(&local_managed, b"local").expect("local bin");
@@ -115,7 +117,7 @@ fn updater_only_runs_for_stable_installer_owned_releases() {
 #[tokio::test]
 async fn older_managed_binary_does_not_claim_updater_support() {
     let temp = tempfile::TempDir::new().expect("home");
-    let binary = temp.path().join("codex");
+    let binary = temp.path().join("arcvera");
     codex_utils_cargo_bin::write_executable(&binary, "#!/bin/sh\nexit 2\n").expect("older binary");
     assert!(!super::supports_daemon_update_loop(&binary).await);
     codex_utils_cargo_bin::write_executable(&binary, "#!/bin/sh\nexit 0\n").expect("newer binary");

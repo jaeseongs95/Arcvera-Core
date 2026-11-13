@@ -1,10 +1,12 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Ambient terminal pets configured from the /pets slash command.
 //!
 //! The TUI treats built-in and custom pets differently on purpose:
 //! built-in pets are versioned application assets fetched on demand into a
-//! managed CODEX_HOME cache, while custom pets remain entirely user-owned data
-//! under `$CODEX_HOME/pets/<pet-id>/pet.json` or legacy avatar directories.
+//! managed ARCVERA_HOME cache, while custom pets remain entirely user-owned data
+//! under `$ARCVERA_HOME/pets/<pet-id>/pet.json` or legacy avatar directories.
 //!
 //! This module owns the TUI-facing contracts around that split:
 //! resolving a selected pet id, preparing frames for terminal image protocols,

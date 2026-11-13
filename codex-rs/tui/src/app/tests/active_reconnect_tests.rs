@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Active recovery keeps local input and policy while reusing ordinary thread resume.
 
@@ -752,7 +754,7 @@ async fn reconnect_restores_history_permissions_and_resumes_unsent_input() -> Re
             .join("\n");
         if deferred_notice {
             assert_snapshot!(notices, @r###"
-⚠ A background Codex service is running v2.0.0, older than your Codex CLI
+⚠ A background Codex service is running v2.0.0, older than your Arcvera Core CLI
 "###);
         } else if edit_offline {
             assert!(notices.contains("unacknowledged prompt"));

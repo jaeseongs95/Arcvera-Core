@@ -1,8 +1,39 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
 use super::DaemonSettings;
 use super::MAX_SHUTDOWN_GRACE_SECONDS;
+
+#[tokio::test]
+async fn arcvera_never_enables_the_inherited_updater() {
+    let temp = TempDir::new().expect("temp dir");
+    let path = temp.path().join("settings.json");
+    for contents in [
+        None,
+        Some("{}"),
+        Some(r#"{"updater":{"autoUpdateEnabled":true}}"#),
+    ] {
+        if let Some(contents) = contents {
+            tokio::fs::write(&path, contents)
+                .await
+                .expect("settings fixture");
+        }
+        assert!(
+            !DaemonSettings::load(&path)
+                .await
+                .expect("daemon settings")
+                .auto_update_enabled
+        );
+        assert!(
+            !super::UpdaterSettings::load(&path)
+                .await
+                .expect("updater settings")
+                .auto_update_enabled
+        );
+    }
+}
 
 #[tokio::test]
 async fn remote_control_save_preserves_updater_settings() {
@@ -148,7 +179,7 @@ async fn telemetry_distinguishes_presence_from_default_values() -> anyhow::Resul
             crate::telemetry::settings_tags(home.path())
                 .await
                 .map(|(_, value)| value),
-            ["enabled", presence, presence, presence]
+            ["disabled", presence, presence, presence]
         );
     }
     Ok(())

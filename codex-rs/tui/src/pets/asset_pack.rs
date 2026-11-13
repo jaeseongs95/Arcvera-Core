@@ -1,9 +1,11 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Built-in pet asset acquisition and cache ownership.
 //!
 //! Unlike custom pets, built-in pets are not checked into the TUI package as
 //! local spritesheets. The TUI resolves them from the public Codex pets CDN on
 //! first use, verifies that the downloaded file has the expected spritesheet
-//! geometry, and installs it into a versioned cache under CODEX_HOME.
+//! geometry, and installs it into a versioned cache under ARCVERA_HOME.
 //!
 //! This module deliberately stops at "a validated spritesheet exists at this
 //! path". Higher layers remain responsible for deciding when downloads are

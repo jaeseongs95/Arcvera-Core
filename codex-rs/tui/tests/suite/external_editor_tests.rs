@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Exercise editor handoff through a terminal, including editors that switch screens.
 
 use super::PtyCodex;
@@ -43,7 +45,7 @@ fn external_editors_keep_the_screen_and_return_the_draft() -> Result<()> {
             ]
         };
         let codex = codex_utils_cargo_bin::cargo_bin("codex-tui")
-            .or_else(|_| codex_utils_cargo_bin::cargo_bin("codex"))?;
+            .or_else(|_| codex_utils_cargo_bin::cargo_bin("arcvera"))?;
         let mut terminal = PtyCodex::start_binary(&codex, &repo_root, home, &args, Some(&editor))?;
         terminal.wait_for_startup()?;
         terminal.wait_for_screen("GPT-5.6-Terra")?;

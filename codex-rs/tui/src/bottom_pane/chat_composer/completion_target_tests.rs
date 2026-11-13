@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use super::*;
 use crate::bottom_pane::textarea::TextArea;
 use pretty_assertions::assert_eq;
@@ -197,7 +199,7 @@ fn typed_qualified_suffix_preserves_bound_plain_mention() {
 
 #[test]
 fn dollar_query_classifies_shell_and_skill_syntax() {
-    assert!(!dollar_query_is_completable("{CODEX_HOME}/config.toml"));
+    assert!(!dollar_query_is_completable("{ARCVERA_HOME}/config.toml"));
     assert!(!dollar_query_is_completable("(pwd)"));
     assert!(dollar_query_is_completable("home:search"));
     assert!(dollar_query_is_completable("home"));

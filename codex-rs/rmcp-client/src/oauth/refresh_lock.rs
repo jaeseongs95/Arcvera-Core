@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Cross-process serialization for one MCP OAuth credential's refresh transaction.
 //!
 //! The guard is intentionally acquired before the authoritative credential reread and retained
@@ -44,7 +46,7 @@ impl RefreshCredentialLock {
         store_key: &str,
         acquire_timeout: Duration,
     ) -> Result<Self> {
-        // Scope coordination to CODEX_HOME alongside File and Secrets state. Direct keyring
+        // Scope coordination to ARCVERA_HOME alongside File and Secrets state. Direct keyring
         // coordination across homes needs a separate cross-platform rendezvous.
         // TODO(stevenlee): define that rendezvous before expanding this lock's scope.
         let mut hasher = Sha256::new();

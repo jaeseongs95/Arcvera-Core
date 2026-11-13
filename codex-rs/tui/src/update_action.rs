@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 #[cfg(any(not(debug_assertions), test))]
 use codex_install_context::InstallContext;
@@ -49,8 +51,8 @@ impl UpdateAction {
     /// Returns the list of command-line arguments for invoking the update.
     pub fn command_args(self) -> (&'static str, &'static [&'static str]) {
         match self {
-            UpdateAction::Daemon(source) => ("codex", source.command_args()),
-            UpdateAction::OpenDiy => ("codex", &["update"]),
+            UpdateAction::Daemon(source) => ("arcvera", source.command_args()),
+            UpdateAction::OpenDiy => ("arcvera", &["update"]),
             UpdateAction::NpmGlobalLatest => ("npm", &["install", "-g", "@openai/codex"]),
             UpdateAction::BunGlobalLatest => ("bun", &["install", "-g", "@openai/codex"]),
             UpdateAction::VitePlusGlobalLatest => ("vp", &["install", "-g", "@openai/codex"]),
@@ -83,12 +85,10 @@ impl UpdateAction {
     }
 }
 
-#[cfg(not(debug_assertions))]
+#[cfg(any(not(debug_assertions), test))]
 pub fn get_update_action() -> Option<UpdateAction> {
-    if is_opendiy_version(env!("CARGO_PKG_VERSION")) {
-        return Some(UpdateAction::OpenDiy);
-    }
-    UpdateAction::from_install_context(InstallContext::current())
+    // Arcvera releases are downloaded explicitly; never infer an official updater.
+    None
 }
 
 /// Fork builds must never use the official installer or update feed.
@@ -100,9 +100,18 @@ pub fn is_opendiy_version(version: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn arcvera_does_not_offer_an_inherited_update_action() {
+        assert_eq!(super::get_update_action(), None);
+    }
     use super::*;
     use codex_utils_absolute_path::AbsolutePathBuf;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn arcvera_has_no_automatic_update_action() {
+        assert_eq!(get_update_action(), None);
+    }
 
     #[test]
     fn recognizes_full_opendiy_build_version() {

@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 mod cloud_config;
 #[cfg(target_os = "macos")]
 mod pid_tracker;
@@ -689,7 +691,7 @@ async fn load_debug_sandbox_config_with_codex_home(
         ));
     }
 
-    // For legacy configs, `codex sandbox` historically defaulted to read-only
+    // For legacy configs, `arcvera sandbox` historically defaulted to read-only
     // instead of inheriting ambient `sandbox_mode` settings from user/system
     // config. Keep that behavior unless this invocation explicitly passes a
     // legacy `sandbox_mode` CLI override for compatibility with older callers.

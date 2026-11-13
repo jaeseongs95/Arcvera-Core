@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use codex_network_proxy::ManagedNetworkSandboxContext;
 use codex_network_proxy::NetworkProxy;
 use codex_network_proxy::PROXY_URL_ENV_KEYS;
@@ -445,10 +447,10 @@ fn normalize_writable_root_for_sandbox(
     if !allow_symlinks && let Some(symlink) = nested_symlink_component(root.as_path()) {
         return Err(SeatbeltPreparationError::FileSystem(format!(
             "writable root {} contains symlink component {}; symlinked writable roots are not supported.\n\
-             If this writable root is at or beneath CODEX_HOME and you trust its symlink targets, \
-             set `allow_symlinked_codex_home = true` at the top level of `$CODEX_HOME/config.toml` \
-             (normally `~/.codex/config.toml`) on the execution host, then restart Codex or its executor. \
-             This opt-out trusts targets outside CODEX_HOME and targets changed between commands. \
+             If this writable root is at or beneath ARCVERA_HOME and you trust its symlink targets, \
+             set `allow_symlinked_codex_home = true` at the top level of `$ARCVERA_HOME/config.toml` \
+             (normally `~/.arcvera/config.toml`) on the execution host, then restart Codex or its executor. \
+             This opt-out trusts targets outside ARCVERA_HOME and targets changed between commands. \
              It does not apply to other writable roots.",
             root.display(),
             symlink.display()
@@ -457,7 +459,7 @@ fn normalize_writable_root_for_sandbox(
 
     let normalized = if allow_symlinks {
         // This explicit opt-out trusts the current target, including targets
-        // outside CODEX_HOME and links changed by an earlier command.
+        // outside ARCVERA_HOME and links changed by an earlier command.
         normalize_path_for_sandbox(root.as_path()).unwrap_or(root)
     } else {
         // Otherwise preserve mutable components instead of granting their targets.

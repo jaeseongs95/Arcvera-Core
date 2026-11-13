@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use clap::Arg;
 use clap::ArgMatches;
 use clap::Command;
@@ -90,17 +92,17 @@ pub(super) fn validate_options(command: &Command, root: &ArgMatches) -> Result<(
         };
         let message = match arg.get_long() {
             Some("cd") if remote.is_none() => continue,
-            Some("cd") => "`codex queue` does not support `--cd` with `--remote`".to_string(),
+            Some("cd") => "`arcvera queue` does not support `--cd` with `--remote`".to_string(),
             // These flags already have dedicated diagnostics in the CLI and session startup.
             Some("worktree" | "no-daemon") => continue,
             Some("model") => {
-                "`codex queue` does not support `--model`; queued messages use the thread's model"
+                "`arcvera queue` does not support `--model`; queued messages use the thread's model"
                     .to_string()
             }
-            Some("image") => "`codex queue` does not support image attachments".to_string(),
-            Some(name) => format!("`codex queue` does not support `--{name}`"),
+            Some("image") => "`arcvera queue` does not support image attachments".to_string(),
+            Some(name) => format!("`arcvera queue` does not support `--{name}`"),
             None => {
-                "`codex queue` does not accept a positional prompt; use `--message`".to_string()
+                "`arcvera queue` does not accept a positional prompt; use `--message`".to_string()
             }
         };
         return Err(clap::Error::raw(ErrorKind::ArgumentConflict, message));
@@ -131,7 +133,7 @@ pub(crate) async fn run_queue_command(
             .is_some_and(|(key, _)| key.trim() == "model")
     }) {
         anyhow::bail!(
-            "`codex queue` does not support a `model` config override; queued messages use the thread's model"
+            "`arcvera queue` does not support a `model` config override; queued messages use the thread's model"
         );
     }
     let explicit_remote_endpoint = resolve_remote_endpoint(

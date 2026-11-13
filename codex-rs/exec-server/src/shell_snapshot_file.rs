@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Per-launch snapshot transport, created under the sandbox-protected daemon root.
 //! No named file ever contains shell state, and the cache owns bytes, not descriptors.
 //! The caller keeps the reader alive through spawn.
@@ -12,7 +14,7 @@ use std::os::unix::fs::MetadataExt;
 pub(super) fn materialize(shell: ShellType, state: &str) -> io::Result<File> {
     // Mode 0700 alone cannot stop a same-user sandboxed command from replacing
     // the pathname or retaining a writable handle before unlink. Reuse the root
-    // that every filesystem-restricted sandbox hides, independent of CODEX_HOME.
+    // that every filesystem-restricted sandbox hides, independent of ARCVERA_HOME.
     let root = codex_uds::prepare_shared_daemon_socket_directory()?;
     let directory = tempfile::tempdir_in(root)?;
     let writer = tempfile::NamedTempFile::new_in(directory.path())?;

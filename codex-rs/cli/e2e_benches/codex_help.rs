@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 #![allow(clippy::expect_used)]
 
 use std::process::Command;
@@ -13,7 +15,7 @@ fn main() {
 /// benchmark binaries without making the shared harness depend on them.
 #[divan::bench(sample_count = 20, sample_size = 1)]
 fn codex_help(bencher: Bencher) {
-    let codex = codex_utils_cargo_bin::cargo_bin("codex")
+    let codex = codex_utils_cargo_bin::cargo_bin("arcvera")
         .expect("codex binary should be available through Bazel runfiles");
 
     bencher.bench_local(move || {

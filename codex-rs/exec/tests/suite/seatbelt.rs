@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use super::sandbox::spawn_command_under_sandbox;
 use codex_core::spawn::StdioPolicy;
 use codex_protocol::models::PermissionProfile;
@@ -83,7 +85,7 @@ async fn codex_home_symlink_opt_out_uses_loaded_user_config() -> anyhow::Result<
             .env_remove("CODEX_API_KEY")
             .env_remove("OPENAI_API_KEY")
             .env_remove("CODEX_ACCESS_TOKEN")
-            .env("CODEX_HOME", home_env)
+            .env("ARCVERA_HOME", home_env)
             .args(["--skip-git-repo-check", "--sandbox", "workspace-write", "--add-dir"])
             .arg(&visualizations)
             .args(["-c", "approvals_reviewer=\"user\"", "-c", "features.shell_snapshot_v2=false"])

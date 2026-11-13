@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Exercise the shipped executor through its public stdio interface, including child re-exec.
 
 use anyhow::Context;
@@ -30,7 +32,7 @@ async fn standalone_initializes_reports_version_and_runs_helpers() -> anyhow::Re
         .map_err(|()| anyhow::anyhow!("file URI"))?;
     let version = tokio::process::Command::from(background_command(&binary))
         .arg("--version")
-        .env("CODEX_HOME", directory.path())
+        .env("ARCVERA_HOME", directory.path())
         .output()
         .await?;
     assert!(version.status.success(), "{version:?}");
@@ -74,7 +76,7 @@ async fn standalone_initializes_reports_version_and_runs_helpers() -> anyhow::Re
         let mut child = tokio::process::Command::from(background_command(&binary))
             .args(["--listen", "stdio"])
             .current_dir(directory.path())
-            .env("CODEX_HOME", directory.path())
+            .env("ARCVERA_HOME", directory.path())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())

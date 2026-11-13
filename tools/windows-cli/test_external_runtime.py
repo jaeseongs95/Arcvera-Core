@@ -1,4 +1,5 @@
 # Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+# Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 """Distribution-policy regression cases; no native compilation or installation."""
 
 import json
@@ -179,7 +180,7 @@ class ExternalRuntimeTests(unittest.TestCase):
 
         def version_or_git(args, **kwargs):
             if args == [str(fixture.binary), '--version']:
-                return 'codex-cli 0.165.0+test'
+                return 'arcvera 0.165.0+test'
             return real_check_output(args, **kwargs)
 
         with patch('package_cli.subprocess.check_output', side_effect=version_or_git):

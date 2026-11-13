@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Shared native exec-server process fixture; dropping it stops the child process.
 
 use anyhow::Context;
@@ -30,7 +32,7 @@ impl ExecServerProcess {
 
     pub async fn start_with_env(env: &[(&str, &str)]) -> Result<Self> {
         let codex_home = TempDir::new()?;
-        let mut command = Command::new(codex_utils_cargo_bin::cargo_bin("codex")?);
+        let mut command = Command::new(codex_utils_cargo_bin::cargo_bin("arcvera")?);
         command.envs(env.iter().copied());
         Self::start_command(command, codex_home).await
     }
@@ -42,7 +44,7 @@ impl ExecServerProcess {
         std::fs::create_dir_all(&bin)?;
         let executable = bin.join(format!("codex{}", std::env::consts::EXE_SUFFIX));
         codex_utils_cargo_bin::copy_executable(
-            &codex_utils_cargo_bin::cargo_bin("codex")?,
+            &codex_utils_cargo_bin::cargo_bin("arcvera")?,
             &executable,
         )?;
         std::fs::write(
@@ -55,7 +57,7 @@ impl ExecServerProcess {
     async fn start_command(mut command: Command, codex_home: TempDir) -> Result<Self> {
         let mut child = command
             .args(["exec-server", "--listen", "ws://127.0.0.1:0"])
-            .env("CODEX_HOME", codex_home.path())
+            .env("ARCVERA_HOME", codex_home.path())
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())

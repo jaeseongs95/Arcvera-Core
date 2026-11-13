@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use super::*;
 use crate::app::test_support::make_test_app;
 use crate::chatwidget::tests::helpers::render_bottom_popup;
@@ -27,7 +29,7 @@ async fn daemon_version_notice_preserves_manual_update_guidance() {
         assert_eq!(
             app.initialize_server_version_notice(client, Some(server)),
             Some(format!(
-                "A background Codex service is running v{server}, {comparison} your Codex CLI v{client}."
+                "A background Codex service is running v{server}, {comparison} your Arcvera Core CLI v{client}."
             ))
         );
         let overview = render_bottom_popup(&app.chat_widget, /*width*/ 100);
@@ -56,9 +58,9 @@ async fn daemon_version_notice_preserves_manual_update_guidance() {
         );
     }
     insta::assert_snapshot!(notices.join("\n"), @"
-    Service v0.155.0-alpha.22 < Codex CLI v0.155.0-alpha.23 · /daemon
-    Service v0.156.0 ≠ Codex CLI v0.155.0-alpha.23 · /daemon
-    Service v0.156.0 ≠ Codex CLI v0.0.0 · /daemon
+    Service v0.155.0-alpha.22 < Arcvera Core CLI v0.155.0-alpha.23 · /daemon
+    Service v0.156.0 ≠ Arcvera Core CLI v0.155.0-alpha.23 · /daemon
+    Service v0.156.0 ≠ Arcvera Core CLI v0.0.0 · /daemon
     ");
 }
 
@@ -69,10 +71,10 @@ async fn daemon_menu_is_read_only_and_confirmation_can_cancel_or_handoff() {
     app.chat_widget = chat;
     let package = tempfile::tempdir().unwrap();
     std::fs::create_dir(package.path().join("bin")).unwrap();
-    std::fs::write(package.path().join("bin/codex"), "CLI").unwrap();
+    std::fs::write(package.path().join("bin/arcvera"), "CLI").unwrap();
     std::fs::write(package.path().join("codex-package.json"), "{}").unwrap();
     app.daemon_cli_executable =
-        Some(AbsolutePathBuf::from_absolute_path(package.path().join("bin/codex")).unwrap());
+        Some(AbsolutePathBuf::from_absolute_path(package.path().join("bin/arcvera")).unwrap());
     app.app_server_target = AppServerTarget::LocalDaemon {
         allow_embedded_fallback: true,
         endpoint: crate::RemoteAppServerEndpoint::UnixSocket {
@@ -89,26 +91,16 @@ async fn daemon_menu_is_read_only_and_confirmation_can_cancel_or_handoff() {
     let view = app.agents_overview_view(Vec::new(), /*selected_thread_id*/ None);
     app.chat_widget.show_bottom_pane_view(Box::new(view));
     let overview = render_bottom_popup(&app.chat_widget, /*width*/ 80);
-    insta::assert_snapshot!(overview.lines().find(|line| line.contains("Service v")).unwrap().trim(), @"Service v0.153.0 < Codex CLI v0.154.0 · /daemon");
+    insta::assert_snapshot!(overview.lines().find(|line| line.contains("Service v")).unwrap().trim(), @"Service v0.153.0 < Arcvera Core CLI v0.154.0 · /daemon");
     let executable = app.daemon_cli_executable.clone();
-    for (width, source, snapshot) in [
-        (
-            80,
-            DaemonUpdateSource::PublicStable,
-            "daemon_stable_confirmation",
-        ),
-        (100, DaemonUpdateSource::ThisCli, "daemon_cli_confirmation"),
-    ] {
+    for (width, source, snapshot) in [(100, DaemonUpdateSource::ThisCli, "daemon_cli_confirmation")]
+    {
         app.daemon_cli_executable = executable.clone();
         app.open_daemon_menu();
-        if source == DaemonUpdateSource::PublicStable {
-            insta::assert_snapshot!(
-                "daemon_menu",
-                render_bottom_popup(&app.chat_widget, /*width*/ 80)
-            );
-        } else {
-            app.chat_widget.handle_key_event(KeyCode::Down.into());
-        }
+        insta::assert_snapshot!(
+            "daemon_menu",
+            render_bottom_popup(&app.chat_widget, /*width*/ 80)
+        );
         assert!(rx.try_recv().is_err());
         app.chat_widget.handle_key_event(KeyCode::Enter.into());
         assert!(
@@ -116,9 +108,9 @@ async fn daemon_menu_is_read_only_and_confirmation_can_cancel_or_handoff() {
         );
         app.daemon_cli_executable = Some(
             AbsolutePathBuf::from_absolute_path(if cfg!(windows) {
-                r"C:\cli-build\bin\codex"
+                r"C:\cli-build\bin\arcvera"
             } else {
-                "/x/cli-build/bin/codex"
+                "/x/cli-build/bin/arcvera"
             })
             .unwrap(),
         );
@@ -126,7 +118,7 @@ async fn daemon_menu_is_read_only_and_confirmation_can_cancel_or_handoff() {
         insta::assert_snapshot!(
             snapshot,
             render_bottom_popup(&app.chat_widget, width)
-                .replace(r"C:\cli-build\bin\codex", "/x/cli-build/bin/codex")
+                .replace(r"C:\cli-build\bin\arcvera", "/x/cli-build/bin/arcvera")
         );
         // The default choice cancels without emitting an update or exiting.
         app.chat_widget.handle_key_event(KeyCode::Enter.into());
@@ -159,7 +151,6 @@ async fn daemon_menu_is_read_only_and_confirmation_can_cancel_or_handoff() {
                 .unwrap()
         },
     );
-    app.chat_widget.handle_key_event(KeyCode::Down.into());
     app.chat_widget.handle_key_event(KeyCode::Down.into());
     app.chat_widget.handle_key_event(KeyCode::Enter.into());
     assert!(matches!(
@@ -225,7 +216,6 @@ async fn daemon_menu_is_read_only_and_confirmation_can_cancel_or_handoff() {
         render_bottom_popup(&app.chat_widget, /*width*/ 80)
     );
     app.chat_widget.handle_key_event(KeyCode::Down.into());
-    app.chat_widget.handle_key_event(KeyCode::Down.into());
     app.chat_widget.handle_key_event(KeyCode::Enter.into());
     assert!(matches!(
         rx.try_recv().unwrap(),
@@ -238,19 +228,12 @@ async fn daemon_menu_is_read_only_and_confirmation_can_cancel_or_handoff() {
     app.app_server_target = AppServerTarget::Embedded;
     app.chat_widget.remote_connection = None;
     app.daemon_cli_executable = executable;
-    for source in [
-        DaemonUpdateSource::PublicStable,
-        DaemonUpdateSource::ThisCli,
-    ] {
+    for source in [DaemonUpdateSource::ThisCli] {
         app.open_daemon_menu();
-        if source == DaemonUpdateSource::PublicStable {
-            insta::assert_snapshot!(
-                "daemon_disconnected",
-                render_bottom_popup(&app.chat_widget, /*width*/ 80)
-            );
-        } else {
-            app.chat_widget.handle_key_event(KeyCode::Down.into());
-        }
+        insta::assert_snapshot!(
+            "daemon_disconnected",
+            render_bottom_popup(&app.chat_widget, /*width*/ 80)
+        );
         assert!(rx.try_recv().is_err());
         app.chat_widget.handle_key_event(KeyCode::Enter.into());
         assert!(
@@ -271,17 +254,19 @@ async fn daemon_menu_is_read_only_and_confirmation_can_cancel_or_handoff() {
     std::fs::remove_file(package.path().join("codex-package.json")).unwrap();
     // The full CLI can have any filename; capability comes from its entry point.
     app.daemon_cli_executable =
-        Some(AbsolutePathBuf::from_absolute_path(package.path().join("bin/codex-tui")).unwrap());
+        Some(AbsolutePathBuf::from_absolute_path(package.path().join("bin/arcvera-tui")).unwrap());
     app.open_daemon_menu();
     insta::assert_snapshot!(
         "daemon_unpackaged_cli",
         render_bottom_popup(&app.chat_widget, /*width*/ 80)
     );
     app.chat_widget.handle_key_event(KeyCode::Enter.into());
-    assert!(matches!(
-        rx.try_recv().unwrap(),
-        AppEvent::ConfirmDaemonUpdate(DaemonUpdateSource::PublicStable)
-    ));
+    assert!(rx.try_recv().is_err());
+    app.confirm_daemon_update(DaemonUpdateSource::PublicStable);
+    app.chat_widget.handle_key_event(KeyCode::Down.into());
+    app.chat_widget.handle_key_event(KeyCode::Enter.into());
+    assert!(rx.try_recv().is_err());
+    assert_eq!(app.pending_update_action, None);
 
     app.daemon_cli_executable = None;
     app.open_daemon_menu();

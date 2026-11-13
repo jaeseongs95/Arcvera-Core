@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use crate::attribution::BindConnectionAttribution;
 use crate::config::NetworkMode;
 use crate::connect_policy::TargetCheckedTcpConnector;
@@ -876,7 +878,7 @@ mod tests {
     use std::sync::Arc;
     use std::sync::Mutex;
 
-    // Managed MITM CA files live under the shared test CODEX_HOME, so MITM-enabled config state
+    // Managed MITM CA files live under the shared test ARCVERA_HOME, so MITM-enabled config state
     // must be materialized one test at a time.
     static MITM_CONFIG_STATE_LOCK: Mutex<()> = Mutex::new(());
 

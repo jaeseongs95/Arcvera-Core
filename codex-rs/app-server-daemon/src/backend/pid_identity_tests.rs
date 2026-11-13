@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use super::parse_stat;
 use pretty_assertions::assert_eq;
 
@@ -76,7 +78,7 @@ async fn promotes_timestamp_only_macos_record() {
     };
     std::fs::write(&path, serde_json::to_vec(&record).unwrap()).unwrap();
     let backend = PidBackend::new(
-        temp.path().join("codex"),
+        temp.path().join("arcvera"),
         path.clone(),
         /*remote_control_enabled*/ false,
     );

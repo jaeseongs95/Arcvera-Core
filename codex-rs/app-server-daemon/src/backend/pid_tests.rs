@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 #[cfg(any(unix, windows))]
 use std::process::Stdio;
@@ -81,7 +83,7 @@ async fn locked_empty_pid_file_is_treated_as_active_reservation() {
         .await
         .expect("write pid file");
     let backend = PidBackend::new(
-        temp_dir.path().join("codex"),
+        temp_dir.path().join("arcvera"),
         pid_file.clone(),
         /*remote_control_enabled*/ false,
     );
@@ -120,7 +122,7 @@ async fn unlocked_empty_pid_file_is_treated_as_stale_reservation() {
         .await
         .expect("write pid file");
     let backend = PidBackend::new(
-        temp_dir.path().join("codex"),
+        temp_dir.path().join("arcvera"),
         pid_file.clone(),
         /*remote_control_enabled*/ false,
     );
@@ -157,7 +159,7 @@ fn reservation_probe_releases_lock_with_duplicated_handle() {
         ] {
             let temp_dir = TempDir::new().expect("temp dir");
             let backend = PidBackend::new(
-                temp_dir.path().join("codex"),
+                temp_dir.path().join("arcvera"),
                 temp_dir.path().join("app-server.pid"),
                 /*remote_control_enabled*/ false,
             );
@@ -249,7 +251,7 @@ async fn stop_waits_for_live_reservation_to_resolve() {
         .await
         .expect("write pid file");
     let backend = PidBackend::new(
-        temp_dir.path().join("codex"),
+        temp_dir.path().join("arcvera"),
         pid_file.clone(),
         /*remote_control_enabled*/ false,
     );
@@ -342,7 +344,7 @@ async fn stale_record_cleanup_preserves_replacement_record() {
     let temp_dir = TempDir::new().expect("temp dir");
     let pid_file = temp_dir.path().join("app-server.pid");
     let backend = PidBackend::new(
-        temp_dir.path().join("codex"),
+        temp_dir.path().join("arcvera"),
         pid_file.clone(),
         /*remote_control_enabled*/ false,
     );
@@ -429,7 +431,7 @@ async fn pid_record_captures_the_resolved_launch_binary() {
 async fn legacy_start_time_mismatch_preserves_record_and_process() {
     let temp = TempDir::new().unwrap();
     let backend = PidBackend::new(
-        temp.path().join("codex"),
+        temp.path().join("arcvera"),
         temp.path().join("app-server.pid"),
         /*remote_control_enabled*/ false,
     );
@@ -482,7 +484,7 @@ async fn stop_reaps_untracked_app_server_child() {
     .await
     .expect("write pid file");
     let backend = PidBackend::new(
-        temp_dir.path().join("codex"),
+        temp_dir.path().join("arcvera"),
         pid_file.clone(),
         /*remote_control_enabled*/ false,
     );
@@ -582,13 +584,13 @@ async fn shutdown_grace_handles_process_exit() {
         .expect("write pid file");
         #[cfg(unix)]
         let backend = PidBackend::new(
-            temp.path().join("codex"),
+            temp.path().join("arcvera"),
             pid_file,
             /*remote_control_enabled*/ false,
         );
         #[cfg(windows)]
         let backend = PidBackend::new_update_loop(
-            temp.path().join("codex"),
+            temp.path().join("arcvera"),
             pid_file,
             /*restore_release*/ None,
         );
@@ -644,9 +646,9 @@ async fn no_force_timeout_keeps_process_and_pid_record() {
                 continue; // The fixture does not implement the app-server shutdown RPC.
             }
             let backend = if updater {
-                PidBackend::new_update_loop(temp.path().join("codex"), pid_file.clone(), None)
+                PidBackend::new_update_loop(temp.path().join("arcvera"), pid_file.clone(), None)
             } else {
-                PidBackend::new(temp.path().join("codex"), pid_file.clone(), false)
+                PidBackend::new(temp.path().join("arcvera"), pid_file.clone(), false)
             };
             let error = backend
                 .stop_without_force(0)
@@ -733,7 +735,7 @@ async fn repeated_no_force_stop_does_not_escalate_an_already_draining_process() 
         };
         let pid_file = ready.with_extension("pid");
         tokio::fs::write(&pid_file, serde_json::to_vec(&record)?).await?;
-        let backend = PidBackend::new(temp.path().join("codex"), pid_file.clone(), false);
+        let backend = PidBackend::new(temp.path().join("arcvera"), pid_file.clone(), false);
         for received in 1..=2 {
             let error = backend
                 .stop_without_force(0)
@@ -812,7 +814,7 @@ async fn stopping_updater_signals_its_installer_process_group() {
     .await
     .expect("write pid file");
     let backend = PidBackend::new_update_loop(
-        temp.path().join("codex"),
+        temp.path().join("arcvera"),
         pid_file,
         /*restore_release*/ None,
     );
@@ -855,7 +857,7 @@ async fn exited_unreaped_updater_is_reaped() {
         executable_identity: None,
     };
     let backend = PidBackend::new_update_loop(
-        temp.path().join("codex"),
+        temp.path().join("arcvera"),
         temp.path().join("updater.pid"),
         /*restore_release*/ None,
     );
@@ -885,7 +887,7 @@ fn update_loop_uses_hidden_app_server_subcommand() {
         preserve_recovery: false,
         #[cfg(windows)]
         test_command: None,
-        codex_bin: "codex".into(),
+        codex_bin: "arcvera".into(),
         pid_file: "updater.pid".into(),
         lock_file: "updater.pid.lock".into(),
         command_kind: PidCommandKind::UpdateLoop {
@@ -913,7 +915,7 @@ async fn recovery_preserving_start_rejects_before_pid_or_log_changes() {
         ),
     ] {
         let home = TempDir::new().unwrap();
-        let codex_bin = home.path().join("codex");
+        let codex_bin = home.path().join("arcvera");
         codex_utils_cargo_bin::write_executable(&codex_bin, script).unwrap();
         let recovery = codex_app_server_transport::daemon_recovery_file_path(home.path());
         std::fs::create_dir_all(recovery.parent().unwrap()).unwrap();
@@ -940,7 +942,7 @@ async fn recovery_preserving_start_rejects_before_pid_or_log_changes() {
 #[test]
 fn app_server_remote_control_uses_runtime_flag() {
     let backend = PidBackend::new(
-        "codex".into(),
+        "arcvera".into(),
         "app-server.pid".into(),
         /*remote_control_enabled*/ true,
     );
@@ -960,7 +962,7 @@ fn app_server_remote_control_uses_runtime_flag() {
 #[test]
 fn app_server_disabled_remote_control_uses_compatible_args_and_runtime_env() {
     let backend = PidBackend::new(
-        "codex".into(),
+        "arcvera".into(),
         "app-server.pid".into(),
         /*remote_control_enabled*/ false,
     );
@@ -1005,7 +1007,7 @@ async fn read_stderr_log_tail_returns_recent_complete_lines() {
 async fn stale_creation_time_never_stops_reused_pid() {
     let temp = TempDir::new().expect("temp");
     let backend = PidBackend::new(
-        temp.path().join("codex.exe"),
+        temp.path().join("arcvera.exe"),
         temp.path().join("server.pid"),
         /*remote_control_enabled*/ false,
     );
@@ -1265,7 +1267,7 @@ async fn updater_readiness_and_post_publication_failure_preserve_ownership() {
 
     let temp = TempDir::new().expect("temp");
     let backend = PidBackend::new_update_loop(
-        temp.path().join("codex.exe"),
+        temp.path().join("arcvera.exe"),
         temp.path().join("updater.pid"),
         /*restore_release*/ None,
     );
@@ -1463,7 +1465,7 @@ async fn stderr_preservation_failure_does_not_prevent_opening_new_log() -> anyho
     let pid_file = home.path().join("daemon.pid");
     let path = stderr_log_file_for_pid_file(&pid_file);
     let backend = PidBackend::new(
-        home.path().join("codex"),
+        home.path().join("arcvera"),
         pid_file,
         /*remote_control_enabled*/ false,
     );
@@ -1480,7 +1482,7 @@ async fn stderr_handoff_appends_after_truncation_without_gaps() -> anyhow::Resul
 
     let home = TempDir::new()?;
     let backend = PidBackend::new_update_loop(
-        home.path().join("codex"),
+        home.path().join("arcvera"),
         home.path().join("updater.pid"),
         /*restore_release*/ None,
     );

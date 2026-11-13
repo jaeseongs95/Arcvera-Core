@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! V2 RPC metadata refresh and sandbox isolation over a real connection.
 mod common;
 
@@ -38,7 +40,7 @@ async fn v2_rpc_refreshes_metadata_and_enforces_sandbox() -> anyhow::Result<()> 
         [
             ("HOME", &home_path),
             ("USERPROFILE", &home_path),
-            ("CODEX_HOME", &codex_home_path),
+            ("ARCVERA_HOME", &codex_home_path),
         ],
         &[],
     )

@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Local daemon maintenance confirms restarts and updates before acting.
 //! Restarts use normal TUI reconnection; updates run after restoring the terminal.
 
@@ -55,7 +57,7 @@ impl App {
                 "Manage this server on its host. Local daemon updates are unavailable for remote connections.",
             )
         } else if self.daemon_cli_executable.is_none() {
-            Some("Run the Codex CLI to manage the daemon from this menu.")
+            Some("Run the Arcvera Core CLI to manage the daemon from this menu.")
         } else {
             None
         };
@@ -71,28 +73,21 @@ impl App {
             .package_layout
             .is_some()
         });
-        let mut items: Vec<SelectionItem> = [
-            (
-                DaemonUpdateSource::PublicStable,
-                "Install latest public stable",
-            ),
-            (DaemonUpdateSource::ThisCli, "Use this CLI build"),
-        ]
-        .into_iter()
-        .map(|(source, name)| SelectionItem {
-            name: name.to_string(),
-            is_disabled: unavailable.is_some(),
-            disabled_reason: (unavailable.is_none()
-                && source == DaemonUpdateSource::ThisCli
-                && !has_package)
-                .then(|| "This CLI has no local package to copy".to_string()),
-            actions: vec![Box::new(move |tx| {
-                tx.send(AppEvent::ConfirmDaemonUpdate(source));
+        header.push(Line::from(
+            "Download Arcvera releases manually; automatic updates are disabled.".dim(),
+        ));
+        let mut items = vec![SelectionItem {
+            name: "Use this CLI build".to_string(),
+            is_disabled: unavailable.is_some() || !has_package,
+            disabled_reason: unavailable.map(str::to_string).or_else(|| {
+                (!has_package).then(|| "This CLI has no local package to copy".to_string())
+            }),
+            actions: vec![Box::new(|tx| {
+                tx.send(AppEvent::ConfirmDaemonUpdate(DaemonUpdateSource::ThisCli));
             })],
             dismiss_on_select: true,
             ..Default::default()
-        })
-        .collect();
+        }];
         items.push(SelectionItem {
             name: "Restart background server".to_string(),
             is_disabled: !self
@@ -108,7 +103,7 @@ impl App {
                 .as_ref()
                 .filter(|connection| connection.is_local_daemon && !connection.is_managed_daemon)
                 .map(|_| {
-                    "Codex hasn't verified it manages this server. Restart it where it was started."
+                    "Arcvera hasn't verified it manages this server. Restart it where it was started."
                         .to_string()
                 }),
             actions: vec![Box::new(|tx| tx.send(AppEvent::ConfirmDaemonRestart))],
@@ -136,7 +131,7 @@ impl App {
             header: Box::new(DaemonMenuHeader(vec![
                 Line::from("Restart background server?".bold()),
                 Line::from("Active or queued work in other chats may be interrupted."),
-                Line::from("Codex will reconnect automatically."),
+                Line::from("Arcvera will reconnect automatically."),
             ])),
             items: vec![
                 SelectionItem {
@@ -157,6 +152,9 @@ impl App {
     }
 
     pub(super) fn confirm_daemon_update(&mut self, source: DaemonUpdateSource) {
+        if source == DaemonUpdateSource::PublicStable {
+            return;
+        }
         let Some(executable) = &self.daemon_cli_executable else {
             return;
         };
@@ -164,16 +162,22 @@ impl App {
             return;
         }
         let mut explanation = match source {
-            DaemonUpdateSource::PublicStable => "Install the latest public stable release. Restore production updates; keep your automatic-update setting.".to_string(),
+            DaemonUpdateSource::PublicStable => return,
             DaemonUpdateSource::ThisCli => {
                 let version = codex_install_context::InstallContext::current()
                     .package_manifest()
-                    .map_or_else(|| CODEX_CLI_VERSION.to_string(), |manifest| manifest.version.to_string());
-                format!("Use this CLI package v{version} from {}. Copy the complete package and pin it against automatic updates.", executable.display())
+                    .map_or_else(
+                        || CODEX_CLI_VERSION.to_string(),
+                        |manifest| manifest.version.to_string(),
+                    );
+                format!(
+                    "Use this CLI package v{version} from {}. Copy the complete package and pin it against automatic updates.",
+                    executable.display()
+                )
             }
         };
-        explanation.push_str("\nThis may restart the daemon and interrupt active or queued work.\nCodex exits to update in this terminal. Relaunch it afterward.");
-        let mut header = vec![Line::from("Update daemon and exit Codex?".bold())];
+        explanation.push_str("\nThis may restart the daemon and interrupt active or queued work.\nArcvera exits to update in this terminal. Relaunch it afterward.");
+        let mut header = vec![Line::from("Update daemon and exit Arcvera?".bold())];
         header.extend(explanation.lines().map(|line| Line::from(line.to_owned())));
         self.chat_widget.show_selection_view(SelectionViewParams {
             header: Box::new(DaemonMenuHeader(header)),

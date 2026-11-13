@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Exercise Cloud credential isolation through the CLI using a synthetic login.
 
 use anyhow::Result;
@@ -33,10 +35,10 @@ async fn cloud_list_only_allows_trusted_credential_destinations() -> Result<()> 
     )?;
 
     let command = || -> Result<assert_cmd::Command> {
-        let mut command = assert_cmd::Command::new(codex_utils_cargo_bin::cargo_bin("codex")?);
+        let mut command = assert_cmd::Command::new(codex_utils_cargo_bin::cargo_bin("arcvera")?);
         command
             .current_dir(codex_home.path())
-            .env("CODEX_HOME", codex_home.path())
+            .env("ARCVERA_HOME", codex_home.path())
             .env_remove("CODEX_ACCESS_TOKEN")
             .env_remove("OPENAI_API_KEY")
             .env_remove("CODEX_CLOUD_TASKS_MODE")

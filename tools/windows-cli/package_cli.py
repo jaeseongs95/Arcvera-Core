@@ -1,4 +1,5 @@
 # Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+# Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 # Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 """Prepare a separate Windows CLI package; never replace an existing installation."""
 
@@ -138,7 +139,7 @@ def package(source, freeze_file, binary, vendor, output, expected_version, *,
         raise ValueError("Expected the official Windows CLI package layout")
     if metadata.get("version") != upstream_version:
         raise ValueError("Official helper package differs from the CLI base version")
-    candidates = {"cli": (binary, "bin/codex.exe", "codex-cli")}
+    candidates = {"cli": (binary, "bin/arcvera.exe", "arcvera")}
     if triple:
         candidates.update({
             "app-server": (app_server.resolve(strict=True), "bin/codex-app-server.exe", "codex-app-server"),
@@ -167,7 +168,7 @@ def package(source, freeze_file, binary, vendor, output, expected_version, *,
     binary_hash = attestations["cli"]["sha256"]
     # Check before creating output: a failed version check cannot look installed.
     version = attestations["cli"]["version"]
-    replacements = {entry["path"] for entry in attestations.values()}
+    replacements = {entry["path"] for entry in attestations.values()} | {"bin/codex.exe"}
     helpers = []
     for item in sorted(vendor.rglob("*")):
         if not item.is_file():
@@ -213,16 +214,17 @@ def package(source, freeze_file, binary, vendor, output, expected_version, *,
             if observed != attestations[name]["version"] or digest(target) != attestations[name]["sha256"]:
                 raise ValueError(f"Packaged executable identity changed: {name}")
     metadata["version"] = expected_version
-    metadata["opendiyUpdate"] = {"schema": 1, "minLauncher": 1}
+    metadata["entrypoint"] = "bin/arcvera.exe"
+    metadata.pop("opendiyUpdate", None)
     (output / "codex-package.json").write_text(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8", newline="\n"
     )
-    (output / "codex-patched.cmd").write_text(
-        '@echo off\n"%~dp0bin\\codex.exe" %*\nexit /b %errorlevel%\n',
+    (output / "arcvera.cmd").write_text(
+        '@echo off\n"%~dp0bin\\arcvera.exe" %*\nexit /b %errorlevel%\n',
         encoding="utf-8", newline="\r\n",
     )
-    (output / "codex-local.cmd").write_text(
-        '@echo off\n"%~dp0bin\\codex.exe" --no-daemon %*\nexit /b %errorlevel%\n',
+    (output / "arcvera-local.cmd").write_text(
+        '@echo off\n"%~dp0bin\\arcvera.exe" --no-daemon %*\nexit /b %errorlevel%\n',
         encoding="utf-8", newline="\r\n",
     )
     # Written last. Presence records a complete copy, not audit or runtime success.

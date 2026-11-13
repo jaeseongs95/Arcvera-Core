@@ -2,7 +2,7 @@
 
 ## English
 
-Write English and Korean together in **one release note**. Keep both sections current; language links must not replace either section. Store the source as `docs/releases/R<number>.md` and preserve the complete source text in the GitHub release body. If source documentation is frozen before a build, explicitly label its evidence date and append a bilingual final verification record after the build, before publication. That appendix must contain actual product/build source identities, significant build settings, final executable/package and Desktop checks, independent audit results, asset names and SHA-256 values; do not rewrite the frozen source or predict results to fill this record.
+Write English and Korean together in **one release note**. Keep both sections current; language links must not replace either section. Store the source as `docs/releases/v<SemVer>.md` for new hotfixes, retaining `docs/releases/R<number>.md` for historical scope releases and preserve the complete source text in the GitHub release body. If source documentation is frozen before a build, explicitly label its evidence date and append a bilingual final verification record after the build, before publication. That appendix must contain actual product/build source identities, significant build settings, final executable/package and Desktop checks, independent audit results, asset names and SHA-256 values; do not rewrite the frozen source or predict results to fill this record.
 
 For current releases, use the title `Arcvera-Core <SemVer> — <English summary> / <한국어 요약>`. R41/R42 identify work scope rather than release versions; preserve historical release titles and filenames. Place `## English` first and `## 한국어` second. Each language section follows the existing seven-part structure below, using level-three headings.
 
@@ -48,7 +48,7 @@ Update startup examples and current-release links when publishing. Keep the full
 
 ## 한국어
 
-**한 릴리스 노트 안에 영문과 한글을 함께 작성합니다.** 두 언어를 함께 최신화하며, 언어 링크로 본문을 대신하지 않습니다. 원본은 `docs/releases/R번호.md`에 보관하고 GitHub 릴리스 본문에도 소스 본문 전체를 보존합니다. 빌드 전에 소스 문서를 동결할 때는 근거의 기준 시점을 명시하고, 빌드 후 발행 전에 영한 최종 검증 기록을 덧붙입니다. 이 부록에는 실제 제품·빌드 소스 식별 정보, 중요한 빌드 설정, 최종 실행본·패키지 및 Desktop 검사, 독립감사 결과, 자산 이름과 SHA-256 값을 담습니다. 이 기록을 채우려고 동결 소스를 고치거나 미실행 결과를 예측해 쓰지 않습니다.
+**한 릴리스 노트 안에 영문과 한글을 함께 작성합니다.** 두 언어를 함께 최신화하며, 언어 링크로 본문을 대신하지 않습니다. 새 핫픽스 원본은 `docs/releases/v<SemVer>.md`에 보관하고 과거 범위 릴리스의 `docs/releases/R번호.md`는 유지하며 GitHub 릴리스 본문에도 소스 본문 전체를 보존합니다. 빌드 전에 소스 문서를 동결할 때는 근거의 기준 시점을 명시하고, 빌드 후 발행 전에 영한 최종 검증 기록을 덧붙입니다. 이 부록에는 실제 제품·빌드 소스 식별 정보, 중요한 빌드 설정, 최종 실행본·패키지 및 Desktop 검사, 독립감사 결과, 자산 이름과 SHA-256 값을 담습니다. 이 기록을 채우려고 동결 소스를 고치거나 미실행 결과를 예측해 쓰지 않습니다.
 
 현재 릴리스 제목은 `Arcvera-Core <SemVer> — <English summary> / <한국어 요약>`으로 작성합니다. R41/R42는 릴리스 버전이 아닌 작업 범위를 나타내며, 과거 릴리스의 제목과 파일명은 보존합니다. `## English`를 먼저, `## 한국어`를 뒤에 배치합니다. 각 언어는 기존의 아래 7절 구성을 유지하고 3단계 제목을 사용합니다.
 

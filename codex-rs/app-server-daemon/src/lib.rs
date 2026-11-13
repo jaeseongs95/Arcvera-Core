@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Managed app-server lifecycle, serialized across CLI invocations and the updater.
 
@@ -317,6 +319,7 @@ pub async fn run_pid_update_loop(
     http_client_factory: codex_http_client::HttpClientFactory,
     restore_release: Option<String>,
 ) -> Result<()> {
+    update_loop::ensure_arcvera_updater_available()?;
     ensure_supported_platform()?;
     #[cfg(windows)]
     backend::windows::ensure_not_elevated()?;
@@ -340,6 +343,7 @@ pub fn maintain_stderr_log() -> Result<()> {
 pub async fn update(
     http_client_factory: codex_http_client::HttpClientFactory,
 ) -> Result<UpdateOutput> {
+    update_loop::ensure_arcvera_updater_available()?;
     ensure_supported_platform()?;
     #[cfg(windows)]
     backend::windows::ensure_not_elevated()?;
@@ -354,7 +358,7 @@ fn ensure_supported_platform() -> Result<()> {
 #[cfg(not(any(unix, windows)))]
 fn ensure_supported_platform() -> Result<()> {
     Err(anyhow!(
-        "codex app-server daemon lifecycle is only supported on Unix and Windows platforms"
+        "arcvera app-server daemon lifecycle is only supported on Unix and Windows platforms"
     ))
 }
 
@@ -373,7 +377,7 @@ struct Daemon {
 
 impl Daemon {
     fn from_environment() -> Result<Self> {
-        let codex_home = find_codex_home().context("failed to resolve CODEX_HOME")?;
+        let codex_home = find_codex_home().context("failed to resolve ARCVERA_HOME")?;
         let socket_path = app_server_control_socket_path(codex_home.as_path())?
             .as_path()
             .to_path_buf();
@@ -631,7 +635,7 @@ impl Daemon {
             && self.running_backend(&settings).await?.is_none()
         {
             return Err(anyhow!(
-                "app server is running but is not managed by codex app-server daemon"
+                "app server is running but is not managed by arcvera app-server daemon"
             ));
         }
         prepare_install::prepare(self, &settings).await?;
@@ -760,7 +764,7 @@ impl Daemon {
             }
         } else if client::probe(&self.socket_path).await.is_ok() {
             return Err(anyhow!(
-                "app server is running but is not managed by codex app-server daemon"
+                "app server is running but is not managed by arcvera app-server daemon"
             ));
         } else {
             diagnostics::event("daemon_not_running", ());
@@ -811,7 +815,7 @@ impl Daemon {
 
         if client::probe(&self.socket_path).await.is_ok() {
             return Err(anyhow!(
-                "app server is running but is not managed by codex app-server daemon"
+                "app server is running but is not managed by arcvera app-server daemon"
             ));
         }
 
@@ -931,7 +935,7 @@ impl Daemon {
 
         if backend.is_none() && client::probe(&self.socket_path).await.is_ok() {
             return Err(anyhow!(
-                "app server is running but is not managed by codex app-server daemon"
+                "app server is running but is not managed by arcvera app-server daemon"
             ));
         }
 
@@ -1001,7 +1005,7 @@ impl Daemon {
             && self.running_backend(&settings).await?.is_none()
         {
             return Err(anyhow!(
-                "app server is running but is not managed by codex app-server daemon"
+                "app server is running but is not managed by arcvera app-server daemon"
             ));
         }
         prepare_install::prepare(self, &settings).await?;
@@ -1225,7 +1229,7 @@ impl Daemon {
 
         let managed_codex_path = self.managed_codex_bin.display();
         Err(anyhow!(
-            "daemon executable not found at {managed_codex_path}; repair the existing installation, or run `codex app-server daemon start` to install a missing daemon"
+            "daemon executable not found at {managed_codex_path}; repair the existing installation, or run `arcvera app-server daemon start` to install a missing daemon"
         ))
     }
 
@@ -1713,7 +1717,7 @@ mod tests {
             status: LifecycleStatus::AlreadyRunning,
             backend: Some(BackendKind::Pid),
             pid: None,
-            managed_codex_path: "codex".into(),
+            managed_codex_path: "arcvera".into(),
             managed_codex_version: Some("1.2.3".to_string()),
             socket_path: "codex.sock".into(),
             cli_version: Some("1.2.3".to_string()),
@@ -1726,7 +1730,7 @@ mod tests {
             serde_json::json!({
                 "status": "alreadyRunning",
                 "backend": "pid",
-                "managedCodexPath": "codex",
+                "managedCodexPath": "arcvera",
                 "managedCodexVersion": "1.2.3",
                 "socketPath": "codex.sock",
                 "cliVersion": "1.2.3",
@@ -1743,7 +1747,7 @@ mod tests {
             backend: BackendKind::Pid,
             auto_update_enabled: true,
             remote_control_enabled: true,
-            managed_codex_path: "codex".into(),
+            managed_codex_path: "arcvera".into(),
             managed_codex_version: Some("1.2.3".to_string()),
             socket_path: "codex.sock".into(),
             cli_version: "1.2.3".to_string(),
@@ -1758,7 +1762,7 @@ mod tests {
                 "backend": "pid",
                 "autoUpdateEnabled": true,
                 "remoteControlEnabled": true,
-                "managedCodexPath": "codex",
+                "managedCodexPath": "arcvera",
                 "managedCodexVersion": "1.2.3",
                 "socketPath": "codex.sock",
                 "cliVersion": "1.2.3",
@@ -1844,7 +1848,7 @@ mod tests {
             update_pid_file: state.join("updater.pid"),
             operation_lock_file: state.join("daemon.lock"),
             settings_file: state.join("settings.json"),
-            managed_codex_bin: home.path().join("codex"),
+            managed_codex_bin: home.path().join("arcvera"),
         };
         codex_app_server_transport::daemon_recovery::write_candidates(
             &daemon.recovery_file().expect("recovery path"),
@@ -1878,7 +1882,7 @@ mod tests {
     async fn managed_local_backend_counts_as_bootstrapped_without_updater() {
         let home = TempDir::new().expect("home");
         let standalone = home.path().join("packages/standalone");
-        let local_bin = standalone.join("local-main/bin/codex");
+        let local_bin = standalone.join("local-main/bin/arcvera");
         tokio::fs::create_dir_all(local_bin.parent().expect("bin parent"))
             .await
             .expect("local bin directory");
@@ -1896,7 +1900,7 @@ mod tests {
             update_pid_file: state.join("app-server-updater.pid"),
             operation_lock_file: state.join("daemon.lock"),
             settings_file: state.join("settings.json"),
-            managed_codex_bin: standalone.join("current/bin/codex"),
+            managed_codex_bin: standalone.join("current/bin/arcvera"),
         };
         let settings = DaemonSettings::default();
         assert!(

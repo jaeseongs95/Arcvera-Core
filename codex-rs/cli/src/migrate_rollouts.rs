@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use std::io;
 use std::io::IsTerminal;
 use std::io::Write;
@@ -335,7 +337,7 @@ fn print_human_report(
         );
     }
     if mode == RolloutMigrationMode::DryRun && counts.eligible > 0 {
-        println!("Run `codex migrate-rollouts --apply` to migrate eligible sessions.");
+        println!("Run `arcvera migrate-rollouts --apply` to migrate eligible sessions.");
     }
 
     if verbose {

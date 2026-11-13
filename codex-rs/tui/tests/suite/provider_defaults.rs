@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Resume and fork picker and --last provider defaults through the real CLI and app server.
 
 use super::focus_palette::PtyCodex;
@@ -11,7 +13,7 @@ use std::time::Duration;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn resume_lists_all_providers_and_fork_keeps_provider_filter() -> Result<()> {
-    let codex = codex_utils_cargo_bin::cargo_bin("codex")?;
+    let codex = codex_utils_cargo_bin::cargo_bin("arcvera")?;
     let cwd = codex_utils_cargo_bin::repo_root()?;
     for action in ["resume", "fork"] {
         for (embedded, last, explicit) in [
@@ -53,7 +55,7 @@ async fn resume_lists_all_providers_and_fork_keeps_provider_filter() -> Result<(
                     "-c",
                     "model_provider=\"server-provider\"",
                 ])
-                .env("CODEX_HOME", home.path())
+                .env("ARCVERA_HOME", home.path())
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
                 .stderr(Stdio::inherit())

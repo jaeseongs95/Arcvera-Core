@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use anyhow::Context;
 use anyhow::Result;
 use codex_app_server::in_process::EmbeddedNetworkPolicy;
@@ -41,7 +43,7 @@ pub async fn config_builder(
     let cli_overrides = config_overrides
         .parse_overrides()
         .map_err(anyhow::Error::msg)?;
-    let codex_home = find_codex_home().context("failed to resolve CODEX_HOME")?;
+    let codex_home = find_codex_home().context("failed to resolve ARCVERA_HOME")?;
     let cwd = match harness_overrides.cwd.as_deref() {
         Some(cwd) => AbsolutePathBuf::relative_to_current_dir(cwd),
         None => AbsolutePathBuf::current_dir(),

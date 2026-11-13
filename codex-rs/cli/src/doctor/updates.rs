@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Diagnoses whether Codex update paths target the running installation.
 //!
@@ -48,50 +50,19 @@ const DESKTOP_UPDATE_URL: &str =
 
 /// Builds the update-health row for the current installation.
 ///
-/// Network failures while fetching latest-version metadata degrade the row to a
-/// warning instead of failing doctor outright; update freshness is useful
-/// support context but should not mask more direct install/config failures.
-pub(super) async fn updates_check(config: &Config) -> DoctorCheck {
-    let current_exe = std::env::current_exe().ok();
-    let install_context = doctor_install_context(current_exe.as_deref());
-    let mut details = vec![
-        format!(
-            "check for update on startup: {}",
-            config.check_for_update_on_startup
-        ),
-        format!("update action: {}", update_action_label(&install_context)),
-    ];
-    let version_file = config.codex_home.join(VERSION_FILE_NAME);
-    push_cached_version_details(&mut details, &version_file);
-
-    let mut status = CheckStatus::Ok;
-    let summary = "update configuration is locally consistent".to_string();
-
-    if doctor_managed_by_npm(current_exe.as_deref()) {
-        details
-            .push("npm update target: not inspected (PATH helpers are not executed)".to_string());
-    }
-    let client = RouteAwareClientPool::new_without_request_logging(
-        config.http_client_factory(),
-        ClientRouteClass::Other,
-    );
-
-    match fetch_latest_version(&client, &install_context).await {
-        Ok(latest_version) => {
-            details.push(format!("latest version: {latest_version}"));
-            if is_newer(&latest_version, env!("CARGO_PKG_VERSION")) == Some(true) {
-                details.push("latest version status: newer version is available".to_string());
-            } else {
-                details.push("latest version status: current version is not older".to_string());
-            }
-        }
-        Err(err) => {
-            status = status.max(CheckStatus::Warning);
-            details.push(format!("latest version probe: {err}"));
-        }
-    }
-
-    DoctorCheck::new("updates.status", "updates", status, summary).details(details)
+/// Reports the manual release location without fetching update metadata.
+pub(super) async fn updates_check() -> DoctorCheck {
+    DoctorCheck::new(
+        "updates.status",
+        "updates",
+        CheckStatus::Ok,
+        "Arcvera Core updates are downloaded manually".to_string(),
+    )
+    .details(vec![
+        format!("current version: {}", env!("CARGO_PKG_VERSION")),
+        "automatic updates: disabled".to_string(),
+        "releases: https://github.com/jaeseongs95/Arcvera-Core/releases".to_string(),
+    ])
 }
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -501,6 +472,25 @@ struct VersionInfo {
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
+
+    #[tokio::test]
+    async fn update_status_reports_manual_arcvera_releases() {
+        let check = updates_check().await;
+        assert_eq!(check.id, "updates.status");
+        assert_eq!(check.status, CheckStatus::Ok);
+        assert!(
+            check
+                .details
+                .iter()
+                .any(|item| item == "automatic updates: disabled")
+        );
+        assert!(
+            check
+                .details
+                .iter()
+                .any(|item| item.contains("https://github.com/jaeseongs95/Arcvera-Core/releases"))
+        );
+    }
 
     #[tokio::test]
     async fn version_http_probe_decodes_json_and_rejects_invalid_responses() {

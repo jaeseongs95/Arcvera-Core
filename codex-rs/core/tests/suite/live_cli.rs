@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Optional smoke tests that hit the real OpenAI /v1/responses endpoint. They are `#[ignore]` by
 //! default so CI stays deterministic and free. Developers can run them locally with
 //! `just test -p codex-core --test all --run-ignored only live_cli` provided they set a valid
@@ -36,7 +38,7 @@ fn run_live(prompt: &str) -> (assert_cmd::assert::Assert, TempDir) {
     cmd.current_dir(dir.path());
     cmd.env("OPENAI_API_KEY", require_api_key());
     cmd.env("HOME", home.path());
-    cmd.env("CODEX_HOME", &codex_home);
+    cmd.env("ARCVERA_HOME", &codex_home);
 
     // We want three things at once:
     //   1. live streaming of the child’s stdout/stderr while the test is running

@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
@@ -30,7 +32,7 @@ impl LocalWebsocketExecServer {
         command.stdout(Stdio::piped());
         command.stderr(Stdio::inherit());
         command.current_dir(codex_home);
-        command.env("CODEX_HOME", codex_home);
+        command.env("ARCVERA_HOME", codex_home);
         #[cfg(target_os = "linux")]
         command.env(
             CODEX_LINUX_SANDBOX_EXE_ENV_VAR,

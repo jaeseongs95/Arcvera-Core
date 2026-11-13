@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use anyhow::Context;
 use anyhow::Result;
 use codex_config::McpServerConfig;
@@ -502,7 +504,7 @@ async fn pre_tool_use_hook_runs_only_on_the_executor_that_owns_the_command() -> 
     let manager = test.thread_manager.environment_manager();
 
     // Give both executors the same hook and workspace. Each ExecServerProcess has
-    // a private CODEX_HOME, so the hook input file identifies where it actually ran.
+    // a private ARCVERA_HOME, so the hook input file identifies where it actually ran.
     let mut executors = Vec::new();
     let mut selections = Vec::new();
     let mut input_files = HashMap::new();
@@ -535,7 +537,7 @@ async fn pre_tool_use_hook_runs_only_on_the_executor_that_owns_the_command() -> 
             matcher = '^Bash$'
             [[PreToolUse.hooks]]
             type = 'command'
-            command = 'cat > "$CODEX_HOME/pre-tool-use-input.json"; echo denied-by-environment-hook >&2; exit 2'
+            command = 'cat > "$ARCVERA_HOME/pre-tool-use-input.json"; echo denied-by-environment-hook >&2; exit 2'
         "#,
         )?;
         selection.config = EnvironmentConfigState::Ready(config);

@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 pub use crate::runtime_ownership::SetupRuntime;
 use serde::Deserialize;
 use serde::Serialize;
@@ -1216,7 +1218,7 @@ pub fn run_elevated_provisioning_setup_with_retained_handles(
         return Err(failure(
             SetupErrorCode::OrchestratorSandboxDirCreateFailed,
             format!(
-                "sandbox provisioning CODEX_HOME must be an absolute local disk path: {}",
+                "sandbox provisioning ARCVERA_HOME must be an absolute local disk path: {}",
                 codex_home.display()
             ),
         ));
@@ -1452,8 +1454,8 @@ fn user_profile_child_name(path: &Path, user_profile: &Path) -> Option<String> {
 }
 
 fn filter_sensitive_write_roots(mut roots: Vec<PathBuf>, codex_home: &Path) -> Vec<PathBuf> {
-    // Never grant capability write access to CODEX_HOME or anything under CODEX_HOME/.sandbox,
-    // CODEX_HOME/.sandbox-bin, or CODEX_HOME/.sandbox-secrets. These locations contain sandbox
+    // Never grant capability write access to ARCVERA_HOME or anything under ARCVERA_HOME/.sandbox,
+    // ARCVERA_HOME/.sandbox-bin, or ARCVERA_HOME/.sandbox-secrets. These locations contain sandbox
     // control/state and helper binaries and must remain tamper-resistant.
     let codex_home_key = canonical_path_key(codex_home);
     let sbx_dir_key = canonical_path_key(&sandbox_dir(codex_home));

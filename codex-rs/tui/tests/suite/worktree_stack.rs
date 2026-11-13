@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Exercises stack-sensitive session transitions through the real TUI event loop.
 //!
 //! Uses the CLI binary when available (including Bazel CI) to cover its dispatch frames.
@@ -19,7 +21,7 @@ use wiremock::matchers::body_string_contains;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn picker_side_worktree_fork_and_cd_run_on_the_production_stack() -> Result<()> {
-    let start = if codex_utils_cargo_bin::cargo_bin("codex").is_ok() {
+    let start = if codex_utils_cargo_bin::cargo_bin("arcvera").is_ok() {
         PtyCodex::start_cli
     } else {
         PtyCodex::start

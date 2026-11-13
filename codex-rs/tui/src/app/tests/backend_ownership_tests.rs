@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Selection must retain backend provenance even when native thread IDs collide.
 
@@ -87,7 +89,7 @@ async fn foreign_backend_selection_cannot_resume_same_id_or_unarchive() -> Resul
             &target,
             action,
             Err(color_eyre::eyre::eyre!(
-                "session {thread_id} is archived. Run `codex unarchive {thread_id}`"
+                "session {thread_id} is archived. Run `arcvera unarchive {thread_id}`"
             )),
             async || panic!("foreign targets must not ask to unarchive"),
         )

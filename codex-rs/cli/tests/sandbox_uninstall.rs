@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Exercises uninstall argument handling without performing machine-wide cleanup.
 
 use anyhow::Result;
@@ -12,16 +14,16 @@ fn uninstall_help_and_invalid_arguments_preserve_user_data() -> Result<()> {
     std::fs::write(home.path().join("config.toml"), "invalid config [")?;
     std::fs::write(home.path().join("auth.json"), "preserve credentials")?;
 
-    let mut command = assert_cmd::Command::new(codex_utils_cargo_bin::cargo_bin("codex")?);
+    let mut command = assert_cmd::Command::new(codex_utils_cargo_bin::cargo_bin("arcvera")?);
     command
-        .env("CODEX_HOME", home.path())
+        .env("ARCVERA_HOME", home.path())
         .args(["sandbox", "uninstall", "--help"])
         .assert()
         .success();
 
-    let mut command = assert_cmd::Command::new(codex_utils_cargo_bin::cargo_bin("codex")?);
+    let mut command = assert_cmd::Command::new(codex_utils_cargo_bin::cargo_bin("arcvera")?);
     command
-        .env("CODEX_HOME", home.path())
+        .env("ARCVERA_HOME", home.path())
         .args(["sandbox", "uninstall", "unexpected"])
         .assert()
         .failure()

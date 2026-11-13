@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use anyhow::Result;
 use anyhow::bail;
 use app_test_support::ChatGptIdTokenClaims;
@@ -102,7 +104,7 @@ async fn recommended_plugins_after_external_login(
     let mut app_server = TestAppServer::builder()
         .with_codex_home(codex_home.path())
         .without_managed_config()
-        .with_env_overrides(&[("CODEX_SQLITE_HOME", Some(sqlite_home.as_ref()))])
+        .with_env_overrides(&[("ARCVERA_SQLITE_HOME", Some(sqlite_home.as_ref()))])
         .build()
         .await?;
     timeout(DEFAULT_READ_TIMEOUT, app_server.initialize()).await??;

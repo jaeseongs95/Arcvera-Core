@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Exercises OAuth recovery through a real MCP client, with isolated file credentials.
 
 mod streamable_http_test_support;
@@ -72,7 +74,7 @@ async fn run_scenarios(scenarios: &[&str]) -> anyhow::Result<()> {
         let home = TempDir::new()?;
         let output = Command::new(std::env::current_exe()?)
             .args(["runtime_oauth_child", "--exact", "--ignored", "--nocapture"])
-            .env("CODEX_HOME", home.path())
+            .env("ARCVERA_HOME", home.path())
             .env(SCENARIO_ENV, scenario)
             .output()
             .await?;
@@ -87,7 +89,7 @@ async fn run_scenarios(scenarios: &[&str]) -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-#[ignore = "spawned by OAuth recovery tests with an isolated CODEX_HOME"]
+#[ignore = "spawned by OAuth recovery tests with an isolated ARCVERA_HOME"]
 async fn runtime_oauth_child() -> anyhow::Result<()> {
     let scenario = std::env::var(SCENARIO_ENV)?;
     let mcp = MockServer::start().await;

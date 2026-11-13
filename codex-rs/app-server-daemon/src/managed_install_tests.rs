@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use pretty_assertions::assert_eq;
 
 use super::ExecutableIdentity;
@@ -7,7 +9,7 @@ use super::parse_codex_version;
 #[test]
 fn parses_codex_cli_version_output() {
     assert_eq!(
-        parse_codex_version("codex 1.2.3\n").expect("version"),
+        parse_codex_version("arcvera 1.2.3\n").expect("version"),
         "1.2.3"
     );
 }
@@ -20,7 +22,7 @@ fn rejects_malformed_codex_cli_version_output() {
 #[tokio::test]
 async fn executable_identity_uses_path_and_binary_contents() {
     let directory = tempfile::tempdir().expect("temporary directory");
-    let executable = directory.path().join("codex");
+    let executable = directory.path().join("arcvera");
     // Span multiple reads, including a partial final buffer, and preserve the
     // digest stored by older clients that hashed the complete file in memory.
     let mut bytes: Vec<u8> = (0..200_003).map(|index| (index % 251) as u8).collect();

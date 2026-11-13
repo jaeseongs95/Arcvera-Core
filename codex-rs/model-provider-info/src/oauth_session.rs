@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Public-client OAuth settings shared by managed configuration and service sign-in.
 
 use schemars::JsonSchema;
@@ -29,7 +31,7 @@ pub enum OAuthCredentialsStore {
     /// Encrypt credentials using a passphrase kept in the OS keyring.
     #[default]
     Keyring,
-    /// Store credentials in plaintext in `$CODEX_HOME/secrets/gateway_oauth.json`.
+    /// Store credentials in plaintext in `$ARCVERA_HOME/secrets/gateway_oauth.json`.
     File,
 }
 

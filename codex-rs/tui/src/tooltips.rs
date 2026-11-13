@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use crate::keymap::RuntimeKeymap;
 use crate::keymap::keymap_action_id;
 use crate::terminal_hyperlinks::HyperlinkLine;
@@ -19,10 +21,10 @@ const ANNOUNCEMENT_TIP_URL: &str =
 const IS_MACOS: bool = cfg!(target_os = "macos");
 const IS_WINDOWS: bool = cfg!(target_os = "windows");
 
-const WINDOWS_APP_TOOLTIP: &str = "Use the **desktop app**. Install it from https://chatgpt.com/codex?app-landing-page=true and run `codex app`.";
+const WINDOWS_APP_TOOLTIP: &str = "The **desktop app** launcher and installer are disabled in Arcvera Core. Download releases from https://github.com/jaeseongs95/Arcvera-Core/releases.";
 const MACOS_APP_TOOLTIP: &str =
-    "Use the **desktop app**. Run `codex app` to open it. It installs automatically if needed.";
-const LINUX_APP_TOOLTIP: &str = "Use the **desktop app**. Install it from https://learn.chatgpt.com/docs/linux/linux-app and run `chatgpt`.";
+    WINDOWS_APP_TOOLTIP;
+const LINUX_APP_TOOLTIP: &str = WINDOWS_APP_TOOLTIP;
 
 const RAW_TOOLTIPS: &str = include_str!("../assets/tooltips.txt");
 

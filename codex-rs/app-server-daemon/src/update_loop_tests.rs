@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use std::sync::Mutex;
 #[cfg(unix)]
@@ -11,6 +13,28 @@ use super::INSTALL_URL;
 use super::InstallerHttp;
 use super::InstallerResponse;
 use super::fetch_installer_script;
+
+#[tokio::test]
+async fn arcvera_public_updater_entrypoints_are_disabled() {
+    use codex_http_client::HttpClientFactory;
+    use codex_http_client::OutboundProxyPolicy;
+
+    let factory = HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault);
+    let manual = crate::update(factory.clone()).await.unwrap_err();
+    let background = super::run(factory, None).await.unwrap_err();
+    for error in [manual, background] {
+        assert!(
+            error
+                .to_string()
+                .contains("Automatic updates are disabled in Arcvera Core")
+        );
+        assert!(
+            error
+                .to_string()
+                .contains("https://github.com/jaeseongs95/Arcvera-Core/releases")
+        );
+    }
+}
 #[cfg(unix)]
 use super::manual_update::run as manual_update_once;
 #[cfg(unix)]
@@ -73,7 +97,7 @@ fn updater_reexec_preserves_paths_and_recovers_deleted_working_directory() {
         let codex_home = home.path().join("home");
         std::fs::create_dir(&project).expect("project");
         std::fs::create_dir(&state).expect("state");
-        std::fs::create_dir(&codex_home).expect("codex home");
+        std::fs::create_dir(&codex_home).expect("arcvera home");
         std::os::unix::fs::symlink(&codex_home, home.path().join("alias")).expect("home alias");
         if home_name == "link/../home" {
             let non_unicode = home.path().join(std::ffi::OsStr::from_bytes(b"home-\xff"));
@@ -85,7 +109,7 @@ fn updater_reexec_preserves_paths_and_recovers_deleted_working_directory() {
         let executable = home.path().join("updater");
         std::fs::write(
         &executable,
-        b"#!/bin/sh\ntest -d \"$CODEX_HOME\" || exit 1\n{ pwd -P; printf '%s\\n' \"$CODEX_HOME\" \"$CODEX_SQLITE_HOME\" \"$AWS_CONFIG_FILE\" \"$SSL_CERT_DIR\" \"$NPM_CONFIG_CAFILE\"; } > \"$CODEX_TEST_UPDATER_OUTPUT\"\n",
+        b"#!/bin/sh\ntest -d \"$ARCVERA_HOME\" || exit 1\n{ pwd -P; printf '%s\\n' \"$ARCVERA_HOME\" \"$ARCVERA_SQLITE_HOME\" \"$AWS_CONFIG_FILE\" \"$SSL_CERT_DIR\" \"$NPM_CONFIG_CAFILE\"; } > \"$CODEX_TEST_UPDATER_OUTPUT\"\n",
     )
     .expect("updater shim");
         std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755))
@@ -109,8 +133,8 @@ fn updater_reexec_preserves_paths_and_recovers_deleted_working_directory() {
             .env("CODEX_TEST_UPDATER_STATE", &state)
             .env("CODEX_TEST_UPDATER_OUTPUT", &output)
             .env("CODEX_TEST_UPDATER_DELETE_CWD", delete_cwd.to_string())
-            .env("CODEX_HOME", format!("../{home_name}"))
-            .env("CODEX_SQLITE_HOME", " sqlite ")
+            .env("ARCVERA_HOME", format!("../{home_name}"))
+            .env("ARCVERA_SQLITE_HOME", " sqlite ")
             .env("AWS_CONFIG_FILE", "~/config")
             .env("NPM_CONFIG_CAFILE", ca_file)
             .env(
@@ -207,7 +231,7 @@ async fn explicit_update_migrates_running_and_stopped_installations() {
             std::fs::create_dir(&package).unwrap();
             codex_utils_cargo_bin::copy_executable(
                 &legacy.managed_codex_bin,
-                &package.join("codex"),
+                &package.join("arcvera"),
             )
             .unwrap();
             std::fs::remove_file(root.join("current")).unwrap();
@@ -274,10 +298,10 @@ test "$CODEX_INSTALL_DEFER_SELECTION" = 1
 test "$CODEX_INSTALL_IF_CURRENT" = 0
 test "$CODEX_INSTALL_DAEMON_ONLY" = 1
 test "$CODEX_INSTALL_IF_LATEST" = 0
-root="$CODEX_HOME/packages/app-server-daemon"
+root="$ARCVERA_HOME/packages/app-server-daemon"
 mkdir -p "$root/releases/{release}/bin"
-printf '#!/bin/sh\nif [ "$1" = --version ]; then echo codex 1.0.0; else exit 2; fi\n' > "$root/releases/{release}/bin/codex"
-chmod +x "$root/releases/{release}/bin/codex"
+printf '#!/bin/sh\nif [ "$1" = --version ]; then echo codex 1.0.0; else exit 2; fi\n' > "$root/releases/{release}/bin/arcvera"
+chmod +x "$root/releases/{release}/bin/arcvera"
 ln -sfn 'releases/{release}' "$root/.migration-current"
 printf '{release}' > "$root/auto-update-version"
 "#
@@ -307,7 +331,7 @@ printf '{release}' > "$root/auto-update-version"
         status: UpdateStatus::Updated,
         installed_version: Some("1.0.0".to_string()),
         running_version: (running).then(|| "1.0.0".to_string()),
-        managed_codex_path: dedicated.join("current/bin/codex"),
+        managed_codex_path: dedicated.join("current/bin/arcvera"),
         message: "The daemon was updated and moved to its dedicated package. The legacy CLI package was left unchanged.".to_string(),
     });
         assert_eq!(
@@ -329,7 +353,7 @@ printf '{release}' > "$root/auto-update-version"
             update_pid_file: legacy
                 .update_pid_file
                 .with_file_name(crate::DAEMON_UPDATE_PID_FILE_NAME),
-            managed_codex_bin: dedicated.join("current/bin/codex"),
+            managed_codex_bin: dedicated.join("current/bin/arcvera"),
             ..legacy.clone()
         };
         let new_backend = crate::backend::pid_backend(selected.backend_paths(&daemon_settings));
@@ -427,7 +451,7 @@ fn manual_update_daemon(home: &TempDir) -> (Daemon, String) {
     };
     let release = format!("1.0.0-{target}");
     let standalone = home.path().join("packages/standalone");
-    let bin = standalone.join("releases").join(&release).join("codex");
+    let bin = standalone.join("releases").join(&release).join("arcvera");
     std::fs::create_dir_all(bin.parent().expect("binary parent")).expect("release directory");
     codex_utils_cargo_bin::write_executable(
         &bin,
@@ -729,13 +753,13 @@ async fn scheduled_no_op_preserves_daemon_and_hands_off_stale_updater() {
         .join("releases")
         .join(release.replace("1.0.0", "0.8.0"));
     std::fs::create_dir_all(stale.join("bin")).unwrap();
-    std::fs::copy(&daemon.managed_codex_bin, stale.join("bin/codex")).unwrap();
+    std::fs::copy(&daemon.managed_codex_bin, stale.join("bin/arcvera")).unwrap();
     std::fs::write(
         stale.join("codex-package.json"),
         serde_json::json!({
             "version": "0.8.0",
             "target": release.strip_prefix("1.0.0-").unwrap(),
-            "entrypoint": "bin/codex"
+            "entrypoint": "bin/arcvera"
         })
         .to_string(),
     )
@@ -1123,7 +1147,7 @@ async fn check_manual_update_restart(package_directory: &str) {
     assert_eq!(output.running_version.as_deref(), Some(version));
     assert_eq!(
         output.managed_codex_path,
-        standalone.join("current/bin/codex")
+        standalone.join("current/bin/arcvera")
     );
     let restarted = current_pid();
     assert_ne!(restarted, before);

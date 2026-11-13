@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use super::CreateSeatbeltCommandArgsParams;
 use super::MACOS_PATH_TO_SEATBELT_EXECUTABLE;
 use super::create_seatbelt_command_args;
@@ -74,7 +76,7 @@ assert p.recv(2) == b'ok'
     .unwrap();
     let output = Command::new(MACOS_PATH_TO_SEATBELT_EXECUTABLE)
         .args(args)
-        .env("CODEX_HOME", workspace.path())
+        .env("ARCVERA_HOME", workspace.path())
         .output()
         .unwrap();
     assert_eq!(

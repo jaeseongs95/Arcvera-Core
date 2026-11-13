@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Detect Linux NFS migration permission warnings and coalesce retained startup diagnostics.
 
 use super::*;
@@ -64,7 +66,7 @@ impl App {
 }
 
 #[cfg(target_os = "linux")]
-const NFS_MIGRATION_WARNING: &str = "Some Codex SQLite files on NFS have permissions other than 0600. Migration preserves these permissions and requires your confirmation. Before running `codex migrate-nfs-db`, stop Codex on every host that uses these databases.";
+const NFS_MIGRATION_WARNING: &str = "Some Codex SQLite files on NFS have permissions other than 0600. Migration preserves these permissions and requires your confirmation. Before running `arcvera migrate-nfs-db`, stop Codex on every host that uses these databases.";
 
 #[cfg(target_os = "linux")]
 pub(super) async fn warn_about_nfs_migration(

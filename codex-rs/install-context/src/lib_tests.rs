@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 #![cfg(test)]
 
 //! Unit tests for the crate and its related test suites.
@@ -16,7 +18,11 @@ fn code_mode_host_program_prefers_package_resource_over_legacy_binary() -> std::
     fs::create_dir_all(&bin_dir)?;
     fs::create_dir_all(&resources_dir)?;
     fs::write(package_dir.path().join(PACKAGE_METADATA_FILENAME), "{}")?;
-    let exe_path = bin_dir.join(if cfg!(windows) { "codex.exe" } else { "codex" });
+    let exe_path = bin_dir.join(if cfg!(windows) {
+        "arcvera.exe"
+    } else {
+        "arcvera"
+    });
     let resource_host = resources_dir.join(CODE_MODE_HOST_EXECUTABLE_NAME);
     fs::write(&exe_path, "")?;
     fs::write(bin_dir.join(CODE_MODE_HOST_EXECUTABLE_NAME), "legacy host")?;
@@ -43,7 +49,11 @@ fn code_mode_host_program_uses_package_resource_without_legacy_binary() -> std::
     fs::create_dir_all(&bin_dir)?;
     fs::create_dir_all(&resources_dir)?;
     fs::write(package_dir.path().join(PACKAGE_METADATA_FILENAME), "{}")?;
-    let exe_path = bin_dir.join(if cfg!(windows) { "codex.exe" } else { "codex" });
+    let exe_path = bin_dir.join(if cfg!(windows) {
+        "arcvera.exe"
+    } else {
+        "arcvera"
+    });
     let resource_host = resources_dir.join(CODE_MODE_HOST_EXECUTABLE_NAME);
     fs::write(&exe_path, "")?;
     fs::write(&resource_host, "managed host")?;
@@ -70,7 +80,11 @@ fn code_mode_host_program_ignores_resource_directory_and_uses_legacy_binary() ->
     fs::create_dir_all(&bin_dir)?;
     fs::create_dir_all(resources_dir.join(CODE_MODE_HOST_EXECUTABLE_NAME))?;
     fs::write(package_dir.path().join(PACKAGE_METADATA_FILENAME), "{}")?;
-    let exe_path = bin_dir.join(if cfg!(windows) { "codex.exe" } else { "codex" });
+    let exe_path = bin_dir.join(if cfg!(windows) {
+        "arcvera.exe"
+    } else {
+        "arcvera"
+    });
     let legacy_host = bin_dir.join(CODE_MODE_HOST_EXECUTABLE_NAME);
     fs::write(&exe_path, "")?;
     fs::write(&legacy_host, "legacy host")?;
@@ -96,7 +110,11 @@ fn detects_standalone_install_from_release_layout() -> std::io::Result<()> {
         .join("packages/standalone/releases/1.2.3-x86_64-unknown-linux-musl");
     let resources_dir = release_dir.join(RESOURCES_DIRNAME);
     fs::create_dir_all(&resources_dir)?;
-    let exe_path = release_dir.join(if cfg!(windows) { "codex.exe" } else { "codex" });
+    let exe_path = release_dir.join(if cfg!(windows) {
+        "arcvera.exe"
+    } else {
+        "arcvera"
+    });
     fs::write(&exe_path, "")?;
     fs::write(release_dir.join(CODE_MODE_HOST_EXECUTABLE_NAME), "")?;
     fs::write(
@@ -152,7 +170,11 @@ fn standalone_rg_falls_back_when_resources_are_missing() -> std::io::Result<()> 
         .path()
         .join("packages/standalone/releases/1.2.3-x86_64-unknown-linux-musl");
     fs::create_dir_all(&release_dir)?;
-    let exe_path = release_dir.join(if cfg!(windows) { "codex.exe" } else { "codex" });
+    let exe_path = release_dir.join(if cfg!(windows) {
+        "arcvera.exe"
+    } else {
+        "arcvera"
+    });
     fs::write(&exe_path, "")?;
 
     let context = InstallContext::from_exe_with_codex_home(
@@ -180,14 +202,18 @@ fn detects_package_layout_independently_from_install_method() -> std::io::Result
   "layoutVersion": 1,
   "version": "1.2.3",
   "target": "x86_64-unknown-linux-musl",
-  "variant": "codex",
-  "entrypoint": "bin/codex",
+  "variant": "arcvera",
+  "entrypoint": "bin/arcvera",
   "resourcesDir": "codex-resources",
   "pathDir": "codex-path"
 }
 "#,
     )?;
-    let exe_path = bin_dir.join(if cfg!(windows) { "codex.exe" } else { "codex" });
+    let exe_path = bin_dir.join(if cfg!(windows) {
+        "arcvera.exe"
+    } else {
+        "arcvera"
+    });
     fs::write(&exe_path, "")?;
     fs::write(bin_dir.join(CODE_MODE_HOST_EXECUTABLE_NAME), "")?;
     fs::write(resources_dir.join(TEST_RESOURCE_NAME), "")?;
@@ -256,7 +282,7 @@ fn code_mode_host_program_accepts_symlinks_to_files() -> std::io::Result<()> {
     let bin_dir = package_dir.path().join(BIN_DIRNAME);
     fs::create_dir_all(&bin_dir)?;
     fs::write(package_dir.path().join(PACKAGE_METADATA_FILENAME), "{}")?;
-    let exe_path = bin_dir.join("codex");
+    let exe_path = bin_dir.join("arcvera");
     let executable_target = package_dir.path().join("host-target");
     let executable_path = bin_dir.join(CODE_MODE_HOST_EXECUTABLE_NAME);
     fs::write(&exe_path, "")?;
@@ -292,7 +318,11 @@ fn standalone_package_layout_keeps_standalone_install_method() -> std::io::Resul
     fs::create_dir_all(&resources_dir)?;
     fs::create_dir_all(&path_dir)?;
     fs::write(package_dir.join(PACKAGE_METADATA_FILENAME), "{}")?;
-    let exe_path = bin_dir.join(if cfg!(windows) { "codex.exe" } else { "codex" });
+    let exe_path = bin_dir.join(if cfg!(windows) {
+        "arcvera.exe"
+    } else {
+        "arcvera"
+    });
     fs::write(&exe_path, "")?;
     fs::write(resources_dir.join(TEST_RESOURCE_NAME), "")?;
     fs::write(path_dir.join(default_rg_command()), "")?;
@@ -345,7 +375,11 @@ fn npm_managed_package_keeps_package_layout() -> std::io::Result<()> {
     fs::create_dir_all(&bin_dir)?;
     fs::create_dir_all(&path_dir)?;
     fs::write(package_dir.path().join(PACKAGE_METADATA_FILENAME), "{}")?;
-    let exe_path = bin_dir.join(if cfg!(windows) { "codex.exe" } else { "codex" });
+    let exe_path = bin_dir.join(if cfg!(windows) {
+        "arcvera.exe"
+    } else {
+        "arcvera"
+    });
     fs::write(&exe_path, "")?;
     fs::write(path_dir.join(default_rg_command()), "")?;
     let canonical_path_dir = AbsolutePathBuf::from_absolute_path(path_dir.canonicalize()?)?;
@@ -372,7 +406,11 @@ fn standalone_package_rg_falls_back_when_codex_path_is_missing() -> std::io::Res
     let bin_dir = package_dir.path().join(BIN_DIRNAME);
     fs::create_dir_all(&bin_dir)?;
     fs::write(package_dir.path().join(PACKAGE_METADATA_FILENAME), "{}")?;
-    let exe_path = bin_dir.join(if cfg!(windows) { "codex.exe" } else { "codex" });
+    let exe_path = bin_dir.join(if cfg!(windows) {
+        "arcvera.exe"
+    } else {
+        "arcvera"
+    });
     fs::write(&exe_path, "")?;
 
     let context = InstallContext::from_exe_with_codex_home(
@@ -396,7 +434,11 @@ fn bundled_file_lookups_ignore_directories() -> std::io::Result<()> {
     fs::create_dir_all(resources_dir.join(TEST_RESOURCE_NAME))?;
     fs::create_dir_all(path_dir.join(default_rg_command()))?;
     fs::write(package_dir.path().join(PACKAGE_METADATA_FILENAME), "{}")?;
-    let exe_path = bin_dir.join(if cfg!(windows) { "codex.exe" } else { "codex" });
+    let exe_path = bin_dir.join(if cfg!(windows) {
+        "arcvera.exe"
+    } else {
+        "arcvera"
+    });
     fs::write(&exe_path, "")?;
     let fallback_exe_path = package_dir.path().join("fallback-codex");
     fs::write(&fallback_exe_path, "")?;
@@ -424,7 +466,7 @@ fn code_mode_host_program_is_next_to_the_executable_even_when_missing() {
     };
 
     assert_eq!(
-        context.code_mode_host_program_from_exe(Some(Path::new("/opt/codex/bin/codex"))),
+        context.code_mode_host_program_from_exe(Some(Path::new("/opt/codex/bin/arcvera"))),
         PathBuf::from("/opt/codex/bin").join(CODE_MODE_HOST_EXECUTABLE_NAME)
     );
 }
@@ -501,7 +543,7 @@ fn package_manager_method_overrides_take_precedence() {
 fn brew_is_detected_on_macos_prefixes() {
     let context = InstallContext::from_exe_with_codex_home(
         /*is_macos*/ true,
-        /*current_exe*/ Some(Path::new("/opt/homebrew/bin/codex")),
+        /*current_exe*/ Some(Path::new("/opt/homebrew/bin/arcvera")),
         /*method_override*/ None,
         /*codex_home*/ None,
     );

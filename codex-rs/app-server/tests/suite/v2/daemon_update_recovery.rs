@@ -1,4 +1,5 @@
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Best-effort loaded-thread snapshots during managed app-server shutdown.
 
 use super::connection_handling_websocket::DEFAULT_READ_TIMEOUT;
@@ -816,7 +817,7 @@ pub(super) fn spawn_server(home: &Path, socket_path: &Path) -> Result<Child> {
     Ok(Command::new(binary)
         .args(["--listen", &format!("unix://{}", socket_path.display())])
         .arg(DISABLE_PLUGIN_STARTUP_TASKS_ARG)
-        .env("CODEX_HOME", home)
+        .env("ARCVERA_HOME", home)
         // Match TestAppServer's isolation from the host's managed configuration.
         .env(
             "CODEX_APP_SERVER_MANAGED_CONFIG_PATH",

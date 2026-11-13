@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
@@ -432,7 +434,7 @@ async fn sandbox_executable_requires_local_stdio_and_a_full_cli() -> anyhow::Res
         .expect("prepared call");
     // Use a probe-capable CLI so remote/HTTP exclusions cannot pass merely
     // because the supplied executable lacks the sandbox capability.
-    let executable = codex_utils_cargo_bin::cargo_bin("codex")?;
+    let executable = codex_utils_cargo_bin::cargo_bin("arcvera")?;
     for (server, runtime_environment, path, expected) in [
         (
             serde_json::json!({"command": "mcp"}),

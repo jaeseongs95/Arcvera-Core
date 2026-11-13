@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use codex_windows_sandbox::log_note;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
@@ -16,7 +18,7 @@ fn junction_name_for_path(path: &Path) -> String {
 
 fn junction_root_for_userprofile(userprofile: &str) -> PathBuf {
     PathBuf::from(userprofile)
-        .join(".codex")
+        .join(".arcvera")
         .join(".sandbox")
         .join("cwd")
 }

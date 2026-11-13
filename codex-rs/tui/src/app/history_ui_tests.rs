@@ -1,36 +1,28 @@
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Desktop handoff output and clear-screen history reset behavior.
 
 use super::*;
 use crate::app::tests::make_test_app_with_channels;
 use crate::history_cell;
-use crate::history_cell::HistoryCell;
 use crate::history_cell::PlainHistoryCell;
 use pretty_assertions::assert_eq;
 
-#[test]
-fn desktop_thread_opened_history_snapshot() {
-    let cell = history_cell::new_info_event(
-        DESKTOP_THREAD_OPENED_MESSAGE.to_string(),
-        /*hint*/ None,
-    );
-
-    insta::assert_snapshot!("desktop_thread_opened_history", render_cell(&cell));
-}
-
-#[test]
-fn desktop_thread_open_error_history_snapshot() {
-    let cell = history_cell::new_error_event(desktop_thread_open_error_message("launch failed"));
-
-    insta::assert_snapshot!("desktop_thread_open_error_history", render_cell(&cell));
-}
-
-fn render_cell(cell: &impl HistoryCell) -> String {
-    let lines = cell.display_lines(/*width*/ 80);
-    lines
+#[tokio::test]
+async fn desktop_handoff_reports_disabled() {
+    let (mut app, mut rx, _) = make_test_app_with_channels().await;
+    app.open_desktop_thread(ThreadId::new());
+    let cell = match rx.try_recv() {
+        Ok(AppEvent::InsertHistoryCell(cell)) => cell,
+        other => panic!("expected disabled notice, got {other:?}"),
+    };
+    let text = cell
+        .display_lines(/*width*/ 200)
         .iter()
         .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n")
+        .collect::<String>();
+    assert!(text.contains("Desktop app launch and installation are disabled"));
+    assert!(text.contains("https://github.com/jaeseongs95/Arcvera-Core/releases"));
+    assert!(rx.try_recv().is_err());
 }
 
 #[tokio::test]

@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Enterprise login exercises the real callback and keyring adapter in an isolated process.
 
 use std::any::Any;
@@ -48,7 +50,7 @@ async fn isolated_process(test_name: &str) -> Result<bool> {
     let output = tokio::process::Command::new(std::env::current_exe()?)
         .args(["--exact", test_name, "--nocapture"])
         .env(CHILD, "1")
-        .env("CODEX_HOME", home.path())
+        .env("ARCVERA_HOME", home.path())
         .current_dir(home.path())
         .output()
         .await?;
@@ -547,7 +549,7 @@ async fn enterprise_public_api_storage_and_privacy() -> Result<()> {
         assert!(!format!("{error} {error:?} {error:#}").contains(SECRET));
     }
     keyring.fail.store(false, Ordering::SeqCst);
-    let home = std::path::PathBuf::from(std::env::var("CODEX_HOME")?);
+    let home = std::path::PathBuf::from(std::env::var("ARCVERA_HOME")?);
     assert!(
         !home.join(".credentials.json").exists(),
         "enterprise storage never falls back to plaintext"

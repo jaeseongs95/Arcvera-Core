@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Exercises thread-owned storage attribution through turn-time MCP authentication recovery.
 
 use anyhow::Result;
@@ -58,13 +60,13 @@ fn storage_loads(metrics: &MetricsClient) -> Result<BTreeMap<String, u64>> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn recovery_without_a_snapshot_keeps_each_threads_originator() -> Result<()> {
     skip_if_no_network!(Ok(()));
-    // Isolate global metrics and CODEX_HOME from other integration tests.
+    // Isolate global metrics and ARCVERA_HOME from other integration tests.
     if std::env::var_os("CODEX_MCP_TELEMETRY_TEST_CHILD").is_none() {
         let home = tempfile::tempdir()?;
         let output = tokio::process::Command::new(std::env::current_exe()?)
             .args(["--exact", "suite::rmcp_client::storage_telemetry_tests::recovery_without_a_snapshot_keeps_each_threads_originator", "--nocapture"])
             .env("CODEX_MCP_TELEMETRY_TEST_CHILD", "1")
-            .env("CODEX_HOME", home.path())
+            .env("ARCVERA_HOME", home.path())
             .output().await?;
         assert!(
             output.status.success(),

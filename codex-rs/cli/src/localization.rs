@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Localize Clap presentation while preserving argument IDs, names, values and parsers.
 
@@ -264,10 +266,10 @@ fn help_message_id(original: &str) -> Option<&'static str> {
         "Full commit SHA (defaults to local HEAD for status)" => Some("ci-help-commit"),
         "Additionally filter by branch" => Some("ci-help-branch"),
         "Maximum runs to return (does not enumerate required checks)" => Some("ci-help-limit"),
-        "Workspace path to open in the Desktop app" => {
+        "Legacy workspace argument (Desktop integration is disabled)" => {
             Some("cli-help-app-cmd-workspace-path-to-open-in-the-desktop-app")
         }
-        "Override the app installer download URL (advanced)" => {
+        "Legacy installer URL argument (ignored; installation is disabled)" => {
             Some("cli-help-app-cmd-override-the-app-installer-download-url-advanced")
         }
         "현재 대화 UUID. 생략하면 CODEX_THREAD_ID를 사용합니다" => {
@@ -339,10 +341,10 @@ fn help_message_id(original: &str) -> Option<&'static str> {
         "Structured cause/remedy metadata for a non-ok doctor check.\n\nHuman output uses issues to make warnings and failures self-explanatory: the row headline says what is wrong, matching detail rows show measured vs. expected values, and remedies are printed as explicit next actions." => {
             Some("cli-help-doctor-structured-cause-remedy-metadata-for-a-non-ok-details")
         }
-        "JSON support report emitted by `codex doctor --json`" => {
+        "JSON support report emitted by `arcvera doctor --json`" => {
             Some("cli-help-doctor-json-support-report-emitted-by-codex-doctor-json")
         }
-        "JSON support report emitted by `codex doctor --json`.\n\nThe report is keyed by check id so support tooling can fetch paths like `checks[\"terminal.metadata\"]` without scanning arrays. Human rendering can reorder or group rows independently, but this JSON shape should stay stable across cosmetic output changes." => {
+        "JSON support report emitted by `arcvera doctor --json`.\n\nThe report is keyed by check id so support tooling can fetch paths like `checks[\"terminal.metadata\"]` without scanning arrays. Human rendering can reorder or group rows independently, but this JSON shape should stay stable across cosmetic output changes." => {
             Some("cli-help-doctor-json-support-report-emitted-by-codex-doctor-json-details")
         }
         "One redacted check in the JSON support report" => {
@@ -366,7 +368,7 @@ fn help_message_id(original: &str) -> Option<&'static str> {
         "Named permissions profile to apply from the active configuration stack" => {
             Some("cli-help-lib-named-permissions-profile-to-apply-from-the-active")
         }
-        "Layer $CODEX_HOME/<name>.config.toml on top of the base user config" => {
+        "Layer $ARCVERA_HOME/<name>.config.toml on top of the base user config" => {
             Some("cli-help-lib-layer-codex-home-name-config-toml-on-top")
         }
         "Working directory used for profile resolution and command execution" => {
@@ -390,8 +392,8 @@ fn help_message_id(original: &str) -> Option<&'static str> {
         "Full command args to run under Windows restricted token sandbox" => {
             Some("cli-help-lib-full-command-args-to-run-under-windows-restricted")
         }
-        "Codex CLI" => Some("cli-help-main-codex-cli"),
-        "Codex CLI\n\nIf no subcommand is specified, options will be forwarded to the interactive CLI." => {
+        "Arcvera Core CLI" => Some("cli-help-main-codex-cli"),
+        "Arcvera Core CLI\n\nIf no subcommand is specified, options will be forwarded to the interactive CLI." => {
             Some("cli-help-main-codex-cli-if-no-subcommand-is-specified-options")
         }
         "Browse all agent sessions on the shared local app-server daemon" => {
@@ -418,7 +420,7 @@ fn help_message_id(original: &str) -> Option<&'static str> {
         "[experimental] Manage the app-server daemon with remote control enabled" => {
             Some("cli-help-main-experimental-manage-the-app-server-daemon-with-remote")
         }
-        "Launch the Desktop app (opens the app installer if missing)" => {
+        "Show Arcvera releases (Desktop launch and installation are disabled)" => {
             Some("cli-help-main-launch-the-desktop-app-opens-the-app-installer")
         }
         "Generate shell completion scripts" => {
@@ -784,7 +786,7 @@ fn help_message_id(original: &str) -> Option<&'static str> {
         "Example:\n  codex plugin marketplace remove debug" => {
             Some("cli-help-marketplace-cmd-example-codex-plugin-marketplace-remove-debug")
         }
-        "Subcommands: - `list` — list configured servers (with `--json`) - `get` — show a single server (with `--json`) - `add` — add a server launcher entry to `~/.codex/config.toml` - `remove` — delete a server entry - `login` — authenticate with MCP server using OAuth - `logout` — remove OAuth credentials for MCP server" => {
+        "Subcommands: - `list` — list configured servers (with `--json`) - `get` — show a single server (with `--json`) - `add` — add a server launcher entry to `~/.arcvera/config.toml` - `remove` — delete a server entry - `login` — authenticate with MCP server using OAuth - `logout` — remove OAuth credentials for MCP server" => {
             Some("cli-help-mcp-cmd-subcommands-list-list-configured-servers-with-json-get")
         }
         "Output the configured servers as JSON" => {
@@ -948,7 +950,7 @@ fn help_message_id(original: &str) -> Option<&'static str> {
         "Use the current Windows user as the Codex user" => {
             Some("cli-help-sandbox-setup-use-the-current-windows-user-as-the-codex")
         }
-        "CODEX_HOME for the Codex user. Required with --user" => {
+        "ARCVERA_HOME for the Codex user. Required with --user" => {
             Some("cli-help-sandbox-setup-codex-home-for-the-codex-user-required-with")
         }
         "Remove the legacy Windows sandbox's machine-wide accounts and network rules" => {
@@ -966,7 +968,7 @@ fn help_message_id(original: &str) -> Option<&'static str> {
         "Optional user prompt to start the session" => {
             Some("cli-help-cli-optional-user-prompt-to-start-the-session")
         }
-        "Internal: resume a specific recorded session by id (UUID). Set by the top-level `codex resume <SESSION_ID>` wrapper; not exposed as a public flag" => {
+        "Internal: resume a specific recorded session by id (UUID). Set by the top-level `arcvera resume <SESSION_ID>` wrapper; not exposed as a public flag" => {
             Some("cli-help-cli-internal-resume-a-specific-recorded-session-by-id")
         }
         "Internal: show all sessions (disables cwd filtering and shows CWD column)" => {
@@ -981,7 +983,7 @@ fn help_message_id(original: &str) -> Option<&'static str> {
         "Internal: the launching CLI verified that the local daemon has a managed backend" => {
             Some("cli-help-cli-internal-the-launching-cli-verified-that-the-local")
         }
-        "Internal: fork a specific recorded session by id (UUID). Set by the top-level `codex fork <SESSION_ID>` wrapper; not exposed as a public flag" => {
+        "Internal: fork a specific recorded session by id (UUID). Set by the top-level `arcvera fork <SESSION_ID>` wrapper; not exposed as a public flag" => {
             Some("cli-help-cli-internal-fork-a-specific-recorded-session-by-id")
         }
         "Configure when the model requires human approval before executing a command" => {
@@ -1011,7 +1013,7 @@ fn help_message_id(original: &str) -> Option<&'static str> {
         "Run without persisting session files to disk" => {
             Some("cli-help-cli-run-without-persisting-session-files-to-disk")
         }
-        "Do not load `$CODEX_HOME/config.toml`; auth still uses `CODEX_HOME`" => {
+        "Do not load `$ARCVERA_HOME/config.toml`; auth still uses `ARCVERA_HOME`" => {
             Some("cli-help-cli-do-not-load-codex-home-config-toml-auth")
         }
         "Do not load user or project execpolicy `.rules` files" => {
@@ -1097,7 +1099,7 @@ fn help_message_id(original: &str) -> Option<&'static str> {
         "Task prompt to run in Codex Cloud" => {
             Some("cli-help-cli-task-prompt-to-run-in-codex-cloud")
         }
-        "Target environment identifier (see `codex cloud` to browse)" => {
+        "Target environment identifier (see `arcvera cloud` to browse)" => {
             Some("cli-help-cli-target-environment-identifier-see-codex-cloud-to-browse")
         }
         "Number of assistant attempts (best-of-N)" => {
@@ -1175,10 +1177,10 @@ fn help_message_id(original: &str) -> Option<&'static str> {
                 "cli-help-config-override-cli-option-that-captures-arbitrary-configuration-overrides-specified",
             )
         }
-        "Override a configuration value that would otherwise be loaded from `~/.codex/config.toml`. Use a dotted path (`foo.bar.baz`) to override nested values. The `value` portion is parsed as TOML. If it fails to parse as TOML, the raw string is used as a literal" => {
+        "Override a configuration value that would otherwise be loaded from `~/.arcvera/config.toml`. Use a dotted path (`foo.bar.baz`) to override nested values. The `value` portion is parsed as TOML. If it fails to parse as TOML, the raw string is used as a literal" => {
             Some("cli-help-config-override-override-a-configuration-value-that-would-otherwise-be")
         }
-        "Override a configuration value that would otherwise be loaded from `~/.codex/config.toml`. Use a dotted path (`foo.bar.baz`) to override nested values. The `value` portion is parsed as TOML. If it fails to parse as TOML, the raw string is used as a literal.\n\nExamples: - `-c model=\"o3\"` - `-c 'sandbox_permissions=[\"disk-full-read-access\"]'` - `-c shell_environment_policy.inherit=all`" => {
+        "Override a configuration value that would otherwise be loaded from `~/.arcvera/config.toml`. Use a dotted path (`foo.bar.baz`) to override nested values. The `value` portion is parsed as TOML. If it fails to parse as TOML, the raw string is used as a literal.\n\nExamples: - `-c model=\"o3\"` - `-c 'sandbox_permissions=[\"disk-full-read-access\"]'` - `-c shell_environment_policy.inherit=all`" => {
             Some(
                 "cli-help-config-override-override-a-configuration-value-that-would-otherwise-be-details",
             )

@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use codex_utils_absolute_path::test_support::PathExt;
 use std::time::Duration;
 
@@ -707,7 +709,7 @@ async fn external_agent_config_import_sends_completion_notification_for_sync_onl
         .without_auto_env()
         .with_env_overrides(&[
             ("HOME", Some(home_dir.as_str())),
-            ("CODEX_SQLITE_HOME", Some(sqlite_home_dir.as_str())),
+            ("ARCVERA_SQLITE_HOME", Some(sqlite_home_dir.as_str())),
         ])
         .build_initialized_with_timeout(DEFAULT_TIMEOUT)
         .await?;
@@ -812,7 +814,7 @@ async fn external_agent_config_records_externally_completed_import_history() -> 
         .without_auto_env()
         .with_env_overrides(&[
             ("HOME", Some(home_dir.as_str())),
-            ("CODEX_SQLITE_HOME", Some(sqlite_home_dir.as_str())),
+            ("ARCVERA_SQLITE_HOME", Some(sqlite_home_dir.as_str())),
         ])
         .build_initialized_with_timeout(DEFAULT_TIMEOUT)
         .await?;

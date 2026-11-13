@@ -4,11 +4,12 @@ expression: "render_bottom_popup(&app.chat_widget, 80)"
 ---
   Daemon
   Not connected to the local background server.
-  Run the Codex CLI to manage the daemon from this menu.
+  Run the Arcvera Core CLI to manage the daemon from this menu.
+  Download Arcvera releases manually; automatic updates are disabled.
 
 
-›    Install latest public stable
-     Use this CLI build
+›    Use this CLI build (disabled)  Run the Arcvera Core CLI to manage the
+                                    daemon from this menu.
      Restart background server
 
   enter select · esc back

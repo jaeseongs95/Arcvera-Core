@@ -1,8 +1,10 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Registry of model providers supported by Codex.
 //!
 //! Providers can be defined in two places:
 //!   1. Built-in defaults compiled into the binary so Codex works out-of-the-box.
-//!   2. User-defined entries inside `~/.codex/config.toml` under the `model_providers`
+//!   2. User-defined entries inside `~/.arcvera/config.toml` under the `model_providers`
 //!      key. These override or extend the defaults at runtime.
 //!
 //! API provider construction applies the process-wide managed residency policy also

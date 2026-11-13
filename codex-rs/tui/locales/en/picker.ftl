@@ -1,3 +1,5 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+# Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 picker-active = Active
 picker-agent-command-center = Agent command center
 picker-all = All
@@ -52,7 +54,7 @@ picker-center-rename-title = Rename
 picker-center-resume-title = Resume
 picker-center-save-grouping-error = Failed to save Command Center grouping: { $value }
 picker-center-search-title = Search
-picker-center-service-version = Service v{ $server } { $comparison } Codex CLI v{ $client }{ $guidance }
+picker-center-service-version = Service v{ $server } { $comparison } Arcvera Core CLI v{ $client }{ $guidance }
 picker-center-show-more = Show more
 picker-center-show-more-retry = Show more (retry)
 picker-center-stop-title = Stop

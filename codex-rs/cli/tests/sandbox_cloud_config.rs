@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use std::process::Command;
 
 use anyhow::Context;
@@ -133,11 +135,11 @@ async fn run_cloud_sandbox(args: &[&str], bundle: Value) -> Result<Option<TempDi
         .mount(&server)
         .await;
 
-    let codex = codex_utils_cargo_bin::cargo_bin("codex")?;
+    let codex = codex_utils_cargo_bin::cargo_bin("arcvera")?;
     let chatgpt_base_url_override = format!("chatgpt_base_url=\"{chatgpt_base_url}\"");
     let output = Command::new(&codex)
         .current_dir(codex_home.path())
-        .env("CODEX_HOME", codex_home.path())
+        .env("ARCVERA_HOME", codex_home.path())
         .env("NO_PROXY", "127.0.0.1,localhost")
         .env("no_proxy", "127.0.0.1,localhost")
         .env_remove("CODEX_ACCESS_TOKEN")
@@ -174,7 +176,7 @@ async fn run_cloud_sandbox(args: &[&str], bundle: Value) -> Result<Option<TempDi
     );
     if !nested_macos_sandbox_unavailable {
         assert!(
-            String::from_utf8(output.stdout)?.starts_with("codex"),
+            String::from_utf8(output.stdout)?.starts_with("arcvera"),
             "expected the sandboxed Codex version command to run",
         );
     }

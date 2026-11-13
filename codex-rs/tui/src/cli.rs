@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use clap::Args;
 use clap::FromArgMatches;
@@ -32,8 +34,8 @@ pub struct Cli {
     #[arg(long = "strict-config", default_value_t = false)]
     pub strict_config: bool,
 
-    // Internal controls set by the top-level `codex resume` subcommand.
-    // These are not exposed as user flags on the base `codex` command.
+    // Internal controls set by the top-level `arcvera resume` subcommand.
+    // These are not exposed as user flags on the base `arcvera` command.
     #[clap(skip)]
     pub resume_picker: bool,
 
@@ -41,7 +43,7 @@ pub struct Cli {
     pub resume_last: bool,
 
     /// Internal: resume a specific recorded session by id (UUID). Set by the
-    /// top-level `codex resume <SESSION_ID>` wrapper; not exposed as a public flag.
+    /// top-level `arcvera resume <SESSION_ID>` wrapper; not exposed as a public flag.
     #[clap(skip)]
     pub resume_session_id: Option<String>,
 
@@ -57,8 +59,8 @@ pub struct Cli {
     #[clap(skip)]
     pub agents_overview: bool,
 
-    // Internal controls set by the top-level `codex fork` subcommand.
-    // These are not exposed as user flags on the base `codex` command.
+    // Internal controls set by the top-level `arcvera fork` subcommand.
+    // These are not exposed as user flags on the base `arcvera` command.
     #[clap(skip)]
     pub fork_picker: bool,
 
@@ -66,7 +68,7 @@ pub struct Cli {
     pub fork_last: bool,
 
     /// Internal: fork a specific recorded session by id (UUID). Set by the
-    /// top-level `codex fork <SESSION_ID>` wrapper; not exposed as a public flag.
+    /// top-level `arcvera fork <SESSION_ID>` wrapper; not exposed as a public flag.
     #[clap(skip)]
     pub fork_session_id: Option<String>,
 

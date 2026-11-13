@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use crate::config::ConfigBuilder;
 use crate::config::ConfigOverrides;
 use crate::config::ConstraintError;
@@ -222,7 +224,7 @@ invalid = ["#,
 
     let user_layer = layers
         .get_active_user_layer()
-        .expect("expected a user layer even when CODEX_HOME/config.toml is ignored");
+        .expect("expected a user layer even when ARCVERA_HOME/config.toml is ignored");
     assert_eq!(
         user_layer.config,
         TomlValue::Table(toml::map::Map::new()),
@@ -957,7 +959,7 @@ async fn returns_packaged_defaults_when_other_layers_are_missing() {
     .expect("load layers");
     let user_layer = layers
         .get_active_user_layer()
-        .expect("expected a user layer even when CODEX_HOME/config.toml does not exist");
+        .expect("expected a user layer even when ARCVERA_HOME/config.toml does not exist");
     let expected_user_layer = ConfigLayerEntry::new(
         ConfigLayerSource::User {
             file: AbsolutePathBuf::resolve_path_against_base(CONFIG_TOML_FILE, tmp.path()),
@@ -1305,7 +1307,7 @@ async fn managed_preferences_requirements_resolve_paths_against_codex_home() -> 
         base64::prelude::BASE64_STANDARD.encode(
             r#"
 sqlite_home = "state"
-log_dir = "~/.codex/logs"
+log_dir = "~/.arcvera/logs"
 model_catalog_json = "models.json"
 "#
             .as_bytes(),
@@ -1321,7 +1323,8 @@ model_catalog_json = "models.json"
         &codex_config::NoopThreadConfigLoader,
     )
     .await?;
-    let expected_log_dir = AbsolutePathBuf::resolve_path_against_base("~/.codex/logs", &codex_home);
+    let expected_log_dir =
+        AbsolutePathBuf::resolve_path_against_base("~/.arcvera/logs", &codex_home);
     let requirements = layers.requirements_toml();
 
     assert_eq!(

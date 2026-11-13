@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Invocation overrides apply on fresh starts or explicitly confirmed managed restarts.
 //! The lifecycle lock serializes persistence against other clients and updates.
@@ -24,7 +26,7 @@ impl std::fmt::Display for CliDaemonMismatch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "The selected managed app-server executable {} differs from this CLI {}. No daemon was started and the installed selection was preserved. To explicitly select this CLI package, run `codex app-server daemon update --from-cli --yes --no-force`.",
+            "The selected managed app-server executable {} differs from this CLI {}. No daemon was started and the installed selection was preserved. To explicitly select this CLI package, run `arcvera app-server daemon update --from-cli --yes --no-force`.",
             self.managed_path.display(),
             self.cli_path.display()
         )

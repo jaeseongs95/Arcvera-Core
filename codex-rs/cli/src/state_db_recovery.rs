@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! CLI handling for local state database startup failures.
 //!
 //! This keeps user-facing backup and lock-contention handling out of the main
@@ -68,7 +70,7 @@ pub(crate) fn confirm_fresh_start_rebuild(
 
 pub(crate) fn print_diagnostic_guidance(startup_error: &LocalStateDbStartupError) {
     eprintln!("Codex couldn't start because its local database appears to be damaged.");
-    eprintln!("Run `codex doctor` to check your setup and get next-step guidance.");
+    eprintln!("Run `arcvera doctor` to check your setup and get next-step guidance.");
     eprintln!("If this keeps happening, share the technical details below when asking for help.");
     print_technical_details(startup_error);
 }

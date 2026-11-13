@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use anyhow::Context as _;
 use anyhow::ensure;
 use base64::Engine;
@@ -2620,7 +2622,7 @@ async fn stdio_mcp_tool_call_includes_sandbox_state_meta(
             // The real CLI is explicitly provided; the test harness is not a CLI.
             config.codex_self_exe = Some(
                 AbsolutePathBuf::from_absolute_path_checked(
-                    cargo_bin("codex").expect("codex binary"),
+                    cargo_bin("arcvera").expect("codex binary"),
                 )
                 .expect("absolute codex binary path")
                 .into_path_buf(),
@@ -4557,8 +4559,8 @@ auth = "chatgpt"
     Ok(())
 }
 
-/// This test writes to a fallback credentials file in CODEX_HOME.
-/// Ideally, we wouldn't need to serialize the test but it's much more cumbersome to wire CODEX_HOME through the code.
+/// This test writes to a fallback credentials file in ARCVERA_HOME.
+/// Ideally, we wouldn't need to serialize the test but it's much more cumbersome to wire ARCVERA_HOME through the code.
 #[test]
 #[serial(codex_home)]
 fn streamable_http_with_oauth_round_trip() -> anyhow::Result<()> {
@@ -4657,10 +4659,10 @@ async fn streamable_http_with_oauth_round_trip_impl() -> anyhow::Result<()> {
     };
     let server_url = http_server.url().to_string();
 
-    // Phase 3: seed an isolated CODEX_HOME with fallback OAuth tokens for this
+    // Phase 3: seed an isolated ARCVERA_HOME with fallback OAuth tokens for this
     // server so the test does not share credentials with other suite cases.
     let temp_home = Arc::new(tempdir()?);
-    let _codex_home_guard = EnvVarGuard::set("CODEX_HOME", temp_home.path().as_os_str());
+    let _codex_home_guard = EnvVarGuard::set("ARCVERA_HOME", temp_home.path().as_os_str());
     let unset_authorization_env_var = format!(
         "CODEX_TEST_UNSET_MCP_OAUTH_AUTHORIZATION_{}",
         std::process::id()

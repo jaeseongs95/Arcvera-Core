@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 //! Windows process identity and file locks. Keep a process handle across shutdown
 //! so PID reuse can never redirect forced termination to a different process.
@@ -102,7 +104,7 @@ pub struct DetachedLaunchRestricted;
 impl fmt::Display for DetachedLaunchRestricted {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(
-            "this Windows launcher prevents background processes from outliving it (for example, cargo run); build and run codex.exe directly to use the background server",
+            "this Windows launcher prevents background processes from outliving it (for example, cargo run); build and run arcvera.exe directly to use the background server",
         )
     }
 }

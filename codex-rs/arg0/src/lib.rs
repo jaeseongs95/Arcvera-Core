@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use std::ffi::OsString;
 use std::fs::File;
 use std::future::Future;
@@ -177,7 +179,7 @@ fn prepare_path_env_var_with_aliases(
 /// `codex-linux-sandbox` we *directly* execute
 /// [`codex_linux_sandbox::run_main`] (which never returns). Otherwise we:
 ///
-/// 1.  Load `.env` values from `~/.codex/.env` before creating any threads.
+/// 1.  Load `.env` values from `~/.arcvera/.env` before creating any threads.
 /// 2.  Spawn a main runtime thread with a controlled stack size.
 /// 3.  Construct a Tokio multi-thread runtime.
 /// 4.  Capture the current executable path and derive the
@@ -267,12 +269,12 @@ fn build_runtime() -> anyhow::Result<tokio::runtime::Runtime> {
     Ok(builder.build()?)
 }
 
-const ILLEGAL_ENV_VAR_PREFIX: &str = "CODEX_";
+const ILLEGAL_ENV_VAR_PREFIXES: [&str; 2] = ["CODEX_", "ARCVERA_"];
 
-/// Load env vars from ~/.codex/.env.
+/// Load env vars from ~/.arcvera/.env.
 ///
 /// Security: Do not allow `.env` files to create or modify any variables
-/// with names starting with `CODEX_`.
+/// with names starting with `CODEX_` or `ARCVERA_`.
 fn load_dotenv() {
     if let Ok(codex_home) = find_codex_home()
         && let dotenv_path = codex_home.join(".env")
@@ -283,7 +285,7 @@ fn load_dotenv() {
     }
 }
 
-/// Helper to set vars from a dotenvy iterator while filtering out `CODEX_` keys.
+/// Helper to set vars from a dotenvy iterator while filtering out product control keys.
 fn set_filtered<I>(iter: I)
 where
     I: IntoIterator<Item = Result<(String, String), dotenvy::Error>>,
@@ -295,7 +297,10 @@ where
             Err(dotenvy::Error::Io(err)) if err.kind() != std::io::ErrorKind::InvalidData => break,
             Err(_) => continue,
         };
-        if !key.to_ascii_uppercase().starts_with(ILLEGAL_ENV_VAR_PREFIX) {
+        if !ILLEGAL_ENV_VAR_PREFIXES
+            .iter()
+            .any(|prefix| key.to_ascii_uppercase().starts_with(prefix))
+        {
             // It is safe to call set_var() because our process is
             // single-threaded at this point in its execution.
             unsafe { std::env::set_var(&key, &value) };
@@ -343,7 +348,7 @@ fn prepare_aliases_in_home(
     existing_path: Option<OsString>,
 ) -> std::io::Result<(Arg0PathEntryGuard, OsString)> {
     std::fs::create_dir_all(codex_home)?;
-    // Windows and WSL can share CODEX_HOME without sharing a lock namespace.
+    // Windows and WSL can share ARCVERA_HOME without sharing a lock namespace.
     // Keep each OS outside the legacy `tmp/arg0` root so older clients cannot
     // delete these helpers while their owning process is still running.
     let temp_root = codex_home
@@ -530,6 +535,47 @@ fn try_lock_dir(dir: &Path) -> std::io::Result<Option<File>> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn dotenv_cannot_override_product_control_variables() {
+        const MARKER: &str = "ARCVERA_DOTENV_TEST_CHILD";
+        if std::env::var_os(MARKER).is_some() {
+            super::set_filtered([
+                Ok(("CODEX_HOME".to_string(), "forbidden".to_string())),
+                Ok(("arcvera_home".to_string(), "forbidden".to_string())),
+                Ok((
+                    "ArCvErA_DOTENV_CONTROL".to_string(),
+                    "forbidden".to_string(),
+                )),
+                Ok((
+                    "ARCVERA_DOTENV_ALLOWED".to_string(),
+                    "forbidden".to_string(),
+                )),
+                Ok(("DOTENV_ORDINARY_TEST".to_string(), "accepted".to_string())),
+            ]);
+            assert_eq!(std::env::var("CODEX_HOME").unwrap(), "original");
+            assert_eq!(std::env::var("ARCVERA_HOME").unwrap(), "original");
+            assert!(std::env::var_os("ArCvErA_DOTENV_CONTROL").is_none());
+            assert!(std::env::var_os("ARCVERA_DOTENV_ALLOWED").is_none());
+            assert_eq!(std::env::var("DOTENV_ORDINARY_TEST").unwrap(), "accepted");
+            return;
+        }
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "tests::dotenv_cannot_override_product_control_variables",
+                "--nocapture",
+            ])
+            .env(MARKER, "1")
+            .env("CODEX_HOME", "original")
+            .env("ARCVERA_HOME", "original")
+            .env_remove("ArCvErA_DOTENV_CONTROL")
+            .env_remove("ARCVERA_DOTENV_ALLOWED")
+            .env_remove("DOTENV_ORDINARY_TEST")
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+
     use super::Arg0DispatchPaths;
     use super::Arg0PathEntryGuard;
     use super::LOCK_FILENAME;

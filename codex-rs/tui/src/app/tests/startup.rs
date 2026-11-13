@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use super::session_lifecycle_requests::recorded_params;
 use super::session_lifecycle_requests::start_recording_remote_app_server;
 use super::*;
@@ -1455,7 +1457,7 @@ async fn remote_overview_startup_hides_disabled_older_server_notice() -> Result<
     app.local_settings.tui.show_server_version_notice = true;
     app.refresh_server_version_overview_notice("2.1.0");
     let rendered = render_bottom_popup(&app.chat_widget, /*width*/ 80);
-    assert!(rendered.contains("Service v2.0.0 < Codex CLI v2.1.0"));
+    assert!(rendered.contains("Service v2.0.0 < Arcvera Core CLI v2.1.0"));
     app.pending_server_version_notice =
         Some(crate::status::remote_connection::ServerVersionNotice {
             message: "Older service".to_string(),

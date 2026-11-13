@@ -1,8 +1,9 @@
+# Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 # Application-owned CLI help and parse-error presentation. Command tokens and values remain unchanged.
 
-cli-help-app-cmd-workspace-path-to-open-in-the-desktop-app = Workspace path to open in the Desktop app
+cli-help-app-cmd-workspace-path-to-open-in-the-desktop-app = Legacy workspace argument (Desktop integration is disabled)
 
-cli-help-app-cmd-override-the-app-installer-download-url-advanced = Override the app installer download URL (advanced)
+cli-help-app-cmd-override-the-app-installer-download-url-advanced = Legacy installer URL argument (ignored; installation is disabled)
 
 cli-cleanup-current = Current conversation UUID. Uses CODEX_THREAD_ID when omitted
 
@@ -78,7 +79,7 @@ cli-help-lib-disable-direct-network-access-in-the-supplied-sandbox = Disable dir
 
 cli-help-lib-named-permissions-profile-to-apply-from-the-active = Named permissions profile to apply from the active configuration stack
 
-cli-help-lib-layer-codex-home-name-config-toml-on-top = Layer $CODEX_HOME/<name>.config.toml on top of the base user config
+cli-help-lib-layer-codex-home-name-config-toml-on-top = Layer $ARCVERA_HOME/<name>.config.toml on top of the base user config
 
 cli-help-lib-working-directory-used-for-profile-resolution-and-command = Working directory used for profile resolution and command execution
 
@@ -120,7 +121,7 @@ cli-help-main-experimental-run-the-app-server-or-related-tooling = [experimental
 
 cli-help-main-experimental-manage-the-app-server-daemon-with-remote = [experimental] Manage the app-server daemon with remote control enabled
 
-cli-help-main-launch-the-desktop-app-opens-the-app-installer = Launch the Desktop app (opens the app installer if missing)
+cli-help-main-launch-the-desktop-app-opens-the-app-installer = Show Arcvera releases (Desktop launch and installation are disabled)
 
 cli-help-main-generate-shell-completion-scripts = Generate shell completion scripts
 
@@ -388,7 +389,7 @@ cli-help-marketplace-cmd-examples-codex-plugin-marketplace-upgrade-codex-plugin-
 cli-help-marketplace-cmd-example-codex-plugin-marketplace-remove-debug = Example:
       codex plugin marketplace remove debug
 
-cli-help-mcp-cmd-subcommands-list-list-configured-servers-with-json-get = Subcommands: - `list` — list configured servers (with `--json`) - `get` — show a single server (with `--json`) - `add` — add a server launcher entry to `~/.codex/config.toml` - `remove` — delete a server entry - `login` — authenticate with MCP server using OAuth - `logout` — remove OAuth credentials for MCP server
+cli-help-mcp-cmd-subcommands-list-list-configured-servers-with-json-get = Subcommands: - `list` — list configured servers (with `--json`) - `get` — show a single server (with `--json`) - `add` — add a server launcher entry to `~/.arcvera/config.toml` - `remove` — delete a server entry - `login` — authenticate with MCP server using OAuth - `logout` — remove OAuth credentials for MCP server
 
 cli-help-mcp-cmd-output-the-configured-servers-as-json = Output the configured servers as JSON
 
@@ -514,7 +515,7 @@ cli-help-sandbox-setup-windows-user-that-will-run-codex-after-managed = Windows 
 
 cli-help-sandbox-setup-use-the-current-windows-user-as-the-codex = Use the current Windows user as the Codex user
 
-cli-help-sandbox-setup-codex-home-for-the-codex-user-required-with = CODEX_HOME for the Codex user. Required with --user
+cli-help-sandbox-setup-codex-home-for-the-codex-user-required-with = ARCVERA_HOME for the Codex user. Required with --user
 
 cli-help-sandbox-uninstall-remove-the-legacy-windows-sandbox-s-machine-wide = Remove the legacy Windows sandbox's machine-wide accounts and network rules
 
@@ -559,7 +560,7 @@ cli-help-cli-allow-running-codex-outside-a-git-repository = Allow running Codex 
 
 cli-help-cli-run-without-persisting-session-files-to-disk = Run without persisting session files to disk
 
-cli-help-cli-do-not-load-codex-home-config-toml-auth = Do not load `$CODEX_HOME/config.toml`; auth still uses `CODEX_HOME`
+cli-help-cli-do-not-load-codex-home-config-toml-auth = Do not load `$ARCVERA_HOME/config.toml`; auth still uses `ARCVERA_HOME`
 
 cli-help-cli-do-not-load-user-or-project-execpolicy-rules = Do not load user or project execpolicy `.rules` files
 
@@ -671,9 +672,9 @@ cli-help-approval-mode-cli-arg-never-ask-for-user-approval-execution-failures-ar
 
 cli-help-config-override-cli-option-that-captures-arbitrary-configuration-overrides-specified = CLI option that captures arbitrary configuration overrides specified as `-c key=value`. It intentionally keeps both halves **unparsed** so that the calling code can decide how to interpret the right-hand side
 
-cli-help-config-override-override-a-configuration-value-that-would-otherwise-be = Override a configuration value that would otherwise be loaded from `~/.codex/config.toml`. Use a dotted path (`foo.bar.baz`) to override nested values. The `value` portion is parsed as TOML. If it fails to parse as TOML, the raw string is used as a literal
+cli-help-config-override-override-a-configuration-value-that-would-otherwise-be = Override a configuration value that would otherwise be loaded from `~/.arcvera/config.toml`. Use a dotted path (`foo.bar.baz`) to override nested values. The `value` portion is parsed as TOML. If it fails to parse as TOML, the raw string is used as a literal
 
-cli-help-config-override-override-a-configuration-value-that-would-otherwise-be-details = Override a configuration value that would otherwise be loaded from `~/.codex/config.toml`. Use a dotted path (`foo.bar.baz`) to override nested values. The `value` portion is parsed as TOML. If it fails to parse as TOML, the raw string is used as a literal.
+cli-help-config-override-override-a-configuration-value-that-would-otherwise-be-details = Override a configuration value that would otherwise be loaded from `~/.arcvera/config.toml`. Use a dotted path (`foo.bar.baz`) to override nested values. The `value` portion is parsed as TOML. If it fails to parse as TOML, the raw string is used as a literal.
 
     Examples: - `-c model="o3"` - `-c 'sandbox_permissions=["disk-full-read-access"]'` - `-c shell_environment_policy.inherit=all`
 

@@ -1,5 +1,7 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+# Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 #!/usr/bin/env python3
-"""Install a skill from a GitHub repo path into $CODEX_HOME/skills."""
+"""Install a skill from a GitHub repo path into $ARCVERA_HOME/skills."""
 
 from __future__ import annotations
 
@@ -44,7 +46,7 @@ class InstallError(Exception):
 
 
 def _codex_home() -> str:
-    return os.environ.get("CODEX_HOME", os.path.expanduser("~/.codex"))
+    return os.environ.get("ARCVERA_HOME", os.path.expanduser("~/.arcvera"))
 
 
 def _tmp_root() -> str:

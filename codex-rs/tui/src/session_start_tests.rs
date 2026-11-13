@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use super::*;
 use crate::legacy_core::config::ConfigBuilder;
 use app_test_support::create_fake_rollout;
@@ -180,7 +182,7 @@ fn session_start_error_surfaces_archived_guidance_without_rollout_path() {
         history_mode: None,
     };
     let expected = format!(
-        "session {thread_id} is archived. Run `codex unarchive {thread_id}` to unarchive it first."
+        "session {thread_id} is archived. Run `arcvera unarchive {thread_id}` to unarchive it first."
     );
 
     for action in ["resume", "fork"] {

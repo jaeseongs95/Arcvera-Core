@@ -1,4 +1,5 @@
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use codex_utils_absolute_path::test_support::PathExt;
 use std::ffi::OsStr;
@@ -228,7 +229,7 @@ async fn explicit_remote_control_startup_fails_when_disabled_by_requirements() -
         .join("app-server.sock");
     let transport =
         AppServerTransport::from_listen_url(&format!("unix://{}", socket_path.display()))?;
-    let _codex_home_guard = EnvVarGuard::set("CODEX_HOME", codex_home.path().as_os_str());
+    let _codex_home_guard = EnvVarGuard::set("ARCVERA_HOME", codex_home.path().as_os_str());
 
     let result = timeout(
         STARTUP_TIMEOUT,
@@ -609,7 +610,7 @@ async fn stdio_eof_releases_thread_writer_with_pending_remote_control_enable() -
         .with_codex_home(codex_home.path())
         .without_auto_env()
         .with_env_overrides(&[(
-            "CODEX_SQLITE_HOME",
+            "ARCVERA_SQLITE_HOME",
             Some(secondary_sqlite_home_path.as_ref()),
         )])
         .build_initialized()

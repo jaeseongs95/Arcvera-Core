@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Exercise trace acceptance through the CLI app-server and its offline reducer.
 
 use anyhow::Result;
@@ -30,7 +32,7 @@ use tokio::sync::oneshot;
 
 #[tokio::test]
 async fn enabled_recording_cannot_silently_fail_to_start() -> Result<()> {
-    let codex = codex_utils_cargo_bin::cargo_bin("codex")?;
+    let codex = codex_utils_cargo_bin::cargo_bin("arcvera")?;
     let home = TempDir::new()?;
     let server = create_mock_responses_server_sequence(Vec::new()).await;
     MockResponsesConfig::new(&server.uri()).write(home.path())?;
@@ -70,7 +72,7 @@ async fn enabled_recording_cannot_silently_fail_to_start() -> Result<()> {
 
 #[tokio::test]
 async fn accepted_output_survives_success_and_stream_failure() -> Result<()> {
-    let codex = codex_utils_cargo_bin::cargo_bin("codex")?;
+    let codex = codex_utils_cargo_bin::cargo_bin("arcvera")?;
     for (source_id, terminal, status) in [
         (
             Some("msg-original"),
@@ -145,7 +147,7 @@ async fn accepted_output_survives_success_and_stream_failure() -> Result<()> {
         // There is no following request to prove acceptance of this final item.
         let bundle = std::fs::read_dir(traces.path())?.next().unwrap()?.path();
         let reduced = tokio::process::Command::new(&codex)
-            .env("CODEX_HOME", home.path())
+            .env("ARCVERA_HOME", home.path())
             .args(["debug", "trace-reduce"])
             .arg(&bundle)
             .output()
@@ -196,7 +198,7 @@ async fn accepted_output_survives_success_and_stream_failure() -> Result<()> {
 
 #[tokio::test]
 async fn accepted_output_survives_interruption_and_shutdown() -> Result<()> {
-    let codex = codex_utils_cargo_bin::cargo_bin("codex")?;
+    let codex = codex_utils_cargo_bin::cargo_bin("arcvera")?;
     let home = TempDir::new()?;
     let traces = TempDir::new()?;
     let (release_response, response_gate) = oneshot::channel();
@@ -264,7 +266,7 @@ async fn accepted_output_survives_interruption_and_shutdown() -> Result<()> {
     // have preserved the accepted output even without response.completed.
     let bundle = std::fs::read_dir(traces.path())?.next().unwrap()?.path();
     let reduced = tokio::process::Command::new(&codex)
-        .env("CODEX_HOME", home.path())
+        .env("ARCVERA_HOME", home.path())
         .args(["debug", "trace-reduce"])
         .arg(&bundle)
         .output()

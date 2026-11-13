@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! UI-only language selection. Never apply this dictionary to prompts, tool arguments,
 //! slash command tokens, paths, or text supplied by the user or a server.
@@ -157,7 +159,7 @@ mod tests {
                     refused,
                     unknown_path,
                     "--no-daemon",
-                    "codex app-server daemon update --from-cli --yes --no-force",
+                    "arcvera app-server daemon update --from-cli --yes --no-force",
                 ] {
                     assert!(warning.contains(expected), "{warning}");
                 }
@@ -192,7 +194,9 @@ mod tests {
             assert!(warning.contains(selected), "{warning}");
             assert!(warning.contains(client), "{warning}");
             assert!(warning.contains(preserved), "{warning}");
-            assert!(warning.contains("codex app-server daemon update --from-cli --yes --no-force"));
+            assert!(
+                warning.contains("arcvera app-server daemon update --from-cli --yes --no-force")
+            );
         }
     }
 
