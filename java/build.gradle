@@ -1,0 +1,30 @@
+plugins { id 'java' }
+repositories { mavenCentral() }
+dependencies {
+    implementation platform('org.springframework.boot:spring-boot-dependencies:4.1.2')
+    implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
+    testImplementation platform('org.springframework.boot:spring-boot-dependencies:4.1.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    def externalDriver = providers.environmentVariable('ARCVERA_TEST_JDBC_JAR').orNull
+    if (externalDriver != null) testRuntimeOnly files(externalDriver)
+}
+java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+tasks.withType(JavaCompile).configureEach { options.compilerArgs += ['-Xlint:all', '-Werror'] }
+tasks.withType(Test).configureEach { useJUnitPlatform(); maxParallelForks = 1; maxHeapSize = '256m'; jvmArgs '-XX:ActiveProcessorCount=1' }
+test { exclude '**/store/**' }
+tasks.register('dbTest', Test) {
+    description = 'Runs the explicit external database integration tests.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include '**/store/**'
+    outputs.upToDateWhen { false }
+    doFirst {
+        ['ARCVERA_TEST_JDBC_JAR', 'ARCVERA_TEST_DB_URL', 'ARCVERA_TEST_DB_USER', 'ARCVERA_TEST_DB_PASSWORD_FILE'].each {
+            if (!providers.environmentVariable(it).isPresent() || providers.environmentVariable(it).get().isBlank())
+                throw new GradleException("Missing required environment variable: ${it}")
+        }
+        if (!file(providers.environmentVariable('ARCVERA_TEST_JDBC_JAR').get()).isFile())
+            throw new GradleException('Configured JDBC driver file does not exist')
+    }
+}
