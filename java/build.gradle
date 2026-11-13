@@ -3,6 +3,7 @@ repositories { mavenCentral() }
 dependencies {
     implementation platform('org.springframework.boot:spring-boot-dependencies:4.1.2')
     implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
     testImplementation platform('org.springframework.boot:spring-boot-dependencies:4.1.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

@@ -583,7 +583,7 @@ def checked_target(root,path):
         raise ValueError(f'Unexpected export symlink: {path}')
     return target
 
-def canonical_bytes(relative,data):return data.replace(b'\r\n',b'\n') if relative in WINDOWS_INPUTS else data
+def canonical_bytes(relative,data):return data.replace(b'\r\n',b'\n') if relative in WINDOWS_INPUTS or relative=='java/gradlew.bat' else data
 
 def existing_bytes(path,relative):return canonical_bytes(relative,os.readlink(path).encode() if path.is_symlink() else path.read_bytes())
 

@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "e96bbfe5d75d01fc0533d8edaed751cddfc7a0491294340ab94ddaea273664bf",
+  "sourceTreeSha256": "66f1dc55d5ee771a98d30ac47b6809e86763e054b5905fd495179274e26b57bc",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "b41d5cf3ddad9d4bc1250169fe4f76025c2321db2fe2e12826cae7f779c8feff"
+    "sha256": "1441559ff57b0e5a114ceed4dffc59cb97b47e461aa21fbfa810f12e25a36532"
   },
   "files": [
     {
@@ -65777,6 +65777,153 @@
       "gitBlob": "c3c210054981cb3c4bb9d27d95df155d7ce89497"
     },
     {
+      "path": "contracts/core-api/v1/.gitattributes",
+      "gitMode": "100644",
+      "bytes": 14,
+      "sha256": "a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9",
+      "gitBlob": "fcadb2cf97913f58a2523f535336e725c6b59d1f"
+    },
+    {
+      "path": "contracts/core-api/v1/bootstrap-descriptor.schema.json",
+      "gitMode": "100644",
+      "bytes": 1869,
+      "sha256": "c578ae729d0c3dd73e455fd3b60c8dec5b653874db5e7cf2388e8d529a105c62",
+      "gitBlob": "73e3b245cab87e1bb77ce33ed8815d86dbe683f4"
+    },
+    {
+      "path": "contracts/core-api/v1/bootstrap-policy.ko.md",
+      "gitMode": "100644",
+      "bytes": 7340,
+      "sha256": "36731f0bb5b47edc321ff9c7952d50bab4b32b424cfad31350fd79406d9be663",
+      "gitBlob": "f31e1a879dca9bcbdd21c5ea06fde9adf1c05f90"
+    },
+    {
+      "path": "contracts/core-api/v1/contract.ko.md",
+      "gitMode": "100644",
+      "bytes": 17659,
+      "sha256": "55aa8b1fab07d45d0c95977a1944aee65d31bef701668031610529a054ffa684",
+      "gitBlob": "d7c61c362f51729e04497ac0d7afa0e323b3606b"
+    },
+    {
+      "path": "contracts/core-api/v1/events.schema.json",
+      "gitMode": "100644",
+      "bytes": 9525,
+      "sha256": "8629b34f04898e3ac7a85faaea25e577540fffb030b31d24fe44f7ba952dc307",
+      "gitBlob": "f02eac18173359c71fec80096d0ecd3b1ce7dde3"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/descriptor.bad-pin.invalid.json",
+      "gitMode": "100644",
+      "bytes": 1913,
+      "sha256": "8083de5ca1f5e617cd4d8a0bc0d834c53ca5b17d01326cad7ade9a024d9f73ff",
+      "gitBlob": "e44982641f80c842a2ce41a60993016b015f3e62"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/descriptor.http.invalid.json",
+      "gitMode": "100644",
+      "bytes": 1974,
+      "sha256": "f3dc2bd909fe02b027d9beaf1f747972c643dd234c5f778cc3514fd041b12098",
+      "gitBlob": "96abdcfbb97a046ce2aaeccf6dd9c2e81494bbb9"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/descriptor.port0.invalid.json",
+      "gitMode": "100644",
+      "bytes": 1971,
+      "sha256": "a6f53fca65fdf4f3ad6233ec8083bb6a437338bce8fe8ed455e593b43c065d54",
+      "gitBlob": "de68cc13f3173cc566cc19b57b0fdfd80d50719d"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/descriptor.remote.invalid.json",
+      "gitMode": "100644",
+      "bytes": 1977,
+      "sha256": "21ff969c5936f304ea4b444521ff4b4e83eb3d9e157dc210304b9fe894409c71",
+      "gitBlob": "0c84f91c569698c4e84e75d6a560b25fe84910d8"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/descriptor.unknown-field.invalid.json",
+      "gitMode": "100644",
+      "bytes": 2011,
+      "sha256": "d1228b4940aa7525491a48f93a80d3033a41888c63d2989899c4e27c8acc7115",
+      "gitBlob": "6248b420d92002b1fb2c6b8a6aa9c227ab370472"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/descriptor.valid.json",
+      "gitMode": "100644",
+      "bytes": 1975,
+      "sha256": "7dce524de346a3636b69b35bb413cede583a6d298228cadaa06553c1ccb0a303",
+      "gitBlob": "c0476c56bcd12f56e0dc598ada3403b9e76acd8f"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/manifest.json",
+      "gitMode": "100644",
+      "bytes": 1696,
+      "sha256": "a8bd7c3556e4a792751238453a8e8fdc0268e36cd5faa201fe2c10bb74b79725",
+      "gitBlob": "948c88b7a4f3ad1fbcc3620d4f7d274b28acc915"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/problem.valid.json",
+      "gitMode": "100644",
+      "bytes": 337,
+      "sha256": "942eac0ad11e0a70d8d171698e036ece06cf595eb754c8dd6cfd67d1a9e87d6a",
+      "gitBlob": "74401b3a340544f2f0f30cacaa1410ac3286151a"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/semantic/assembly.json",
+      "gitMode": "100644",
+      "bytes": 4192,
+      "sha256": "7bb8de0bf6acc5afb426bdf9c1048c853a139247beff8c55fdb7760a5fbcf5c3",
+      "gitBlob": "5d6b70654c945c0091dd61ddc3ef0ff79ff5f26b"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/semantic/high-water.json",
+      "gitMode": "100644",
+      "bytes": 1916,
+      "sha256": "ab99b1d6e1a8ec743e902bcf6054aab079dafa2a827b7d25ccf6df9f73d8bc37",
+      "gitBlob": "dc770802d5398d042fff4ad669da0bb57e9f1919"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/semantic/recovery.json",
+      "gitMode": "100644",
+      "bytes": 821,
+      "sha256": "5dcef9bc81e1ee1d76bd58a01128d1ee355b27b38e757003a6b60e310bb9a1a6",
+      "gitBlob": "d519e3b9775623dfa75cb4fde6b9cbc27befcb7b"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/submit-task.bad-revision.json",
+      "gitMode": "100644",
+      "bytes": 384,
+      "sha256": "60ba5e3ff34d67f8d5d7931fa0fa70e784c086ac0c27c8ea387288a817acdee2",
+      "gitBlob": "1f331bca3ba6fb02b498d2757b4d413c4f20c5e1"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/submit-task.missing-lease.json",
+      "gitMode": "100644",
+      "bytes": 229,
+      "sha256": "3286102e44df595369d29f1f284107ef5ff4574808fc31c864613c73ceed0cd5",
+      "gitBlob": "1dd3bc7be9f35e5a03545fb4cbdebdb25a91ae63"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/submit-task.valid.json",
+      "gitMode": "100644",
+      "bytes": 386,
+      "sha256": "bbafb92ef9db56d312ba753a5697f0c0259508ba69905eb0fa04b08ea90ecfaa",
+      "gitBlob": "a8c6c35c6b93fa7ecb55eba70e80634d56e9846f"
+    },
+    {
+      "path": "contracts/core-api/v1/openapi.json",
+      "gitMode": "100644",
+      "bytes": 25635,
+      "sha256": "25a971089a2baab582be2d78b4eeddd684c2525f38433bd4263358883eb73229",
+      "gitBlob": "10ebc5abef7e07a8dd317744ba50c0aefc2734fb"
+    },
+    {
+      "path": "contracts/core-api/v1/schemas.json",
+      "gitMode": "100644",
+      "bytes": 48438,
+      "sha256": "30f13ffc4837aeef2bee31862a2facedc790fc73238ef2d8a9d87581b636a4fb",
+      "gitBlob": "935287e747ae65845731f275dd2fbd7f2ffd5e33"
+    },
+    {
       "path": "docs/TESTING.md",
       "gitMode": "100644",
       "bytes": 64663,
@@ -66085,6 +66232,216 @@
       "gitBlob": "c65d1e6a294fe0509d4e164fa95e829d596327f7"
     },
     {
+      "path": "java/.gitattributes",
+      "gitMode": "100644",
+      "bytes": 111,
+      "sha256": "197179d5469ce74e36700587f8d6ec89ea811a4f5517e22ad46ad7ca90989952",
+      "gitBlob": "6021ab90fb13c45411cdd807a29ffdd02b6f4e93"
+    },
+    {
+      "path": "java/.gitignore",
+      "gitMode": "100644",
+      "bytes": 18,
+      "sha256": "93579b58fc86ec5cba9cf7479f71821e42339affb3f040689e93d156d41f290c",
+      "gitBlob": "abc78ba75aadd92886791870acfb674e6143623b"
+    },
+    {
+      "path": "java/build.gradle",
+      "gitMode": "100644",
+      "bytes": 1846,
+      "sha256": "1f6909762a888d2616d57fa1a4d04a2e097d3b80c8eca075bff08cef1ecd4683",
+      "gitBlob": "6779d6eb2c15ae3dc6a008150f644b7a339054f6"
+    },
+    {
+      "path": "java/gradle/wrapper/gradle-wrapper.jar",
+      "gitMode": "100644",
+      "bytes": 49154,
+      "sha256": "621008afc4f5d59357fcf06ffa644dd5aade5e091bdc363742710445f73cdaf8",
+      "gitBlob": "51cbd2a6f8121b2ce12daf979b128058fb9672ee"
+    },
+    {
+      "path": "java/gradle/wrapper/gradle-wrapper.properties",
+      "gitMode": "100644",
+      "bytes": 281,
+      "sha256": "d087d7b46a4b10dcce17ed9bd693fa57849cb180f2490cc8e3126b599010b140",
+      "gitBlob": "94c356a03a3bb60b2e852748e5a3a3cb36aada9c"
+    },
+    {
+      "path": "java/gradlew",
+      "gitMode": "100644",
+      "bytes": 8656,
+      "sha256": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+      "gitBlob": "249efbb032ce46a80c687c0723eb172e85f6a136"
+    },
+    {
+      "path": "java/gradlew.bat",
+      "gitMode": "100644",
+      "bytes": 4776,
+      "sha256": "31ec098bd961c460b62875950c3eff5c8213bcb0bbde38d769b88512877fd21f",
+      "gitBlob": "3185a43f78fabec15ca99b0ca6bf1e666218d5ca"
+    },
+    {
+      "path": "java/settings.gradle",
+      "gitMode": "100644",
+      "bytes": 39,
+      "sha256": "e090f9abba4aa2132402ddf5d35d7738439be059a35fd7cf81f7e19d259534e2",
+      "gitBlob": "3592b8f40abc2b74f6e37b5442573df6d637980a"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/BootstrapSchedulingConfiguration.java",
+      "gitMode": "100644",
+      "bytes": 857,
+      "sha256": "774f8216f2b1ac2a316ca9c20608f33a87813c7a41d371e414a0343386460bd0",
+      "gitBlob": "1d823c5f0bb14ee5a23b40e5976b51b1cecf5d25"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/CredentialCleanup.java",
+      "gitMode": "100644",
+      "bytes": 487,
+      "sha256": "562f08255df8c675af6200b9e60ed66b711fc7d57cb14258731f8164d4b8f22f",
+      "gitBlob": "251a54e7628206237a5c6a8d786ff790f3484d7f"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/CredentialRegistry.java",
+      "gitMode": "100644",
+      "bytes": 11591,
+      "sha256": "332c056c82912c63c1e7b172924bf9d274e4fcc15bc80bfbabb8dc89380fa477",
+      "gitBlob": "21e29ad9cabaee043df800eedc7e5401188029d6"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/LocalCredentialIntrospector.java",
+      "gitMode": "100644",
+      "bytes": 1517,
+      "sha256": "f2f750f212be37c3f97e02091edffc0e8d9565a3b4e08eb599a26b0628d6a03c",
+      "gitBlob": "816e622efaca784ab36aaf4302c1effb7c83cc65"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/domain/ExecutionTurn.java",
+      "gitMode": "100644",
+      "bytes": 2029,
+      "sha256": "f0b8e78b52878eefa47e7188d88b116b80aaf6d005ed757c881b5284652b1ad0",
+      "gitBlob": "104410dab3045ad7c28250db98fd1b6f2010f5e3"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/domain/SessionEffect.java",
+      "gitMode": "100644",
+      "bytes": 3232,
+      "sha256": "e75d41e9484e8f37338206ff77aa0ce22c9a1d44b5d3bb23ee92616adcf5940a",
+      "gitBlob": "52712550054e8d392fbdc635227e3e1c37fc72a3"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/domain/TaskRun.java",
+      "gitMode": "100644",
+      "bytes": 6063,
+      "sha256": "eaa5f3a52f0466c96f776557855b96e083153032ddc60ceb2e9349d0bb5584e8",
+      "gitBlob": "7238e8aab5e613c4b770f0bab0a4c6556bbe14de"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/AcceptanceTransaction.java",
+      "gitMode": "100644",
+      "bytes": 2757,
+      "sha256": "13439d1e1d4b8cc7cd13d5606d27478230293246b8c8e574a748842b342dad23",
+      "gitBlob": "c0fd47bc89cee9d7401471db92583dd27b404bee"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/ConversationRepository.java",
+      "gitMode": "100644",
+      "bytes": 175,
+      "sha256": "35d5888a3b77596a4f8a493810afcf19ae7b06159413f86c06b8b24b562fb618",
+      "gitBlob": "7d20d098bf3812585174a736bbcdde4060aade3a"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/ConversationRow.java",
+      "gitMode": "100644",
+      "bytes": 472,
+      "sha256": "7d155c08ec282e3b2dd37ebed5afc27f59c9deb6d68e42d7114e2ad9d9edfde7",
+      "gitBlob": "44a67b106a66f42453e2240471633b0d1bd1a61e"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/EventRepository.java",
+      "gitMode": "100644",
+      "bytes": 161,
+      "sha256": "443fedd10d20da7494b45807fd2c2d0d6b93e0fc3a11220e3c76087e0ce095b6",
+      "gitBlob": "578145fb1c7454a11c784b8081d7810b29a4bfc3"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/EventRow.java",
+      "gitMode": "100644",
+      "bytes": 498,
+      "sha256": "f7e528cc7e3363d2ad11d9b76a1be32f3ad092030e2861ce82145f1157801964",
+      "gitBlob": "191ad901133da5fb1e61884deaa7e035e37fb90f"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/ReceiptRepository.java",
+      "gitMode": "100644",
+      "bytes": 581,
+      "sha256": "d6bc5a4782e950f0a6082e7be3cb3ff60185f7b9c1b52f02e73db9c9ea56a9fd",
+      "gitBlob": "b8645f72a3e92890975148f70887ae000126bcab"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/ReceiptRow.java",
+      "gitMode": "100644",
+      "bytes": 910,
+      "sha256": "df6d4af2dd668d5387748c843cf09cf3ef1785ca785288e53feb3cd7c48d7539",
+      "gitBlob": "ea518943fa9751d3b99dcdea840d3b942c7bed5f"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/ReceiptRowMapper.java",
+      "gitMode": "100644",
+      "bytes": 915,
+      "sha256": "995d2d6beefd9f47bebb8006ba1beacb3f4ff06e05a21df40448cc684bf55d84",
+      "gitBlob": "d6a846a49f6d4c4f4836fcf1540ed86c5011a13d"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/TaskAcceptanceStore.java",
+      "gitMode": "100644",
+      "bytes": 6973,
+      "sha256": "59d840e06840ccec7b7950d41e54eb21258df29fb8a04cbb9513d3a44f716f34",
+      "gitBlob": "8c289c4da63c2ae502fa527ce1a5d6cb477974dd"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/TaskRepository.java",
+      "gitMode": "100644",
+      "bytes": 159,
+      "sha256": "b968a5987d7b203c8aefccd297491e927b6fcf89c4b2333d126216f48513370e",
+      "gitBlob": "2abcd28510959e380a4818e053a4f18c8880824b"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/TaskRow.java",
+      "gitMode": "100644",
+      "bytes": 454,
+      "sha256": "a42650e54e627c63f14edee35cf4d77e307033c49a857aa7bf92702048d78cdc",
+      "gitBlob": "84d9dc7e67a4d0497d8900244e9a3721ee864dbb"
+    },
+    {
+      "path": "java/src/test/java/io/arcvera/core/bootstrap/CredentialRegistryTest.java",
+      "gitMode": "100644",
+      "bytes": 12173,
+      "sha256": "606c71f7e36060e87c851f294a383b6b9995896993c5593ebd35a6f53c89e026",
+      "gitBlob": "d2d1f3e848bc8cddee02faf5a73afb9aa5c84996"
+    },
+    {
+      "path": "java/src/test/java/io/arcvera/core/bootstrap/LocalCredentialIntrospectorTest.java",
+      "gitMode": "100644",
+      "bytes": 3836,
+      "sha256": "dd8954c5f4b5a0c7c503603b2a3e47d3dffa6897e940bc715b61971194bd70d0",
+      "gitBlob": "1946a0e8daa2898b93682438f8e154a52b2aa503"
+    },
+    {
+      "path": "java/src/test/java/io/arcvera/core/domain/TaskRunTest.java",
+      "gitMode": "100644",
+      "bytes": 9891,
+      "sha256": "d541cac4be09cab7c12499812e37636760894b230380ebbfc094eb457b5879ab",
+      "gitBlob": "ef2f060a9ea458dfe25f67ccb4ee872603a75980"
+    },
+    {
+      "path": "java/src/test/java/io/arcvera/core/store/TaskAcceptanceStoreTest.java",
+      "gitMode": "100644",
+      "bytes": 18359,
+      "sha256": "74fa6e3513c4cb6c31fd63b6612ee3d19c2f68b7df179ce835750de4c24de83c",
+      "gitBlob": "035629e24aa2bf0cb1e36f09fb86f8dc60fcc3d4"
+    },
+    {
       "path": "patches/BUILD.bazel",
       "gitMode": "100644",
       "bytes": 1553,
@@ -66367,23 +66724,23 @@
     {
       "path": "scripts/source-import/export.py",
       "gitMode": "100644",
-      "bytes": 41966,
-      "sha256": "23470cb0fca8735c0305e7f76d73ef2bb9e350326c9fc2b3155b7b691c694c20",
-      "gitBlob": "cfd802d7089c70db1bdca91672f21a4ca3a70a4a"
+      "bytes": 41998,
+      "sha256": "62f5a028e771af3cdc1769c9e1c2076bb227b8191f54c8696236befd9c34289d",
+      "gitBlob": "b8210da9be8049f1f33bc582dfb926c9b90b9c25"
     },
     {
       "path": "scripts/source-import/test_current.py",
       "gitMode": "100644",
-      "bytes": 16927,
-      "sha256": "67c1481a92e7d22b4ce5c08c67ce4b3d12a637f0defd2f979c572b4d5ff86bb5",
-      "gitBlob": "717a4cc2ce4d1cca771b65dfcb33ecb7a9ec3913"
+      "bytes": 18941,
+      "sha256": "9b2be9543a1d87d5d85f6ad58db38548b5eae3a18f68a87100e782f5a9957299",
+      "gitBlob": "993606ccb04e454b12d038e20716275e9e97e905"
     },
     {
       "path": "scripts/source-import/test_verify.py",
       "gitMode": "100644",
-      "bytes": 24539,
-      "sha256": "41e384ef9b39b5c9f95d9d9182c2c371c50fa97c13f8b062ec756df27be12abe",
-      "gitBlob": "92075fe16731c1a05f25793b15926067ed893537"
+      "bytes": 25046,
+      "sha256": "556551ca27903cb95c42177ca34f3983d5cb4f447f0583caf7a0c3e9a026a7b5",
+      "gitBlob": "7d0b3d9dd487a9c0cbe947bd59deec7e8f4549b6"
     },
     {
       "path": "scripts/source-import/verify.py",
@@ -67000,6 +67357,27 @@
       "bytes": 824,
       "sha256": "b48843864b8d6703599a17eee3b846adbfef15cbb2f828612d9cae76568c662c",
       "gitBlob": "b0073861d09dcc168c84b4027c0c2e9cb426e5aa"
+    },
+    {
+      "path": "tools/contracts/.gitattributes",
+      "gitMode": "100644",
+      "bytes": 14,
+      "sha256": "a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9",
+      "gitBlob": "fcadb2cf97913f58a2523f535336e725c6b59d1f"
+    },
+    {
+      "path": "tools/contracts/requirements.txt",
+      "gitMode": "100644",
+      "bytes": 19,
+      "sha256": "756cc9e506ae4ee1a6f6c0507088b5cfc0dc8ba350fb2d2d46f1ffa72033adb6",
+      "gitBlob": "3ee1ea1a4270a73d0a83859fefca415177450121"
+    },
+    {
+      "path": "tools/contracts/verify_contract.py",
+      "gitMode": "100644",
+      "bytes": 19303,
+      "sha256": "2ec620849c38c333b135dd3ed9764a26298ae5b8a70a83cbaf6573ad75c3f3f7",
+      "gitBlob": "441db48b3f4cc7042bc4bb44a3f105d6b0b3d34f"
     },
     {
       "path": "tools/windows-cli/.gitattributes",
@@ -68062,6 +68440,111 @@
       "notice": "external-in-CURRENT_SOURCE.json"
     },
     {
+      "path": "contracts/core-api/v1/.gitattributes",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/bootstrap-descriptor.schema.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/bootstrap-policy.ko.md",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/contract.ko.md",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/events.schema.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/descriptor.bad-pin.invalid.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/descriptor.http.invalid.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/descriptor.port0.invalid.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/descriptor.remote.invalid.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/descriptor.unknown-field.invalid.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/descriptor.valid.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/manifest.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/problem.valid.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/semantic/assembly.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/semantic/high-water.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/semantic/recovery.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/submit-task.bad-revision.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/submit-task.missing-lease.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/fixtures/submit-task.valid.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/openapi.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "contracts/core-api/v1/schemas.json",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
       "path": "docs/context-index.ko.md",
       "status": "added",
       "notice": "external-in-CURRENT_SOURCE.json"
@@ -68094,6 +68577,156 @@
     {
       "path": "docs/source-import.md",
       "status": "modified",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/.gitattributes",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/.gitignore",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/build.gradle",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/gradle/wrapper/gradle-wrapper.jar",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/gradle/wrapper/gradle-wrapper.properties",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/gradlew",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/gradlew.bat",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/settings.gradle",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/BootstrapSchedulingConfiguration.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/CredentialCleanup.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/CredentialRegistry.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/LocalCredentialIntrospector.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/domain/ExecutionTurn.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/domain/SessionEffect.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/domain/TaskRun.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/AcceptanceTransaction.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/ConversationRepository.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/ConversationRow.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/EventRepository.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/EventRow.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/ReceiptRepository.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/ReceiptRow.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/ReceiptRowMapper.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/TaskAcceptanceStore.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/TaskRepository.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/TaskRow.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/test/java/io/arcvera/core/bootstrap/CredentialRegistryTest.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/test/java/io/arcvera/core/bootstrap/LocalCredentialIntrospectorTest.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/test/java/io/arcvera/core/domain/TaskRunTest.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/test/java/io/arcvera/core/store/TaskAcceptanceStoreTest.java",
+      "status": "added",
       "notice": "external-in-CURRENT_SOURCE.json"
     },
     {
@@ -68154,6 +68787,21 @@
     {
       "path": "third_party/voice/windows_crt.py",
       "status": "modified",
+      "notice": "inline-r41"
+    },
+    {
+      "path": "tools/contracts/.gitattributes",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "tools/contracts/requirements.txt",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "tools/contracts/verify_contract.py",
+      "status": "added",
       "notice": "inline-r41"
     },
     {

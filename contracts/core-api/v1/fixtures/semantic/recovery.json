@@ -1,0 +1,9 @@
+{
+  "schemaMajor": 1,
+  "recoveryId": "123e4567-e89b-42d3-a456-426614174002",
+  "pageIndex": "0",
+  "expiresAt": "2026-11-13T10:00:00.000Z",
+  "nextPageToken": null,
+  "tasks": [{"conversationId": "123e4567-e89b-42d3-a456-426614174001", "taskRunId": "123e4567-e89b-42d3-a456-426614174004", "revision": "1", "state": "RUNNING"}],
+  "pendingApprovals": [{"conversationId": "123e4567-e89b-42d3-a456-426614174001", "approvalId": "123e4567-e89b-42d3-a456-426614174008", "requestId": "123e4567-e89b-42d3-a456-426614174009", "taskRunId": "123e4567-e89b-42d3-a456-426614174004", "executionTurnId": "123e4567-e89b-42d3-a456-426614174005", "revision": "1", "kind": "TOOL", "secret": false, "allowedDecisions": ["ALLOW", "DENY"], "promptDetailId": "123e4567-e89b-42d3-a456-426614174011", "expiresAt": "2026-11-13T10:00:00.000Z"}]
+}

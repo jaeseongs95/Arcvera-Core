@@ -103,6 +103,13 @@ class VerifierChecks(unittest.TestCase):
         self.assertEqual(EXPORT.canonical_bytes('codex-rs/schema.json.zst',b'\x00\r\n'),b'\x00\r\n')
         self.assertNotIn(b'eol=crlf',EXPORT.prompt_attributes())
         self.assertEqual(EXPORT.prompt_attributes().count(b' text\n'),40)
+    def test_gradle_wrapper_checkout_normalizes_only_its_exact_path(self):
+        path='java/gradlew.bat'
+        self.assertEqual(EXPORT.canonical_bytes(path,b'one\r\ntwo\r\n'),b'one\ntwo\n')
+        self.assertEqual(EXPORT.canonical_bytes(path,b'one\ntwo\n'),b'one\ntwo\n')
+        for other in ('java/other.bat','java/gradlew.bat.bin','codex-rs/schema.json.zst'):
+            with self.subTest(path=other):
+                self.assertEqual(EXPORT.canonical_bytes(other,b'\x00\r\n\xff'),b'\x00\r\n\xff')
     def test_generated_typescript_preserves_actual_rust_prefix_contract(self):
         root=SCRIPT.resolve().parents[2]
         inventory=__import__('json').loads((root/'upstream/source-inventory.json').read_bytes())

@@ -26,6 +26,10 @@ issuedAt/expiresAt은 UTC 고정 밀리초다. issuedAt의 미래 오차 허용�
 
 같은 instance의 generation 역행·같은 generation의 다른 내용·과거 descriptor 재등장은 거부한다. 새 instance는 TLS 검증과 storeEpoch·진행 작업 대조를 다시 거친다. 정상 회전의 이전 자격 유예는 최대 30초이며, 명시적 revoke/프로세스 종료/침해 대응은 유예 없이 신규 요청과 SSE 연결을 거부·종료한다. HTTP는 401, 열린 SSE는 REAUTHENTICATE/CREDENTIAL_REVOKED 후 닫는다. Desktop은 descriptor를 다시 읽어 검증하며 무한 재시도하지 않는다. 이전 client·SSL bundle·listener는 닫고 교체하여 연결 자원이 누적되지 않게 한다.
 
+Desktop 신뢰 프로세스는 프로필별 H2에 비밀 없는 high-water `(instanceId, storeEpoch, generation, descriptorDigest)`를 원자적으로 영속하고 재시작 후에도 읽는다. descriptorDigest는 보호된 핸들에서 읽고 검증한 **원본 UTF-8 파일 바이트 전체**의 SHA-256이다. 자격 원문·descriptor 원문을 DB나 로그에 저장하지 않는다. 형식·보호·TLS anchor/SPKI·bearer 인증 및 인증된 handshake의 profile/principal/instance/store 결속을 모두 확인하기 전에는 어떤 generation도 저장하거나 기준을 높이지 않는다. 같은 instance/store에서 generation이 낮으면 거절하고 같으면 digest가 일치할 때만 허용한다. 높으면 인증 후 비교와 저장을 한 트랜잭션으로 하며 동시 갱신에 진 값은 새 기준을 다시 읽어 비교한다. 다른 instance 또는 storeEpoch는 숫자를 비교해 자동 수락하지 않고 인증 후 이전 작업·저널과 새 저장소 정본을 대조할 때까지 입력을 보호한다. 복구 확인 뒤 새 기준을 저장한다. 이 저장 자체는 TLS·서버 인증의 대체물이 아니다.
+
+owner SID와 SYSTEM으로 제한한 DACL은 다른 일반 OS 사용자의 접근을 막기 위한 경계다. 같은 SID로 실행되는 다른 프로세스에 대한 격리를 제공하지 않는다.
+
 ## 필수 검증 사례
 
 정상 protected fixture·TLS·handshake; 다른 owner·그룹 읽기/쓰기·부모 교체 권한; 링크/읽는 중 교체; oversize·중복 키; DNS·http·port0; 잘못된/만료 인증서·SAN·SPKI; stale port에서 TLS 실패 시 bearer 미전송; 만료/미래 자격; generation 역행/동일세대 변조; 회전·revoke·SSE 종료; profile/principal/storeEpoch 불일치; 반복 재접속 뒤 context/connection 수 회수다. schema fixture만으로 이 OS/TLS/런타임 사례가 통과했다고 보고하지 않는다.

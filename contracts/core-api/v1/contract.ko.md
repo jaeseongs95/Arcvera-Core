@@ -74,3 +74,19 @@ TOOL 턴은 원본 `callId`를 반드시 가지며, ACCEPTED receipt는 resource
 닫힌 enum과 payload variant에 새 값을 추가하면 schemaMajor를 올린다. 미지 durable/control/Problem/DisplayPart나 major를 받은 소비자는 해당 대화의 증분 적용·입력을 멈추고 UNSUPPORTED 표시 및 호환 handshake를 요구한다. 모르는 이벤트의 커서를 저장하거나 raw payload를 UI·로그로 보내지 않는다. 기존 major를 유지한 임의 확장을 성공으로 해석하지 않는다.
 
 P0 통합 범위는 text/default-profile 경로다. 모델·effort 선택, 첨부, runtime 전환과 확장 detail은 전체 Core2.0/Desktop3.0 목표에 남아 있으며 후속 계약/구현/검증 전 지원 capability로 광고하지 않는다.
+
+## 0.2 소비자 조립 및 critical 복구 보완안
+
+각 snapshot 페이지의 `state.conversation`과 `state.lease`는 모든 페이지에 의미상 완전히 같은 JSON 값으로 반복한다. `tasks`, `pendingApprovals`, `messages`는 각 객체를 정확히 한 페이지에만 넣는 연속 분할이며 빈 배열을 허용한다. 각 배열은 pageIndex 증가 순으로 이어 붙인다. 객체 자체는 페이지 사이에서 나누지 않는다. 원본 순서를 보존하며 수신 순서를 바꾸거나 중복을 제거해 오류를 숨기지 않는다.
+
+수신자는 각 페이지를 한 번씩 0부터 pageCount-1까지, 요청에 사용한 바로 앞 응답의 nextPageToken으로 받는다. 모든 페이지의 schemaMajor·conversationId·streamEpoch·snapshotId·aggregateRevision·appliedThroughSequence·resumeAfter·pageCount·totalBytes는 동일하고 N=appliedThroughSequence=resumeAfter다. 마지막 토큰만 null이며 앞선 토큰들은 비어 있지 않고 중복되지 않는다. conversation의 ID·epoch·revision 및 lease의 conversationId는 봉투와 일치한다. 전체 합산 제한은 tasks 32, pendingApprovals 128, messages 128이며 task 각각의 turns 1024·effects 256이다. taskRunId, approvalId, messageId는 각 배열 전체에서 유일하고 executionTurnId·effectId는 각각 snapshot 전체에서 유일하다. 각 task의 conversationId, effect의 taskRunId와 originExecutionTurnId, approval의 conversationId·taskRunId·executionTurnId를 대조한다. activeTaskRunId가 있으면 해당 task가 있어야 한다. 참조 실패·불완전 페이지·불일치·중복·한도 위반은 전체 임시 조립을 폐기하고 cursor를 저장하지 않는다.
+
+`totalBytes`는 모든 페이지에서 **압축 해제 후 각 HTTP 응답 entity의 실제 UTF-8 바이트 길이 합**이다. JSON 공백과 각 봉투 자체도 포함하며 HTTP 헤더·프레임·압축 바이트는 제외한다. 서버는 정확한 최종 직렬화 길이를 선언하고 클라이언트는 선언값과 실제 합계를 비교한다. 전송 압축 여부와 무관하게 streaming decoder가 압축 해제 중 페이지별 1MiB 및 전체 16MiB 이하를 집행하고, 최대 32페이지와 협상된 더 작은 제한도 적용한다. 선언값만 신뢰하거나 전체 할당 뒤 검사하지 않는다.
+
+snapshot이 413이거나 Desktop이 로컬 ID를 모르면 입력 보호를 유지하고 `GET /api/v1/critical-recovery`를 인증해 pageToken 없이 호출한다. 첫 요청은 인증 주체가 접근할 수 있는 모든 대화의 미완료 작업(QUEUED/RUNNING/SUSPENDED/CANCEL_REQUESTED)과 모든 pending 승인에 대한 일관된 고정 시점의 불변 인덱스를 만든다. 각 항목은 conversationId와 복구·취소에 필요한 식별자·리비전을 포함한다. 서버는 고정된 항목을 페이지별 작업 최대 32개, 승인 최대 128개, 비압축 UTF-8 entity 최대 1MiB로 나누며 전역 작업 수에 임의 상한을 두지 않는다. 허용된 페이지 생성·보존 용량이 없으면 최초 요청을 BUSY로 거절하고 일부 목록을 완전한 성공으로 위장하지 않는다. 큰 본문은 잘라내지 않고 detail 참조로 보존한다.
+
+페이지는 0부터 연속된 pageIndex·동일 recoveryId·expiresAt을 갖는다. 마지막에만 nextPageToken이 null이고, 중간 토큰은 유일하며 인증 주체·handshake의 storeEpoch·해당 인덱스·다음 순번·만료에 결속된 불투명 값이다. 다음 요청은 앞 응답의 토큰을 사용한다. 클라이언트는 전체 페이지의 중복 task/approval과 승인→작업·대화 참조를 검증하고 마지막 토큰까지 받은 뒤에만 그 고정 시점의 목록을 완전하다고 표시한다. 누락·중복·순서 오류·토큰 만료·권한 변경·storeEpoch 변경은 수집을 폐기하고 입력 보호 상태로 0부터 새로 시작한다. 페이지 내용은 커밋된 인덱스에서 오며 요청할 때마다 최신 행을 섞지 않는다. 클라이언트는 페이지를 제한된 저장소에 단계별로 보관하고 할당 제한 초과나 저장 실패 시 명시적으로 중단한다. 무한 버퍼·부분 적용·커서 전진을 하지 않는다.
+
+이 인덱스는 고정 시점 이후 생성된 작업을 포함한다고 보장하지 않고 SSE 재개 커서도 아니다. 각 항목을 최신 작업/승인 정본과 대조하고 변한 리비전은 재조회한다. 필요하면 인덱스를 다시 읽는다. 새 작업이 계속 생길 수 있으므로 전역 정지·실시간 완전성은 별도 장벽/구독이 구현되기 전 주장하지 않는다. 해당 대화의 snapshot이 413이면 전체 대화 재동기화는 미완료로 남지만 인덱스의 작업 ID·revision으로 취소를 시도하고 충돌 시 정본을 재조회할 수 있다. 작업/승인 생성은 해당 항목의 식별자·최소 복구 메타데이터와 detail 참조를 읽을 수 있는 상태로 함께 커밋해야 한다. 승인 생성·수정은 decision 수와 길이, 개별 인덱스 항목의 페이지 바이트 한도를 초과하면 접수 전 거절한다. 기존 실행의 취소·정리와 복구 조회는 유지한다.
+
+critical 승인별 결정 목록은 중복 없는 최대 16개이며 각 값은 1~64자다. 큰 prompt는 같은 conversation·승인 리비전에 결속된 불변 detail을 가리킨다. 상세 응답 한 페이지는 비압축 UTF-8 1MiB를 넘지 않고 `nextPageToken`을 이용해 순서대로 이어 읽는다. 하나의 큰 텍스트는 UTF-8 문자 경계를 지켜 조각으로 전달하고 전체 조각의 순서대로 이어 붙이면 원문과 같아야 한다. 페이지 누락·만료·접근 거절·보존 범위 이탈은 명시적 오류이며 부분 본문을 완전한 답변 근거로 취급하지 않는다. 기존 데이터가 이 한도를 충족하는지 확인하기 전 신규 계약을 활성화하지 않는다.

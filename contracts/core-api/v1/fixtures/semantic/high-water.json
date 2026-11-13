@@ -1,0 +1,12 @@
+{
+  "stored": {"instanceId": "instance-a", "storeEpoch": "store-a", "generation": "5", "descriptorDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+  "cases": [
+    {"name": "same", "authenticated": true, "instanceId": "instance-a", "storeEpoch": "store-a", "generation": "5", "descriptorDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "expected": "ACCEPT"},
+    {"name": "increase", "authenticated": true, "instanceId": "instance-a", "storeEpoch": "store-a", "generation": "6", "descriptorDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "expected": "ACCEPT"},
+    {"name": "rollback", "authenticated": true, "instanceId": "instance-a", "storeEpoch": "store-a", "generation": "4", "descriptorDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "expected": "REJECT"},
+    {"name": "same-generation-mutation", "authenticated": true, "instanceId": "instance-a", "storeEpoch": "store-a", "generation": "5", "descriptorDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "expected": "REJECT"},
+    {"name": "unauthenticated-high", "authenticated": false, "instanceId": "instance-a", "storeEpoch": "store-a", "generation": "99", "descriptorDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "expected": "REJECT"},
+    {"name": "different-instance", "authenticated": true, "instanceId": "instance-b", "storeEpoch": "store-a", "generation": "9", "descriptorDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "expected": "RECONCILE"},
+    {"name": "different-store", "authenticated": true, "instanceId": "instance-a", "storeEpoch": "store-b", "generation": "9", "descriptorDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "expected": "RECONCILE"}
+  ]
+}

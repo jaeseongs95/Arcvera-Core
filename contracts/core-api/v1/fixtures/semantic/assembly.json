@@ -1,0 +1,47 @@
+{
+  "notice": "Synthetic offline cases only; no runtime or security verification.",
+  "pages": [
+    {
+      "schemaMajor": 1, "conversationId": "123e4567-e89b-42d3-a456-426614174001", "streamEpoch": "123e4567-e89b-42d3-a456-426614174002",
+      "aggregateRevision": "2", "appliedThroughSequence": "7", "resumeAfter": "7", "snapshotId": "123e4567-e89b-42d3-a456-426614174003",
+      "pageIndex": 0, "pageCount": 2, "totalBytes": 1, "nextPageToken": "next-1",
+      "state": {
+        "conversation": {"conversationId": "123e4567-e89b-42d3-a456-426614174001", "revision": "2", "profileId": "profile", "title": "test", "activeTaskRunId": "123e4567-e89b-42d3-a456-426614174004", "streamEpoch": "123e4567-e89b-42d3-a456-426614174002"},
+        "lease": null,
+        "tasks": [{"taskRunId": "123e4567-e89b-42d3-a456-426614174004", "conversationId": "123e4567-e89b-42d3-a456-426614174001", "revision": "1", "state": "RUNNING",
+          "turns": [{"executionTurnId": "123e4567-e89b-42d3-a456-426614174005", "kind": "TOOL", "state": "RUNNING", "ownerEpoch": "123e4567-e89b-42d3-a456-426614174006", "statusRevision": "1", "connection": "CONNECTED", "outcome": "RESOLVED", "callId": "call-1", "detailId": null}],
+          "effects": [{"effectId": "123e4567-e89b-42d3-a456-426614174007", "originExecutionTurnId": "123e4567-e89b-42d3-a456-426614174005", "taskRunId": "123e4567-e89b-42d3-a456-426614174004", "state": "ACTIVE", "ownerEpoch": "123e4567-e89b-42d3-a456-426614174006", "statusRevision": "1", "connection": "CONNECTED", "outcome": "RESOLVED"}]}],
+        "pendingApprovals": [], "messages": []
+      }
+    },
+    {
+      "schemaMajor": 1, "conversationId": "123e4567-e89b-42d3-a456-426614174001", "streamEpoch": "123e4567-e89b-42d3-a456-426614174002",
+      "aggregateRevision": "2", "appliedThroughSequence": "7", "resumeAfter": "7", "snapshotId": "123e4567-e89b-42d3-a456-426614174003",
+      "pageIndex": 1, "pageCount": 2, "totalBytes": 1, "nextPageToken": null,
+      "state": {
+        "conversation": {"conversationId": "123e4567-e89b-42d3-a456-426614174001", "revision": "2", "profileId": "profile", "title": "test", "activeTaskRunId": "123e4567-e89b-42d3-a456-426614174004", "streamEpoch": "123e4567-e89b-42d3-a456-426614174002"},
+        "lease": null, "tasks": [],
+        "pendingApprovals": [{"approvalId": "123e4567-e89b-42d3-a456-426614174008", "requestId": "123e4567-e89b-42d3-a456-426614174009", "conversationId": "123e4567-e89b-42d3-a456-426614174001", "taskRunId": "123e4567-e89b-42d3-a456-426614174004", "executionTurnId": "123e4567-e89b-42d3-a456-426614174005", "revision": "1", "kind": "TOOL", "secret": false, "allowedDecisions": ["ALLOW", "DENY"], "prompt": "test", "expiresAt": "2026-11-13T10:00:00.000Z"}],
+        "messages": [{"messageId": "123e4567-e89b-42d3-a456-426614174010", "role": "ASSISTANT", "state": "COMPLETE", "parts": [{"type": "text", "text": "안녕"}], "detailIds": []}]
+      }
+    }
+  ],
+  "cases": [
+    {"name": "complete", "mutation": "none", "valid": true},
+    {"name": "missing-page", "mutation": "missing", "valid": false},
+    {"name": "reverse-order", "mutation": "reverse", "valid": false},
+    {"name": "different-snapshot", "mutation": "snapshot", "valid": false},
+    {"name": "different-epoch", "mutation": "epoch", "valid": false},
+    {"name": "changed-singleton", "mutation": "singleton", "valid": false},
+    {"name": "duplicate-task", "mutation": "duplicate-task", "valid": false},
+    {"name": "duplicate-approval", "mutation": "duplicate-approval", "valid": false},
+    {"name": "duplicate-message", "mutation": "duplicate-message", "valid": false},
+    {"name": "over-aggregate-limit", "mutation": "aggregate-limit", "valid": false},
+    {"name": "broken-approval-reference", "mutation": "approval-reference", "valid": false},
+    {"name": "broken-effect-origin", "mutation": "effect-origin", "valid": false},
+    {"name": "missing-active-task", "mutation": "active-reference", "valid": false},
+    {"name": "wrong-watermark", "mutation": "watermark", "valid": false},
+    {"name": "wrong-total-bytes", "mutation": "bytes", "valid": false},
+    {"name": "nonterminal-null-token", "mutation": "token", "valid": false}
+  ]
+}

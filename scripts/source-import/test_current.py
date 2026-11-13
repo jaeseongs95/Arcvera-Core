@@ -14,6 +14,41 @@ import verify
 
 
 class CurrentSourceChecks(unittest.TestCase):
+    def test_wrapper_working_reader_uses_git_canonical_bytes(self):
+        with tempfile.TemporaryDirectory(prefix='wrapper-eol-') as directory:
+            root = Path(directory)
+            path = root/'java/gradlew.bat'
+            path.parent.mkdir()
+            for data in (b'first\nsecond\n', b'first\r\nsecond\r\n'):
+                path.write_bytes(data)
+                self.assertEqual(current.read_working(root, 'java/gradlew.bat', '100644'), b'first\nsecond\n')
+            binary = root/'java/other.bin'
+            binary.write_bytes(b'\x00\r\n\xff')
+            self.assertEqual(current.read_working(root, 'java/other.bin', '100644'), b'\x00\r\n\xff')
+
+    def test_prompt_hashes_remain_strict_without_git_mutation(self):
+        with tempfile.TemporaryDirectory(prefix='prompt-eol-') as directory:
+            root = Path(directory)
+            path = 'fixture-prompt.md'
+            expected = {'gitBlobSha256': current.sha(b'prompt\n'), 'windowsSourceSha256': current.sha(b'prompt\r\n')}
+            with patch.dict(current.WINDOWS_INPUTS, {path: expected}):
+                (root/path).write_bytes(b'prompt\r\n')
+                self.assertEqual(current.read_working(root, path, '100644'), b'prompt\n')
+                (root/path).write_bytes(b'changed\r\n')
+                with self.assertRaisesRegex(ValueError, 'Canonical prompt differs'):
+                    current.read_working(root, path, '100644')
+                if os.name == 'nt':
+                    (root/path).write_bytes(b'prompt\n')
+                    with self.assertRaisesRegex(ValueError, 'Windows prompt EOL differs'):
+                        current.read_working(root, path, '100644')
+
+    def test_all_pinned_prompt_inputs_keep_canonical_and_windows_hashes(self):
+        root = Path(__file__).resolve().parents[2]
+        self.assertEqual(len(current.WINDOWS_INPUTS), 40)
+        for path in current.WINDOWS_INPUTS:
+            with self.subTest(path=path):
+                current.read_working(root, path, '100644')
+
     def test_agpl_preserves_original_notices(self):
         root, _ = self.fixture()
         original = b'original Apache license\n'

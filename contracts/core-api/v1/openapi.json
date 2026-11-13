@@ -18,6 +18,17 @@
     }
   ],
   "paths": {
+    "/api/v1/critical-recovery": {
+      "get": {
+        "operationId": "getCriticalRecovery",
+        "description": "Authenticated immutable paged index of all active tasks and pending approvals across authorized conversations, with no local IDs required. The index is pinned at one consistent read and expires; restart from page zero on expiry. It is not an SSE resume cursor. Each uncompressed UTF-8 page is at most 1 MiB; no global active-task count cap is introduced.",
+        "parameters": [{"name": "pageToken", "in": "query", "required": false, "schema": {"type": "string", "minLength": 1, "maxLength": 1024}}],
+        "responses": {
+          "200": {"description": "One immutable recovery-index page; complete only after the null continuation", "content": {"application/json": {"schema": {"$ref": "schemas.json#/$defs/CriticalRecovery"}}}},
+          "default": {"description": "Typed failure", "content": {"application/problem+json": {"schema": {"$ref": "schemas.json#/$defs/Problem"}}}}
+        }
+      }
+    },
     "/api/v1/handshake": {
       "get": {
         "operationId": "handshake",

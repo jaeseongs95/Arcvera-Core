@@ -4,6 +4,40 @@
   "title": "Arcvera Core API draft v1",
   "x-contract-status": "DRAFT",
   "$defs": {
+    "CriticalTask": {
+      "type": "object", "additionalProperties": false,
+      "required": ["conversationId", "taskRunId", "revision", "state"],
+      "properties": {
+        "conversationId": {"$ref": "#/$defs/Id"},
+        "taskRunId": {"$ref": "#/$defs/Id"},
+        "revision": {"$ref": "#/$defs/Revision"},
+        "state": {"enum": ["QUEUED", "RUNNING", "SUSPENDED", "CANCEL_REQUESTED"]}
+      }
+    },
+    "CriticalApproval": {
+      "type": "object", "additionalProperties": false,
+      "required": ["conversationId", "approvalId", "requestId", "taskRunId", "executionTurnId", "revision", "kind", "secret", "allowedDecisions", "promptDetailId", "expiresAt"],
+      "properties": {
+        "conversationId": {"$ref": "#/$defs/Id"},
+        "approvalId": {"$ref": "#/$defs/Id"}, "requestId": {"$ref": "#/$defs/Id"},
+        "taskRunId": {"$ref": "#/$defs/Id"}, "executionTurnId": {"$ref": "#/$defs/Id"},
+        "revision": {"$ref": "#/$defs/Revision"}, "kind": {"enum": ["TOOL", "PERMISSION", "QUESTION"]},
+        "secret": {"type": "boolean"},
+        "allowedDecisions": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 64}},
+        "promptDetailId": {"$ref": "#/$defs/Id"}, "expiresAt": {"$ref": "#/$defs/Timestamp"}
+      }
+    },
+    "CriticalRecovery": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schemaMajor", "recoveryId", "pageIndex", "expiresAt", "nextPageToken", "tasks", "pendingApprovals"],
+      "properties": {
+        "schemaMajor": {"const": 1}, "recoveryId": {"$ref": "#/$defs/Id"},
+        "pageIndex": {"$ref": "#/$defs/Revision"}, "expiresAt": {"$ref": "#/$defs/Timestamp"},
+        "nextPageToken": {"$ref": "#/$defs/PageToken"},
+        "tasks": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/CriticalTask"}},
+        "pendingApprovals": {"type": "array", "maxItems": 128, "items": {"$ref": "#/$defs/CriticalApproval"}}
+      }
+    },
     "Id": {
       "type": "string",
       "format": "uuid"
@@ -1467,7 +1501,8 @@
         "totalBytes": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 16777216
+          "maximum": 16777216,
+          "description": "Sum of actual uncompressed UTF-8 HTTP entity bytes for every page, including JSON envelopes; excludes headers, frames and compressed bytes."
         },
         "nextPageToken": {
           "$ref": "#/$defs/PageToken"

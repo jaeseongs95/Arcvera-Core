@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 """Validate Core/Desktop wire shapes offline; not a runtime acceptance test."""
 import copy
 import json
@@ -8,6 +9,135 @@ from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 
 ROOT = Path(__file__).resolve().parents[2] / 'contracts/core-api/v1'
+
+
+def snapshot_assembly(entities, validator):
+    """Validate complete decoded entity bytes before returning a candidate state."""
+    if not entities or len(entities) > 32 or any(len(e) > 1048576 for e in entities):
+        raise ValueError('page limit')
+    if sum(map(len, entities)) > 16777216:
+        raise ValueError('aggregate limit')
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('duplicate JSON key')
+            result[key] = value
+        return result
+    pages = [json.loads(e.decode('utf-8'), object_pairs_hook=unique_object) for e in entities]
+    if any(not validator.is_valid(p) for p in pages):
+        raise ValueError('schema')
+    first = pages[0]
+    keys = ('schemaMajor', 'conversationId', 'streamEpoch', 'aggregateRevision',
+            'appliedThroughSequence', 'resumeAfter', 'snapshotId', 'pageCount', 'totalBytes')
+    if first['pageCount'] != len(pages) or first['totalBytes'] != sum(map(len, entities)):
+        raise ValueError('page count or byte total')
+    if first['appliedThroughSequence'] != first['resumeAfter']:
+        raise ValueError('watermark')
+    singleton = first['state']['conversation'], first['state']['lease']
+    conversation, lease = singleton
+    if (conversation['conversationId'] != first['conversationId'] or conversation['streamEpoch'] != first['streamEpoch']
+            or conversation['revision'] != first['aggregateRevision'] or (lease is not None and lease['conversationId'] != first['conversationId'])):
+        raise ValueError('singleton reference')
+    merged = {k: [] for k in ('tasks', 'pendingApprovals', 'messages')}
+    tokens = set()
+    for index, page in enumerate(pages):
+        if page['pageIndex'] != index or any(page[k] != first[k] for k in keys):
+            raise ValueError('page identity')
+        if (page['state']['conversation'], page['state']['lease']) != singleton:
+            raise ValueError('singleton mismatch')
+        token = page['nextPageToken']
+        if index == len(pages) - 1:
+            if token is not None:
+                raise ValueError('last token')
+        elif not token or token in tokens:
+            raise ValueError('continuation token')
+        else:
+            tokens.add(token)
+        for name in merged:
+            merged[name].extend(page['state'][name])
+    if any(len(merged[k]) > limit for k, limit in (('tasks', 32), ('pendingApprovals', 128), ('messages', 128))):
+        raise ValueError('assembled object limit')
+    def unique(items, key):
+        ids = [x[key] for x in items]
+        if len(set(ids)) != len(ids):
+            raise ValueError('duplicate identity')
+        return set(ids)
+    task_ids = unique(merged['tasks'], 'taskRunId')
+    unique(merged['pendingApprovals'], 'approvalId')
+    unique(merged['messages'], 'messageId')
+    if conversation['activeTaskRunId'] is not None and conversation['activeTaskRunId'] not in task_ids:
+        raise ValueError('active task missing')
+    all_turns, all_effects, by_task = [], [], {}
+    for task in merged['tasks']:
+        if task['conversationId'] != first['conversationId']:
+            raise ValueError('task conversation')
+        turns = unique(task['turns'], 'executionTurnId')
+        by_task[task['taskRunId']] = turns
+        all_turns.extend(task['turns'])
+        all_effects.extend(task['effects'])
+        for effect in task['effects']:
+            if effect['taskRunId'] != task['taskRunId'] or effect['originExecutionTurnId'] not in turns:
+                raise ValueError('effect reference')
+    unique(all_turns, 'executionTurnId')
+    unique(all_effects, 'effectId')
+    for approval in merged['pendingApprovals']:
+        if (approval['conversationId'] != first['conversationId'] or approval['taskRunId'] not in by_task
+                or approval['executionTurnId'] not in by_task[approval['taskRunId']]):
+            raise ValueError('approval reference')
+    return merged
+
+
+def encode_pages(pages):
+    """Build synthetic actual entities with a self-consistent UTF-8 total."""
+    for _ in range(10):
+        entities = [json.dumps(p, ensure_ascii=False, separators=(',', ':')).encode('utf-8') for p in pages]
+        total = sum(map(len, entities))
+        if all(p['totalBytes'] == total for p in pages):
+            return entities
+        for p in pages:
+            p['totalBytes'] = total
+    raise ValueError('entity byte total did not converge')
+
+
+def critical_recovery(pages, validator):
+    if not pages:
+        raise ValueError('no recovery pages')
+    tasks_all, approvals_all, tokens = [], [], set()
+    for index, value in enumerate(pages):
+        entity = json.dumps(value, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        if len(entity) > 1048576 or not validator.is_valid(value):
+            raise ValueError('recovery schema or size')
+        if (value['pageIndex'] != str(index) or value['recoveryId'] != pages[0]['recoveryId']
+                or value['expiresAt'] != pages[0]['expiresAt']):
+            raise ValueError('recovery page identity')
+        token = value['nextPageToken']
+        if index == len(pages) - 1:
+            if token is not None: raise ValueError('incomplete recovery')
+        elif not token or token in tokens:
+            raise ValueError('recovery token')
+        else:
+            tokens.add(token)
+        tasks_all.extend(value['tasks'])
+        approvals_all.extend(value['pendingApprovals'])
+    tasks = [x['taskRunId'] for x in tasks_all]
+    approvals = [x['approvalId'] for x in approvals_all]
+    if len(set(tasks)) != len(tasks) or len(set(approvals)) != len(approvals):
+        raise ValueError('duplicate recovery identity')
+    task_conversations = {x['taskRunId']: x['conversationId'] for x in tasks_all}
+    if any(x['taskRunId'] not in tasks or task_conversations[x['taskRunId']] != x['conversationId'] for x in approvals_all):
+        raise ValueError('recovery approval task')
+
+
+def high_water(stored, candidate):
+    if not candidate['authenticated']:
+        return 'REJECT'
+    if (candidate['instanceId'], candidate['storeEpoch']) != (stored['instanceId'], stored['storeEpoch']):
+        return 'RECONCILE'
+    current, incoming = int(stored['generation']), int(candidate['generation'])
+    if incoming < current or (incoming == current and candidate['descriptorDigest'] != stored['descriptorDigest']):
+        return 'REJECT'
+    return 'ACCEPT'
 
 
 def read(path):
@@ -104,6 +234,78 @@ def main():
     message['parts'] = [{'type': 'text', 'text': 'x'}] * 129
     check('message-parts-bounded', model + '#/$defs/Message', message, False)
 
+    semantic_dir = ROOT / 'fixtures/semantic'
+    bundle = read(semantic_dir / 'assembly.json')
+    snapshot_validator = Draft202012Validator({'$ref': model + '#/$defs/Snapshot'}, registry=registry, format_checker=checker)
+    other_id = '123e4567-e89b-42d3-a456-426614174099'
+    for case in bundle['cases']:
+        pages = copy.deepcopy(bundle['pages'])
+        mutation = case['mutation']
+        if mutation == 'missing': pages.pop()
+        elif mutation == 'reverse': pages.reverse()
+        elif mutation == 'snapshot': pages[1]['snapshotId'] = other_id
+        elif mutation == 'epoch': pages[1]['streamEpoch'] = other_id
+        elif mutation == 'singleton': pages[1]['state']['conversation']['title'] = 'changed'
+        elif mutation == 'duplicate-task': pages[1]['state']['tasks'].append(copy.deepcopy(pages[0]['state']['tasks'][0]))
+        elif mutation == 'duplicate-approval': pages[1]['state']['pendingApprovals'].append(copy.deepcopy(pages[1]['state']['pendingApprovals'][0]))
+        elif mutation == 'duplicate-message': pages[1]['state']['messages'].append(copy.deepcopy(pages[1]['state']['messages'][0]))
+        elif mutation == 'aggregate-limit':
+            for index in range(32):
+                task = copy.deepcopy(pages[0]['state']['tasks'][0])
+                task['taskRunId'] = f'123e4567-e89b-42d3-a456-{index:012d}'
+                task['turns'] = []; task['effects'] = []
+                pages[1]['state']['tasks'].append(task)
+        elif mutation == 'approval-reference': pages[1]['state']['pendingApprovals'][0]['taskRunId'] = other_id
+        elif mutation == 'effect-origin': pages[0]['state']['tasks'][0]['effects'][0]['originExecutionTurnId'] = other_id
+        elif mutation == 'active-reference':
+            for page in pages: page['state']['conversation']['activeTaskRunId'] = other_id
+        elif mutation == 'watermark':
+            for page in pages: page['resumeAfter'] = '8'
+        elif mutation == 'token': pages[0]['nextPageToken'] = None
+        elif mutation not in ('none', 'bytes'): raise ValueError('unknown fixture mutation')
+        entities = encode_pages(pages)
+        if mutation == 'bytes':
+            for page in pages: page['totalBytes'] += 1
+            entities = [json.dumps(p, ensure_ascii=False, separators=(',', ':')).encode('utf-8') for p in pages]
+        try:
+            snapshot_assembly(entities, snapshot_validator)
+            actual = True
+        except (ValueError, UnicodeError):
+            actual = False
+        checks.append({'case': 'assembly-' + case['name'], 'expectedValid': case['valid'], 'actualValid': actual, 'passed': actual == case['valid']})
+
+    recovery = read(semantic_dir / 'recovery.json')
+    recovery_validator = Draft202012Validator({'$ref': model + '#/$defs/CriticalRecovery'}, registry=registry, format_checker=checker)
+    empty = copy.deepcopy(recovery); empty['tasks'] = []; empty['pendingApprovals'] = []
+    duplicate = copy.deepcopy(recovery); duplicate['tasks'].append(copy.deepcopy(duplicate['tasks'][0]))
+    orphan = copy.deepcopy(recovery); orphan['pendingApprovals'][0]['taskRunId'] = other_id
+    inline = copy.deepcopy(recovery); inline['pendingApprovals'][0]['prompt'] = 'not a detail reference'
+    first = copy.deepcopy(recovery); first['nextPageToken'] = 'page-two'; first['pendingApprovals'] = []
+    second = copy.deepcopy(recovery); second['pageIndex'] = '1'; second['tasks'] = []
+    swapped = copy.deepcopy(second); swapped['recoveryId'] = other_id
+    missing = copy.deepcopy(first)
+    wrong_conversation = copy.deepcopy(recovery); wrong_conversation['pendingApprovals'][0]['conversationId'] = other_id
+    many_first = copy.deepcopy(first); many_first['tasks'] = []
+    many_second = copy.deepcopy(second); many_second['tasks'] = []; many_second['pendingApprovals'] = []
+    for index in range(64):
+        task = copy.deepcopy(recovery['tasks'][0])
+        task['taskRunId'] = f'123e4567-e89b-42d3-a456-{index:012d}'
+        (many_first if index < 32 else many_second)['tasks'].append(task)
+    for name, sample, expected in [('populated', [recovery], True), ('empty', [empty], True),
+                                   ('multi-page', [first, second], True), ('missing-last', [missing], False),
+                                   ('mixed-index', [first, swapped], False), ('duplicate', [duplicate], False),
+                                   ('orphan', [orphan], False), ('wrong-conversation', [wrong_conversation], False),
+                                   ('64-tasks-two-pages', [many_first, many_second], True), ('inline-prompt', [inline], False)]:
+        try:
+            critical_recovery(sample, recovery_validator); actual = True
+        except ValueError:
+            actual = False
+        checks.append({'case': 'recovery-' + name, 'expectedValid': expected, 'actualValid': actual, 'passed': actual == expected})
+    highwater = read(semantic_dir / 'high-water.json')
+    for case in highwater['cases']:
+        actual = high_water(highwater['stored'], case)
+        checks.append({'case': 'highwater-' + case['name'], 'expected': case['expected'], 'actual': actual, 'passed': actual == case['expected']})
+
     # Offline reference integrity only. A full OpenAPI semantic validator is separate.
     api = read(ROOT / 'openapi.json')
     if api['openapi'] != '3.1.0' or not api['paths']:
@@ -127,7 +329,6 @@ def main():
     overflow_invalid = not after_validator.is_valid('9223372036854775808')
     checks.append({'case': 'query-after-int64', 'expectedValid': False,
                    'actualValid': not overflow_invalid, 'passed': overflow_invalid})
-    failures = [c for c in checks if not c['passed']]
     failures = [c for c in checks if not c['passed']]
     print(json.dumps({'schemaChecks': len(checks), 'failed': len(failures), 'checks': checks,
                       'openapi': 'local reference integrity only',
