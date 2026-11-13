@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 #![recursion_limit = "256"]
 #![deny(clippy::print_stdout, clippy::print_stderr)]
@@ -758,18 +759,12 @@ pub async fn run_main_with_transport_options(
         .clone()
         .map(|layer| layer.with_filter(log_db::default_filter()));
     let (otel_layers, otel_logger_reload_handle) = otel_reloader::layers(otel.as_ref());
-    let (batch_layer, _batch_guard) = codex_diagnostics::batch_log::start(&config.codex_home)?;
-    let batch_layer = batch_layer.map(|layer| {
-        let filter = layer.metadata_filter();
-        layer.with_filter(tracing_subscriber::filter::filter_fn(filter))
-    });
     let _ = tracing_subscriber::registry()
         .with(stderr_fmt)
         .with(feedback_layer)
         .with(feedback_metadata_layer)
         .with(log_db_layer)
         .with(otel_layers)
-        .with(batch_layer)
         .try_init();
     #[cfg(unix)]
     if let Some(Err(err)) = nofile_limit_result {

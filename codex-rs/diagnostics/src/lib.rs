@@ -1,12 +1,7 @@
-// Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use std::sync::Mutex;
 use std::sync::Once;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
-
-pub mod batch_log;
-pub mod cache_diagnostics;
-pub mod settings_control;
 
 static GAUGES: Mutex<Vec<&'static Gauge>> = Mutex::new(Vec::new());
 

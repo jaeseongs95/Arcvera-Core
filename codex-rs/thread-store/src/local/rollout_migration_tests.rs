@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -890,6 +891,654 @@ async fn migration_applies_historical_rollbacks_before_sqlite_projection() {
             .collect::<Vec<_>>(),
         vec!["keep", "replacement"]
     );
+}
+
+fn indexed_message(id: &str, role: &str) -> ResponseItem {
+    let mut message = input_response_message(role, &format!("exact original {id}"));
+    let ResponseItem::Message { id: native_id, .. } = &mut message else {
+        unreachable!()
+    };
+    *native_id = Some(ResponseItemId::from_server(id.to_owned()));
+    message
+}
+
+#[tokio::test]
+async fn migration_rejects_invalid_pre_reset_context_index_without_rewriting_original() {
+    use codex_history::context_index::ContextIndex;
+    use codex_history::context_index::ContextIndexOperation;
+    for corruption in [
+        "stale",
+        "source",
+        "source_after_reset",
+        "task",
+        "checkpoint",
+        "legacy_binding",
+        "valid",
+    ] {
+        let home = TempDir::new().expect("home");
+        let thread_id = ThreadId::new();
+        let removed = indexed_message(
+            "removed-source",
+            if corruption == "legacy_binding" {
+                "user"
+            } else {
+                "assistant"
+            },
+        );
+        let mut old = ContextIndex::default();
+        old.register(&removed);
+        let mut event = serde_json::to_value(
+            old.apply(
+                0,
+                vec![
+                    ContextIndexOperation::CreateTask {
+                        task_id: "old".to_owned(),
+                        label: "old".to_owned(),
+                    },
+                    ContextIndexOperation::BindSources {
+                        task_id: "old".to_owned(),
+                        source_ids: vec!["removed-source".to_owned()],
+                    },
+                ],
+            )
+            .expect("valid source binding"),
+        )
+        .expect("event");
+        match corruption {
+            "stale" => {
+                event["expected_revision"] = json!(4);
+                event["revision"] = json!(5);
+            }
+            "source" => event["operations"][1]["source_ids"] = json!(["unknown-source"]),
+            "task" => event["operations"][1]["task_id"] = json!("unknown-task"),
+            "checkpoint" => {
+                event["snapshot"] = serde_json::to_value(&old).expect("snapshot");
+            }
+            _ => {}
+        }
+        let mut new = ContextIndex::default();
+        let mut records = vec![
+            rollout_response_item(indexed_message("keep", "user")),
+            rollout_response_item(indexed_message("remove", "user")),
+            rollout_response_item(removed),
+        ];
+        if corruption == "source_after_reset" {
+            records.push(RolloutItem::EventMsg(EventMsg::ThreadRolledBack(
+                ThreadRolledBackEvent { num_turns: 1 },
+            )));
+        }
+        if corruption == "legacy_binding" {
+            let mut text_checkpoint = compacted(Vec::new());
+            let RolloutItem::Compacted(compacted) = &mut text_checkpoint else {
+                unreachable!()
+            };
+            compacted.replacement_history = None;
+            compacted.window_number = None;
+            records.extend([
+                text_checkpoint,
+                rollout_response_item(indexed_message("after-checkpoint", "user")),
+            ]);
+        }
+        records.extend([
+            RolloutItem::ContextIndex(serde_json::from_value(event).expect("structured event")),
+            RolloutItem::EventMsg(EventMsg::ThreadRolledBack(ThreadRolledBackEvent {
+                num_turns: 1,
+            })),
+            rollout_response_item(indexed_message("latest", "user")),
+            index_task(&mut new, "new"),
+        ]);
+        let path = write_rollout(home.path(), thread_id, SessionSource::Cli, records);
+        let original = fs::read(&path).expect("original");
+        let store = indexed_store(home.path()).await;
+        let report = store
+            .migrate_rollouts(apply_options())
+            .await
+            .expect("migration report");
+        if corruption == "valid" {
+            assert_eq!(report.outcomes[0].status, RolloutMigrationStatus::Migrated);
+        } else {
+            assert_eq!(
+                report.outcomes[0].status,
+                RolloutMigrationStatus::Failed,
+                "{corruption}"
+            );
+            assert_eq!(
+                fs::read(&path).expect("original retained"),
+                original,
+                "{corruption}"
+            );
+        }
+    }
+}
+
+fn index_task(index: &mut codex_history::context_index::ContextIndex, id: &str) -> RolloutItem {
+    use codex_history::context_index::ContextIndexOperation;
+    RolloutItem::ContextIndex(
+        index
+            .apply(
+                index.revision(),
+                vec![ContextIndexOperation::CreateTask {
+                    task_id: id.to_owned(),
+                    label: id.to_owned(),
+                }],
+            )
+            .expect("valid context policy"),
+    )
+}
+
+#[tokio::test]
+async fn migration_rebases_context_index_after_rollback() {
+    use codex_history::context_index::ContextIndex;
+    let home = TempDir::new().expect("home");
+    let thread_id = ThreadId::new();
+    let mut before_reset = ContextIndex::default();
+    let mut after_reset = ContextIndex::default();
+    let path = write_rollout(
+        home.path(),
+        thread_id,
+        SessionSource::Cli,
+        vec![
+            started("u1"),
+            rollout_response_item(indexed_message("m1", "user")),
+            user_message("exact original m1"),
+            index_task(&mut before_reset, "a"),
+            completed("u1"),
+            started("u2"),
+            rollout_response_item(indexed_message("m2", "user")),
+            user_message("exact original m2"),
+            index_task(&mut before_reset, "b"),
+            completed("u2"),
+            RolloutItem::EventMsg(EventMsg::ThreadRolledBack(ThreadRolledBackEvent {
+                num_turns: 1,
+            })),
+            started("u3"),
+            rollout_response_item(indexed_message("m3", "user")),
+            user_message("exact original m3"),
+            index_task(&mut after_reset, "c"),
+            completed("u3"),
+        ],
+    );
+    let store = indexed_store(home.path()).await;
+    let report = store
+        .migrate_rollouts(apply_options())
+        .await
+        .expect("migration");
+    assert_eq!(report.outcomes[0].status, RolloutMigrationStatus::Migrated);
+    let lines = read_rollout(&path);
+    let events: Vec<_> = lines
+        .iter()
+        .filter_map(|line| match &line.item {
+            RolloutItem::ContextIndex(event) => Some(event),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(events.len(), 1);
+    assert!(events[0].snapshot.is_some());
+    let mut restored = ContextIndex::default();
+    restored
+        .replay(events[0])
+        .expect("postrollback revision starts from zero");
+    assert_eq!(restored.revision(), 1);
+    assert_eq!(
+        restored
+            .tasks()
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        vec!["c"]
+    );
+    assert_eq!(
+        restored
+            .sources()
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        vec!["m1", "m3"]
+    );
+    assert_eq!(
+        lines
+            .iter()
+            .filter_map(|line| match &line.item {
+                RolloutItem::ResponseItem(envelope) => Some(envelope.item.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![indexed_message("m1", "user"), indexed_message("m3", "user")]
+    );
+    assert!(!lines.iter().any(|line| matches!(
+        line.item,
+        RolloutItem::EventMsg(EventMsg::ThreadRolledBack(_))
+    )));
+    let turns = list_active_summary_turns(&store, thread_id).await;
+    assert_eq!(
+        turns
+            .turns
+            .iter()
+            .map(|turn| turn.turn_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["u1", "u3"]
+    );
+}
+
+#[tokio::test]
+async fn migration_rebases_context_index_after_multiple_rollbacks() {
+    use codex_history::context_index::ContextIndex;
+    let home = TempDir::new().expect("home");
+    let thread_id = ThreadId::new();
+    let mut first = ContextIndex::default();
+    let mut second = ContextIndex::default();
+    let mut third = ContextIndex::default();
+    let path = write_rollout(
+        home.path(),
+        thread_id,
+        SessionSource::Cli,
+        vec![
+            rollout_response_item(indexed_message("keep", "user")),
+            index_task(&mut first, "old"),
+            rollout_response_item(indexed_message("remove-1", "user")),
+            RolloutItem::EventMsg(EventMsg::ThreadRolledBack(ThreadRolledBackEvent {
+                num_turns: 1,
+            })),
+            rollout_response_item(indexed_message("remove-2", "user")),
+            index_task(&mut second, "intermediate"),
+            RolloutItem::EventMsg(EventMsg::ThreadRolledBack(ThreadRolledBackEvent {
+                num_turns: 1,
+            })),
+            rollout_response_item(indexed_message("latest", "user")),
+            index_task(&mut third, "final"),
+        ],
+    );
+    let store = indexed_store(home.path()).await;
+    let report = store
+        .migrate_rollouts(apply_options())
+        .await
+        .expect("migration");
+    assert_eq!(report.outcomes[0].status, RolloutMigrationStatus::Migrated);
+    let mut restored = ContextIndex::default();
+    for line in read_rollout(&path) {
+        if let RolloutItem::ContextIndex(event) = line.item {
+            restored.replay(&event).expect("replay");
+        }
+    }
+    assert_eq!(restored.revision(), 1);
+    assert_eq!(
+        restored
+            .tasks()
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        vec!["final"]
+    );
+    assert_eq!(
+        restored
+            .sources()
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        vec!["keep", "latest"]
+    );
+}
+
+#[tokio::test]
+async fn migration_preserves_checkpoint_policy_after_rollback() {
+    use codex_history::context_index::ContextIndex;
+    let home = TempDir::new().expect("home");
+    let thread_id = ThreadId::new();
+    let mut archive = ContextIndex::default();
+    archive.register(&indexed_message("archive", "assistant"));
+    let _ = index_task(&mut archive, "retained-task");
+    let mut checkpoint = compacted(vec![indexed_message("summary", "assistant")]);
+    let RolloutItem::Compacted(compacted) = &mut checkpoint else {
+        unreachable!()
+    };
+    compacted.resume_metadata = Some(
+        serde_json::from_value(json!({
+            "context_index": archive, "multi_agent_version": null,
+            "last_started_turn_id": null, "previous_turn_settings": null,
+        }))
+        .expect("checkpoint metadata"),
+    );
+    let path = write_rollout(
+        home.path(),
+        thread_id,
+        SessionSource::Cli,
+        vec![
+            started("removed-turn"),
+            rollout_response_item(indexed_message("removed", "user")),
+            completed("removed-turn"),
+            RolloutItem::EventMsg(EventMsg::ThreadRolledBack(ThreadRolledBackEvent {
+                num_turns: 1,
+            })),
+            started("checkpoint-turn"),
+            checkpoint,
+            completed("checkpoint-turn"),
+        ],
+    );
+    let store = indexed_store(home.path()).await;
+    let report = store
+        .migrate_rollouts(apply_options())
+        .await
+        .expect("migration");
+    assert_eq!(report.outcomes[0].status, RolloutMigrationStatus::Migrated);
+    let mut restored = ContextIndex::default();
+    for line in read_rollout(&path) {
+        if let RolloutItem::ContextIndex(event) = line.item {
+            restored.replay(&event).expect("replay");
+        }
+    }
+    assert_eq!(restored.revision(), 1);
+    assert!(restored.tasks().contains_key("retained-task"));
+    assert_eq!(
+        restored
+            .sources()
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        vec!["archive", "summary"]
+    );
+}
+
+/// Synthetic host preparation isolates checkpoint identity from Core's truncation algorithm.
+/// Core separately tests the actual Bytes(64) truncation and cold restore boundary.
+fn migration_identity_checkpoint() -> (
+    RolloutItem,
+    codex_history::context_index::ContextIndex,
+    Vec<RolloutItem>,
+) {
+    use codex_history::context_index::{ContextIndex, ContextIndexOperation};
+    let call: ResponseItem = serde_json::from_value(json!({
+        "type":"function_call", "id":"identity-call", "call_id":"identity-job",
+        "name":"shell", "arguments":"{}"
+    }))
+    .unwrap();
+    let original: ResponseItem = serde_json::from_value(json!({
+        "type":"function_call_output", "id":"identity-result", "call_id":"identity-job",
+        "output":"FULL_ORIGINAL ".repeat(1000)
+    }))
+    .unwrap();
+    let prepared: ResponseItem = serde_json::from_value(json!({
+        "type":"function_call_output", "id":"identity-result", "call_id":"identity-job",
+        "output":"HOST_PREPARED bounded view"
+    }))
+    .unwrap();
+    let mut index = ContextIndex::default();
+    let resident_user = indexed_message("resident-user", "user");
+    index.register(&resident_user);
+    index.register(&call);
+    index.register(&original);
+    index.note_prepared("identity-result", &prepared);
+    index
+        .apply(
+            0,
+            vec![
+                ContextIndexOperation::CreateTask {
+                    task_id: "a".into(),
+                    label: "A".into(),
+                },
+                ContextIndexOperation::CreateTask {
+                    task_id: "b".into(),
+                    label: "B".into(),
+                },
+                ContextIndexOperation::BindSources {
+                    task_id: "a".into(),
+                    source_ids: vec!["identity-call".into(), "identity-result".into()],
+                },
+                ContextIndexOperation::SetFocus {
+                    task_id: "a".into(),
+                },
+            ],
+        )
+        .unwrap();
+    let originals = vec![
+        started("resident-turn"),
+        rollout_response_item(resident_user.clone()),
+        user_message("exact original resident-user"),
+        rollout_response_item(call.clone()),
+        rollout_response_item(original),
+    ];
+    let mut checkpoint = compacted(vec![resident_user, call, prepared]);
+    let RolloutItem::Compacted(compacted) = &mut checkpoint else {
+        unreachable!()
+    };
+    compacted.resume_metadata = Some(
+        serde_json::from_value(json!({
+            "context_index":index, "multi_agent_version":null,
+            "last_started_turn_id":null, "previous_turn_settings":null
+        }))
+        .unwrap(),
+    );
+    (checkpoint, index, originals)
+}
+
+fn migration_identity_read_index(path: &Path) -> codex_history::context_index::ContextIndex {
+    let mut index = codex_history::context_index::ContextIndex::default();
+    for line in read_rollout(path) {
+        if let RolloutItem::ContextIndex(event) = line.item {
+            index.replay(&event).expect("final checkpoint replay");
+        }
+    }
+    index
+}
+
+#[tokio::test]
+async fn migration_checkpoint_identity_preserves_prepared_view() {
+    use codex_history::context_index::{ContextIndexOperation, ContextSourceKind};
+    let home = TempDir::new().unwrap();
+    let (checkpoint, mut expected, originals) = migration_identity_checkpoint();
+    let focus = expected
+        .apply(
+            expected.revision(),
+            vec![ContextIndexOperation::SetFocus {
+                task_id: "b".into(),
+            }],
+        )
+        .unwrap();
+    let replacement = match &checkpoint {
+        RolloutItem::Compacted(c) => c.replacement_history.clone().unwrap(),
+        _ => unreachable!(),
+    };
+    let mut records = vec![
+        started("removed-turn"),
+        rollout_response_item(indexed_message("removed", "user")),
+        user_message("exact original removed"),
+        completed("removed-turn"),
+        RolloutItem::EventMsg(EventMsg::ThreadRolledBack(ThreadRolledBackEvent {
+            num_turns: 1,
+        })),
+    ];
+    records.extend(originals);
+    records.extend([
+        checkpoint,
+        RolloutItem::ContextIndex(focus),
+        completed("resident-turn"),
+    ]);
+    let path = write_rollout(home.path(), ThreadId::new(), SessionSource::Cli, records);
+    let store = indexed_store(home.path()).await;
+    let report = store.migrate_rollouts(apply_options()).await.unwrap();
+    assert_eq!(
+        report.outcomes[0].status,
+        RolloutMigrationStatus::Migrated,
+        "{report:?}"
+    );
+    let restored = migration_identity_read_index(&path);
+    let source = &restored.sources()["identity-result"];
+    assert_eq!(
+        source.kind,
+        ContextSourceKind::ToolResult,
+        "prepared bytes are not a conflicting new original"
+    );
+    assert_eq!(source, &expected.sources()["identity-result"]);
+    assert!(!restored.is_active("identity-call"));
+    assert!(!restored.is_active("identity-result"));
+    assert!(read_rollout(&path).iter().any(|line| matches!(&line.item, RolloutItem::Compacted(c) if c.replacement_history.as_ref() == Some(&replacement))));
+}
+
+#[tokio::test]
+async fn migration_checkpoint_identity_destructive_reset_uses_resident_bytes() {
+    use codex_history::context_index::ContextIndex;
+    let home = TempDir::new().unwrap();
+    let (checkpoint, original_index, mut records) = migration_identity_checkpoint();
+    let replacement = match &checkpoint {
+        RolloutItem::Compacted(c) => c.replacement_history.clone().unwrap(),
+        _ => unreachable!(),
+    };
+    let mut expected = ContextIndex::default();
+    for envelope in &replacement {
+        expected.register(&envelope.item);
+    }
+    let fresh_policy = index_task(&mut expected, "fresh");
+    records.extend([
+        checkpoint,
+        completed("resident-turn"),
+        started("removed-turn"),
+        rollout_response_item(indexed_message("removed", "user")),
+        user_message("exact original removed"),
+        completed("removed-turn"),
+        RolloutItem::EventMsg(EventMsg::ThreadRolledBack(ThreadRolledBackEvent {
+            num_turns: 1,
+        })),
+        fresh_policy,
+    ]);
+    let path = write_rollout(home.path(), ThreadId::new(), SessionSource::Cli, records);
+    let store = indexed_store(home.path()).await;
+    let report = store.migrate_rollouts(apply_options()).await.unwrap();
+    assert_eq!(
+        report.outcomes[0].status,
+        RolloutMigrationStatus::Migrated,
+        "{report:?}"
+    );
+    let restored = migration_identity_read_index(&path);
+    assert_eq!(
+        restored.sources()["identity-result"],
+        expected.sources()["identity-result"]
+    );
+    assert_ne!(
+        restored.sources()["identity-result"].body_sha256,
+        original_index.sources()["identity-result"].body_sha256
+    );
+    assert_eq!(restored.tasks(), expected.tasks());
+    assert_eq!(restored.revision(), expected.revision());
+    assert!(!restored.sources().contains_key("removed"));
+}
+
+#[tokio::test]
+async fn migration_checkpoint_identity_general_snapshot_restores_missing_resident() {
+    use codex_history::context_index::{
+        ContextIndex, ContextIndexEvent, ContextIndexOperation, ContextSourceKind,
+    };
+    let home = TempDir::new().unwrap();
+    let mut incoming = ContextIndex::default();
+    let _ = index_task(&mut incoming, "a");
+    let snapshot = ContextIndexEvent::checkpoint(incoming.clone()).unwrap();
+    // Build the subsequent valid delta from Core's conservative resident reconciliation.
+    let original = ContextIndex::describe(&indexed_message("resident-x", "assistant"), false);
+    incoming.reconcile_original_descriptor(&original);
+    let bind = incoming
+        .apply(
+            incoming.revision(),
+            vec![ContextIndexOperation::BindSources {
+                task_id: "a".into(),
+                source_ids: vec!["resident-x".into()],
+            }],
+        )
+        .unwrap();
+    let path = write_rollout(
+        home.path(),
+        ThreadId::new(),
+        SessionSource::Cli,
+        vec![
+            started("removed-turn"),
+            rollout_response_item(indexed_message("removed", "user")),
+            user_message("exact original removed"),
+            completed("removed-turn"),
+            RolloutItem::EventMsg(EventMsg::ThreadRolledBack(ThreadRolledBackEvent {
+                num_turns: 1,
+            })),
+            started("current-turn"),
+            rollout_response_item(indexed_message("current-user", "user")),
+            user_message("exact original current-user"),
+            rollout_response_item(indexed_message("resident-x", "assistant")),
+            RolloutItem::ContextIndex(snapshot),
+            RolloutItem::ContextIndex(bind),
+            completed("current-turn"),
+        ],
+    );
+    let store = indexed_store(home.path()).await;
+    let report = store.migrate_rollouts(apply_options()).await.unwrap();
+    assert_eq!(
+        report.outcomes[0].status,
+        RolloutMigrationStatus::Migrated,
+        "missing resident must not reject a valid later bind: {report:?}"
+    );
+    let restored = migration_identity_read_index(&path);
+    let source = &restored.sources()["resident-x"];
+    assert_eq!(source.kind, ContextSourceKind::Unknown);
+    assert_eq!(source.body_sha256, None);
+    assert!(restored.is_active("resident-x"));
+}
+
+#[tokio::test]
+async fn migration_accepts_legacy_before_index_but_preserves_unsupported_indexed_hybrid() {
+    use codex_history::context_index::ContextIndex;
+    for indexed_before_checkpoint in [false, true] {
+        let home = TempDir::new().expect("home");
+        let thread_id = ThreadId::new();
+        let mut old_index = ContextIndex::default();
+        let mut new_index = ContextIndex::default();
+        let mut records = vec![rollout_response_item(indexed_message(
+            "legacy-user",
+            "user",
+        ))];
+        if indexed_before_checkpoint {
+            records.push(index_task(&mut old_index, "old"));
+        }
+        let mut text_checkpoint = compacted(Vec::new());
+        let RolloutItem::Compacted(compacted) = &mut text_checkpoint else {
+            unreachable!()
+        };
+        compacted.replacement_history = None;
+        compacted.window_number = None;
+        records.extend([
+            text_checkpoint,
+            rollout_response_item(indexed_message("removed", "user")),
+            RolloutItem::EventMsg(EventMsg::ThreadRolledBack(ThreadRolledBackEvent {
+                num_turns: 1,
+            })),
+            rollout_response_item(indexed_message("new-user", "user")),
+            index_task(&mut new_index, "new"),
+        ]);
+        let path = write_rollout(home.path(), thread_id, SessionSource::Cli, records);
+        let original = fs::read(&path).expect("original");
+        let store = indexed_store(home.path()).await;
+        let report = store
+            .migrate_rollouts(apply_options())
+            .await
+            .expect("migration report");
+        if indexed_before_checkpoint {
+            assert_eq!(report.outcomes[0].status, RolloutMigrationStatus::Failed);
+            assert_eq!(fs::read(&path).expect("original retained"), original);
+        } else {
+            assert_eq!(report.outcomes[0].status, RolloutMigrationStatus::Migrated);
+            let mut restored = ContextIndex::default();
+            for line in read_rollout(&path) {
+                if let RolloutItem::ContextIndex(event) = line.item {
+                    restored.replay(&event).expect("replay");
+                }
+            }
+            assert_eq!(restored.revision(), 1);
+            assert_eq!(
+                restored
+                    .tasks()
+                    .keys()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>(),
+                vec!["new"]
+            );
+            assert!(restored.is_active("legacy-user"));
+            assert!(restored.sources().contains_key("legacy-user"));
+            assert!(!restored.sources().contains_key("removed"));
+        }
+    }
 }
 
 #[tokio::test]

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 //! Persist Codex session rollouts (.jsonl) so sessions can be replayed or inspected later.
 
@@ -2285,6 +2286,7 @@ async fn resume_candidate_matches_cwd(
             | RolloutItem::RealtimeItem(_)
             | RolloutItem::TokenUsageRecord(_)
             | RolloutItem::RetainedContext(_)
+            | RolloutItem::ContextIndex(_)
             | RolloutItem::SecurityRiskScore(_)
             | RolloutItem::EventMsg(_) => None,
         })

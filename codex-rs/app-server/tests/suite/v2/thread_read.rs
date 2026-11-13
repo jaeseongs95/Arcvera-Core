@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use anyhow::Result;
 use app_test_support::MockResponsesConfig;
@@ -957,7 +958,8 @@ async fn thread_turns_list_reads_store_history_without_rollout_path() -> Result<
                 experimental_api: true,
                 ..Default::default()
             }),
-        },
+        }
+        .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
         channel_capacity: in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
     })
     .await?;
@@ -1028,7 +1030,8 @@ async fn thread_read_loaded_include_turns_reads_store_history_without_rollout_pa
                 experimental_api: true,
                 ..Default::default()
             }),
-        },
+        }
+        .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
         channel_capacity: in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
     })
     .await?;
@@ -1145,7 +1148,8 @@ async fn thread_list_includes_store_thread_without_rollout_path() -> Result<()> 
                 experimental_api: true,
                 ..Default::default()
             }),
-        },
+        }
+        .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
         channel_capacity: in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
     })
     .await?;

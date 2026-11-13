@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R30 (2026-10-31); see docs/r30-final-boundary-validation-20261031.ko.md.
 mod archive_thread;
@@ -9,6 +10,7 @@ mod list_threads;
 mod live_writer;
 mod model_context;
 mod move_thread_to_section;
+mod original_source;
 mod paginated_fork;
 mod pending_thread_metadata;
 mod projects;
@@ -719,6 +721,14 @@ impl ThreadStore for LocalThreadStore {
         params: LoadThreadHistoryParams,
     ) -> ThreadStoreFuture<'_, StoredModelContext> {
         Box::pin(async move { model_context::load_latest_model_context(self, params).await })
+    }
+
+    fn read_original_response_item(
+        &self,
+        params: LoadThreadHistoryParams,
+        source_id: String,
+    ) -> ThreadStoreFuture<'_, Option<codex_protocol::models::ResponseItem>> {
+        Box::pin(async move { original_source::read(self, params, source_id).await })
     }
 
     fn is_model_context_current(

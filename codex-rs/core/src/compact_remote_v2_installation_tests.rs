@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Stale prefixes are skipped or replaced with a fresh request according to caller intent.
 
 use super::*;
@@ -15,12 +16,15 @@ use tokio_util::sync::CancellationToken;
 enum HistoryChange {
     Replacement,
     Account,
+    IndexPolicy,
 }
 
 #[test_case(HistoryChange::Replacement, CompactionFallback::Skip; "replacement optional")]
 #[test_case(HistoryChange::Account, CompactionFallback::Skip; "account optional")]
 #[test_case(HistoryChange::Replacement, CompactionFallback::Foreground; "replacement required")]
 #[test_case(HistoryChange::Account, CompactionFallback::Foreground; "account required")]
+#[test_case(HistoryChange::IndexPolicy, CompactionFallback::Skip; "index policy optional")]
+#[test_case(HistoryChange::IndexPolicy, CompactionFallback::Foreground; "index policy required")]
 #[tokio::test]
 async fn prepared_prefix_rejection_respects_caller_intent(
     change: HistoryChange,
@@ -71,12 +75,14 @@ async fn prepared_prefix_rejection_respects_caller_intent(
     let mut candidate = BackgroundCompactionCandidate {
         prefix: CompactionPrefix {
             generation: history.history_version(),
+            context_index_revision: history.context_index_revision(),
             len: history.annotated_items().len(),
             auth_owner_generation: auth,
         },
         model_info: Arc::clone(&step.settings.model_info),
         cutoff_world_state: Arc::new(WorldState::default()),
         attempt: RemoteCompactV2Attempt {
+            context_index_revision: history.context_index_revision(),
             input_goal_ids: Default::default(),
             trace_input_history: None,
             prompt_input: vec![original.clone()],
@@ -107,11 +113,22 @@ async fn prepared_prefix_rejection_respects_caller_intent(
         HistoryChange::Account => {
             candidate.prefix.auth_owner_generation = Some(auth.unwrap_or_default().wrapping_add(1));
         }
+        HistoryChange::IndexPolicy => {
+            sess.context_index_action(
+                    &step.turn,
+                    &serde_json::json!({"action":"apply",
+                        "expected_revision":history.context_index_revision(),
+                        "operations":[{"op":"create_task","task_id":"new-focus-policy","label":"new policy"}]
+                    }).to_string(),
+                )
+                .await
+                .expect("change context policy");
+        }
     }
     // Rewritten histories still fit the captured length; length alone cannot reject them.
     let history = sess.clone_history().await;
     assert!(history.annotated_items().len() >= candidate.prefix.len);
-    if !matches!(change, HistoryChange::Account) {
+    if matches!(change, HistoryChange::Replacement) {
         assert_ne!(history.history_version(), candidate.prefix.generation);
     }
     let before = sess

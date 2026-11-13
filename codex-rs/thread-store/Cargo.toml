@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 # Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 # Modified for OpenDIY Codex R30 (2026-10-31); see docs/r30-final-boundary-validation-20261031.ko.md.
 [package]
@@ -22,6 +23,7 @@ chrono = { workspace = true, features = ["serde"] }
 codex-app-server-protocol = { workspace = true }
 codex-extension-items = { workspace = true }
 codex-git-utils = { workspace = true }
+codex-history = { workspace = true }
 codex-install-context = { workspace = true }
 codex-otel = { workspace = true }
 codex-protocol = { workspace = true }

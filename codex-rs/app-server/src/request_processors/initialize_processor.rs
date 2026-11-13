@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
@@ -68,6 +69,14 @@ impl InitializeRequestProcessor {
         };
         if session.initialized() {
             return Err(invalid_request("Already initialized"));
+        }
+
+        // Reject before session admission, authentication, analytics or global identity changes.
+        if !params.supports_arcvera_core_version(env!("CARGO_PKG_VERSION")) {
+            return Err(invalid_request(format!(
+                "Incompatible Arcvera Core client: initialize.capabilities.extensions[\"arcvera/core\"].version must equal {}",
+                env!("CARGO_PKG_VERSION")
+            )));
         }
 
         // TODO(maxj): Revisit capability scoping for `experimental_api_enabled`.

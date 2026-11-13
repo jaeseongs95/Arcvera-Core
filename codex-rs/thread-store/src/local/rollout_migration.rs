@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Orchestrates legacy rollout migration into paginated history.
 //!
 //! This is the high-level migration state machine: find rollout files, decide whether each one is
@@ -49,6 +50,7 @@ use crate::ThreadStoreError;
 use crate::ThreadStoreResult;
 
 mod canonicalizer;
+mod context_index;
 mod legacy_event;
 mod line_parser;
 mod publish;
@@ -60,6 +62,7 @@ mod subagent;
 mod telemetry;
 
 use canonicalizer::LegacyRolloutCanonicalizer;
+use context_index::IndexMigration;
 use publish::compress_rollout_to_path;
 use publish::compressed_staged_rollout_path;
 use publish::decompress_rollout_to_path;
@@ -992,12 +995,22 @@ impl LocalThreadStore {
             .await?;
         limiter.account(written).await;
         let mut last_timestamp = input.canonical_session_meta.timestamp.clone();
+        let mut index_migration = plan
+            .filter(|plan| plan.has_context_index)
+            .map(|plan| IndexMigration::new(plan.last_index_reset));
 
         while let Some(record) = read_rollout_record(&mut source, &mut bytes).await? {
             limiter.account(record.byte_count).await;
             let Some(line) = record.line else {
                 continue;
             };
+            if let Some(index) = &mut index_migration {
+                index.observe_original(&line.item)?;
+                index.reset_at(parsed_record_index);
+                if let RolloutItem::ContextIndex(event) = &line.item {
+                    index.observe_event(parsed_record_index, event)?;
+                }
+            }
             if plan.is_none()
                 && matches!(
                     &line.item,
@@ -1018,6 +1031,12 @@ impl LocalThreadStore {
             } else {
                 line
             };
+            if let Some(index) = &mut index_migration {
+                index.observe_preserved(parsed_record_index.saturating_sub(1), &line.item)?;
+                if matches!(line.item, RolloutItem::ContextIndex(_)) {
+                    continue;
+                }
+            }
             last_timestamp = line.timestamp.clone();
             let written = canonicalizer.process_line(line, &mut staged).await?;
             limiter.account(written).await;
@@ -1028,6 +1047,16 @@ impl LocalThreadStore {
             return Err(migration_error(
                 "rollback plan source length changed during replay",
             ));
+        }
+
+        if let Some(index) = index_migration {
+            let line = RolloutLine {
+                timestamp: last_timestamp.clone(),
+                ordinal: None,
+                item: RolloutItem::ContextIndex(index.finish()?),
+            };
+            let written = canonicalizer.process_line(line, &mut staged).await?;
+            limiter.account(written).await;
         }
 
         let written = canonicalizer.finish(&mut staged, &last_timestamp).await?;

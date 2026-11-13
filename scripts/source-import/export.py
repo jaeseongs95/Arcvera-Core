@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 """Export pinned public Git blobs, not working files, operational checks, or Git history."""
 import argparse
 import hashlib
@@ -16,6 +17,7 @@ PROTECTED=['LICENSE','NOTICE','README.md','README.ko.md']
 DATE='2026-11-01'
 PATCH_PATH='upstream/official-0.167.0.patch'
 LABEL='R32'
+# Historical import notices remain required even after their runtime modules are retired.
 NOTICE_OVERRIDES={path:('R33','2026-11-02') for path in (
     'codex-rs/tui/src/app/replay_filter.rs',
     'codex-rs/tui/src/app/thread_routing.rs',

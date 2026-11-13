@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use std::sync::Arc;
 
 use crate::context::world_state::WorldState;
@@ -46,6 +47,7 @@ async fn run_compact_task_inner(
     trigger: CompactionTrigger,
 ) -> CodexResult<()> {
     let turn_context = &step_context.turn;
+    sess.ensure_context_index_ready().await?;
     let pre_compact_outcome = run_pre_compact_hooks(sess, turn_context, trigger).await;
     match pre_compact_outcome {
         PreCompactHookOutcome::Continue => {}
@@ -56,7 +58,7 @@ async fn run_compact_task_inner(
     sess.emit_turn_item_started(turn_context, &compaction_item)
         .await;
     sess.start_new_context_window(step_context, world_state)
-        .await;
+        .await?;
     sess.emit_turn_item_completed(turn_context, compaction_item)
         .await;
 

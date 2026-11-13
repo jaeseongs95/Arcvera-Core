@@ -2,9 +2,9 @@
 
 ## English
 
-Write English and Korean together in **one release note**. Keep both sections current; language links must not replace either section. Store the source as `docs/releases/R<number>.md` and use the same complete text for the GitHub release body.
+Write English and Korean together in **one release note**. Keep both sections current; language links must not replace either section. Store the source as `docs/releases/R<number>.md` and preserve the complete source text in the GitHub release body. If source documentation is frozen before a build, explicitly label its evidence date and append a bilingual final verification record after the build, before publication. That appendix must contain actual product/build source identities, significant build settings, final executable/package and Desktop checks, independent audit results, asset names and SHA-256 values; do not rewrite the frozen source or predict results to fill this record.
 
-Use the title `OpenDIY Codex R<number> — <English summary> / <한국어 요약>`. Place `## English` first and `## 한국어` second. Each language section follows the existing seven-part structure below, using level-three headings.
+For current releases, use the title `Arcvera-Core <SemVer> — <English summary> / <한국어 요약>`. R41/R42 identify work scope rather than release versions; preserve historical release titles and filenames. Place `## English` first and `## 한국어` second. Each language section follows the existing seven-part structure below, using level-three headings.
 
 ### Required structure
 
@@ -28,13 +28,29 @@ Use the title `OpenDIY Codex R<number> — <English summary> / <한국어 요약
 - A successful connection or matching version alone does not prove compatibility or performance improvement.
 - Documentation-only revisions are not new builds. Keep existing assets, tags, and checksums unchanged.
 - Maintain the English main README and linked Korean README together, updating release information with each release. Each README links to the same bilingual release note.
-- Apply this format to R39 and R40. Earlier release notes remain unchanged.
+- Apply the structure to current releases. Preserve R39/R40 and earlier published notes, assets and checksums; their historical naming is unchanged.
+
+### Main README structure
+
+`README.md` is the English entry point and links to `README.ko.md`. Maintain equivalent facts and links in both files, in this order:
+
+| Order | English heading | Korean heading | Content |
+| --- | --- | --- | --- |
+| Introduction | Project title and introduction | 프로젝트 제목·소개 | Purpose, upstream provenance, support boundary, language and download links |
+| 1 | Start on Windows | Windows에서 시작하기 | Complete package, checksum command, direct startup, connection modes, helper placement |
+| 2 | Current releases | 현재 릴리스 | Current SemVer, bilingual notes, meaningful changes and actual validation boundary; distinguish historical releases |
+| 3 | Conversation controls | 대화 제어 | Supported commands and their effects and limits |
+| 4 | Desktop and shared servers | Desktop과 공유 서버 | Related client, server identity, update procedure and tested integration scope |
+| 5 | Validation and limits | 검증과 제한 | Evidence scope, untested behavior, source/build/package documentation |
+| 6 | License | 라이선스 | Derivative attribution, distribution boundary, license and notices |
+
+Update startup examples and current-release links when publishing. Keep the full bilingual release note as the source for detailed test results and asset checksums.
 
 ## 한국어
 
-**한 릴리스 노트 안에 영문과 한글을 함께 작성합니다.** 두 언어를 함께 최신화하며, 언어 링크로 본문을 대신하지 않습니다. 원본은 `docs/releases/R번호.md`에 보관하고 GitHub 릴리스 본문에도 같은 전체 내용을 사용합니다.
+**한 릴리스 노트 안에 영문과 한글을 함께 작성합니다.** 두 언어를 함께 최신화하며, 언어 링크로 본문을 대신하지 않습니다. 원본은 `docs/releases/R번호.md`에 보관하고 GitHub 릴리스 본문에도 소스 본문 전체를 보존합니다. 빌드 전에 소스 문서를 동결할 때는 근거의 기준 시점을 명시하고, 빌드 후 발행 전에 영한 최종 검증 기록을 덧붙입니다. 이 부록에는 실제 제품·빌드 소스 식별 정보, 중요한 빌드 설정, 최종 실행본·패키지 및 Desktop 검사, 독립감사 결과, 자산 이름과 SHA-256 값을 담습니다. 이 기록을 채우려고 동결 소스를 고치거나 미실행 결과를 예측해 쓰지 않습니다.
 
-제목은 `OpenDIY Codex R번호 — <English summary> / <한국어 요약>`으로 작성합니다. `## English`를 먼저, `## 한국어`를 뒤에 배치합니다. 각 언어는 기존의 아래 7절 구성을 유지하고 3단계 제목을 사용합니다.
+현재 릴리스 제목은 `Arcvera-Core <SemVer> — <English summary> / <한국어 요약>`으로 작성합니다. R41/R42는 릴리스 버전이 아닌 작업 범위를 나타내며, 과거 릴리스의 제목과 파일명은 보존합니다. `## English`를 먼저, `## 한국어`를 뒤에 배치합니다. 각 언어는 기존의 아래 7절 구성을 유지하고 3단계 제목을 사용합니다.
 
 ### 고정 구성
 
@@ -58,6 +74,22 @@ Use the title `OpenDIY Codex R<number> — <English summary> / <한국어 요약
 - 연결 성공이나 버전 일치만으로 호환성·성능 개선을 주장하지 않습니다.
 - 문서 개정만으로 새 빌드가 되지는 않습니다. 기존 자산·태그·체크섬을 유지합니다.
 - 영문 메인 README와 연결된 한글 README를 함께 관리하고 릴리스마다 정보를 최신화합니다. 두 README는 같은 영한 병기 릴리스 노트에 연결합니다.
-- 이 포맷은 R39·R40에 적용합니다. 이전 릴리스 노트는 변경하지 않습니다.
+- 현재 릴리스에 이 구성을 적용합니다. R39·R40과 그 이전 공개 노트·자산·체크섬 및 과거 명칭은 보존합니다.
+
+### 메인 README 구성
+
+`README.md`를 영문 진입점으로 두고 `README.ko.md`를 연결합니다. 두 파일의 사실과 링크를 동등하게 유지하며 다음 순서를 따릅니다.
+
+| 순서 | 영문 제목 | 한글 제목 | 내용 |
+| --- | --- | --- | --- |
+| 소개 | Project title and introduction | 프로젝트 제목·소개 | 목적·공식 소스 출처·지원 범위·언어 및 다운로드 링크 |
+| 1 | Start on Windows | Windows에서 시작하기 | 전체 패키지·체크섬 명령·직접 실행·연결 방식·helper 배치 |
+| 2 | Current releases | 현재 릴리스 | 현재 SemVer·영한 노트·주요 변경·실제 검증 범위. 과거 릴리스와 구분 |
+| 3 | Conversation controls | 대화 제어 | 지원 명령·효과·한계 |
+| 4 | Desktop and shared servers | Desktop과 공유 서버 | 관련 클라이언트·서버 식별·업데이트 절차·통합시험 범위 |
+| 5 | Validation and limits | 검증과 제한 | 근거 범위·미검증 동작·소스 및 빌드·패키지 문서 |
+| 6 | License | 라이선스 | 파생 출처·배포 범위·라이선스·고지 |
+
+발행 시 시작 예제와 현재 릴리스 링크를 최신화합니다. 상세 시험 결과와 자산 체크섬은 영한 병기 릴리스 노트를 정본으로 삼습니다.
 
 [R39 — English / 한국어](R39.md) · [R40 — English / 한국어](R40.md)

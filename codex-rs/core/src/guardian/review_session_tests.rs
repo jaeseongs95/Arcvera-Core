@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use super::*;
 use crate::agents_md_manager::AgentsMdManager;
@@ -108,6 +109,7 @@ async fn run_review_preserves_evidence_during_parent_compaction() {
             turn.to_turn_context_item(),
             crate::context::world_state::WorldStateSnapshot::default(),
             crate::compact::CompactedHistoryMetadata {
+                context_index_revision: None,
                 input_goal_ids: Default::default(),
                 message: String::new(),
                 window_number,

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Gateway OAuth RPCs expose login progress, cancellation, and initialization policy.
 
 use anyhow::Context;
@@ -481,9 +482,9 @@ async fn disconnect_cancels_only_the_owning_connections_login() -> Result<()> {
     let (mut process, address) = spawn_websocket_server(home.path()).await?;
     let mut owner = connect_websocket(address).await?;
     let mut observer = connect_websocket(address).await?;
-    send_request(&mut owner, "initialize", /*id*/ 1, Some(serde_json::json!({"clientInfo": {"name": "gateway-owner", "version": "1"}, "capabilities": {"experimentalApi": true, "explicitGatewayOauth": true}}))).await?;
+    send_request(&mut owner, "initialize", /*id*/ 1, Some(serde_json::json!({"clientInfo": {"name": "gateway-owner", "version": "1"}, "capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},"experimentalApi": true, "explicitGatewayOauth": true}}))).await?;
     read_response_for_id(&mut owner, /*id*/ 1).await?;
-    send_request(&mut observer, "initialize", /*id*/ 1, Some(serde_json::json!({"clientInfo": {"name": "gateway-observer", "version": "1"}, "capabilities": {"experimentalApi": true}}))).await?;
+    send_request(&mut observer, "initialize", /*id*/ 1, Some(serde_json::json!({"clientInfo": {"name": "gateway-observer", "version": "1"}, "capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},"experimentalApi": true}}))).await?;
     read_response_for_id(&mut observer, /*id*/ 1).await?;
     // A legacy connection cannot undo another connection's explicit opt-in.
     send_request(

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use std::borrow::Cow;
 use std::io::Write;
 use std::sync::Arc;
@@ -265,6 +266,7 @@ fn rollout_item_type(item: &RolloutItem) -> String {
         RolloutItem::TokenUsageRecord(_) => "token_usage_record".to_string(),
         RolloutItem::WorldState(_) => "world_state".to_string(),
         RolloutItem::RetainedContext(_) => "retained_context".to_string(),
+        RolloutItem::ContextIndex(_) => "context_index".to_string(),
         RolloutItem::SecurityRiskScore(_) => "security_risk_score".to_string(),
         RolloutItem::RealtimeItem(item) => match &item.content {
             codex_protocol::realtime::RealtimeItemContent::RealtimeSessionStarted => {

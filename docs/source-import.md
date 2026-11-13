@@ -1,3 +1,39 @@
+# R41 source provenance / R41 소스 출처
+
+## English
+
+Core 1.0.0 and all subsequent versions use AGPL-3.0-or-later. Original license/notice verification remains strict: the exact original Apache license is retained as `LICENSE-APACHE-2.0` when the root `LICENSE` matches the pinned complete official AGPL text; original `NOTICE` and historical upstream artifacts remain unchanged. See [LICENSING.md](../LICENSING.md) and the [Windows build instructions](../tools/windows-cli/BUILD.md). The source archive delivered with a package is checked against its complete committed Git tree.
+
+Arcvera-Core `1.0.0` retains the historical Codex `0.167.0` import as source attribution. Official Codex CLI compatibility and interchangeability are outside the support scope; OpenAI server API and authentication communication remain supported. The historical records below describe earlier snapshots, not the current R41 candidate or its verification results.
+
+`SOURCE_BASELINE.json`, `upstream/source-inventory.json`, the official patch and the Windows prompt catalog retain their original bytes. They identify the historical import. `CURRENT_SOURCE.json` separately inventories the current derivative, including added, modified and deleted files, modes, canonical hashes and modification notices. `upstream/arcvera-r41.patch` reconstructs that derivative from public repository commit `676d6233d8601f87f82d5fd6fb3d4c5e04ffa8aa`. The manifest and derivative patch are the two explicit self-reference exclusions; the final external source freeze and release checksums bind both files and the complete final commit.
+
+The verifier checks the historical 9,561-file inventory against pinned public-base Git blobs, including original-source hashes and notices. It separately checks current Cargo/path/literal-include input closure, all 40 embedded prompt inputs, current modification notices, file-set integrity and exact derivative patch replay. Original LICENSE and NOTICE checks remain strict. Two legacy README capture hashes cannot be reproduced from the public base or the 24 README-changing commits examined in the approved previous-public history. Their original recorded hashes remain unchanged and their original capture is explicitly `NOT_VERIFIED`. Current README files are covered by separate public-base hashes and the derivative inventory. The original official-to-private patch replay is `NOT_RUN` because the original private Git objects are unavailable.
+
+After reviewing all source and documentation changes, explicitly generate the derivative metadata. Verification never updates it automatically. Use a writable scratch directory outside the source checkout:
+
+```powershell
+python -B scripts/source-import/current.py --generate --scratch-root <scratch-directory>
+python -B scripts/source-import/verify.py --scratch-root <scratch-directory>
+python -B -m unittest discover -s scripts/source-import -p 'test*.py'
+```
+
+Generation validates historical inputs, current payload and patch replay before writing its two outputs. Any later source change requires reviewed, explicit regeneration. The verifier's successful exit concerns the checks it actually performs and retains the legacy README and historical replay limitations above. It does not establish a product build, runtime behavior, live OpenAI account communication or independent release acceptance. Actual source symlink creation can be skipped on Windows hosts without that permission; placeholder and synthetic-link guard coverage must be reported separately. Final packaging requires a clean committed source tree, an exact full-file freeze and three locally built executables from that source. GitHub/Actions builds are excluded.
+
+## 한국어
+
+Core 1.0.0과 이후 모든 버전에 AGPL-3.0-or-later를 적용합니다. 원 라이선스·고지는 계속 엄격하게 검사합니다. 루트 `LICENSE`가 고정한 공식 AGPL 전문과 일치할 때 원 Apache 라이선스를 `LICENSE-APACHE-2.0`에서 원 바이트 그대로 검증하며, 기존 `NOTICE`와 과거 공식 기반 자료는 변경하지 않습니다. [라이선스 안내](../LICENSING.md)와 [Windows 빌드 절차](../tools/windows-cli/BUILD.md)를 따릅니다. 패키지의 소스 압축파일은 정확한 커밋의 전체 Git 트리와 대조합니다.
+
+Arcvera-Core `1.0.0`은 역사적 Codex `0.167.0` 수입 기록을 소스 출처로 유지합니다. 공식 Codex CLI 호환성과 상호 교체는 지원 범위에서 제외하며 OpenAI 서버 API·인증 통신은 지원합니다. 아래 과거 기록은 당시 스냅샷의 기록이며 현재 R41 후보의 검증 결과가 아닙니다.
+
+`SOURCE_BASELINE.json`, `upstream/source-inventory.json`, 공식 patch와 Windows 프롬프트 catalog는 원래 바이트를 유지합니다. 현재 파생 소스는 `CURRENT_SOURCE.json`에 파일 추가·수정·삭제, 모드, 정규화 해시와 수정 고지를 별도로 기록합니다. `upstream/arcvera-r41.patch`는 공개 기준 커밋 `676d6233d8601f87f82d5fd6fb3d4c5e04ffa8aa`에서 현재 파생 소스를 재현합니다. 두 파일만 자기참조에서 제외하며 최종 외부 소스 동결 기록과 릴리스 체크섬으로 두 파일 및 전체 최종 커밋을 결속합니다.
+
+검증기는 역사적 9,561파일의 원본 해시·고지를 고정된 공개 기준 Git blob과 대조합니다. 현재 Cargo·path·literal include 입력의 완결성, 내장 프롬프트 40개, 수정 고지, 전체 파일 집합 및 파생 patch의 정확한 재생을 따로 검사합니다. 원래 LICENSE·NOTICE는 엄격히 대조합니다. 과거 README 두 파일의 기록된 원본 해시는 공개 기준과 승인된 이전 공개 이력에서 조사한 README 변경 커밋 24개로 재현되지 않았습니다. 원래 기록값을 보존하고 원본 캡처를 `NOT_VERIFIED`로 표시합니다. 현재 README는 공개 기준 해시와 파생 inventory로 별도 검증합니다. 원래 private Git 객체가 없어 공식→private patch 재생은 `NOT_RUN`입니다.
+
+소스·문서 변경을 검토한 뒤 위 명령으로 metadata를 명시적으로 생성합니다. 검증기는 자동 갱신하지 않으며 이후 소스 변경에는 검토 후 재생성이 필요합니다. 생성기는 역사적 입력·현재 payload·patch 재생 검사 후에만 두 파일을 씁니다. 검증 종료 코드 0은 실제 수행한 검사에만 해당하며 위 과거 README·재생 공백을 없애지 않습니다. 제품 빌드·실행 동작·실제 OpenAI 계정 통신·독립 릴리스 수용을 증명하지 않습니다. Windows 권한 제약으로 실제 symlink 생성 시험이 생략되면 placeholder 및 합성 link 검사와 구분해 보고해야 합니다. 최종 패키징에는 clean commit, 전체 파일 동결 및 동일 소스에서 로컬로 빌드한 실행 파일 세 개가 필요합니다. GitHub/Actions 빌드는 제외합니다.
+
+---
+
 # R37 공개 소스 pin 후속 동기화
 
 고정 소스는 `8a3b7d35a83467504c59448087f27c7a5c0e0e9b`, 이전 공개 export 기준은 `8c0d816ec3c9256a02334c81a5e965b977ac187a`입니다. 이전 제품 후보 `89139fd7386eaebd9d0cff6ffccb8dc93c2859ea`에서 달라진 파일은 `codex-rs/cli/tests/ui_language.rs` 1개이며 제품 동작 변경은 없습니다. 기본값 false의 disable 키 제거 계약에 맞춰 오래된 시험 assertion을 바로잡았습니다. 이 공개 작업에서는 Cargo·컴파일·실행·설치를 수행하지 않습니다.

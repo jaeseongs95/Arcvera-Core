@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
@@ -32,6 +33,278 @@ use super::*;
 use crate::ThreadStore;
 use crate::local::test_support::test_config;
 use crate::local::test_support::write_session_file_with_history_mode;
+
+fn original_source_item(suffix: &str, text: &str) -> ResponseItem {
+    let RolloutItem::ResponseItem(mut envelope) = user_message(text) else {
+        unreachable!();
+    };
+    envelope
+        .item
+        .set_id(Some(codex_protocol::ResponseItemId::with_suffix(
+            "msg", suffix,
+        )));
+    envelope.item
+}
+
+fn append_original_source_line(path: &Path, ordinal: Option<u64>, item: RolloutItem) {
+    let mut file = OpenOptions::new()
+        .append(true)
+        .open(path)
+        .expect("open original fixture");
+    let line = RolloutLine {
+        timestamp: "2025-01-03T13:00:01Z".to_string(),
+        ordinal,
+        item,
+    };
+    writeln!(
+        file,
+        "{}",
+        serde_json::to_string(&line).expect("encode original fixture")
+    )
+    .expect("append original fixture");
+}
+
+#[tokio::test]
+async fn indexed_context_original_source_reads_before_compaction_and_rejects_collisions() {
+    for mode in [ThreadHistoryMode::Legacy, ThreadHistoryMode::Paginated] {
+        let home = TempDir::new().expect("original fixture home");
+        let uuid = Uuid::from_u128(4101);
+        let id = ThreadId::from_string(&uuid.to_string()).expect("thread id");
+        let path =
+            write_session_file_with_history_mode(home.path(), "2025-01-03T13-04-01", uuid, mode)
+                .expect("write original fixture");
+        let original = original_source_item("stored_original", "RAW_ORIGINAL_BEFORE_COMPACTION");
+        for (index, item) in [
+            RolloutItem::ResponseItem(original.clone().into()),
+            RolloutItem::ResponseItem(original.clone().into()),
+            compacted(
+                "replacement is not an original",
+                Some(vec![original_source_item(
+                    "stored_original",
+                    "DIFFERENT_PREPARED_VIEW",
+                )]),
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            append_original_source_line(
+                &path,
+                (mode == ThreadHistoryMode::Paginated).then_some(index as u64 + 1),
+                item,
+            );
+        }
+        let before = std::fs::read(&path).expect("original bytes");
+        let store = LocalThreadStore::new(test_config(home.path()), None);
+        let params = LoadThreadHistoryParams {
+            thread_id: id,
+            include_archived: false,
+        };
+        assert_eq!(
+            store
+                .read_original_response_item(params.clone(), "msg_stored_original".to_string())
+                .await
+                .expect("read original"),
+            Some(original)
+        );
+        assert_eq!(
+            store
+                .read_original_response_item(params.clone(), "msg_absent".to_string())
+                .await
+                .expect("complete absent read"),
+            None
+        );
+        assert_eq!(std::fs::read(&path).expect("bytes after read"), before);
+        append_original_source_line(
+            &path,
+            (mode == ThreadHistoryMode::Paginated).then_some(4),
+            RolloutItem::ResponseItem(
+                original_source_item("stored_original", "CONFLICTING_ORIGINAL").into(),
+            ),
+        );
+        let error = store
+            .read_original_response_item(params, "msg_stored_original".to_string())
+            .await
+            .expect_err("different original is ambiguous");
+        assert!(error.to_string().contains("ambiguous original source"));
+    }
+}
+
+#[tokio::test]
+async fn indexed_context_original_source_respects_fork_cutoff_and_compressed_archived_parent() {
+    let home = TempDir::new().expect("lineage home");
+    let parent_uuid = Uuid::from_u128(4102);
+    let parent_id = ThreadId::from_string(&parent_uuid.to_string()).expect("parent id");
+    let original = original_source_item("inherited", "AUTHORIZED_INHERITED_ORIGINAL");
+    let parent_path = write_ordinaled_paginated_rollout(
+        home.path(),
+        "2025-01-03T13-04-02",
+        parent_uuid,
+        [RolloutItem::ResponseItem(original.clone().into())],
+    );
+    let cutoff = history_position(&parent_path, parent_id, 2);
+    append_original_source_line(
+        &parent_path,
+        Some(2),
+        RolloutItem::ResponseItem(
+            original_source_item("inherited", "PARENT_AFTER_CUTOFF_CONFLICT").into(),
+        ),
+    );
+    append_original_source_line(
+        &parent_path,
+        Some(3),
+        RolloutItem::ResponseItem(
+            original_source_item("parent_later", "PARENT_AFTER_CUTOFF_UNRELATED").into(),
+        ),
+    );
+    let child_uuid = Uuid::from_u128(4103);
+    let child_id = ThreadId::from_string(&child_uuid.to_string()).expect("child id");
+    let child_path =
+        write_ordinaled_paginated_rollout(home.path(), "2025-01-03T13-04-03", child_uuid, []);
+    set_history_base(&child_path, cutoff);
+    let local = original_source_item("child_local", "CHILD_LOCAL_ORIGINAL");
+    append_original_source_line(
+        &child_path,
+        Some(3),
+        RolloutItem::ResponseItem(local.clone().into()),
+    );
+    append_original_source_line(
+        &child_path,
+        Some(4),
+        compacted(
+            "hide inherited original from model context",
+            Some(Vec::new()),
+        ),
+    );
+    let unrelated = original_source_item("unrelated", "OTHER_THREAD_ORIGINAL");
+    let _unrelated_path = write_ordinaled_paginated_rollout(
+        home.path(),
+        "2025-01-03T13-04-04",
+        Uuid::from_u128(4104),
+        [RolloutItem::ResponseItem(unrelated.into())],
+    );
+    let archived_dir = home.path().join(codex_rollout::ARCHIVED_SESSIONS_SUBDIR);
+    std::fs::create_dir_all(&archived_dir).expect("archive directory");
+    let archived = archived_dir.join(parent_path.file_name().expect("parent filename"));
+    std::fs::rename(&parent_path, &archived).expect("archive parent");
+    let store = LocalThreadStore::new(test_config(home.path()), None);
+    let params = LoadThreadHistoryParams {
+        thread_id: child_id,
+        include_archived: false,
+    };
+    for compressed in [false, true] {
+        if compressed {
+            let input = std::fs::File::open(&archived).expect("open parent");
+            let output = std::fs::File::create(archived.with_extension("jsonl.zst"))
+                .expect("compressed parent");
+            zstd::stream::copy_encode(input, output, 3).expect("compress parent");
+            std::fs::remove_file(&archived).expect("remove plain fixture");
+        }
+        assert_eq!(
+            store
+                .read_original_response_item(params.clone(), "msg_inherited".to_string())
+                .await
+                .expect("read allowed inherited original"),
+            Some(original.clone())
+        );
+        assert_eq!(
+            store
+                .read_original_response_item(params.clone(), "msg_child_local".to_string())
+                .await
+                .expect("read child original"),
+            Some(local.clone())
+        );
+        for denied in ["msg_parent_later", "msg_unrelated"] {
+            assert_eq!(
+                store
+                    .read_original_response_item(params.clone(), denied.to_string())
+                    .await
+                    .expect("complete scoped lookup"),
+                None
+            );
+        }
+        if compressed {
+            assert!(!archived.exists(), "read must not materialize an ancestor");
+        }
+    }
+}
+
+#[tokio::test]
+async fn indexed_context_original_source_surfaces_corrupt_missing_ordinal_and_missing_file() {
+    for invalid in ["corrupt", "missing_ordinal", "missing_file"] {
+        let home = TempDir::new().expect("invalid fixture home");
+        let uuid = Uuid::from_u128(4105);
+        let id = ThreadId::from_string(&uuid.to_string()).expect("thread id");
+        let path = write_ordinaled_paginated_rollout(
+            home.path(),
+            "2025-01-03T13-04-05",
+            uuid,
+            [RolloutItem::ResponseItem(
+                original_source_item("error", "KNOWN_ORIGINAL").into(),
+            )],
+        );
+        match invalid {
+            "corrupt" => writeln!(
+                OpenOptions::new()
+                    .append(true)
+                    .open(&path)
+                    .expect("open fixture"),
+                "{{broken json"
+            )
+            .expect("write corrupt fixture"),
+            "missing_ordinal" => {
+                append_original_source_line(&path, None, user_message("invalid paginated record"))
+            }
+            "missing_file" => std::fs::remove_file(&path).expect("remove fixture"),
+            _ => unreachable!(),
+        }
+        let store = LocalThreadStore::new(test_config(home.path()), None);
+        let error = store
+            .read_original_response_item(
+                LoadThreadHistoryParams {
+                    thread_id: id,
+                    include_archived: false,
+                },
+                "msg_error".to_string(),
+            )
+            .await
+            .expect_err("incomplete lookup must fail explicitly");
+        if invalid == "missing_ordinal" {
+            assert!(error.to_string().contains("missing an ordinal"));
+        }
+    }
+}
+
+#[test]
+fn indexed_context_original_source_scan_cancellation_is_an_error() {
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+    let home = TempDir::new().expect("cancel fixture home");
+    let uuid = Uuid::from_u128(4106);
+    let id = ThreadId::from_string(&uuid.to_string()).expect("thread id");
+    let path = write_ordinaled_paginated_rollout(
+        home.path(),
+        "2025-01-03T13-04-06",
+        uuid,
+        [RolloutItem::ResponseItem(
+            original_source_item("cancel", "CANCEL_ORIGINAL").into(),
+        )],
+    );
+    let segments = [super::super::rollout_lineage::RolloutLineageSegment {
+        rollout_id: id,
+        rollout_path: path,
+        start_ordinal: 1,
+        end: None,
+    }];
+    for cancel_after in [0, 4] {
+        let checks = AtomicUsize::new(0);
+        let error = super::super::original_source::scan(&segments, true, "msg_cancel", || {
+            checks.fetch_add(1, Ordering::Relaxed) >= cancel_after
+        })
+        .expect_err("cancelled scan cannot publish a partial result");
+        assert!(error.to_string().contains("cancelled"));
+    }
+}
 
 #[tokio::test]
 async fn model_context_revision_invalidates_after_append_or_removal() {
@@ -273,6 +546,7 @@ async fn fork_version_stops_before_older_segments_once_resolved() {
             unreachable!();
         };
         compacted.resume_metadata = Some(codex_rollout::CompactionResumeMetadata {
+            context_index: None,
             dynamic_tools: None,
             multi_agent_version: Some(MultiAgentVersion::V2),
             last_started_turn_id: None,

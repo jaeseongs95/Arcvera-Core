@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 #[path = "client_runtime_auth_tests.rs"]
 mod runtime_auth_tests;
@@ -1345,6 +1346,74 @@ fn websocket_continuation_reports_unavailable_response_state() {
         session.prepare_websocket_request(&request).err(),
         Some(NonIncrementalReason::NoPreviousResponseId),
     );
+}
+
+#[test]
+fn context_index_revision_fences_an_unchanged_websocket_request() {
+    for changed in [false, true] {
+        let client = test_model_client(SessionSource::Cli);
+        let request = client
+            .build_responses_request(
+                &Prompt::default(),
+                &test_model_info(),
+                None,
+                codex_protocol::config_types::ReasoningSummary::None,
+                None,
+                &test_responses_metadata_for_client(
+                    &client,
+                    None,
+                    format!("{}:0", client.state.thread_id),
+                    None,
+                    TestCodexResponsesRequestKind::Turn,
+                ),
+                true,
+            )
+            .expect("build unchanged request");
+        let mut session = client.new_session();
+        session.bind_context_index_revision(7);
+        session.websocket_session.auth_owner_generation = Some(91);
+        // Opening a fresh transport resets socket state after the policy was bound.
+        session.websocket_session.reset(None);
+        assert_eq!(
+            session.bound_context_index_revision(),
+            Some(7),
+            "a transport reset must retain the context policy binding"
+        );
+        session.websocket_session.last_request = Some(request.clone());
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        sender
+            .send(super::LastResponse {
+                response_id: "previous-response".to_owned(),
+                items_added: vec![],
+            })
+            .expect("completed response");
+        session.websocket_session.last_response_rx = Some(receiver);
+        session.bind_context_index_revision(if changed { 8 } else { 7 });
+        assert_eq!(session.websocket_session.auth_owner_generation, Some(91));
+        assert_eq!(
+            session.bound_context_index_revision(),
+            Some(if changed { 8 } else { 7 })
+        );
+        if changed {
+            assert!(session.websocket_session.last_request.is_none());
+            assert!(session.websocket_session.last_response_rx.is_none());
+        }
+        let result = session.prepare_websocket_request(&request);
+        if changed {
+            assert_eq!(result.err(), Some(NonIncrementalReason::NoPreviousResponse));
+            assert_eq!(
+                session.websocket_session.continuation_reset_reason,
+                Some("context_index_changed")
+            );
+        } else {
+            assert_eq!(
+                result
+                    .expect("stable policy keeps continuation")
+                    .response_id,
+                "previous-response"
+            );
+        }
+    }
 }
 
 #[tokio::test]

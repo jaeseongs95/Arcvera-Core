@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use std::collections::VecDeque;
 use std::path::Path;
@@ -393,10 +394,13 @@ impl TestAppServer {
         client_info: ClientInfo,
         capabilities: Option<InitializeCapabilities>,
     ) -> anyhow::Result<JSONRPCMessage> {
-        self.initialize_with_params(InitializeParams {
-            client_info,
-            capabilities,
-        })
+        self.initialize_with_params(
+            InitializeParams {
+                client_info,
+                capabilities,
+            }
+            .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
+        )
         .await
     }
 

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use anyhow::Result;
 use app_test_support::ChatGptAuthFixture;
@@ -634,7 +635,7 @@ async fn thread_resume_rejoins_unmaterialized_thread_from_another_connection(
         1,
         Some(json!({
             "clientInfo": { "name": "thread_owner", "version": "0" },
-            "capabilities": { "experimentalApi": true },
+            "capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}}, "experimentalApi": true },
         })),
     )
     .await?;
@@ -664,7 +665,7 @@ async fn thread_resume_rejoins_unmaterialized_thread_from_another_connection(
         3,
         Some(json!({
             "clientInfo": { "name": "thread_joining", "version": "0" },
-            "capabilities": { "experimentalApi": true },
+            "capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}}, "experimentalApi": true },
         })),
     )
     .await?;

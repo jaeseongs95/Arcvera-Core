@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use super::*;
 
 use super::tests::build_world_state_from_turn_context;
@@ -1622,6 +1623,7 @@ async fn bounded_replay_matches_full_replay_after_empty_turn_compactions(
                     compaction_response_id: None,
                     latest_token_usage_record: None,
                     resume_metadata: current.then(|| codex_history::CompactionResumeMetadata {
+                        context_index: None,
                         dynamic_tools: None,
                         multi_agent_version: None,
                         last_started_turn_id: Some(format!("wake-{window_number}")),

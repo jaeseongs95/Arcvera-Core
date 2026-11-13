@@ -1,10 +1,12 @@
-# OpenDIY Codex
+# Arcvera-Core
 
 [English](README.md) · [한국어](README.ko.md)
 
-An unofficial Windows edition of Codex CLI and Rust App Server, based on OpenAI Codex. It adds conversation controls and repairs confirmed defects while preserving authentication, permission checks, stored conversations, and ongoing work.
+An independently maintained Windows CLI and Rust App Server derived from OpenAI Codex. It adds conversation controls and repairs confirmed defects while preserving authentication, permission checks, stored conversations, and ongoing work.
 
-[Download latest release](https://github.com/jaeseongs95/opendiy-codex/releases/latest) · [Release history](https://github.com/jaeseongs95/opendiy-codex/releases) · [Build from source](docs/source-import.md)
+Arcvera-Core supports communication with OpenAI servers. Compatibility or interchangeability with the official Codex CLI is outside its support scope. Upstream version references identify source provenance; Arcvera-Core maintains its own commands, protocol, storage and release contracts.
+
+[Download latest release](https://github.com/jaeseongs95/Arcvera-Core/releases/latest) · [Release history](https://github.com/jaeseongs95/Arcvera-Core/releases) · [Build from source](docs/source-import.md)
 
 ## Start on Windows
 
@@ -12,10 +14,15 @@ An unofficial Windows edition of Codex CLI and Rust App Server, based on OpenAI 
 2. Compare the ZIP's SHA-256 with the checksum file, then extract it into a new folder with its directory layout intact.
 3. Run `bin\codex.exe`. Source compilation and CMD launchers are optional.
 
-For R40, run the first command in the download folder and the second in the extracted package folder:
+Native voice requires the Microsoft Visual C++ v14 **X64** runtime installed
+separately by the user. Microsoft DLLs and installers are not bundled. See
+[runtime installation instructions](tools/windows-cli/RUNTIME.md) for the official
+download, supported version and missing-DLL recovery.
+
+For the published 1.0.0 package, run the first command in the download folder and the second in the extracted package folder:
 
 ```powershell
-Get-FileHash .\opendiy-codex-r40-windows-x86_64.zip -Algorithm SHA256
+Get-FileHash .\arcvera-core-1.0.0-windows-x86_64.zip -Algorithm SHA256
 ```
 
 ```powershell
@@ -34,7 +41,7 @@ Keep `codex-package.json`, `package-receipt.json`, and the `bin` folder together
 
 The ZIP already includes `codex-patched.cmd`, which passes arguments to `bin\codex.exe`. It provides a convenient default launch that can reuse the shared server. It does not replace a server version, configure a remote address, or pair a mobile device. An incompatible or unverified implicit server can cause startup to use the embedded backend. Check the actual server identity separately from the selected CLI file.
 
-To replace the managed shared server, follow the [R40 server update procedure](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108). Use the complete ZIP and a separate PowerShell window after finishing active work. Changing an EXE path alone does not update a running server.
+To replace the managed shared server, follow the [1.0.0 server update procedure and compatibility boundary](docs/releases/R41.md#shared-server-update). Use the complete ZIP and a separate PowerShell window after finishing active work. Changing an EXE path alone does not update a running server.
 
 ### Individual executables
 
@@ -44,12 +51,20 @@ These three files are not a complete managed-server installation package. Voice 
 
 ## Current releases
 
+Arcvera-Core 1.0.0 (R41 scope): [release notes and SemVer policy (EN/KO)](docs/releases/R41.md), [indexed-context design and recovery](docs/context-index.md). A selected task and its dependency closure define eligible model API context, alongside preserved user/control and unclassified inputs. Cache observations report response-level counters; unprovided TTL/expiry remains unknown. Clients must declare the server's exact full Core version during initialization; earlier clients are unsupported. Seven unused workspace packages have been removed. OpenDIY-specific batch logging, cache response/wire diagnostic recording, Drive export and their session controls have been removed. Official Codex logging, telemetry and conversation storage remain. Legacy logging settings are ignored; existing settings and log files are not deleted or migrated automatically. The broader architecture work previously assigned to R41 moves to [R42](docs/roadmap/R42.md). Release versions are independent of upstream Codex 0.167.0; R41/R42 track scope. Pre-relocation source context regression passed 20 local suites (89 distinct tests) with 180 projection samples. Pre-relocation source version-contract tests (3), official diagnostics tests (2), API tests (194), SQLite filter test (1) and TUI session-control tests (15) passed. The final local build and complete 553-file package are identified in the [dated verification record](docs/releases/R41.md#final-verification-record--2026-11-13-kst). Three executable version/help checks, six legacy-setting startup cases, actual stdio/version retries and the stated isolated Desktop lifecycle controls are recorded there. Audit/publication outcomes are recorded separately; source-test results alone do not establish those results. Actual app/model/network performance is unmeasured. Native builds and runtime tests run locally; GitHub Actions runs the source and packaging checks described below.
+
+The regression runs and measurements above predate moving two `#[cfg(test)]` modules into sibling files. A complete build-input comparison verified that only the two module placements and their required file notices changed; the original test bodies and production bytes reconstruct exactly. Fresh version-contract RED/GREEN demonstrated all three cases, and all four moved daemon tests passed. The AppServer pair uses the r41_initialize target, which includes the unchanged original initialize module; the original all-target GREEN was not run. Protocol and daemon results retain their original source identities, reconciled with the added target by exact input comparison. Final binaries, Desktop checks and publication have separate evidence recorded in the release verification appendix. Historical runs are not reported as executions of the new file layout.
+
 | Release | Main change | Verification boundary |
 | --- | --- | --- |
-| [R40](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108) · [Notes (EN/KO)](docs/releases/R40.md) | Temporary MCP reconnection, nonblocking context lookup, hook boundaries, scrolling, Korean text, and confirmed memory/provenance fixes | Final CLI, RPC, ConPTY, and isolated TEST Desktop checks; see the notes for failures and unrun cases. |
-| [R39](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r39.20261107) · [Notes (EN/KO)](docs/releases/R39.md) | Compaction focused on unfinished work | 15 isolated final-package checks plus source compaction tests. Final Desktop joint testing was not run. |
+| [R40](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v0.167.0-r40.20261108) · [Notes (EN/KO)](docs/releases/R40.md) | Temporary MCP reconnection, nonblocking context lookup, hook boundaries, scrolling, Korean text, and confirmed memory/provenance fixes | Final CLI, RPC, ConPTY, and isolated TEST Desktop checks; see the notes for failures and unrun cases. |
+| [R39](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v0.167.0-r39.20261107) · [Notes (EN/KO)](docs/releases/R39.md) | Compaction focused on unfinished work | 15 isolated final-package checks plus source compaction tests. Final Desktop joint testing was not run. |
 
-Both are based on official Codex 0.167.0. Publication does not establish the version installed on a PC. Earlier versions remain in the [release history](https://github.com/jaeseongs95/opendiy-codex/releases).
+Both are based on official Codex 0.167.0. Publication does not establish the version installed on a PC. Earlier versions remain in the [release history](https://github.com/jaeseongs95/Arcvera-Core/releases).
+
+## CI for 1.0.0
+
+The [Core 1.0 workflow](.github/workflows/core-1.0.yml) runs on pull requests to `main` and `release/1.0.0`, and supports manual dispatch after it reaches the default branch. One Linux job verifies the complete source inventory and patch replay, source-verifier regressions, external-runtime distribution policy, and package assembly. Failed or skipped tests fail the job. It uses synthetic fixtures and does not establish native Windows, Desktop, audio, or performance acceptance. Product compilation, binary artifacts, releases and installation remain outside GitHub Actions. The retired R40 workflows are disabled.
 
 ## Conversation controls
 
@@ -74,11 +89,15 @@ Run updater commands in PowerShell: `codex update --check`, `codex update --stat
 
 [OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop) is a separate project for the desktop UI and multi-session workflows. This repository supplies the CLI, App Server, and Windows package. Selecting a new CLI in Desktop does not replace an already running shared server.
 
-Desktop 1.1.0 OpenDIY extensions require at least CLI and App Server R36 (`0.166.0+native-r36.20261103`). This minimum does not prove compatibility with every later combination. R40 integration checks cover the isolated TEST Desktop candidate used in the tests, not every published Desktop installation. R39 final Desktop joint testing was not run.
+Core 1.0.0 requires a Desktop client that explicitly declares the exact full Core version during initialization; the Desktop UI version remains independent. See the [client protocol and migration guidance](codex-rs/app-server/README.md#arcvera-core-100-initialization--초기화). Consult the release verification appendix for the exact tested Core and Desktop identities and integration results.
+
+Historically, Desktop 1.1.0 extensions required at least CLI and App Server R36 (`0.166.0+native-r36.20261103`). That earlier minimum does not establish compatibility with Core 1.0.0. R40 integration checks cover the isolated TEST Desktop candidate used in the tests, not every published Desktop installation. R39 final Desktop joint testing was not run.
 
 A connection, initialize response, or matching version alone does not prove full compatibility. Existing data and active work are preserved without automatic server replacement.
 
 ## Validation and limits
+
+Three version-contract tests on isolated 1.0.0 source each failed with production mutation and passed after restoration. They verify exact Core version declarations, rejection before session admission with a corrected retry, and prompt server-rejection reporting. The same three tests passed again on the pre-relocation source; this is a separate successful rerun, not new mutation evidence. Final release executable and Desktop results are recorded separately in the release verification appendix; see the [validation scope](docs/releases/R41.md#validation).
 
 Tagged release notes identify tested binaries, original failures, and unrun cases. Real-model compaction quality, physical keyboard/IME and voice behavior, first-time installation, and sustained workloads have the gaps specified there. These tests do not establish that all GUI delays or memory growth have been resolved.
 
@@ -90,4 +109,4 @@ R40 excludes a full memory redesign, a new CodeMode architecture, broad refactor
 
 Independent work based on [OpenAI Codex](https://github.com/openai/codex); not an official OpenAI product. Git stores source and build tools; Releases stores executable assets. Credentials and operational logs are excluded.
 
-[Apache-2.0](LICENSE) · [NOTICE](NOTICE)
+[AGPL-3.0-or-later](LICENSE) · [Licensing / 라이선스](LICENSING.md) · [Original Apache-2.0](LICENSE-APACHE-2.0) · [NOTICE](NOTICE)

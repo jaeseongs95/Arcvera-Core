@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use super::ConnectionSessionState;
 use super::MessageProcessor;
@@ -156,7 +157,8 @@ impl TracingHarness {
                             experimental_api: true,
                             ..Default::default()
                         }),
-                    },
+                    }
+                    .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
                 },
                 /*trace*/ None,
             )

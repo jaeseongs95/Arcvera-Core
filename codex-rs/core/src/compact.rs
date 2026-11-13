@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 use crate::context::UserGoalUpdate;
 use std::collections::HashSet;
@@ -112,6 +113,7 @@ pub struct AutoCompactionDisabled;
 /// `Session::replace_compacted_history` assigns missing item IDs before constructing the persisted
 /// `CompactedItem`, ensuring the live and persisted histories remain identical.
 pub(crate) struct CompactedHistoryMetadata {
+    pub(crate) context_index_revision: Option<u64>,
     pub(crate) input_goal_ids: HashSet<ResponseItemId>,
     pub(crate) message: String,
     pub(crate) window_number: u64,
@@ -309,12 +311,14 @@ async fn run_compact_task_inner_impl(
     world_state: Arc<WorldState>,
     compaction_metadata: CompactionTurnMetadata,
 ) -> CodexResult<String> {
+    sess.ensure_context_index_ready().await?;
     let compaction_item = TurnItem::ContextCompaction(ContextCompactionItem::new());
     sess.emit_turn_item_started(&turn_context, &compaction_item)
         .await;
     let initial_input_for_turn: ResponseInputItem = ResponseInputItem::from(input);
 
     let mut history = sess.clone_history().await;
+    let context_index_revision = history.context_index_revision();
     let input_goal_ids = UserGoalUpdate::message_ids(history.raw_items());
     history.record_items(
         &[initial_input_for_turn.into()],
@@ -336,11 +340,12 @@ async fn run_compact_task_inner_impl(
     // Reuse one client session so turn-scoped state (sticky routing and websocket incremental
     // request tracking) survives retries within this compact turn.
     let mut client_session = sess.services.model_client.new_session();
+    client_session.bind_context_index_revision(context_index_revision);
     let compaction_response = loop {
         // Clone is required because of the loop
         let mut turn_input = history
             .clone()
-            .for_prompt(
+            .projected_for_prompt(
                 &turn_context.model_info().input_modalities,
                 sess.services.image_store.as_ref(),
             )
@@ -379,6 +384,10 @@ async fn run_compact_task_inner_impl(
         let responses_metadata = sess
             .compaction_responses_metadata(turn_context.as_ref(), compaction_metadata)
             .await;
+        sess.ensure_context_index_ready().await?;
+        if sess.clone_history().await.context_index_revision() != context_index_revision {
+            return Err(CodexErr::TurnAborted);
+        }
         let attempt_result = drain_to_completed(
             &sess,
             turn_context.as_ref(),
@@ -449,6 +458,10 @@ async fn run_compact_task_inner_impl(
     // and legacy rollout reconstruction keep their original history independently.
     let mut new_history = build_compacted_history(Vec::new(), &[], &summary_text);
     if let Some(summary_item) = new_history.last_mut() {
+        summary_item
+            .metadata
+            .get_or_insert_default()
+            .compaction_output = true;
         // This replacement history skips `record_conversation_items`; only the appended summary
         // belongs to this compaction turn.
         summary_item.set_turn_id_if_missing(&turn_context.sub_id);
@@ -462,21 +475,26 @@ async fn run_compact_task_inner_impl(
         new_history,
     )
     .await;
-    sess.replace_compacted_history(
-        new_history,
-        replacement_step_context.to_turn_context_item(),
-        world_state_baseline,
-        CompactedHistoryMetadata {
-            input_goal_ids,
-            message: summary_text,
-            window_number,
-            window_ids,
-            compaction_response_id: Some(compaction_response.response_id),
-            compaction_model_hash: turn_context.model_info().comp_hash.clone(),
-            reviewer_compaction_hash: None,
-        },
-    )
-    .await;
+    let installed = sess
+        .replace_compacted_history(
+            new_history,
+            replacement_step_context.to_turn_context_item(),
+            world_state_baseline,
+            CompactedHistoryMetadata {
+                context_index_revision: Some(context_index_revision),
+                input_goal_ids,
+                message: summary_text,
+                window_number,
+                window_ids,
+                compaction_response_id: Some(compaction_response.response_id),
+                compaction_model_hash: turn_context.model_info().comp_hash.clone(),
+                reviewer_compaction_hash: None,
+            },
+        )
+        .await;
+    if !installed {
+        return Err(CodexErr::TurnAborted);
+    }
     sess.recompute_token_usage(&replacement_step_context.turn)
         .await;
 

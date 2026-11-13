@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Regression coverage for app-server thread operations backed by a non-local
 //! `ThreadStore`.
 //!
@@ -716,7 +717,8 @@ async fn start_in_process_client(
                 version: "0.1.0".to_string(),
             },
             capabilities,
-        },
+        }
+        .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
         channel_capacity: in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
     })
     .await

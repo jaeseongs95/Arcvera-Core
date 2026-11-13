@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 use std::path::Path;
 use std::time::Duration;
@@ -123,21 +124,20 @@ where
     let initialize = JSONRPCMessage::Request(JSONRPCRequest {
         id: INITIALIZE_REQUEST_ID,
         method: "initialize".to_string(),
-        params: Some(serde_json::to_value(InitializeParams {
-            client_info: ClientInfo {
-                name: CLIENT_NAME.to_string(),
-                title: Some("Codex App Server Daemon".to_string()),
-                version: env!("CARGO_PKG_VERSION").to_string(),
-            },
-            capabilities: if experimental_api {
-                Some(InitializeCapabilities {
-                    experimental_api: true,
+        params: Some(serde_json::to_value(
+            InitializeParams {
+                client_info: ClientInfo {
+                    name: CLIENT_NAME.to_string(),
+                    title: Some("Codex App Server Daemon".to_string()),
+                    version: env!("CARGO_PKG_VERSION").to_string(),
+                },
+                capabilities: Some(InitializeCapabilities {
+                    experimental_api,
                     ..Default::default()
-                })
-            } else {
-                None
-            },
-        })?),
+                }),
+            }
+            .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
+        )?),
         trace: None,
     });
     send_message(websocket, &initialize)
@@ -148,10 +148,18 @@ where
         let message = timeout(CONTROL_SOCKET_RESPONSE_TIMEOUT, read_message(websocket))
             .await
             .context("timed out waiting for initialize response")??;
-        if let JSONRPCMessage::Response(response) = message
-            && response.id == INITIALIZE_REQUEST_ID
-        {
-            break response;
+        match message {
+            JSONRPCMessage::Response(response) if response.id == INITIALIZE_REQUEST_ID => {
+                break response;
+            }
+            JSONRPCMessage::Error(error) if error.id == INITIALIZE_REQUEST_ID => {
+                anyhow::bail!(
+                    "app-server rejected initialize ({}): {}",
+                    error.error.code,
+                    error.error.message
+                );
+            }
+            _ => {}
         }
     };
     serde_json::from_value::<InitializeResponse>(response.result)
@@ -201,61 +209,5 @@ fn parse_version_from_user_agent(user_agent: &str) -> Result<String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use futures::SinkExt;
-    use futures::StreamExt;
-    use pretty_assertions::assert_eq;
-    use tokio_tungstenite::tungstenite::Message;
-
-    use super::parse_version_from_user_agent;
-
-    #[tokio::test]
-    async fn graceful_shutdown_requires_its_own_ack_and_never_falls_back_to_legacy() {
-        for mode in ["legacy", "pidOnlyAck", "graceful"] {
-            let temp = tempfile::TempDir::new().unwrap();
-            let socket = temp.path().join("control.sock");
-            let mut listener = codex_uds::UnixListener::bind(&socket).await.unwrap();
-            let pid = std::process::id();
-            let peer = tokio::spawn(async move {
-                let stream = listener.accept().await.unwrap();
-                let mut websocket = tokio_tungstenite::accept_async(stream).await.unwrap();
-                let frame = websocket.next().await.unwrap().unwrap();
-                assert_eq!(frame, Message::Text(format!("graceful:{pid}").into()));
-                if mode == "legacy" {
-                    // R28/R32 run_daemon_shutdown accepts exactly the PID. An
-                    // extended request is rejected without ACK or shutdown event.
-                    let shutdown_event =
-                        matches!(frame, Message::Text(request) if request == pid.to_string());
-                    assert!(!shutdown_event);
-                    return;
-                }
-                let ack = if mode == "pidOnlyAck" {
-                    pid.to_string()
-                } else {
-                    format!("graceful:{pid}")
-                };
-                websocket.send(Message::Text(ack.into())).await.unwrap();
-                let _ = websocket.next().await;
-            });
-            let result = super::request_shutdown(&socket, pid, true).await;
-            assert_eq!(result.is_ok(), mode == "graceful");
-            peer.await.unwrap();
-        }
-    }
-
-    #[test]
-    fn parses_version_from_codex_user_agent() {
-        assert_eq!(
-            parse_version_from_user_agent(
-                "codex_app_server_daemon/1.2.3 (Linux 6.8.0; x86_64) codex_cli_rs/1.2.3",
-            )
-            .expect("version"),
-            "1.2.3"
-        );
-    }
-
-    #[test]
-    fn rejects_user_agent_without_version() {
-        assert!(parse_version_from_user_agent("codex_app_server_daemon").is_err());
-    }
-}
+#[path = "client_tests.rs"]
+mod tests;

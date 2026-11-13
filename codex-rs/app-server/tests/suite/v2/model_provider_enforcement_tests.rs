@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Verifies provider selection and requirements at app-server input and queue admission boundaries.
 
 use anyhow::Result;
@@ -389,7 +390,8 @@ async fn malformed_system_defaults_reject_input_until_provider_can_be_resolved()
                 version: "0.1.0".to_string(),
             },
             capabilities: None,
-        },
+        }
+        .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
         channel_capacity: in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
     })
     .await?;

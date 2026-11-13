@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Session- and turn-scoped helpers for talking to model provider APIs.
 //!
@@ -363,6 +364,8 @@ struct WebsocketContinuation {
 
 #[derive(Debug, Default)]
 struct WebsocketSession {
+    /// Context policy captured by the last request, carried with cached continuations.
+    context_index_revision: Option<u64>,
     connection: Option<ApiWebSocketConnection>,
     responses_headers: ApiHeaderMap,
     parent_routing_affinity: Option<codex_http_client::ChatGptRoutingAffinity>,
@@ -521,6 +524,7 @@ impl WebsocketSession {
             .or_else(|| self.last_request.as_ref().and(reason));
         *self = Self {
             auth_owner_generation: self.auth_owner_generation,
+            context_index_revision: self.context_index_revision,
             continuation_reset_reason,
             ..Default::default()
         };
@@ -1558,6 +1562,21 @@ impl Drop for ModelClientSession {
 }
 
 impl ModelClientSession {
+    pub(crate) fn bound_context_index_revision(&self) -> Option<u64> {
+        self.websocket_session.context_index_revision
+    }
+
+    pub(crate) fn bind_context_index_revision(&mut self, revision: u64) {
+        if self.websocket_session.context_index_revision != Some(revision)
+            && self.websocket_session.last_request.is_some()
+        {
+            // A previous_response_id can retain details removed from the new projection.
+            // Policy changes require a complete request with no old response continuation.
+            self.websocket_session.reset(Some("context_index_changed"));
+        }
+        self.websocket_session.context_index_revision = Some(revision);
+    }
+
     pub(crate) fn bind_capacity_retry_owner(&mut self, owner: Option<u64>) {
         self.capacity_retry_owner = Some(owner);
     }

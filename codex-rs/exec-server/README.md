@@ -211,7 +211,14 @@ processes for that client connection.
 
 ### `initialize`
 
-Initial handshake request.
+Initial handshake request for the execution/filesystem protocol. Its `clientName`
+and optional `resumeSessionId` are independent of app-server initialization; do
+not add app-server's `arcvera/core` declaration here. An app-server connection
+uses the [Core version declaration](../app-server/README.md#arcvera-core-100-initialization--초기화).
+
+실행·파일시스템 프로토콜의 초기화 요청입니다. `clientName`과 선택적인
+`resumeSessionId`를 사용하며 app-server 초기화와 별개입니다. app-server의
+`arcvera/core` 선언을 이 요청에 추가하지 않습니다.
 
 Request params:
 

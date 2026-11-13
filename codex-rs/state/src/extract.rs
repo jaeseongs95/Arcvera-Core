@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use crate::model::ThreadMetadata;
 use codex_history::RolloutItem;
@@ -42,6 +43,7 @@ pub fn apply_rollout_item(
         RolloutItem::WorldState(_) => {}
         RolloutItem::DynamicToolsUpdated { .. }
         | RolloutItem::RetainedContext(_)
+        | RolloutItem::ContextIndex(_)
         | RolloutItem::SecurityRiskScore(_) => {}
         RolloutItem::RealtimeItem(_) => {}
         RolloutItem::TokenUsageRecord(_) => {}
@@ -76,6 +78,7 @@ pub fn rollout_item_affects_thread_metadata(item: &RolloutItem) -> bool {
         | RolloutItem::Compacted(_)
         | RolloutItem::RealtimeItem(_)
         | RolloutItem::RetainedContext(_)
+        | RolloutItem::ContextIndex(_)
         | RolloutItem::DynamicToolsUpdated { .. }
         | RolloutItem::SecurityRiskScore(_)
         | RolloutItem::TokenUsageRecord(_)

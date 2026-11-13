@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Signal-driven shutdown tests for Unix websocket servers.
 
 use super::connection_handling_websocket::DEFAULT_READ_TIMEOUT;
@@ -452,17 +453,20 @@ async fn start_ctrl_c_restart_client(server_uri: &str) -> Result<(TempDir, Child
         &mut ws,
         "initialize",
         /*id*/ 1,
-        Some(serde_json::to_value(InitializeParams {
-            client_info: ClientInfo {
-                name: "ws_graceful_shutdown".to_string(),
-                title: None,
-                version: "0.1.0".to_string(),
-            },
-            capabilities: Some(InitializeCapabilities {
-                experimental_api: true,
-                ..Default::default()
-            }),
-        })?),
+        Some(serde_json::to_value(
+            InitializeParams {
+                client_info: ClientInfo {
+                    name: "ws_graceful_shutdown".to_string(),
+                    title: None,
+                    version: "0.1.0".to_string(),
+                },
+                capabilities: Some(InitializeCapabilities {
+                    experimental_api: true,
+                    ..Default::default()
+                }),
+            }
+            .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
+        )?),
     )
     .await?;
     let init_response = read_response_for_id(&mut ws, /*id*/ 1).await?;

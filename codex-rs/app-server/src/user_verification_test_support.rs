@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Dispatcher harness with a controllable native provider for lifecycle tests.
 //! Public stdio and WebSocket framing are exercised in the integration suite.
 
@@ -238,7 +239,7 @@ impl Harness {
     }
 
     pub(super) async fn initialize(&mut self, name: &str, opt_in: bool) {
-        self.send(/*id*/ 0, "initialize", json!({"clientInfo": {"name": name, "version": "1"}, "capabilities": {"experimentalApi": opt_in}})).await;
+        self.send(/*id*/ 0, "initialize", json!({"clientInfo": {"name": name, "version": "1"}, "capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},"experimentalApi": opt_in}})).await;
         assert!(matches!(
             self.response().await,
             OutgoingMessage::Response(_)

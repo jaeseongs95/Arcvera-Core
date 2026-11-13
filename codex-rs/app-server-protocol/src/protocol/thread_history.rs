@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use crate::protocol::item_builders::build_command_execution_begin_item;
 use crate::protocol::item_builders::build_command_execution_end_item;
 use crate::protocol::item_builders::build_file_change_approval_request_item;
@@ -522,6 +523,7 @@ impl ThreadHistoryBuilder {
             | RolloutItem::WorldState(_)
             | RolloutItem::RealtimeItem(_)
             | RolloutItem::RetainedContext(_)
+            | RolloutItem::ContextIndex(_)
             | RolloutItem::SecurityRiskScore(_)
             | RolloutItem::DynamicToolsUpdated { .. }
             | RolloutItem::SessionMeta(_) => {}

@@ -304,3 +304,15 @@ layout; Windows receives no ELF or Mach-O runtime-search flags. This capability
 still needs real native x64/ARM64 Bazel execution and consumer validation before
 it establishes complete Windows voice support. The existing direct native recipe
 passing on Windows does not prove this new Bazel input and execution path.
+# Arcvera distribution policy (2026-11-13)
+
+Microsoft runtime DLLs and installers must not be staged or bundled.
+`windows_crt.py` now fails explicitly without downloading or writing files;
+`windows-crt.json` remains historical build provenance. `package_runtime.py`
+rejects CRT names even when a prepared manifest contains matching hashes.
+Users install the runtime from Microsoft; see
+[English/Korean instructions](../../tools/windows-cli/RUNTIME.md).
+
+Microsoft 런타임 DLL과 설치기는 동봉하지 않습니다. 기존 CRT 준비 명령은
+네트워크·파일 변경 없이 실패하며 사용자는 위 공식 안내에 따라 직접
+설치합니다. 기존 빌드 입력 기록은 과거 출처를 설명하기 위해 보존합니다.

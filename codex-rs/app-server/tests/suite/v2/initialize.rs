@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use anyhow::Result;
 use app_test_support::MockResponsesConfig;
@@ -26,6 +27,87 @@ use tempfile::TempDir;
 use tokio::time::timeout;
 
 const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+#[tokio::test]
+async fn initialize_rejects_incompatible_core_before_session_admission() -> Result<()> {
+    let server = create_mock_responses_server_sequence_unchecked(Vec::new()).await;
+    let codex_home = TempDir::new()?;
+    MockResponsesConfig::new(&server.uri())
+        .disable_feature(Feature::ShellSnapshot)
+        .write(codex_home.path())?;
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .without_auto_env()
+        .with_env_overrides(&[("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", None)])
+        .build()
+        .await?;
+
+    let incompatible = [
+        Value::Null,
+        serde_json::json!({}),
+        serde_json::json!({"extensions": {"arcvera/core": null}}),
+        serde_json::json!({"extensions": {"arcvera/core": "1.0.0"}}),
+        serde_json::json!({"extensions": {"arcvera/core": {"version": 1}}}),
+        serde_json::json!({"extensions": {"arcvera/core": {"version": "0.168.0"}}}),
+        serde_json::json!({"extensions": {"arcvera/core": {
+            "version": format!("{}+different-build", env!("CARGO_PKG_VERSION"))
+        }}}),
+    ];
+    for capabilities in std::iter::once(None).chain(incompatible.into_iter().map(Some)) {
+        // Send raw JSON: the normal test helper deliberately supplies the current version.
+        let mut params = serde_json::json!({
+            "clientInfo": {"name": "rejected-client", "version": "0.168.0"},
+        });
+        if let Some(capabilities) = capabilities {
+            params["capabilities"] = capabilities;
+        }
+        let id = mcp.send_request("initialize", Some(params)).await?;
+        let error = timeout(
+            DEFAULT_READ_TIMEOUT,
+            mcp.read_stream_until_error_message(RequestId::Integer(id)),
+        )
+        .await??;
+        assert_eq!(error.error.code, -32600);
+        assert_eq!(
+            error.error.message,
+            format!(
+                "Incompatible Arcvera Core client: initialize.capabilities.extensions[\"arcvera/core\"].version must equal {}",
+                env!("CARGO_PKG_VERSION")
+            )
+        );
+
+        let id = mcp
+            .send_request("account/read", Some(serde_json::json!({})))
+            .await?;
+        let error = timeout(
+            DEFAULT_READ_TIMEOUT,
+            mcp.read_stream_until_error_message(RequestId::Integer(id)),
+        )
+        .await??;
+        assert_eq!(error.error.code, -32600);
+        assert_eq!(error.error.message, "Not initialized");
+    }
+
+    // Rejected attempts must not consume session admission or commit the rejected identity.
+    let message = timeout(
+        DEFAULT_READ_TIMEOUT,
+        mcp.initialize_with_client_info(ClientInfo {
+            name: "arcvera_desktop".to_string(),
+            title: None,
+            version: "2.0.0".to_string(),
+        }),
+    )
+    .await??;
+    let JSONRPCMessage::Response(response) = message else {
+        anyhow::bail!("expected successful retry, got {message:?}");
+    };
+    let response = to_response::<InitializeResponse>(response)?;
+    assert!(response.user_agent.starts_with("arcvera_desktop/"));
+    assert!(!response.user_agent.contains("rejected-client"));
+    assert!(response.opendiy_capabilities.is_some());
+    assert!(!codex_home.path().join("auth.json").exists());
+    Ok(())
+}
 
 #[tokio::test]
 async fn initialize_uses_client_info_name_as_originator() -> Result<()> {

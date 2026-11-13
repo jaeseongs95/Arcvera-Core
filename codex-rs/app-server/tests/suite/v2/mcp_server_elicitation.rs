@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -514,20 +515,24 @@ async fn initialize_websocket_client(
         client,
         "initialize",
         id,
-        Some(serde_json::to_value(InitializeParams {
-            client_info: ClientInfo {
-                name: name.to_string(),
-                title: None,
-                version: "0.1.0".to_string(),
-            },
-            capabilities: Some(InitializeCapabilities {
-                required_human_approval: false,
-                experimental_api: true,
-                extensions: supports_openai_form_elicitation
-                    .then(|| HashMap::from([("openai/form".to_string(), serde_json::json!({}))])),
-                ..Default::default()
-            }),
-        })?),
+        Some(serde_json::to_value(
+            InitializeParams {
+                client_info: ClientInfo {
+                    name: name.to_string(),
+                    title: None,
+                    version: "0.1.0".to_string(),
+                },
+                capabilities: Some(InitializeCapabilities {
+                    required_human_approval: false,
+                    experimental_api: true,
+                    extensions: supports_openai_form_elicitation.then(|| {
+                        HashMap::from([("openai/form".to_string(), serde_json::json!({}))])
+                    }),
+                    ..Default::default()
+                }),
+            }
+            .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
+        )?),
     )
     .await?;
     let _ = read_response_for_id(client, id).await?;

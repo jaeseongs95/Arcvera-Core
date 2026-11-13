@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -345,6 +346,22 @@ impl LiveThread {
                 include_archived,
                 include_history,
             })
+            .await
+    }
+
+    /// Reads an original only from this live thread's authorized persisted history.
+    pub async fn read_original_response_item(
+        &self,
+        source_id: String,
+    ) -> ThreadStoreResult<Option<codex_protocol::models::ResponseItem>> {
+        self.thread_store
+            .read_original_response_item(
+                LoadThreadHistoryParams {
+                    thread_id: self.thread_id,
+                    include_archived: false,
+                },
+                source_id,
+            )
             .await
     }
 

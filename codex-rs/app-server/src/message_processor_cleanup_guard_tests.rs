@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R30 (2026-10-31); see docs/r30-final-boundary-validation-20261031.ko.md.
 //! Host guards exercised through real cleanup ownership, terminal V2 runtimes and local storage.
@@ -65,7 +66,7 @@ async fn initialize(
         id,
         json!({"id":1,"method":"initialize","params":{
             "clientInfo":{"name":"cleanup-guard-test","version":"1"},
-            "capabilities":{"experimentalApi":true}
+            "capabilities":{"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},"experimentalApi":true}
         }}),
     )
     .await;

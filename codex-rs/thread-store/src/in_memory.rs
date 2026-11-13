@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -482,6 +483,73 @@ mod tests {
                 operation: "paginated_threads"
             }
         ));
+    }
+
+    #[tokio::test]
+    async fn indexed_context_original_source_in_memory_preserves_raw_identity() {
+        for mode in [ThreadHistoryMode::Legacy, ThreadHistoryMode::Paginated] {
+            let store = InMemoryThreadStore::default();
+            let id = ThreadId::new();
+            store
+                .create_thread(create_thread_params(id, mode))
+                .await
+                .expect("create thread");
+            let original: codex_protocol::models::ResponseItem =
+                serde_json::from_value(serde_json::json!({
+                    "type":"message", "id":"msg_memory_original", "role":"user",
+                    "content":[{"type":"input_text", "text":"IN_MEMORY_ORIGINAL"}]
+                }))
+                .expect("original fixture");
+            store
+                .append_items(AppendThreadItemsParams {
+                    thread_id: id,
+                    items: vec![
+                        RolloutItem::ResponseItem(original.clone().into()),
+                        RolloutItem::ResponseItem(original.clone().into()),
+                    ],
+                })
+                .await
+                .expect("append originals");
+            let params = LoadThreadHistoryParams {
+                thread_id: id,
+                include_archived: false,
+            };
+            assert_eq!(
+                store
+                    .read_original_response_item(params.clone(), "msg_memory_original".to_string())
+                    .await
+                    .expect("read memory original"),
+                Some(original.clone())
+            );
+            assert_eq!(
+                store
+                    .read_original_response_item(params.clone(), "msg_absent".to_string())
+                    .await
+                    .expect("absent source"),
+                None
+            );
+            let mut conflict = original;
+            if let codex_protocol::models::ResponseItem::Message { content, .. } = &mut conflict {
+                *content = vec![codex_protocol::models::ContentItem::InputText {
+                    text: "CONFLICT".to_string(),
+                }];
+            }
+            store
+                .append_items(AppendThreadItemsParams {
+                    thread_id: id,
+                    items: vec![RolloutItem::ResponseItem(conflict.into())],
+                })
+                .await
+                .expect("append conflicting original");
+            assert!(
+                store
+                    .read_original_response_item(params, "msg_memory_original".to_string())
+                    .await
+                    .expect_err("conflicting original")
+                    .to_string()
+                    .contains("ambiguous original source")
+            );
+        }
     }
 }
 
@@ -982,6 +1050,34 @@ impl ThreadStore for InMemoryThreadStore {
         params: LoadThreadHistoryParams,
     ) -> ThreadStoreFuture<'_, StoredModelContext> {
         Box::pin(InMemoryThreadStore::load_latest_model_context(self, params))
+    }
+
+    fn read_original_response_item(
+        &self,
+        params: LoadThreadHistoryParams,
+        source_id: String,
+    ) -> ThreadStoreFuture<'_, Option<codex_protocol::models::ResponseItem>> {
+        Box::pin(async move {
+            let state = self.state.lock().await;
+            let items =
+                state
+                    .histories
+                    .get(&params.thread_id)
+                    .ok_or(ThreadStoreError::ThreadNotFound {
+                        thread_id: params.thread_id,
+                    })?;
+            let mut original = None;
+            for item in items {
+                if let RolloutItem::ResponseItem(envelope) = item {
+                    crate::store::retain_unique_original(
+                        &mut original,
+                        &envelope.item,
+                        &source_id,
+                    )?;
+                }
+            }
+            Ok(original)
+        })
     }
 
     fn read_thread(&self, params: ReadThreadParams) -> ThreadStoreFuture<'_, StoredThread> {

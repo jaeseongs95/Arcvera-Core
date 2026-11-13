@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use std::sync::Arc;
 
 use codex_exec_server::EnvironmentManager;
@@ -106,7 +107,7 @@ pub(crate) async fn build_prompt_input_from_session(
     let prompt_input = sess
         .clone_history()
         .await
-        .for_prompt(
+        .projected_for_prompt(
             &step_context.settings.model_info.input_modalities,
             sess.services.image_store.as_ref(),
         )

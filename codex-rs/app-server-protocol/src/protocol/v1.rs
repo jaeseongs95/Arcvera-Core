@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -32,6 +33,38 @@ pub struct InitializeParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<InitializeCapabilities>,
 }
+
+impl InitializeParams {
+    /// Declare the exact Core build used by this client, independently of its UI version.
+    pub fn with_arcvera_core_version(mut self, version: &str) -> Self {
+        self.capabilities
+            .get_or_insert_with(InitializeCapabilities::default)
+            .extensions
+            .get_or_insert_with(HashMap::new)
+            .insert(
+                "arcvera/core".to_string(),
+                serde_json::json!({ "version": version }),
+            );
+        self
+    }
+
+    /// Deliberately compare the full version, including prerelease and build metadata.
+    /// Missing and malformed declarations never opt a client into compatibility.
+    pub fn supports_arcvera_core_version(&self, version: &str) -> bool {
+        self.capabilities
+            .as_ref()
+            .and_then(|capabilities| capabilities.extensions.as_ref())
+            .and_then(|extensions| extensions.get("arcvera/core"))
+            .and_then(|declaration| declaration.as_object())
+            .and_then(|declaration| declaration.get("version"))
+            .and_then(serde_json::Value::as_str)
+            == Some(version)
+    }
+}
+
+#[cfg(test)]
+#[path = "v1_core_version_tests.rs"]
+mod core_version_tests;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]

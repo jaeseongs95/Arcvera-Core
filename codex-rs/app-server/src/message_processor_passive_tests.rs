@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! New method contracts through the real initialized JSON-RPC dispatcher and listener.
 use super::message_processor_tracing_tests::{
@@ -76,7 +77,7 @@ async fn initialize(
         &session,
         json!({"id":1,"method":"initialize","params":{
             "clientInfo":{"name":format!("passive-test-{}",id.0),"version":"1"},
-            "capabilities":{"experimentalApi":true}
+            "capabilities":{"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},"experimentalApi":true}
         }}),
     )
     .await;

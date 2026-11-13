@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Exercises ownership through real initialized JSON-RPC sessions and disconnect processing.
 
 use super::test_support::Harness;
@@ -40,7 +41,7 @@ async fn initialize_second(h: &mut Harness) -> Result<Arc<ConnectionSessionState
             rpc::JSONRPCRequest {
                 id: rpc::RequestId::Integer(0),
                 method: "initialize".into(),
-                params: Some(json!({"clientInfo":{"name":"codex-tui","version":"1"},"capabilities":{"experimentalApi":true}})),
+                params: Some(json!({"clientInfo":{"name":"codex-tui","version":"1"},"capabilities":{"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},"experimentalApi":true}})),
                 trace: None,
             },
             &AppServerTransport::Stdio,

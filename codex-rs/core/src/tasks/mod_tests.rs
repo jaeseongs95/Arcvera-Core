@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use super::SessionTask;
 use super::SessionTaskResult;
 use super::TASK_COMPACT_METRIC;
@@ -321,6 +322,7 @@ async fn turn_completion_metrics_follow_model_switch(scenario: UsageScenario) {
                     crate::session::TokenUsageContext::Sampling {
                         includes_reasoning: false,
                         input_item_count: 0,
+                        context_index_revision: Some(0),
                     },
                 )
                 .await

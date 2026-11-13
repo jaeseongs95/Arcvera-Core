@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Browser login must finish enterprise bootstrap when only the system proxy can reach it.
 
 use anyhow::Context;
@@ -203,7 +204,8 @@ async fn browser_login_bootstraps_through_system_proxy() -> Result<()> {
                 version: "0.1.0".to_string(),
             },
             capabilities: None,
-        },
+        }
+        .with_arcvera_core_version(env!("CARGO_PKG_VERSION")),
         channel_capacity: in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
     })
     .await?;

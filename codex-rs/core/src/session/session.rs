@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use super::input_queue::InputQueue;
 use super::mcp_refresh::McpRefresh;
@@ -1785,6 +1786,7 @@ impl Session {
                     | RolloutItem::RealtimeItem(_)
                     | RolloutItem::TokenUsageRecord(_)
                     | RolloutItem::RetainedContext(_)
+                    | RolloutItem::ContextIndex(_)
                     | RolloutItem::SecurityRiskScore(_) => {}
                 }
             }
@@ -2112,6 +2114,7 @@ impl Session {
 
             // record_initial_history can emit events. We record only after the SessionConfiguredEvent is emitted.
             Box::pin(sess.record_initial_history(initial_history)).await;
+            sess.ensure_context_index_ready().await?;
             if restore_child_window {
                 sess.state.lock().await.restore_auto_compact_window(
                     /*window_number*/ 0,

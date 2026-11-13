@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Verify that startup configuration controls compression on the public RPC listener.
 
 use super::connection_handling_websocket::DEFAULT_READ_TIMEOUT;
@@ -55,7 +56,7 @@ async fn websocket_compression_requires_server_feature() -> Result<()> {
         let initialize = json!({
             "id": 1,
             "method": "initialize",
-            "params": {"clientInfo": {"name": "compression-test", "version": "1"}}
+            "params": {"capabilities": {"extensions": {"arcvera/core": {"version": env!("CARGO_PKG_VERSION")}},},"clientInfo": {"name": "compression-test", "version": "1"}}
         })
         .to_string();
         let message = if enabled {

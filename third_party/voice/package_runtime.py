@@ -1,3 +1,5 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+# Modified for Arcvera-Core (2026-11-13); see MODIFICATIONS.md.
 """Validate prepared runtime files before copying them into a private package.
 
 The runtime receipt records preparation, not authenticity. Preserve its bytes and
@@ -10,6 +12,7 @@ from pathlib import Path
 import re
 
 from runtime import PLUGINS, digest, required_library_paths
+from distribution_policy import require_distributable
 
 
 def runtime_files(
@@ -55,6 +58,7 @@ def runtime_files(
     files, names = {}, set()
     for record in libraries:
         name, expected = record["path"], record["sha256"]
+        require_distributable(name)
         if not re.fullmatch(pattern, name) or name.casefold() in names:
             raise ValueError("invalid or colliding runtime path")
         path = root / name

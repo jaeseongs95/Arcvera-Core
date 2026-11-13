@@ -141,20 +141,6 @@ controls-memory-runtime-differs = 메모리 설정을 저장했지만 현재 실
 
 controls-memory-confirmed = 메모리 설정과 현재 실행 상태를 확인했습니다. 읽기는 이후 문맥에, 생성은 새 처리에 적용되며 실행 중인 처리는 끝날 수 있습니다. 요약 생성이나 모델 턴을 시작하지 않았습니다.
 
-diagnostics-status = 현재 실행의 시작 모드와 저장 설정을 구분해 표시합니다. 일반 로깅만 켜도 캐시 관측이 켜지는 것은 아닙니다.
-
-diagnostics-saved-next-launch = 다음 실행에 적용할 설정을 저장했습니다. 현재 실행은 시작 모드를 유지합니다. 일반 로깅만 켜도 캐시 관측이 켜지는 것은 아닙니다.
-
-diagnostics-home-failed = 로컬 진단 설정 경로를 확인하지 못했습니다: { $error }
-
-diagnostics-operation-failed = 진단 설정 처리에 실패했습니다: { $error }. 변경을 다시 시도하기 전에 상태를 조회하세요.
-
-diagnostics-settings-busy = 다른 작업이 진단 설정을 변경하고 있습니다. 상태를 조회한 뒤 변경을 다시 시도하세요.
-
-diagnostics-operation-unconfirmed = 진단 설정 처리 결과를 확인하지 못했습니다: { $error }. 변경을 다시 시도하기 전에 상태를 조회하세요.
-
-diagnostics-cache-wire-requires-response = 캐시 wire 관측에는 응답 관측이 필요합니다. 두 항목을 명시적으로 선택하세요.
-
 controls-memory-command-hint = /memory enable on|off · /memory edit <정정 내용> · /memory read on|off · /memory generate on|off
 controls-memory-usage = 사용법: /memory view | enable on|off | edit <정정 내용> | read on|off | generate on|off | scope project|global
 daemon-auto-selected-mismatch = 선택된 공유 서버 실행 파일 { $managed_path }은(는) 현재 CLI { $cli_path }와 다릅니다. 이번 대화는 현재 CLI에 포함된 서버를 사용하며 공유 설치본은 보존했습니다. 명시적으로 선택을 바꾸려면 `codex app-server daemon update --from-cli --yes --no-force`를 실행하세요.

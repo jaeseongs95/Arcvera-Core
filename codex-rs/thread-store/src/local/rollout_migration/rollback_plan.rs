@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Decides which legacy records remain visible after historical rollback.
 //!
 //! Legacy rollback removes logical instruction turns, not a physical suffix of the rollout file.
@@ -63,6 +64,8 @@ pub(super) struct RollbackPlan {
     record_boundaries: Vec<Option<usize>>,
     boundary_alive: Vec<bool>,
     compacted_items: HashMap<usize, CompactedItem>,
+    pub(super) last_index_reset: Option<usize>,
+    pub(super) has_context_index: bool,
 }
 
 impl RollbackPlan {
@@ -114,6 +117,8 @@ pub(super) struct RollbackPlanner {
     retained_fact_sources: Vec<RetainedFactSource>,
     compactions: Vec<CompactionFrame>,
     model_replay: ModelReplayPlanner,
+    last_index_reset: Option<usize>,
+    has_context_index: bool,
 }
 
 impl RollbackPlanner {
@@ -133,6 +138,8 @@ impl RollbackPlanner {
             retained_fact_sources: Vec::new(),
             compactions: Vec::new(),
             model_replay: ModelReplayPlanner::new(),
+            last_index_reset: None,
+            has_context_index: false,
         }
     }
 
@@ -212,6 +219,9 @@ impl RollbackPlanner {
                 }
             }
             RolloutItem::EventMsg(EventMsg::ThreadRolledBack(rollback)) => {
+                if rollback.num_turns > 0 {
+                    self.last_index_reset = Some(index);
+                }
                 self.apply_rollback(rollback.num_turns)?;
             }
             RolloutItem::EventMsg(EventMsg::TurnStarted(event)) => {
@@ -257,6 +267,10 @@ impl RollbackPlanner {
                 self.pending_delivery_boundary = Some(boundary);
             }
             RolloutItem::Compacted(item) => {
+                self.has_context_index |= item
+                    .resume_metadata
+                    .as_ref()
+                    .is_some_and(|metadata| metadata.context_index.is_some());
                 let owner = self
                     .active_turn_id
                     .as_deref()
@@ -281,6 +295,10 @@ impl RollbackPlanner {
             }
             RolloutItem::TokenUsageRecord(record) => {
                 self.assign_targeted_record(index, Some(record.turn_id.as_str()));
+            }
+            RolloutItem::ContextIndex(_) => {
+                self.has_context_index = true;
+                self.assign_targeted_record(index, None);
             }
             RolloutItem::WorldState(_) | RolloutItem::RealtimeItem(_) => {}
             RolloutItem::RetainedContext(codex_rollout::RetainedContextEvent::VerifiedAnswer {
@@ -362,6 +380,8 @@ impl RollbackPlanner {
             boundaries,
             compactions,
             model_replay,
+            last_index_reset,
+            has_context_index,
             ..
         } = self;
         let replay_anchor = model_replay.finish().empty_replacement_history_compaction;
@@ -387,6 +407,8 @@ impl RollbackPlanner {
             record_boundaries,
             boundary_alive,
             compacted_items,
+            last_index_reset,
+            has_context_index,
         }
     }
 

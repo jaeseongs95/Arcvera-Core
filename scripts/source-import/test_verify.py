@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 """Small synthetic checks for verifier launch and cross-platform symlink handling."""
 import importlib.util
 import os
@@ -303,5 +304,22 @@ class VerifierChecks(unittest.TestCase):
         self.assertEqual(EXPORT.sha(canonical),EXPORT.WINDOWS_INPUTS[relative]['gitBlobSha256'])
         if os.name=='nt':
             self.assertEqual(EXPORT.sha(data),EXPORT.WINDOWS_INPUTS[relative]['windowsSourceSha256'])
+
+    def test_retired_runtime_modules_keep_historical_import_notices(self):
+        # These notices identify pinned public-import blobs, not reachable runtime code.
+        retired = {
+            'codex-rs/codex-api/tests/cache_batch_boundary.rs': ('R33', '2026-11-02'),
+            'codex-rs/codex-api/src/sse/cache_observation.rs': ('R35', '2026-11-03'),
+            'codex-rs/diagnostics/src/cache_diagnostics.rs': ('R35', '2026-11-03'),
+            'codex-rs/diagnostics/src/batch_log.rs': ('R37', '2026-11-04'),
+            'codex-rs/diagnostics/src/settings_control.rs': ('R35', '2026-11-03'),
+            'codex-rs/diagnostics/src/settings_control_tests.rs': ('R35', '2026-11-03'),
+            'codex-rs/tui/src/app/diagnostics_control.rs': ('R35', '2026-11-03'),
+            'codex-rs/tui/src/app/diagnostics_control_tests.rs': ('R35', '2026-11-03'),
+        }
+        for path, (label, date) in retired.items():
+            with self.subTest(path=path):
+                expected = f'// Modified for OpenDIY Codex {label} ({date}); see MODIFICATIONS.md.\n'.encode()
+                self.assertEqual(EXPORT.notice(path), expected)
 
 if __name__=='__main__':unittest.main()
