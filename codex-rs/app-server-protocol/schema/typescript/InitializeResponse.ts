@@ -18,7 +18,7 @@ supportsSubagentManagement?: boolean,
  */
 supportsExpectedTurnInterrupt?: boolean, userAgent: string,
 /**
- * Absolute path to the server's $CODEX_HOME directory.
+ * Absolute path to the server's $ARCVERA_HOME directory.
  */
 codexHome: AbsolutePathBuf,
 /**

@@ -1,8 +1,9 @@
+# Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 # Application-owned CLI help and parse-error presentation. Command tokens and values remain unchanged.
 
-cli-help-app-cmd-workspace-path-to-open-in-the-desktop-app = Desktop 앱에서 열 작업 공간 경로
+cli-help-app-cmd-workspace-path-to-open-in-the-desktop-app = 기존 작업 공간 인자(Desktop 연동 비활성화)
 
-cli-help-app-cmd-override-the-app-installer-download-url-advanced = 앱 설치 프로그램 다운로드 URL 재정의(고급)
+cli-help-app-cmd-override-the-app-installer-download-url-advanced = 기존 설치 URL 인자(무시됨, 설치 비활성화)
 
 cli-cleanup-current = 현재 대화 UUID. 생략하면 CODEX_THREAD_ID를 사용합니다
 
@@ -78,7 +79,7 @@ cli-help-lib-disable-direct-network-access-in-the-supplied-sandbox = 제공된 �
 
 cli-help-lib-named-permissions-profile-to-apply-from-the-active = 활성 설정 계층에서 적용할 이름 있는 권한 프로필
 
-cli-help-lib-layer-codex-home-name-config-toml-on-top = 기본 사용자 설정 위에 $CODEX_HOME/<name>.config.toml 적용
+cli-help-lib-layer-codex-home-name-config-toml-on-top = 기본 사용자 설정 위에 $ARCVERA_HOME/<name>.config.toml 적용
 
 cli-help-lib-working-directory-used-for-profile-resolution-and-command = 프로필 해석과 명령 실행에 사용할 작업 디렉터리
 
@@ -120,7 +121,7 @@ cli-help-main-experimental-run-the-app-server-or-related-tooling = [실험적] �
 
 cli-help-main-experimental-manage-the-app-server-daemon-with-remote = [실험적] 원격 제어가 활성화된 app-server 데몬 관리
 
-cli-help-main-launch-the-desktop-app-opens-the-app-installer = Desktop 앱 실행(설치되지 않았으면 앱 설치 프로그램 열기)
+cli-help-main-launch-the-desktop-app-opens-the-app-installer = Arcvera 릴리스 안내(Desktop 실행·설치 비활성화)
 
 cli-help-main-generate-shell-completion-scripts = 셸 자동 완성 스크립트 생성
 
@@ -388,7 +389,7 @@ cli-help-marketplace-cmd-examples-codex-plugin-marketplace-upgrade-codex-plugin-
 cli-help-marketplace-cmd-example-codex-plugin-marketplace-remove-debug = 예:
       codex plugin marketplace remove debug
 
-cli-help-mcp-cmd-subcommands-list-list-configured-servers-with-json-get = 하위 명령: - `list` — 설정된 서버 목록(`--json` 지원) - `get` — 서버 하나 표시(`--json` 지원) - `add` — `~/.codex/config.toml`에 서버 실행 항목 추가 - `remove` — 서버 항목 삭제 - `login` — OAuth로 MCP 서버 인증 - `logout` — MCP 서버 OAuth 인증 정보 제거
+cli-help-mcp-cmd-subcommands-list-list-configured-servers-with-json-get = 하위 명령: - `list` — 설정된 서버 목록(`--json` 지원) - `get` — 서버 하나 표시(`--json` 지원) - `add` — `~/.arcvera/config.toml`에 서버 실행 항목 추가 - `remove` — 서버 항목 삭제 - `login` — OAuth로 MCP 서버 인증 - `logout` — MCP 서버 OAuth 인증 정보 제거
 
 cli-help-mcp-cmd-output-the-configured-servers-as-json = 설정된 서버를 JSON으로 출력
 
@@ -514,7 +515,7 @@ cli-help-sandbox-setup-windows-user-that-will-run-codex-after-managed = 관리 �
 
 cli-help-sandbox-setup-use-the-current-windows-user-as-the-codex = 현재 Windows 사용자를 Codex 사용자로 사용
 
-cli-help-sandbox-setup-codex-home-for-the-codex-user-required-with = Codex 사용자의 CODEX_HOME. --user와 함께 사용해야 합니다
+cli-help-sandbox-setup-codex-home-for-the-codex-user-required-with = Codex 사용자의 ARCVERA_HOME. --user와 함께 사용해야 합니다
 
 cli-help-sandbox-uninstall-remove-the-legacy-windows-sandbox-s-machine-wide = 이전 Windows 샌드박스의 컴퓨터 전체 계정 및 네트워크 규칙 제거
 
@@ -559,7 +560,7 @@ cli-help-cli-allow-running-codex-outside-a-git-repository = Git 저장소 밖에
 
 cli-help-cli-run-without-persisting-session-files-to-disk = 세션 파일을 디스크에 저장하지 않고 실행
 
-cli-help-cli-do-not-load-codex-home-config-toml-auth = `$CODEX_HOME/config.toml`을 읽지 않음. 인증에는 계속 `CODEX_HOME`을 사용합니다
+cli-help-cli-do-not-load-codex-home-config-toml-auth = `$ARCVERA_HOME/config.toml`을 읽지 않음. 인증에는 계속 `ARCVERA_HOME`을 사용합니다
 
 cli-help-cli-do-not-load-user-or-project-execpolicy-rules = 사용자 또는 프로젝트의 execpolicy `.rules` 파일을 읽지 않음
 
@@ -671,9 +672,9 @@ cli-help-approval-mode-cli-arg-never-ask-for-user-approval-execution-failures-ar
 
 cli-help-config-override-cli-option-that-captures-arbitrary-configuration-overrides-specified = `-c key=value`로 지정한 임의 설정 재정의를 받는 CLI 옵션. 호출 코드가 오른쪽 값을 해석하도록 양쪽을 파싱하지 않고 유지합니다
 
-cli-help-config-override-override-a-configuration-value-that-would-otherwise-be = `~/.codex/config.toml`에서 읽을 설정값 재정의. 중첩 값은 점 경로(`foo.bar.baz`)를 사용합니다. `value` 부분은 TOML로 파싱하며 실패하면 원문 문자열을 리터럴로 사용합니다
+cli-help-config-override-override-a-configuration-value-that-would-otherwise-be = `~/.arcvera/config.toml`에서 읽을 설정값 재정의. 중첩 값은 점 경로(`foo.bar.baz`)를 사용합니다. `value` 부분은 TOML로 파싱하며 실패하면 원문 문자열을 리터럴로 사용합니다
 
-cli-help-config-override-override-a-configuration-value-that-would-otherwise-be-details = `~/.codex/config.toml`에서 읽을 설정값을 재정의합니다. 중첩 값은 점 경로(`foo.bar.baz`)를 사용합니다. `value` 부분은 TOML로 파싱하며 실패하면 원문 문자열을 리터럴로 사용합니다.
+cli-help-config-override-override-a-configuration-value-that-would-otherwise-be-details = `~/.arcvera/config.toml`에서 읽을 설정값을 재정의합니다. 중첩 값은 점 경로(`foo.bar.baz`)를 사용합니다. `value` 부분은 TOML로 파싱하며 실패하면 원문 문자열을 리터럴로 사용합니다.
 
     예: - `-c model="o3"` - `-c 'sandbox_permissions=["disk-full-read-access"]'` - `-c shell_environment_policy.inherit=all`
 

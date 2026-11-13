@@ -1,3 +1,19 @@
+# Arcvera-Core 1.0.1 native hotfix / 네이티브 핫픽스 (2026-11-13)
+
+## English
+
+The public CLI is `arcvera`. Its default home is `~/.arcvera`, overridden by `ARCVERA_HOME`; `CODEX_HOME` is ignored, including in child processes and SQLite home selection. Existing official product data is not moved or imported automatically. The inherited OpenAI installer, automatic updater, update suggestions and update commands are disabled. Explicit managed selection from a complete local Arcvera package remains available with `app-server daemon update --from-cli`. Windows packaging emits `bin/arcvera.exe` and Arcvera launchers, without inherited updater metadata. Required upstream legal notices, helper names, authentication and protocol identities remain. Java migration and multi-vendor login are outside this hotfix.
+
+The shared-home and inherited-updater defects are addressed separately from the reported SQLite/socket startup failure: the original nested failure has not been reproduced conclusively. Release validation and remaining limits are recorded in [the bilingual 1.0.1 notes](docs/releases/v1.0.1.md). Publication does not install or switch the user's running product.
+
+## 한국어
+
+공개 명령은 `arcvera`입니다. 기본 홈은 `~/.arcvera`이며 `ARCVERA_HOME`으로 지정합니다. 하위 프로세스와 SQLite 홈 선택을 포함해 `CODEX_HOME`을 사용하지 않습니다. 공식 제품의 기존 데이터를 자동으로 이동하거나 가져오지 않습니다. 상속된 OpenAI 설치기·자동 업데이트·업데이트 제안·업데이트 명령을 비활성화했습니다. 완전한 로컬 Arcvera 패키지를 명시적으로 선택하는 `app-server daemon update --from-cli`는 유지합니다. Windows 패키지는 `bin/arcvera.exe`와 Arcvera 실행기를 포함하며 상속된 업데이트 메타데이터를 제거합니다. 필요한 원본 법적 고지·도우미 이름·인증·프로토콜 식별자는 보존합니다. Java 전환과 멀티벤더 로그인은 이번 핫픽스 범위에 포함하지 않습니다.
+
+공유 홈과 상속된 업데이터 결함은 제보된 SQLite/소켓 기동 실패와 구분합니다. 원래 중첩 오류의 직접 원인은 아직 확정하지 못했습니다. 검증 결과와 남은 한계는 [영한 1.0.1 릴리스 노트](docs/releases/v1.0.1.md)에 기록합니다. 발행은 사용자의 실행 중 제품을 설치하거나 전환하지 않습니다.
+
+---
+
 # Arcvera-Core 1.0.0 indexed context development candidate / 인덱스 컨텍스트 개발 후보 (R41 scope, 2026-11-10)
 
 ## English

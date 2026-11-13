@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use super::helpers::drain_insert_history_transcript;
 use super::*;
@@ -2349,7 +2351,7 @@ async fn sqlite_log_write_warning_is_visible_in_warnings() {
     chat.handle_server_notification(
         ServerNotification::Warning(WarningNotification {
             thread_id: None,
-            message: "Codex couldn't save diagnostic logs to its local database. Use /feedback with logs included before closing Codex, or run `codex doctor` for diagnostics.".to_string(),
+            message: "Codex couldn't save diagnostic logs to its local database. Use /feedback with logs included before closing Codex, or run `arcvera doctor` for diagnostics.".to_string(),
         }),
         /*replay_kind*/ None,
     );

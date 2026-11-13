@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Admits registered Core only from the service's installed package version and
 //! prevents legacy setup from replacing accounts owned by a registered runtime.
 
@@ -58,7 +60,7 @@ fn authorize_runtime_client_process(process: &AuthorizedClientProcess) -> Result
     let service = std::env::current_exe()?.canonicalize()?;
     let directory = service.parent().context("service image has no directory")?;
     anyhow::ensure!(
-        ["codex.exe", "codex-code-mode-host.exe"]
+        ["arcvera.exe", "codex-code-mode-host.exe"]
             .iter()
             .any(|name| {
                 image

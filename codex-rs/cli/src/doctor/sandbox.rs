@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 #[cfg(target_os = "windows")]
 use std::fs;
 #[cfg(target_os = "windows")]
@@ -308,7 +310,7 @@ pub(super) fn sandbox_check(config: &Config, arg0_paths: &Arg0DispatchPaths) -> 
                         SetupErrorCode::OrchestratorPayloadSerializeFailed
                         | SetupErrorCode::HelperRequestArgsFailed
                         | SetupErrorCode::HelperUnknownError => {
-                            "repair or reinstall the Codex CLI from an approved distribution"
+                            "repair or reinstall the Arcvera Core CLI from an approved distribution"
                         }
                     };
                     check

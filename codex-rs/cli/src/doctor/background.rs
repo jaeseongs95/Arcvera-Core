@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Reports app-server daemon state without starting or stopping the daemon.
 //!
 //! The background-server check is deliberately passive. It reads the daemon
@@ -97,7 +99,7 @@ pub(super) async fn background_server_check(config: &Config) -> DoctorCheck {
     )
     .details(details);
     if status.check_status() == CheckStatus::Warning {
-        check = check.remediation("Run codex app-server daemon version for more details.");
+        check = check.remediation("Run arcvera app-server daemon version for more details.");
     }
     check
 }
@@ -336,7 +338,7 @@ mod tests {
             })
             .map(|detail| {
                 detail
-                    .replace(&temp.path().display().to_string(), "CODEX_HOME")
+                    .replace(&temp.path().display().to_string(), "ARCVERA_HOME")
                     .replace('\\', "/")
             })
             .collect::<Vec<_>>()

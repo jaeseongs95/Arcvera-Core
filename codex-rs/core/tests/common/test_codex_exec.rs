@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use codex_login::CODEX_API_KEY_ENV_VAR;
 use std::path::Path;
 use tempfile::TempDir;
@@ -15,8 +17,8 @@ impl TestCodexExecBuilder {
                 .expect("should find binary for codex-exec"),
         );
         cmd.current_dir(self.cwd.path())
-            .env("CODEX_HOME", self.home.path())
-            .env("CODEX_SQLITE_HOME", self.home.path())
+            .env("ARCVERA_HOME", self.home.path())
+            .env("ARCVERA_SQLITE_HOME", self.home.path())
             .env(CODEX_API_KEY_ENV_VAR, "dummy");
         cmd
     }

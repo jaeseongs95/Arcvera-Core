@@ -1,7 +1,9 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Builds the `/theme` picker dialog for the TUI.
 //!
 //! The picker lists all bundled themes plus any custom `.tmTheme` files found
-//! under `{CODEX_HOME}/themes/`.  It provides:
+//! under `{ARCVERA_HOME}/themes/`.  It provides:
 //!
 //! - **Live preview:** the `on_selection_changed` callback swaps the runtime
 //!   syntax theme as the user navigates, giving instant visual feedback in both

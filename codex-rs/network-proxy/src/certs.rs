@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use crate::config::NetworkMitmCaConfig;
 use anyhow::Context as _;
 use anyhow::Result;
@@ -302,7 +304,7 @@ pub(crate) struct ManagedMitmCaTrustBundle {
 
 fn managed_ca_dir() -> Result<PathBuf> {
     let codex_home =
-        find_codex_home().context("failed to resolve CODEX_HOME for managed MITM CA")?;
+        find_codex_home().context("failed to resolve ARCVERA_HOME for managed MITM CA")?;
     Ok(codex_home.join(MANAGED_MITM_CA_DIR).to_path_buf())
 }
 

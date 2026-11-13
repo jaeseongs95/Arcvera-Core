@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Background app-server requests launched by the TUI app.
 //!
 //! This module owns fire-and-forget fetch/write helpers for MCP inventory, skills, plugins, rate
@@ -1040,7 +1042,8 @@ fn plugin_remote_section_error_next_step(label: &str, err: &str) -> &'static str
         || err.contains("not logged in")
     {
         "Sign in to ChatGPT, then try loading this section again"
-    } else if err.contains("codex plugins are disabled")
+    } else if err.contains("arcvera plugins are disabled")
+        || err.contains("codex plugins are disabled")
         || err.contains("plugin sharing is disabled")
         || err.contains("plugin sharing is not enabled")
         || err.contains("feature disabled")
@@ -1576,6 +1579,16 @@ mod tests {
             (
                 "Shared with me",
                 "plugin sharing is not enabled",
+                "Ask a workspace admin to enable Codex plugins or plugin sharing",
+            ),
+            (
+                "Shared with me",
+                "Codex plugins are disabled",
+                "Ask a workspace admin to enable Codex plugins or plugin sharing",
+            ),
+            (
+                "Shared with me",
+                "Arcvera plugins are disabled",
                 "Ask a workspace admin to enable Codex plugins or plugin sharing",
             ),
         ];

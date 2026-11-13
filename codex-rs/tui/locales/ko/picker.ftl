@@ -1,3 +1,5 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+# Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 picker-active = 활성
 picker-agent-command-center = 에이전트 명령 센터
 picker-all = 전체
@@ -52,7 +54,7 @@ picker-center-rename-title = 이름 변경
 picker-center-resume-title = 재개
 picker-center-save-grouping-error = 명령 센터 그룹 설정을 저장하지 못했습니다: { $value }
 picker-center-search-title = 검색
-picker-center-service-version = 서비스 v{ $server } { $comparison } Codex CLI v{ $client }{ $guidance }
+picker-center-service-version = 서비스 v{ $server } { $comparison } Arcvera Core CLI v{ $client }{ $guidance }
 picker-center-show-more = 더 보기
 picker-center-show-more-retry = 더 보기 (다시 시도)
 picker-center-stop-title = 중지

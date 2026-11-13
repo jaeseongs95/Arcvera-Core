@@ -1,8 +1,10 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! TUI keymap config schema and canonical key-spec normalization.
 //!
 //! This module defines the on-disk `[tui.keymap]` contract used by
-//! `~/.codex/config.toml` and normalizes user-entered key specs into canonical
+//! `~/.arcvera/config.toml` and normalizes user-entered key specs into canonical
 //! forms consumed by runtime keymap resolution in `codex-rs/tui/src/keymap.rs`.
 //!
 //! Responsibilities:

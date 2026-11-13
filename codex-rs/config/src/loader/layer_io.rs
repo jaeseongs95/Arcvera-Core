@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 #[cfg(target_os = "macos")]
 use super::macos::ManagedAdminConfigLayer;
 #[cfg(target_os = "macos")]
@@ -83,7 +85,7 @@ pub(super) async fn load_config_layers_internal(
             .await
         {
             Ok(_) => vec![format!(
-                "Ignoring deprecated managed config file at {}; CODEX_HOME/managed_config.toml is no longer supported on Windows. Use %ProgramData%\\OpenAI\\Codex\\requirements.toml for enforced settings or config.toml for defaults.",
+                "Ignoring deprecated managed config file at {}; ARCVERA_HOME/managed_config.toml is no longer supported on Windows. Use %ProgramData%\\OpenAI\\Codex\\requirements.toml for enforced settings or config.toml for defaults.",
                 managed_config_path.as_path().display()
             )],
             Err(err) if err.kind() == io::ErrorKind::NotFound => Vec::new(),

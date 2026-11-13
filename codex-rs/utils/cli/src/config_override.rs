@@ -1,4 +1,6 @@
-//! Support for `-c key=value` overrides shared across Codex CLI tools.
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
+//! Support for `-c key=value` overrides shared across Arcvera Core CLI tools.
 //!
 //! This module provides a [`CliConfigOverrides`] struct that can be embedded
 //! into a `clap`-derived CLI struct using `#[clap(flatten)]`. Each occurrence
@@ -18,7 +20,7 @@ use toml::Value;
 #[derive(Parser, Debug, Default, Clone)]
 pub struct CliConfigOverrides {
     /// Override a configuration value that would otherwise be loaded from
-    /// `~/.codex/config.toml`. Use a dotted path (`foo.bar.baz`) to override
+    /// `~/.arcvera/config.toml`. Use a dotted path (`foo.bar.baz`) to override
     /// nested values. The `value` portion is parsed as TOML. If it fails to
     /// parse as TOML, the raw string is used as a literal.
     ///

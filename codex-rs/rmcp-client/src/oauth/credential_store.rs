@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Adapts Codex's pinned credential storage to RMCP-owned OAuth refreshes.
 //!
 //! Attach this store only after `AuthorizationManager::initialize_from_store` completes
@@ -345,7 +347,7 @@ impl<K: KeyringStore + Clone + 'static> CredentialStore for OAuthCredentialStore
                 if inner.store.backend == Backend::Keyring(AuthKeyringBackendKind::Direct)
                     && !inner.server_name.starts_with("ema-idp:")
                 {
-                    // Ordinary direct-keyring entries are shared across CODEX_HOMEs, but their
+                    // Ordinary direct-keyring entries are shared across ARCVERA_HOMEs, but their
                     // refresh locks are not. Do not risk overwriting another home's newer login.
                     // Enterprise entries include the home in their key and remain protected.
                     warn!(

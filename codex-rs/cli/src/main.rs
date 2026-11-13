@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use clap::Args;
 use clap::CommandFactory;
@@ -59,8 +61,6 @@ mod cleanup_agents;
 mod config_override_args;
 mod daemon_install;
 mod daemon_telemetry;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-mod desktop_app;
 mod doctor;
 #[cfg(test)]
 #[path = "exec_args_tests.rs"]
@@ -113,20 +113,21 @@ use codex_protocol::protocol::AskForApproval;
 use codex_protocol::user_input::UserInput;
 use codex_terminal_detection::TerminalName;
 
-/// Codex CLI
+/// Arcvera Core CLI
 ///
 /// If no subcommand is specified, options will be forwarded to the interactive CLI.
 #[derive(Debug, Parser)]
 #[clap(
+    name = "arcvera",
     author,
     version,
     // If a sub‑command is given, ignore requirements of the default args.
     subcommand_negates_reqs = true,
     // The executable is sometimes invoked via a platform‑specific name like
     // `codex-x86_64-unknown-linux-musl`, but the help output should always use
-    // the generic `codex` command name that users run.
-    bin_name = "codex",
-    override_usage = "codex [OPTIONS] [PROMPT]\n       codex [OPTIONS] <COMMAND> [ARGS]"
+    // the generic `arcvera` command name that users run.
+    bin_name = "arcvera",
+    override_usage = "arcvera [OPTIONS] [PROMPT]\n       arcvera [OPTIONS] <COMMAND> [ARGS]"
 )]
 struct MultitoolCli {
     #[clap(flatten)]
@@ -178,7 +179,7 @@ enum Subcommand {
     /// [experimental] Manage the app-server daemon with remote control enabled.
     RemoteControl(RemoteControlCommand),
 
-    /// Launch the Desktop app (opens the app installer if missing).
+    /// Show Arcvera releases (Desktop launch and installation are disabled).
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     App(app_cmd::AppCommand),
 
@@ -499,7 +500,7 @@ type HostSandboxArgs = UnsupportedSandboxArgs;
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 #[derive(Debug, Parser)]
 struct UnsupportedSandboxArgs {
-    /// Layer $CODEX_HOME/<name>.config.toml on top of the base user config.
+    /// Layer $ARCVERA_HOME/<name>.config.toml on top of the base user config.
     #[arg(long = "profile", short = 'p')]
     pub config_profile: Option<ProfileV2Name>,
 
@@ -833,72 +834,23 @@ fn run_update_action(
     action: UpdateAction,
     cli_executable: Option<&std::path::Path>,
 ) -> anyhow::Result<()> {
-    if let UpdateAction::Daemon(source) = action {
+    if let UpdateAction::Daemon(codex_tui::DaemonUpdateSource::ThisCli) = action {
         let executable = cli_executable
-            .ok_or_else(|| anyhow::anyhow!("Cannot locate the launching Codex CLI"))?;
-        println!("Updating the local background server...");
+            .ok_or_else(|| anyhow::anyhow!("Cannot locate the launching Arcvera CLI"))?;
         let status = std::process::Command::new(executable)
-            .args(source.command_args())
+            .args(["app-server", "daemon", "update", "--from-cli", "--yes"])
             .env(codex_app_server_daemon::telemetry::HANDOFF_ENV, "1")
             .status()?;
         anyhow::ensure!(
             status.success(),
             "Daemon update failed with status {status}"
         );
-        println!("Relaunch Codex to reconnect.");
+        println!("Relaunch Arcvera to reconnect.");
         return Ok(());
     }
-    if codex_tui::is_opendiy_version(env!("CARGO_PKG_VERSION")) || action == UpdateAction::OpenDiy {
-        return codex_cli::opendiy_update::run_update();
-    }
-    println!();
-    let cmd_str = action.command_str();
-    println!("Updating Codex via `{cmd_str}`...");
-    let status = {
-        #[cfg(windows)]
-        {
-            let (cmd, args) = action.command_args();
-            let cmd = if action == UpdateAction::StandaloneWindows {
-                // These args contain PowerShell metacharacters, so do not let
-                // PATHEXT select a batch shim for this action.
-                "powershell.exe"
-            } else {
-                cmd
-            };
-            let path_env =
-                std::env::var_os("PATH").ok_or_else(|| anyhow::anyhow!("PATH is not set"))?;
-            let command_path = resolve_windows_update_command_from_path(cmd, &path_env)?;
-            // Do not let a project-local command or package-manager config
-            // influence the updater after the user accepts the update prompt.
-            let update_cwd = tempfile::tempdir()?;
-            // Resolve through PATH without consulting the project cwd. When
-            // this returns a .cmd/.bat shim, std::process::Command routes the
-            // absolute path through the system command processor.
-            std::process::Command::new(command_path)
-                .args(args)
-                .current_dir(update_cwd.path())
-                .status()?
-        }
-        #[cfg(not(windows))]
-        {
-            let (cmd, args) = action.command_args();
-            let command_path = crate::wsl_paths::normalize_for_wsl(cmd);
-            let normalized_args: Vec<String> = args
-                .iter()
-                .map(crate::wsl_paths::normalize_for_wsl)
-                .collect();
-            std::process::Command::new(&command_path)
-                .args(&normalized_args)
-                // Package managers search parent directories for project config and hooks.
-                .current_dir("/")
-                .status()?
-        }
-    };
-    if !status.success() {
-        anyhow::bail!("`{cmd_str}` failed with status {status}");
-    }
-    println!("\n🎉 Update ran successfully! Please restart Codex.");
-    Ok(())
+    anyhow::bail!(
+        "Automatic updates are disabled in Arcvera Core. Download releases from https://github.com/jaeseongs95/Arcvera-Core/releases"
+    )
 }
 
 #[cfg(windows)]
@@ -921,19 +873,19 @@ fn resolve_windows_update_command_from_path(
 #[derive(Debug, Default, Args)]
 #[command(group(clap::ArgGroup::new("update_action").args(["check", "status", "enable_updates", "disable_updates"]).multiple(false)))]
 struct UpdateCommand {
-    /// Check for an OpenDIY package update without applying it.
+    /// Legacy option; automatic updates are disabled.
     #[arg(long)]
     check: bool,
-    /// Show the selected OpenDIY package and automatic update status.
+    /// Legacy option; download Arcvera releases manually.
     #[arg(long)]
     status: bool,
-    /// Enable automatic OpenDIY package updates (every 60 minutes by default).
+    /// Legacy option; enabling automatic updates is not supported.
     #[arg(long)]
     enable_updates: bool,
-    /// Disable automatic OpenDIY package updates.
+    /// Legacy option; automatic updates are always disabled.
     #[arg(long)]
     disable_updates: bool,
-    /// Automatic update interval in minutes (OpenDIY only; requires --enable-updates).
+    /// Legacy option; no automatic update interval is used.
     #[arg(long, requires = "enable_updates", value_parser = clap::value_parser!(u32).range(5..=1440))]
     interval_minutes: Option<u32>,
 }
@@ -955,30 +907,10 @@ impl UpdateCommand {
     }
 }
 
-fn run_update_command(command: UpdateCommand) -> anyhow::Result<()> {
-    if codex_tui::is_opendiy_version(env!("CARGO_PKG_VERSION")) {
-        return codex_cli::opendiy_update::run_action(command.action(), command.interval_minutes);
-    }
-    anyhow::ensure!(
-        command.action() == codex_cli::opendiy_update::Action::Update,
-        "--check, --status, --enable-updates and --disable-updates are available only in OpenDIY builds"
-    );
-    #[cfg(debug_assertions)]
-    {
-        anyhow::bail!(
-            "`codex update` is not available in debug builds. Install a release build of Codex to use this command."
-        );
-    }
-
-    #[cfg(not(debug_assertions))]
-    {
-        let Some(action) = codex_tui::get_update_action() else {
-            anyhow::bail!(
-                "Could not detect the Codex installation method. Please update manually: https://developers.openai.com/codex/cli/"
-            );
-        };
-        run_update_action(action, /*cli_executable*/ None)
-    }
+fn run_update_command(_command: UpdateCommand) -> anyhow::Result<()> {
+    anyhow::bail!(
+        "Automatic updates are disabled in Arcvera Core. Download releases from https://github.com/jaeseongs95/Arcvera-Core/releases"
+    )
 }
 
 fn run_execpolicycheck(cmd: ExecPolicyCheckCommand) -> anyhow::Result<()> {
@@ -1123,6 +1055,40 @@ fn stage_str(stage: Stage) -> &'static str {
 }
 
 fn main() -> anyhow::Result<()> {
+    // These disabled commands must not initialize a home or create helper aliases.
+    // Restrict this early check to the public executable so arg0 helpers retain
+    // their original dispatch behavior.
+    let mut args = std::env::args_os();
+    let public_executable = args.next().is_some_and(|arg0| {
+        std::path::Path::new(&arg0)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| {
+                name.eq_ignore_ascii_case("arcvera") || name.eq_ignore_ascii_case("arcvera.exe")
+            })
+    });
+    if public_executable && let Ok(cli) = config_override_args::try_parse_from(std::env::args_os())
+    {
+        match cli.subcommand.as_ref() {
+            Some(Subcommand::Update(_)) => return run_update_command(UpdateCommand::default()),
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            Some(Subcommand::App(_)) => anyhow::bail!(
+                "Desktop app launch and installation are disabled in Arcvera Core. Download releases from https://github.com/jaeseongs95/Arcvera-Core/releases"
+            ),
+            Some(Subcommand::AppServer(AppServerCommand {
+                subcommand:
+                    Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
+                        subcommand:
+                            AppServerDaemonSubcommand::Update {
+                                from_cli: false, ..
+                            }
+                            | AppServerDaemonSubcommand::PidUpdateLoop { .. },
+                    })),
+                ..
+            })) => return run_update_command(UpdateCommand::default()),
+            _ => {}
+        }
+    }
     codex_tui::initialize_error_reporting()?;
     let desktop_cron_bootstrap = codex_tui::take_desktop_cron_bootstrap_from_env();
     codex_build_info::initialize!();
@@ -1177,7 +1143,7 @@ async fn dispatch_cli(
         && let Some(agents_endpoint) = &options.remote.remote
         && root_endpoint != agents_endpoint
     {
-        anyhow::bail!("`codex agents` received conflicting remote server endpoints");
+        anyhow::bail!("`arcvera agents` received conflicting remote server endpoints");
     }
     let root_remote = agents_options
         .and_then(|options| options.remote.remote.clone())
@@ -1219,7 +1185,7 @@ async fn dispatch_cli(
             );
             if open_agents_overview {
                 if interactive.prompt.is_some() || !interactive.images.is_empty() {
-                    anyhow::bail!("`codex agents` does not accept an initial prompt or images");
+                    anyhow::bail!("`arcvera agents` does not accept an initial prompt or images");
                 }
                 if root_remote.is_some()
                     && (interactive.oss
@@ -1237,7 +1203,7 @@ async fn dispatch_cli(
                             }))
                 {
                     anyhow::bail!(
-                        "`codex agents` cannot apply local provider or additional-directory overrides to a remote server"
+                        "`arcvera agents` cannot apply local provider or additional-directory overrides to a remote server"
                     );
                 }
                 interactive.agents_overview = true;
@@ -1277,7 +1243,7 @@ async fn dispatch_cli(
                 root_remote_auth_token_env.as_deref(),
                 "review",
             )?;
-            let mut exec_cli = ExecCli::try_parse_from(["codex", "exec"])?;
+            let mut exec_cli = ExecCli::try_parse_from(["arcvera", "exec"])?;
             exec_cli
                 .shared
                 .inherit_exec_root_options(&interactive.shared);
@@ -1552,56 +1518,11 @@ async fn dispatch_cli(
                             );
                         }
                     }
-                    AppServerDaemonSubcommand::PidUpdateLoop {
-                        check_package_ownership: true,
-                        ..
-                    } => return Ok(None),
                     AppServerDaemonSubcommand::Update {
                         from_cli: false, ..
                     }
-                    | AppServerDaemonSubcommand::PidUpdateLoop {
-                        check_package_ownership: false,
-                        ..
-                    } => {
-                        let cli_overrides = root_config_overrides
-                            .parse_overrides()
-                            .map_err(anyhow::Error::msg)?;
-                        let config = ConfigBuilder::default()
-                            .cli_overrides(cli_overrides)
-                            .build()
-                            .await
-                            .map_err(anyhow::Error::from);
-                        let http_client_factory = updater_http_client_factory(config)?;
-                        if matches!(
-                            daemon_cli.subcommand,
-                            AppServerDaemonSubcommand::Update { .. }
-                        ) {
-                            let result = codex_app_server_daemon::update(http_client_factory)
-                                .await
-                                .map(Some);
-                            daemon_telemetry::record_command(
-                                &root_config_overrides,
-                                analytics_default_enabled,
-                                "public_stable",
-                                &result,
-                            )
-                            .await;
-                            if let Some(output) = result? {
-                                println!("{}", serde_json::to_string(&output)?);
-                            }
-                        } else {
-                            let AppServerDaemonSubcommand::PidUpdateLoop {
-                                restore_release, ..
-                            } = daemon_cli.subcommand
-                            else {
-                                unreachable!()
-                            };
-                            codex_app_server_daemon::run_pid_update_loop(
-                                http_client_factory,
-                                restore_release,
-                            )
-                            .await?;
-                        }
+                    | AppServerDaemonSubcommand::PidUpdateLoop { .. } => {
+                        run_update_command(UpdateCommand::default())?;
                     }
                 },
                 Some(AppServerSubcommand::Proxy(proxy_cli)) => match proxy_cli.socket_path {
@@ -1822,7 +1743,7 @@ async fn dispatch_cli(
                         .await;
                     } else if login_cli.api_key.is_some() {
                         eprintln!(
-                            "The --api-key flag is no longer supported. Pipe the key instead, e.g. `printenv OPENAI_API_KEY | codex login --with-api-key`."
+                            "The --api-key flag is no longer supported. Pipe the key instead, e.g. `printenv OPENAI_API_KEY | arcvera login --with-api-key`."
                         );
                         std::process::exit(1);
                     } else if login_cli.with_api_key {
@@ -1960,7 +1881,7 @@ async fn dispatch_cli(
             #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
             {
                 let _ = loader_overrides;
-                anyhow::bail!("`codex sandbox` is not supported on this operating system");
+                anyhow::bail!("`arcvera sandbox` is not supported on this operating system");
             }
         }
         Some(Subcommand::Debug(DebugCommand { subcommand })) => match subcommand {
@@ -2141,7 +2062,7 @@ fn profile_v2_for_subcommand<'a>(
             subcommand: DebugSubcommand::PromptInput(_),
         }) => Ok(Some(profile_v2)),
         _ => anyhow::bail!(
-            "--profile only applies to runtime commands, `codex mcp`, and `codex migrate-nfs-db`: `codex`, `codex exec`, `codex review`, `codex resume`, `codex queue`, `codex archive`, `codex delete`, `codex unarchive`, `codex fork`, `codex mcp`, `codex migrate-nfs-db`, `codex sandbox`, and `codex debug prompt-input`."
+            "--profile only applies to runtime commands, `arcvera mcp`, and `arcvera migrate-nfs-db`: `arcvera`, `arcvera exec`, `arcvera review`, `arcvera resume`, `arcvera queue`, `arcvera archive`, `arcvera delete`, `arcvera unarchive`, `arcvera fork`, `arcvera mcp`, `arcvera migrate-nfs-db`, `arcvera sandbox`, and `arcvera debug prompt-input`."
         ),
     }
 }
@@ -2424,12 +2345,12 @@ fn reject_remote_mode_for_subcommand(
 ) -> anyhow::Result<()> {
     if let Some(remote) = remote {
         anyhow::bail!(
-            "`--remote {remote}` is only supported for interactive TUI commands, not `codex {subcommand}`"
+            "`--remote {remote}` is only supported for interactive TUI commands, not `arcvera {subcommand}`"
         );
     }
     if remote_auth_token_env.is_some() {
         anyhow::bail!(
-            "`--remote-auth-token-env` is only supported for interactive TUI commands, not `codex {subcommand}`"
+            "`--remote-auth-token-env` is only supported for interactive TUI commands, not `arcvera {subcommand}`"
         );
     }
     Ok(())
@@ -2459,12 +2380,12 @@ fn reject_unsupported_worktree_for_subcommand(
         None => Ok(()),
         Some(Subcommand::Fork(command)) if command.session_id.is_some() && !command.last => Ok(()),
         Some(Subcommand::Fork(_)) => {
-            anyhow::bail!("`codex fork --worktree` requires an explicit session ID")
+            anyhow::bail!("`arcvera fork --worktree` requires an explicit session ID")
         }
         Some(Subcommand::Exec(command)) => match &command.command {
             None | Some(ExecCommand::Fork(_)) => Ok(()),
             Some(ExecCommand::Resume(_)) => anyhow::bail!(
-                "`--worktree` cannot resume an existing session; use `codex exec fork --worktree`"
+                "`--worktree` cannot resume an existing session; use `arcvera exec fork --worktree`"
             ),
             Some(ExecCommand::Review(_)) => {
                 anyhow::bail!("`--worktree` is not supported for code review")
@@ -2472,7 +2393,7 @@ fn reject_unsupported_worktree_for_subcommand(
         },
         _ => {
             anyhow::bail!(
-                "`--worktree` supports new interactive sessions, `codex fork`, `codex exec`, and `codex exec fork`"
+                "`--worktree` supports new interactive sessions, `arcvera fork`, `arcvera exec`, and `arcvera exec fork`"
             )
         }
     }
@@ -2498,7 +2419,7 @@ fn reject_root_strict_config_for_subcommand(
 /// flag should be rejected after parsing.
 ///
 /// `--strict-config` is parsed on the root interactive CLI so commands like
-/// `codex --strict-config` continue to work for the TUI and for wrappers that
+/// `arcvera --strict-config` continue to work for the TUI and for wrappers that
 /// forward root options into another command shape. Clap will still accept that
 /// root flag before the dispatcher knows which subcommand the user selected, so
 /// unsupported subcommands need an explicit post-parse reject path.
@@ -2558,7 +2479,7 @@ fn reject_no_remote_control_for_app_server_subcommand(
     if no_remote_control && subcommand.is_some() {
         let subcommand = app_server_subcommand_name(subcommand);
         anyhow::bail!(
-            "`--no-remote-control` only applies when starting app-server; it is not supported for `codex {subcommand}`"
+            "`--no-remote-control` only applies when starting app-server; it is not supported for `arcvera {subcommand}`"
         );
     }
     Ok(())
@@ -2582,7 +2503,7 @@ fn reject_strict_config_for_unsupported_subcommand(
     subcommand: &str,
 ) -> anyhow::Result<()> {
     if strict_config {
-        anyhow::bail!("`--strict-config` is not supported for `codex {subcommand}`");
+        anyhow::bail!("`--strict-config` is not supported for `arcvera {subcommand}`");
     }
     Ok(())
 }
@@ -2830,7 +2751,7 @@ fn confirm(prompt: &str) -> std::io::Result<bool> {
     Ok(answer.eq_ignore_ascii_case("y") || answer.eq_ignore_ascii_case("yes"))
 }
 
-/// Build the final `TuiCli` for a `codex resume` invocation.
+/// Build the final `TuiCli` for a `arcvera resume` invocation.
 fn finalize_resume_interactive(
     mut interactive: TuiCli,
     root_config_overrides: CliConfigOverrides,
@@ -2841,7 +2762,7 @@ fn finalize_resume_interactive(
     mut resume_cli: TuiCli,
 ) -> TuiCli {
     // Start with the parsed interactive CLI so resume shares the same
-    // configuration surface area as `codex` without additional flags.
+    // configuration surface area as `arcvera` without additional flags.
     // Clap assigns the first positional to `session_id`. With `--last`, reinterpret it as the
     // prompt when no second positional prompt was provided.
     let resume_session_id = if last && resume_cli.prompt.is_none() {
@@ -2865,7 +2786,7 @@ fn finalize_resume_interactive(
     interactive
 }
 
-/// Build the final `TuiCli` for a `codex fork` invocation.
+/// Build the final `TuiCli` for a `arcvera fork` invocation.
 fn finalize_fork_interactive(
     mut interactive: TuiCli,
     root_config_overrides: CliConfigOverrides,
@@ -2875,7 +2796,7 @@ fn finalize_fork_interactive(
     mut fork_cli: TuiCli,
 ) -> TuiCli {
     // Start with the parsed interactive CLI so fork shares the same
-    // configuration surface area as `codex` without additional flags.
+    // configuration surface area as `arcvera` without additional flags.
     // Clap assigns the first positional to `session_id`. With `--last`, reinterpret it as the
     // prompt when no second positional prompt was provided.
     let fork_session_id = if last && fork_cli.prompt.is_none() {
@@ -2972,7 +2893,7 @@ fn merge_interactive_cli_flags(interactive: &mut TuiCli, subcommand_cli: TuiCli)
 
 fn print_completion(cmd: CompletionCommand) {
     let mut app = MultitoolCli::command();
-    let name = "codex";
+    let name = "arcvera";
     generate(cmd.shell, &mut app, name, &mut std::io::stdout());
 }
 
@@ -2987,7 +2908,7 @@ mod tests {
     #[test]
     fn desktop_cron_control_is_explicit_and_global_for_resume() {
         assert!(
-            MultitoolCli::try_parse_from(["codex"])
+            MultitoolCli::try_parse_from(["arcvera"])
                 .expect("parse")
                 .interactive
                 .desktop_cron_control
@@ -2995,13 +2916,13 @@ mod tests {
         );
         for args in [
             vec![
-                "codex",
+                "arcvera",
                 "--desktop-cron-control=pipe-v1",
                 "resume",
                 "thread-id",
             ],
             vec![
-                "codex",
+                "arcvera",
                 "resume",
                 "thread-id",
                 "--desktop-cron-control=pipe-v1",
@@ -3013,8 +2934,11 @@ mod tests {
                 Some(codex_tui::DesktopCronControl::PipeV1)
             );
         }
-        assert!(MultitoolCli::try_parse_from(["codex", "--desktop-cron-control=other"]).is_err());
-        for args in [vec!["codex", "--help"], vec!["codex", "resume", "--help"]] {
+        assert!(MultitoolCli::try_parse_from(["arcvera", "--desktop-cron-control=other"]).is_err());
+        for args in [
+            vec!["arcvera", "--help"],
+            vec!["arcvera", "resume", "--help"],
+        ] {
             let help = MultitoolCli::try_parse_from(args).expect_err("help");
             assert_eq!(help.kind(), clap::error::ErrorKind::DisplayHelp);
             let help = help.to_string();
@@ -3026,7 +2950,7 @@ mod tests {
     #[test]
     fn interactive_tui_future_stays_bounded() {
         let future = run_interactive_tui(
-            TuiCli::parse_from(["codex"]),
+            TuiCli::parse_from(["arcvera"]),
             /*remote*/ None,
             /*remote_auth_token_env*/ None,
             Arg0DispatchPaths::default(),
@@ -3297,31 +3221,33 @@ enabled = true
 
     #[test]
     fn profile_v2_is_rejected_for_config_management_subcommands() {
-        assert!(profile_v2_for_args(&["codex", "--profile", "work", "features", "list"]).is_err());
+        assert!(
+            profile_v2_for_args(&["arcvera", "--profile", "work", "features", "list"]).is_err()
+        );
     }
 
     #[test]
     fn profile_v2_is_allowed_for_runtime_subcommands() {
         assert_eq!(
-            profile_v2_for_args(&["codex", "--profile", "work", "resume"])
+            profile_v2_for_args(&["arcvera", "--profile", "work", "resume"])
                 .expect("resume supports profile-v2")
                 .as_deref(),
             Some("work")
         );
         assert_eq!(
-            profile_v2_for_args(&["codex", "--profile", "work", "debug", "prompt-input"])
+            profile_v2_for_args(&["arcvera", "--profile", "work", "debug", "prompt-input"])
                 .expect("debug prompt-input supports profile-v2")
                 .as_deref(),
             Some("work")
         );
         assert_eq!(
-            profile_v2_for_args(&["codex", "--profile", "work", "mcp", "list"])
+            profile_v2_for_args(&["arcvera", "--profile", "work", "mcp", "list"])
                 .expect("mcp supports profile-v2")
                 .as_deref(),
             Some("work")
         );
         assert_eq!(
-            profile_v2_for_args(&["codex", "--profile", "work", "sandbox"])
+            profile_v2_for_args(&["arcvera", "--profile", "work", "sandbox"])
                 .expect("sandbox supports config profile")
                 .as_deref(),
             Some("work")
@@ -3330,7 +3256,7 @@ enabled = true
 
     #[test]
     fn import_remains_an_interactive_prompt() {
-        let cli = MultitoolCli::try_parse_from(["codex", "import"]).expect("parse");
+        let cli = MultitoolCli::try_parse_from(["arcvera", "import"]).expect("parse");
 
         assert!(cli.subcommand.is_none());
         assert_eq!(cli.interactive.prompt.as_deref(), Some("import"));
@@ -3339,25 +3265,26 @@ enabled = true
     #[test]
     fn profile_v2_rejects_non_plain_names_at_parse_time() {
         assert!(
-            MultitoolCli::try_parse_from(["codex", "--profile", "nested/work", "resume"]).is_err()
+            MultitoolCli::try_parse_from(["arcvera", "--profile", "nested/work", "resume"])
+                .is_err()
         );
     }
 
     #[test]
     fn worktree_flag_supports_interactive_exec_and_explicit_fork_positions() {
         let arguments = [
-            vec!["codex", "--worktree"],
-            vec!["codex", "--worktree", "hello"],
-            vec!["codex", "--worktree", "exec", "hello"],
-            vec!["codex", "exec", "--worktree", "hello"],
+            vec!["arcvera", "--worktree"],
+            vec!["arcvera", "--worktree", "hello"],
+            vec!["arcvera", "--worktree", "exec", "hello"],
+            vec!["arcvera", "exec", "--worktree", "hello"],
             vec![
-                "codex",
+                "arcvera",
                 "fork",
                 "--worktree",
                 "019f1234-5678-7000-8000-000000000001",
             ],
             vec![
-                "codex",
+                "arcvera",
                 "exec",
                 "fork",
                 "--worktree",
@@ -3381,15 +3308,15 @@ enabled = true
     #[test]
     fn worktree_flag_rejects_unsupported_session_and_management_commands() {
         let arguments = [
-            vec!["codex", "--worktree", "login"],
-            vec!["codex", "fork", "--worktree"],
-            vec!["codex", "fork", "--worktree", "--last"],
-            vec!["codex", "exec", "resume", "--worktree", "session"],
-            vec!["codex", "exec", "review", "--worktree"],
-            vec!["codex", "resume", "--worktree", "session"],
-            vec!["codex", "archive", "session", "--worktree"],
+            vec!["arcvera", "--worktree", "login"],
+            vec!["arcvera", "fork", "--worktree"],
+            vec!["arcvera", "fork", "--worktree", "--last"],
+            vec!["arcvera", "exec", "resume", "--worktree", "session"],
+            vec!["arcvera", "exec", "review", "--worktree"],
+            vec!["arcvera", "resume", "--worktree", "session"],
+            vec!["arcvera", "archive", "session", "--worktree"],
             vec![
-                "codex",
+                "arcvera",
                 "queue",
                 "--thread",
                 "session",
@@ -3415,7 +3342,7 @@ enabled = true
     #[test]
     fn exec_resume_last_accepts_prompt_positional() {
         let cli =
-            MultitoolCli::try_parse_from(["codex", "exec", "--json", "resume", "--last", "2+2"])
+            MultitoolCli::try_parse_from(["arcvera", "exec", "--json", "resume", "--last", "2+2"])
                 .expect("parse should succeed");
 
         let Some(Subcommand::Exec(exec)) = cli.subcommand else {
@@ -3433,7 +3360,7 @@ enabled = true
     #[test]
     fn exec_resume_accepts_output_flags_after_subcommand() {
         let cli = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "exec",
             "resume",
             "session-123",
@@ -3467,7 +3394,7 @@ enabled = true
     #[test]
     fn dangerous_bypass_conflicts_with_approval_policy() {
         let err = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "--dangerously-bypass-approvals-and-sandbox",
             "--ask-for-approval",
             "on-request",
@@ -3480,7 +3407,7 @@ enabled = true
     #[test]
     fn approve_for_me_configures_interactive_mode() {
         for flag in ["--approve-for-me", "--not-so-yolo"] {
-            let mut cli = MultitoolCli::try_parse_from(["codex", flag]).expect("parse flag");
+            let mut cli = MultitoolCli::try_parse_from(["arcvera", flag]).expect("parse flag");
 
             assert!(cli.interactive.auto_review);
             cli.interactive
@@ -3500,7 +3427,10 @@ enabled = true
 
     #[test]
     fn not_so_yolo_alias_is_hidden_from_help() {
-        for args in [&["codex", "--help"][..], &["codex", "exec", "--help"][..]] {
+        for args in [
+            &["arcvera", "--help"][..],
+            &["arcvera", "exec", "--help"][..],
+        ] {
             let help = help_from_args(args);
 
             assert!(!help.contains("--not-so-yolo"), "{help}");
@@ -3509,7 +3439,7 @@ enabled = true
 
     #[test]
     fn approve_for_me_defaults_propagate_from_root_to_exec() {
-        let exec = finalize_exec_from_args(&["codex", "--approve-for-me", "exec", "summarize"]);
+        let exec = finalize_exec_from_args(&["arcvera", "--approve-for-me", "exec", "summarize"]);
 
         assert_eq!(
             exec.config_overrides.raw_overrides,
@@ -3525,7 +3455,7 @@ enabled = true
     #[test]
     fn later_exec_sandbox_partially_overrides_approve_for_me() {
         let exec = finalize_exec_from_args(&[
-            "codex",
+            "arcvera",
             "--approve-for-me",
             "exec",
             "--sandbox",
@@ -3549,7 +3479,7 @@ enabled = true
     #[test]
     fn later_approve_for_me_overrides_root_exec_sandbox() {
         let exec = finalize_exec_from_args(&[
-            "codex",
+            "arcvera",
             "--sandbox",
             "read-only",
             "exec",
@@ -3570,7 +3500,7 @@ enabled = true
     #[test]
     fn later_resume_approval_policy_partially_overrides_approve_for_me() {
         let interactive = finalize_resume_from_args(&[
-            "codex",
+            "arcvera",
             "--approve-for-me",
             "resume",
             "--ask-for-approval",
@@ -3594,7 +3524,7 @@ enabled = true
     #[test]
     fn later_approve_for_me_overrides_root_tui_approval_policy() {
         let interactive = finalize_resume_from_args(&[
-            "codex",
+            "arcvera",
             "--ask-for-approval",
             "never",
             "resume",
@@ -3619,7 +3549,7 @@ enabled = true
             vec!["--ask-for-approval", "on-request"],
             vec!["--dangerously-bypass-approvals-and-sandbox"],
         ] {
-            let mut args = vec!["codex", "--approve-for-me"];
+            let mut args = vec!["arcvera", "--approve-for-me"];
             args.extend(conflicting_args);
 
             let error =
@@ -3637,7 +3567,7 @@ enabled = true
     }
 
     fn default_app_server_socket_path() -> AbsolutePathBuf {
-        let codex_home = find_codex_home().expect("codex home");
+        let codex_home = find_codex_home().expect("arcvera home");
         codex_app_server::app_server_control_socket_path(&codex_home)
             .expect("default app-server socket path")
     }
@@ -3645,7 +3575,7 @@ enabled = true
     #[test]
     fn debug_prompt_input_parses_prompt_and_images() {
         let cli = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "debug",
             "prompt-input",
             "hello",
@@ -3670,8 +3600,8 @@ enabled = true
 
     #[test]
     fn debug_models_parses_bundled_flag() {
-        let cli =
-            MultitoolCli::try_parse_from(["codex", "debug", "models", "--bundled"]).expect("parse");
+        let cli = MultitoolCli::try_parse_from(["arcvera", "debug", "models", "--bundled"])
+            .expect("parse");
 
         let Some(Subcommand::Debug(DebugCommand {
             subcommand: DebugSubcommand::Models(cmd),
@@ -3701,7 +3631,7 @@ enabled = true
 
     #[test]
     fn queue_help_lists_supported_options() {
-        let help = help_from_args(&["codex", "queue", "--help"]);
+        let help = help_from_args(&["arcvera", "queue", "--help"]);
         let (general, local) = help
             .split_once("Local server options (without --remote):")
             .unwrap();
@@ -3718,9 +3648,9 @@ enabled = true
 
     #[test]
     fn tcp_tunnel_is_hidden_and_accepts_its_control_input_contract() {
-        let root_help = help_from_args(&["codex", "--help"]);
+        let root_help = help_from_args(&["arcvera", "--help"]);
         assert!(!root_help.contains("tcp-tunnel"), "{root_help}");
-        let help = help_from_args(&["codex", "tcp-tunnel", "--help"]);
+        let help = help_from_args(&["arcvera", "tcp-tunnel", "--help"]);
         for option in [
             "--target",
             "--auth-token-stdin",
@@ -3730,7 +3660,7 @@ enabled = true
             assert!(help.contains(option), "{help}");
         }
         let cli = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "tcp-tunnel",
             "--proxy-url",
             "https://proxy.example.org",
@@ -3748,7 +3678,7 @@ enabled = true
 
     #[test]
     fn plugin_marketplace_help_uses_plugin_namespace() {
-        let help = help_from_args(&["codex", "plugin", "marketplace", "--help"]);
+        let help = help_from_args(&["arcvera", "plugin", "marketplace", "--help"]);
         assert!(
             help.contains("Usage: codex plugin marketplace [OPTIONS] <COMMAND>"),
             "{help}"
@@ -3760,7 +3690,7 @@ enabled = true
             ("upgrade", "Usage: codex plugin marketplace upgrade"),
             ("remove", "Usage: codex plugin marketplace remove"),
         ] {
-            let help = help_from_args(&["codex", "plugin", "marketplace", subcommand, "--help"]);
+            let help = help_from_args(&["arcvera", "plugin", "marketplace", subcommand, "--help"]);
             assert!(help.contains(usage), "{help}");
         }
     }
@@ -3768,7 +3698,7 @@ enabled = true
     #[test]
     fn plugin_marketplace_add_parses_under_plugin() {
         let cli =
-            MultitoolCli::try_parse_from(["codex", "plugin", "marketplace", "add", "owner/repo"])
+            MultitoolCli::try_parse_from(["arcvera", "plugin", "marketplace", "add", "owner/repo"])
                 .expect("parse");
 
         assert!(matches!(cli.subcommand, Some(Subcommand::Plugin(_))));
@@ -3777,7 +3707,7 @@ enabled = true
     #[test]
     fn plugin_marketplace_upgrade_parses_under_plugin() {
         let cli =
-            MultitoolCli::try_parse_from(["codex", "plugin", "marketplace", "upgrade", "debug"])
+            MultitoolCli::try_parse_from(["arcvera", "plugin", "marketplace", "upgrade", "debug"])
                 .expect("parse");
 
         assert!(matches!(cli.subcommand, Some(Subcommand::Plugin(_))));
@@ -3786,7 +3716,7 @@ enabled = true
     #[test]
     fn plugin_add_parses_under_plugin() {
         let cli = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "plugin",
             "add",
             "sample",
@@ -3801,7 +3731,7 @@ enabled = true
     #[test]
     fn plugin_list_parses_under_plugin() {
         let cli =
-            MultitoolCli::try_parse_from(["codex", "plugin", "list", "--marketplace", "debug"])
+            MultitoolCli::try_parse_from(["arcvera", "plugin", "list", "--marketplace", "debug"])
                 .expect("parse");
 
         assert!(matches!(cli.subcommand, Some(Subcommand::Plugin(_))));
@@ -3810,7 +3740,7 @@ enabled = true
     #[test]
     fn plugin_remove_parses_under_plugin() {
         let cli = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "plugin",
             "remove",
             "sample",
@@ -3824,7 +3754,7 @@ enabled = true
 
     #[test]
     fn update_parses_as_update_subcommand() {
-        let cli = MultitoolCli::try_parse_from(["codex", "update"]).expect("parse");
+        let cli = MultitoolCli::try_parse_from(["arcvera", "update"]).expect("parse");
         assert!(matches!(cli.subcommand, Some(Subcommand::Update(_))));
     }
 
@@ -3837,26 +3767,26 @@ enabled = true
             ("--enable-updates", Action::Enable),
             ("--disable-updates", Action::Disable),
         ] {
-            let cli =
-                MultitoolCli::try_parse_from(["codex", "update", flag]).expect("parse update flag");
+            let cli = MultitoolCli::try_parse_from(["arcvera", "update", flag])
+                .expect("parse update flag");
             let Some(Subcommand::Update(command)) = cli.subcommand else {
                 panic!("expected update");
             };
             assert_eq!(command.action(), expected);
         }
         for args in [
-            vec!["codex", "update", "--enable-updates", "--disable-updates"],
-            vec!["codex", "update", "--check", "--status"],
-            vec!["codex", "update", "--interval-minutes", "60"],
+            vec!["arcvera", "update", "--enable-updates", "--disable-updates"],
+            vec!["arcvera", "update", "--check", "--status"],
+            vec!["arcvera", "update", "--interval-minutes", "60"],
             vec![
-                "codex",
+                "arcvera",
                 "update",
                 "--enable-updates",
                 "--interval-minutes",
                 "4",
             ],
             vec![
-                "codex",
+                "arcvera",
                 "update",
                 "--enable-updates",
                 "--interval-minutes",
@@ -3867,7 +3797,7 @@ enabled = true
         }
         for interval in ["5", "60", "1440"] {
             let cli = MultitoolCli::try_parse_from([
-                "codex",
+                "arcvera",
                 "update",
                 "--enable-updates",
                 "--interval-minutes",
@@ -3890,7 +3820,7 @@ enabled = true
         ] {
             for args in [
                 vec![
-                    "codex",
+                    "arcvera",
                     "--enable",
                     "web_search_request",
                     "--disable",
@@ -3899,7 +3829,7 @@ enabled = true
                     mode,
                 ],
                 vec![
-                    "codex",
+                    "arcvera",
                     "update",
                     mode,
                     "--enable",
@@ -3931,7 +3861,7 @@ enabled = true
     fn archive_merges_scoped_tui_flags() {
         let (target, interactive, remote) = finalize_archive_from_args(
             [
-                "codex",
+                "arcvera",
                 "-C",
                 "/root",
                 "archive",
@@ -3976,7 +3906,7 @@ enabled = true
 
     #[test]
     fn sandbox_uninstall_respects_command_separator() {
-        let cli = MultitoolCli::try_parse_from(["codex", "sandbox", "uninstall"]).expect("parse");
+        let cli = MultitoolCli::try_parse_from(["arcvera", "sandbox", "uninstall"]).expect("parse");
         assert!(matches!(
             cli.subcommand,
             Some(Subcommand::Sandbox(SandboxCommand {
@@ -3986,9 +3916,9 @@ enabled = true
         ));
 
         for args in [
-            vec!["codex", "sandbox", "--", "uninstall", "--help"],
+            vec!["arcvera", "sandbox", "--", "uninstall", "--help"],
             vec![
-                "codex",
+                "arcvera",
                 "sandbox",
                 "--profile",
                 "uninstall",
@@ -4010,7 +3940,7 @@ enabled = true
     #[test]
     fn sandbox_parses_permission_profile() {
         let cli = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "sandbox",
             "--permission-profile",
             ":workspace",
@@ -4031,7 +3961,7 @@ enabled = true
     #[test]
     fn sandbox_parses_legacy_permissions_profile_alias() {
         let cli = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "sandbox",
             "--permissions-profile",
             ":workspace",
@@ -4051,7 +3981,7 @@ enabled = true
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     #[test]
     fn sandbox_help_only_shows_singular_permission_profile() {
-        let help = help_from_args(&["codex", "sandbox", "--help"]);
+        let help = help_from_args(&["arcvera", "sandbox", "--help"]);
         assert!(help.contains("--permission-profile"), "{help}");
         assert!(!help.contains("--permissions-profile"), "{help}");
     }
@@ -4060,7 +3990,7 @@ enabled = true
     #[test]
     fn sandbox_parses_permissions_profile_short_alias() {
         let cli =
-            MultitoolCli::try_parse_from(["codex", "sandbox", "-P", ":workspace", "--", "echo"])
+            MultitoolCli::try_parse_from(["arcvera", "sandbox", "-P", ":workspace", "--", "echo"])
                 .expect("parse");
 
         let Some(Subcommand::Sandbox(SandboxCommand { host: command, .. })) = cli.subcommand else {
@@ -4075,7 +4005,7 @@ enabled = true
     #[test]
     fn sandbox_parses_config_profile() {
         let cli =
-            MultitoolCli::try_parse_from(["codex", "sandbox", "--profile", "work", "--", "echo"])
+            MultitoolCli::try_parse_from(["arcvera", "sandbox", "--profile", "work", "--", "echo"])
                 .expect("parse");
 
         let Some(Subcommand::Sandbox(SandboxCommand { host: command, .. })) = cli.subcommand else {
@@ -4089,7 +4019,7 @@ enabled = true
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     #[test]
     fn sandbox_rejects_explicit_profile_controls_without_profile() {
-        let err = MultitoolCli::try_parse_from(["codex", "sandbox", "-C", "/tmp"])
+        let err = MultitoolCli::try_parse_from(["arcvera", "sandbox", "-C", "/tmp"])
             .expect_err("parse should fail");
 
         assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
@@ -4098,7 +4028,7 @@ enabled = true
     #[test]
     fn plugin_marketplace_remove_parses_under_plugin() {
         let cli =
-            MultitoolCli::try_parse_from(["codex", "plugin", "marketplace", "remove", "debug"])
+            MultitoolCli::try_parse_from(["arcvera", "plugin", "marketplace", "remove", "debug"])
                 .expect("parse");
 
         assert!(matches!(cli.subcommand, Some(Subcommand::Plugin(_))));
@@ -4107,15 +4037,15 @@ enabled = true
     #[test]
     fn marketplace_no_longer_parses_at_top_level() {
         let add_result =
-            MultitoolCli::try_parse_from(["codex", "marketplace", "add", "owner/repo"]);
+            MultitoolCli::try_parse_from(["arcvera", "marketplace", "add", "owner/repo"]);
         assert!(add_result.is_err());
 
         let upgrade_result =
-            MultitoolCli::try_parse_from(["codex", "marketplace", "upgrade", "debug"]);
+            MultitoolCli::try_parse_from(["arcvera", "marketplace", "upgrade", "debug"]);
         assert!(upgrade_result.is_err());
 
         let remove_result =
-            MultitoolCli::try_parse_from(["codex", "marketplace", "remove", "debug"]);
+            MultitoolCli::try_parse_from(["arcvera", "marketplace", "remove", "debug"]);
         assert!(remove_result.is_err());
     }
 
@@ -4165,7 +4095,7 @@ enabled = true
                 );
                 exit_info.disconnect_info = Some(codex_tui::DisconnectInfo {
                     command: vec![
-                        "codex".to_string(),
+                        "arcvera".to_string(),
                         "--remote".to_string(),
                         "wss://example.com:443/".to_string(),
                     ],
@@ -4305,7 +4235,7 @@ enabled = true
     #[test]
     fn resume_model_flag_applies_when_no_root_flags() {
         let interactive =
-            finalize_resume_from_args(["codex", "resume", "-m", "gpt-5.1-test"].as_ref());
+            finalize_resume_from_args(["arcvera", "resume", "-m", "gpt-5.1-test"].as_ref());
 
         assert_eq!(interactive.model.as_deref(), Some("gpt-5.1-test"));
         assert!(interactive.resume_picker);
@@ -4320,8 +4250,8 @@ enabled = true
             ("fork", finalize_fork_from_args as fn(&[&str]) -> TuiCli),
         ] {
             for args in [
-                ["codex", "--no-daemon", command, "--last"],
-                ["codex", command, "--last", "--no-daemon"],
+                ["arcvera", "--no-daemon", command, "--last"],
+                ["arcvera", command, "--last", "--no-daemon"],
             ] {
                 assert!(finalize(&args).no_daemon);
             }
@@ -4334,15 +4264,15 @@ enabled = true
             ("resume", finalize_resume_from_args as fn(&[&str]) -> TuiCli),
             ("fork", finalize_fork_from_args as fn(&[&str]) -> TuiCli),
         ] {
-            assert!(finalize(&["codex", command, "--no-alt-screen"]).no_alt_screen);
-            assert!(finalize(&["codex", "--no-alt-screen", command]).no_alt_screen);
-            assert!(!finalize(&["codex", command]).no_alt_screen);
+            assert!(finalize(&["arcvera", command, "--no-alt-screen"]).no_alt_screen);
+            assert!(finalize(&["arcvera", "--no-alt-screen", command]).no_alt_screen);
+            assert!(!finalize(&["arcvera", command]).no_alt_screen);
         }
     }
 
     #[test]
     fn resume_picker_logic_none_and_not_last() {
-        let interactive = finalize_resume_from_args(["codex", "resume"].as_ref());
+        let interactive = finalize_resume_from_args(["arcvera", "resume"].as_ref());
         assert!(interactive.resume_picker);
         assert!(!interactive.resume_last);
         assert_eq!(interactive.resume_session_id, None);
@@ -4351,7 +4281,7 @@ enabled = true
 
     #[test]
     fn resume_picker_logic_last() {
-        let interactive = finalize_resume_from_args(["codex", "resume", "--last"].as_ref());
+        let interactive = finalize_resume_from_args(["arcvera", "resume", "--last"].as_ref());
         assert!(!interactive.resume_picker);
         assert!(interactive.resume_last);
         assert_eq!(interactive.resume_session_id, None);
@@ -4361,7 +4291,7 @@ enabled = true
     #[test]
     fn resume_last_accepts_prompt_positional() {
         let interactive = finalize_resume_from_args(
-            ["codex", "resume", "--last", "/compact focus on auth"].as_ref(),
+            ["arcvera", "resume", "--last", "/compact focus on auth"].as_ref(),
         );
 
         assert!(!interactive.resume_picker);
@@ -4376,7 +4306,7 @@ enabled = true
     #[test]
     fn resume_last_rejects_explicit_session_and_prompt() {
         let err =
-            MultitoolCli::try_parse_from(["codex", "resume", "--last", "1234", "continue here"])
+            MultitoolCli::try_parse_from(["arcvera", "resume", "--last", "1234", "continue here"])
                 .expect_err("--last with an explicit session and prompt should be rejected");
 
         assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
@@ -4384,7 +4314,7 @@ enabled = true
 
     #[test]
     fn resume_picker_logic_with_session_id() {
-        let interactive = finalize_resume_from_args(["codex", "resume", "1234"].as_ref());
+        let interactive = finalize_resume_from_args(["arcvera", "resume", "1234"].as_ref());
         assert!(!interactive.resume_picker);
         assert!(!interactive.resume_last);
         assert_eq!(interactive.resume_session_id.as_deref(), Some("1234"));
@@ -4394,7 +4324,7 @@ enabled = true
     #[test]
     fn resume_with_session_id_accepts_prompt_positional() {
         let interactive =
-            finalize_resume_from_args(["codex", "resume", "1234", "continue here"].as_ref());
+            finalize_resume_from_args(["arcvera", "resume", "1234", "continue here"].as_ref());
 
         assert!(!interactive.resume_picker);
         assert!(!interactive.resume_last);
@@ -4404,7 +4334,7 @@ enabled = true
 
     #[test]
     fn resume_all_flag_sets_show_all() {
-        let interactive = finalize_resume_from_args(["codex", "resume", "--all"].as_ref());
+        let interactive = finalize_resume_from_args(["arcvera", "resume", "--all"].as_ref());
         assert!(interactive.resume_picker);
         assert!(interactive.resume_show_all);
     }
@@ -4412,7 +4342,7 @@ enabled = true
     #[test]
     fn resume_include_non_interactive_flag_sets_source_filter_override() {
         let interactive =
-            finalize_resume_from_args(["codex", "resume", "--include-non-interactive"].as_ref());
+            finalize_resume_from_args(["arcvera", "resume", "--include-non-interactive"].as_ref());
 
         assert!(interactive.resume_picker);
         assert!(interactive.resume_include_non_interactive);
@@ -4422,7 +4352,7 @@ enabled = true
     fn resume_merges_option_flags() {
         let interactive = finalize_resume_from_args(
             [
-                "codex",
+                "arcvera",
                 "resume",
                 "sid",
                 "--oss",
@@ -4479,7 +4409,7 @@ enabled = true
     fn resume_merges_dangerously_bypass_flag() {
         let interactive = finalize_resume_from_args(
             [
-                "codex",
+                "arcvera",
                 "resume",
                 "--dangerously-bypass-approvals-and-sandbox",
             ]
@@ -4494,7 +4424,7 @@ enabled = true
     #[test]
     fn resume_merges_bypass_hook_trust_flag() {
         let interactive = finalize_resume_from_args(
-            ["codex", "resume", "--dangerously-bypass-hook-trust"].as_ref(),
+            ["arcvera", "resume", "--dangerously-bypass-hook-trust"].as_ref(),
         );
 
         assert!(interactive.bypass_hook_trust);
@@ -4505,7 +4435,7 @@ enabled = true
 
     #[test]
     fn fork_picker_logic_none_and_not_last() {
-        let interactive = finalize_fork_from_args(["codex", "fork"].as_ref());
+        let interactive = finalize_fork_from_args(["arcvera", "fork"].as_ref());
         assert!(interactive.fork_picker);
         assert!(!interactive.fork_last);
         assert_eq!(interactive.fork_session_id, None);
@@ -4514,7 +4444,7 @@ enabled = true
 
     #[test]
     fn fork_picker_logic_last() {
-        let interactive = finalize_fork_from_args(["codex", "fork", "--last"].as_ref());
+        let interactive = finalize_fork_from_args(["arcvera", "fork", "--last"].as_ref());
         assert!(!interactive.fork_picker);
         assert!(interactive.fork_last);
         assert_eq!(interactive.fork_session_id, None);
@@ -4523,8 +4453,9 @@ enabled = true
 
     #[test]
     fn fork_last_accepts_prompt_positional() {
-        let interactive =
-            finalize_fork_from_args(["codex", "fork", "--last", "/compact focus on auth"].as_ref());
+        let interactive = finalize_fork_from_args(
+            ["arcvera", "fork", "--last", "/compact focus on auth"].as_ref(),
+        );
 
         assert!(!interactive.fork_picker);
         assert!(interactive.fork_last);
@@ -4538,7 +4469,7 @@ enabled = true
     #[test]
     fn fork_last_rejects_explicit_session_and_prompt() {
         let err =
-            MultitoolCli::try_parse_from(["codex", "fork", "--last", "1234", "continue here"])
+            MultitoolCli::try_parse_from(["arcvera", "fork", "--last", "1234", "continue here"])
                 .expect_err("--last with an explicit session and prompt should be rejected");
 
         assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
@@ -4546,7 +4477,7 @@ enabled = true
 
     #[test]
     fn fork_picker_logic_with_session_id() {
-        let interactive = finalize_fork_from_args(["codex", "fork", "1234"].as_ref());
+        let interactive = finalize_fork_from_args(["arcvera", "fork", "1234"].as_ref());
         assert!(!interactive.fork_picker);
         assert!(!interactive.fork_last);
         assert_eq!(interactive.fork_session_id.as_deref(), Some("1234"));
@@ -4556,7 +4487,7 @@ enabled = true
     #[test]
     fn fork_with_session_id_accepts_prompt_positional() {
         let interactive =
-            finalize_fork_from_args(["codex", "fork", "1234", "continue here"].as_ref());
+            finalize_fork_from_args(["arcvera", "fork", "1234", "continue here"].as_ref());
 
         assert!(!interactive.fork_picker);
         assert!(!interactive.fork_last);
@@ -4566,14 +4497,14 @@ enabled = true
 
     #[test]
     fn fork_all_flag_sets_show_all() {
-        let interactive = finalize_fork_from_args(["codex", "fork", "--all"].as_ref());
+        let interactive = finalize_fork_from_args(["arcvera", "fork", "--all"].as_ref());
         assert!(interactive.fork_picker);
         assert!(interactive.fork_show_all);
     }
 
     #[test]
     fn app_server_analytics_default_disabled_without_flag() {
-        let app_server = app_server_from_args(["codex", "app-server"].as_ref());
+        let app_server = app_server_from_args(["arcvera", "app-server"].as_ref());
         assert!(!app_server.analytics_default_enabled);
         assert!(!app_server.remote_control);
         assert!(!app_server.no_remote_control);
@@ -4585,7 +4516,7 @@ enabled = true
 
     #[test]
     fn app_server_remote_control_startup_flag_enables_remote_control() {
-        let enabled = app_server_from_args(["codex", "app-server", "--remote-control"].as_ref());
+        let enabled = app_server_from_args(["arcvera", "app-server", "--remote-control"].as_ref());
         assert!(enabled.remote_control);
         assert!(!enabled.no_remote_control);
     }
@@ -4593,14 +4524,14 @@ enabled = true
     #[test]
     fn app_server_no_remote_control_is_process_scoped_and_conflicts_with_enable() {
         let disabled =
-            app_server_from_args(["codex", "app-server", "--no-remote-control"].as_ref());
+            app_server_from_args(["arcvera", "app-server", "--no-remote-control"].as_ref());
         assert!(disabled.no_remote_control);
         assert!(!disabled.remote_control);
         for flags in [
             ["--remote-control", "--no-remote-control"],
             ["--no-remote-control", "--remote-control"],
         ] {
-            let error = MultitoolCli::try_parse_from(["codex", "app-server", flags[0], flags[1]])
+            let error = MultitoolCli::try_parse_from(["arcvera", "app-server", flags[0], flags[1]])
                 .expect_err("remote control startup flags must conflict");
             assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
         }
@@ -4616,7 +4547,7 @@ enabled = true
             vec!["generate-json-schema", "--out", "schema-output"],
             vec!["generate-internal-json-schema", "--out", "schema-output"],
         ] {
-            let mut args = vec!["codex", "app-server", "--no-remote-control"];
+            let mut args = vec!["arcvera", "app-server", "--no-remote-control"];
             args.extend(tooling.iter().copied());
             let app_server = app_server_from_args(&args);
             let error = reject_no_remote_control_for_app_server_subcommand(
@@ -4635,7 +4566,7 @@ enabled = true
                     .contains(app_server_subcommand_name(app_server.subcommand.as_ref()))
             );
 
-            let mut args = vec!["codex", "app-server"];
+            let mut args = vec!["arcvera", "app-server"];
             args.extend(tooling);
             let app_server = app_server_from_args(&args);
             reject_no_remote_control_for_app_server_subcommand(
@@ -4645,7 +4576,7 @@ enabled = true
             .expect("tooling without the new startup flag keeps its existing behavior");
         }
         let error = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "app-server",
             "daemon",
             "restart",
@@ -4658,22 +4589,22 @@ enabled = true
     #[test]
     fn app_server_no_remote_control_accepts_startup_and_preserves_other_modes() {
         for args in [
-            vec!["codex", "app-server", "--no-remote-control"],
+            vec!["arcvera", "app-server", "--no-remote-control"],
             vec![
-                "codex",
+                "arcvera",
                 "app-server",
                 "--no-remote-control",
                 "--listen",
                 "ws://127.0.0.1:0",
             ],
             vec![
-                "codex",
+                "arcvera",
                 "app-server",
                 "--remote-control",
                 "daemon",
                 "restart",
             ],
-            vec!["codex", "app-server", "--print-startup-config"],
+            vec!["arcvera", "app-server", "--print-startup-config"],
         ] {
             let app_server = app_server_from_args(&args);
             reject_no_remote_control_for_app_server_subcommand(
@@ -4691,7 +4622,7 @@ enabled = true
             ["--no-remote-control", "--print-startup-config"],
             ["--print-startup-config", "--no-remote-control"],
         ] {
-            let error = MultitoolCli::try_parse_from(["codex", "app-server", flags[0], flags[1]])
+            let error = MultitoolCli::try_parse_from(["arcvera", "app-server", flags[0], flags[1]])
                 .expect_err("a dry run cannot apply a remote-control startup flag");
             assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
         }
@@ -4700,17 +4631,17 @@ enabled = true
     #[test]
     fn app_server_analytics_default_enabled_with_flag() {
         let app_server =
-            app_server_from_args(["codex", "app-server", "--analytics-default-enabled"].as_ref());
+            app_server_from_args(["arcvera", "app-server", "--analytics-default-enabled"].as_ref());
         assert!(app_server.analytics_default_enabled);
     }
 
     #[test]
     fn strict_config_parses_for_supported_commands() {
-        let cli = MultitoolCli::try_parse_from(["codex", "--strict-config"]).expect("parse");
+        let cli = MultitoolCli::try_parse_from(["arcvera", "--strict-config"]).expect("parse");
         assert!(cli.interactive.strict_config);
 
         let cli =
-            MultitoolCli::try_parse_from(["codex", "review", "--strict-config", "--uncommitted"])
+            MultitoolCli::try_parse_from(["arcvera", "review", "--strict-config", "--uncommitted"])
                 .expect("parse");
         assert_matches!(
             cli.subcommand,
@@ -4720,7 +4651,7 @@ enabled = true
             }))
         );
 
-        let cli = MultitoolCli::try_parse_from(["codex", "exec-server", "--strict-config"])
+        let cli = MultitoolCli::try_parse_from(["arcvera", "exec-server", "--strict-config"])
             .expect("parse");
         assert_matches!(
             cli.subcommand,
@@ -4734,7 +4665,7 @@ enabled = true
     #[test]
     fn exec_server_forward_parses_shared_remote_options() {
         let cli = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "exec-server",
             "forward",
             "--connect",
@@ -4780,7 +4711,7 @@ enabled = true
             ],
         ] {
             assert!(
-                MultitoolCli::try_parse_from(["codex", "exec-server"].into_iter().chain(args))
+                MultitoolCli::try_parse_from(["arcvera", "exec-server"].into_iter().chain(args))
                     .is_err()
             );
         }
@@ -4788,7 +4719,7 @@ enabled = true
 
     #[test]
     fn root_strict_config_is_supported_for_exec_server() {
-        let cli = MultitoolCli::try_parse_from(["codex", "--strict-config", "exec-server"])
+        let cli = MultitoolCli::try_parse_from(["arcvera", "--strict-config", "exec-server"])
             .expect("parse");
 
         reject_root_strict_config_for_subcommand(cli.interactive.strict_config, &cli.subcommand)
@@ -4797,7 +4728,7 @@ enabled = true
 
     #[test]
     fn root_strict_config_is_rejected_for_unsupported_subcommands() {
-        let cli = MultitoolCli::try_parse_from(["codex", "--strict-config", "mcp", "list"])
+        let cli = MultitoolCli::try_parse_from(["arcvera", "--strict-config", "mcp", "list"])
             .expect("parse");
         let err = reject_root_strict_config_for_subcommand(
             cli.interactive.strict_config,
@@ -4807,10 +4738,10 @@ enabled = true
 
         assert_eq!(
             err.to_string(),
-            "`--strict-config` is not supported for `codex mcp`"
+            "`--strict-config` is not supported for `arcvera mcp`"
         );
 
-        let cli = MultitoolCli::try_parse_from(["codex", "--strict-config", "remote-control"])
+        let cli = MultitoolCli::try_parse_from(["arcvera", "--strict-config", "remote-control"])
             .expect("parse");
         let err = reject_root_strict_config_for_subcommand(
             cli.interactive.strict_config,
@@ -4820,14 +4751,14 @@ enabled = true
 
         assert_eq!(
             err.to_string(),
-            "`--strict-config` is not supported for `codex remote-control`"
+            "`--strict-config` is not supported for `arcvera remote-control`"
         );
     }
 
     #[test]
     fn app_server_subcommands_reject_strict_config() {
         let app_server =
-            app_server_from_args(["codex", "app-server", "--strict-config", "proxy"].as_ref());
+            app_server_from_args(["arcvera", "app-server", "--strict-config", "proxy"].as_ref());
         let err = reject_strict_config_for_app_server_subcommand(
             app_server.strict_config,
             app_server.subcommand.as_ref(),
@@ -4836,14 +4767,15 @@ enabled = true
 
         assert_eq!(
             err.to_string(),
-            "`--strict-config` is not supported for `codex app-server proxy`"
+            "`--strict-config` is not supported for `arcvera app-server proxy`"
         );
     }
 
     #[test]
     fn reject_remote_flag_for_remote_control() {
-        let cli = MultitoolCli::try_parse_from(["codex", "--remote", "unix://", "remote-control"])
-            .expect("parse");
+        let cli =
+            MultitoolCli::try_parse_from(["arcvera", "--remote", "unix://", "remote-control"])
+                .expect("parse");
         let Some(Subcommand::RemoteControl(remote_control)) = &cli.subcommand else {
             panic!("expected remote-control subcommand");
         };
@@ -4862,10 +4794,10 @@ enabled = true
     #[test]
     fn ci_entry_point_parses_and_rejects_unsupported_root_options() {
         for args in [
-            vec!["codex", "ci", "status", "--json"],
-            vec!["codex", "ci", "-R", "owner/repo", "list", "--limit", "1"],
+            vec!["arcvera", "ci", "status", "--json"],
+            vec!["arcvera", "ci", "-R", "owner/repo", "list", "--limit", "1"],
             vec![
-                "codex",
+                "arcvera",
                 "ci",
                 "watch",
                 "42",
@@ -4891,7 +4823,7 @@ enabled = true
         }
 
         let cli = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "--remote",
             "ws://127.0.0.1:4500",
             "ci",
@@ -4904,9 +4836,9 @@ enabled = true
             "ci",
         )
         .expect_err("CI must not silently accept a remote TUI connection");
-        assert!(error.to_string().contains("codex ci"));
+        assert!(error.to_string().contains("arcvera ci"));
 
-        let cli = MultitoolCli::try_parse_from(["codex", "--strict-config", "ci", "status"])
+        let cli = MultitoolCli::try_parse_from(["arcvera", "--strict-config", "ci", "status"])
             .expect("root strict option parses before subcommand dispatch");
         let error = reject_root_strict_config_for_subcommand(
             cli.interactive.strict_config,
@@ -4915,13 +4847,14 @@ enabled = true
         .expect_err("CI must not silently ignore strict config");
         assert_eq!(
             error.to_string(),
-            "`--strict-config` is not supported for `codex ci`"
+            "`--strict-config` is not supported for `arcvera ci`"
         );
     }
 
     #[test]
     fn remote_control_pair_parses() {
-        let cli = MultitoolCli::try_parse_from(["codex", "remote-control", "pair"]).expect("parse");
+        let cli =
+            MultitoolCli::try_parse_from(["arcvera", "remote-control", "pair"]).expect("parse");
         let Some(Subcommand::RemoteControl(remote_control)) = &cli.subcommand else {
             panic!("expected remote-control subcommand");
         };
@@ -4930,7 +4863,7 @@ enabled = true
 
     #[test]
     fn remote_flag_parses_for_interactive_root() {
-        let cli = MultitoolCli::try_parse_from(["codex", "--remote", "unix://codex.sock"])
+        let cli = MultitoolCli::try_parse_from(["arcvera", "--remote", "unix://codex.sock"])
             .expect("parse");
         assert_eq!(cli.remote.remote.as_deref(), Some("unix://codex.sock"));
     }
@@ -4938,7 +4871,7 @@ enabled = true
     #[test]
     fn remote_auth_token_env_flag_parses_for_interactive_root() {
         let cli = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "--remote-auth-token-env",
             "CODEX_REMOTE_AUTH_TOKEN",
             "--remote",
@@ -4954,7 +4887,7 @@ enabled = true
     #[test]
     fn remote_flag_parses_for_resume_subcommand() {
         let cli =
-            MultitoolCli::try_parse_from(["codex", "resume", "--remote", "unix://codex.sock"])
+            MultitoolCli::try_parse_from(["arcvera", "resume", "--remote", "unix://codex.sock"])
                 .expect("parse");
         let Subcommand::Resume(ResumeCommand { remote, .. }) =
             cli.subcommand.expect("resume present")
@@ -4967,7 +4900,7 @@ enabled = true
     #[test]
     fn agents_subcommand_accepts_remote_session_options() {
         let cli = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "agents",
             "--remote",
             "ws://127.0.0.1:4500",
@@ -5072,7 +5005,7 @@ enabled = true
     fn app_server_grpc_code_mode_host_url_parses_independently_of_listen_transport() {
         let app_server = app_server_from_args(
             [
-                "codex",
+                "arcvera",
                 "app-server",
                 "--code-mode-host",
                 "https://example.test",
@@ -5105,9 +5038,13 @@ enabled = true
             "https://alice:secret@example.test",
             "http://example.test/?token=secret",
         ] {
-            let error =
-                MultitoolCli::try_parse_from(["codex", "app-server", "--code-mode-host", endpoint])
-                    .expect_err("invalid code-mode host endpoint should fail argument parsing");
+            let error = MultitoolCli::try_parse_from([
+                "arcvera",
+                "app-server",
+                "--code-mode-host",
+                endpoint,
+            ])
+            .expect_err("invalid code-mode host endpoint should fail argument parsing");
 
             assert_eq!(error.kind(), clap::error::ErrorKind::ValueValidation);
             let rendered_error = error.to_string();
@@ -5119,7 +5056,7 @@ enabled = true
     #[test]
     fn app_server_listen_websocket_url_parses() {
         let app_server = app_server_from_args(
-            ["codex", "app-server", "--listen", "ws://127.0.0.1:4500"].as_ref(),
+            ["arcvera", "app-server", "--listen", "ws://127.0.0.1:4500"].as_ref(),
         );
         assert_eq!(
             app_server.listen,
@@ -5132,7 +5069,7 @@ enabled = true
     #[test]
     fn app_server_listen_stdio_url_parses() {
         let app_server =
-            app_server_from_args(["codex", "app-server", "--listen", "stdio://"].as_ref());
+            app_server_from_args(["arcvera", "app-server", "--listen", "stdio://"].as_ref());
         assert_eq!(
             app_server.listen,
             codex_app_server::AppServerTransport::Stdio
@@ -5141,14 +5078,14 @@ enabled = true
 
     #[test]
     fn app_server_stdio_flag_parses() {
-        let app_server = app_server_from_args(["codex", "app-server", "--stdio"].as_ref());
+        let app_server = app_server_from_args(["arcvera", "app-server", "--stdio"].as_ref());
         assert!(app_server.stdio);
     }
 
     #[test]
     fn app_server_stdio_flag_conflicts_with_listen() {
         let err = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "app-server",
             "--stdio",
             "--listen",
@@ -5161,7 +5098,7 @@ enabled = true
     #[test]
     fn app_server_listen_unix_socket_url_parses() {
         let app_server =
-            app_server_from_args(["codex", "app-server", "--listen", "unix://"].as_ref());
+            app_server_from_args(["arcvera", "app-server", "--listen", "unix://"].as_ref());
         assert_eq!(
             app_server.listen,
             codex_app_server::AppServerTransport::UnixSocket {
@@ -5173,7 +5110,13 @@ enabled = true
     #[test]
     fn app_server_listen_unix_socket_path_parses() {
         let app_server = app_server_from_args(
-            ["codex", "app-server", "--listen", "unix:///tmp/codex.sock"].as_ref(),
+            [
+                "arcvera",
+                "app-server",
+                "--listen",
+                "unix:///tmp/codex.sock",
+            ]
+            .as_ref(),
         );
         assert_eq!(
             app_server.listen,
@@ -5186,20 +5129,21 @@ enabled = true
 
     #[test]
     fn app_server_listen_off_parses() {
-        let app_server = app_server_from_args(["codex", "app-server", "--listen", "off"].as_ref());
+        let app_server =
+            app_server_from_args(["arcvera", "app-server", "--listen", "off"].as_ref());
         assert_eq!(app_server.listen, codex_app_server::AppServerTransport::Off);
     }
 
     #[test]
     fn app_server_listen_invalid_url_fails_to_parse() {
         let parse_result =
-            MultitoolCli::try_parse_from(["codex", "app-server", "--listen", "http://foo"]);
+            MultitoolCli::try_parse_from(["arcvera", "app-server", "--listen", "http://foo"]);
         assert!(parse_result.is_err());
     }
 
     #[test]
     fn app_server_proxy_subcommand_parses() {
-        let app_server = app_server_from_args(["codex", "app-server", "proxy"].as_ref());
+        let app_server = app_server_from_args(["arcvera", "app-server", "proxy"].as_ref());
         assert!(matches!(
             app_server.subcommand,
             Some(AppServerSubcommand::Proxy(AppServerProxyCommand {
@@ -5213,7 +5157,7 @@ enabled = true
         assert!(matches!(
             app_server_from_args(
                 [
-                    "codex",
+                    "arcvera",
                     "app-server",
                     "daemon",
                     "bootstrap",
@@ -5229,7 +5173,7 @@ enabled = true
             }))
         ));
         assert!(matches!(
-            app_server_from_args(["codex", "app-server", "daemon", "start"].as_ref()).subcommand,
+            app_server_from_args(["arcvera", "app-server", "daemon", "start"].as_ref()).subcommand,
             Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
                 subcommand: AppServerDaemonSubcommand::Start {
                     existing_installation: false,
@@ -5238,14 +5182,15 @@ enabled = true
             }))
         ));
         assert!(matches!(
-            app_server_from_args(["codex", "app-server", "daemon", "restart"].as_ref()).subcommand,
+            app_server_from_args(["arcvera", "app-server", "daemon", "restart"].as_ref())
+                .subcommand,
             Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
                 subcommand: AppServerDaemonSubcommand::Restart
             }))
         ));
         assert!(matches!(
             app_server_from_args(
-                ["codex", "app-server", "daemon", "enable-remote-control"].as_ref()
+                ["arcvera", "app-server", "daemon", "enable-remote-control"].as_ref()
             )
             .subcommand,
             Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
@@ -5254,7 +5199,7 @@ enabled = true
         ));
         assert!(matches!(
             app_server_from_args(
-                ["codex", "app-server", "daemon", "disable-remote-control"].as_ref()
+                ["arcvera", "app-server", "daemon", "disable-remote-control"].as_ref()
             )
             .subcommand,
             Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
@@ -5262,13 +5207,14 @@ enabled = true
             }))
         ));
         assert!(matches!(
-            app_server_from_args(["codex", "app-server", "daemon", "stop"].as_ref()).subcommand,
+            app_server_from_args(["arcvera", "app-server", "daemon", "stop"].as_ref()).subcommand,
             Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
                 subcommand: AppServerDaemonSubcommand::Stop
             }))
         ));
         assert!(matches!(
-            app_server_from_args(["codex", "app-server", "daemon", "version"].as_ref()).subcommand,
+            app_server_from_args(["arcvera", "app-server", "daemon", "version"].as_ref())
+                .subcommand,
             Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
                 subcommand: AppServerDaemonSubcommand::Version
             }))
@@ -5280,7 +5226,7 @@ enabled = true
         assert!(matches!(
             app_server_from_args(
                 [
-                    "codex",
+                    "arcvera",
                     "app-server",
                     "daemon",
                     "start",
@@ -5303,7 +5249,7 @@ enabled = true
         assert!(matches!(
             app_server_from_args(
                 [
-                    "codex",
+                    "arcvera",
                     "app-server",
                     "daemon",
                     "start",
@@ -5321,7 +5267,7 @@ enabled = true
         ));
         assert!(
             MultitoolCli::try_parse_from([
-                "codex",
+                "arcvera",
                 "app-server",
                 "daemon",
                 "start",
@@ -5335,17 +5281,23 @@ enabled = true
     #[test]
     fn no_force_update_requires_from_cli_and_preserves_default() {
         assert!(
-            MultitoolCli::try_parse_from(["codex", "app-server", "daemon", "update", "--no-force"])
-                .is_err()
+            MultitoolCli::try_parse_from([
+                "arcvera",
+                "app-server",
+                "daemon",
+                "update",
+                "--no-force"
+            ])
+            .is_err()
         );
         for (args, expected) in [
             (
-                vec!["codex", "app-server", "daemon", "update", "--from-cli"],
+                vec!["arcvera", "app-server", "daemon", "update", "--from-cli"],
                 false,
             ),
             (
                 vec![
-                    "codex",
+                    "arcvera",
                     "app-server",
                     "daemon",
                     "update",
@@ -5365,7 +5317,8 @@ enabled = true
     #[test]
     fn daemon_status_json_parses() {
         assert!(matches!(
-            app_server_from_args(&["codex", "app-server", "daemon", "status", "--json"]).subcommand,
+            app_server_from_args(&["arcvera", "app-server", "daemon", "status", "--json"])
+                .subcommand,
             Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
                 subcommand: AppServerDaemonSubcommand::Status { json: true }
             }))
@@ -5374,8 +5327,9 @@ enabled = true
 
     #[test]
     fn app_server_proxy_sock_path_parses() {
-        let app_server =
-            app_server_from_args(["codex", "app-server", "proxy", "--sock", "codex.sock"].as_ref());
+        let app_server = app_server_from_args(
+            ["arcvera", "app-server", "proxy", "--sock", "codex.sock"].as_ref(),
+        );
         let Some(AppServerSubcommand::Proxy(proxy)) = app_server.subcommand else {
             panic!("expected proxy subcommand");
         };
@@ -5418,7 +5372,7 @@ enabled = true
     fn app_server_capability_token_flags_parse() {
         let app_server = app_server_from_args(
             [
-                "codex",
+                "arcvera",
                 "app-server",
                 "--ws-auth",
                 "capability-token",
@@ -5441,7 +5395,7 @@ enabled = true
     fn app_server_signed_bearer_flags_parse() {
         let app_server = app_server_from_args(
             [
-                "codex",
+                "arcvera",
                 "app-server",
                 "--ws-auth",
                 "signed-bearer-token",
@@ -5472,7 +5426,7 @@ enabled = true
     #[test]
     fn app_server_rejects_removed_insecure_non_loopback_flag() {
         let parse_result = MultitoolCli::try_parse_from([
-            "codex",
+            "arcvera",
             "app-server",
             "--allow-unauthenticated-non-loopback-ws",
         ]);
@@ -5481,7 +5435,7 @@ enabled = true
 
     #[test]
     fn features_enable_parses_feature_name() {
-        let cli = MultitoolCli::try_parse_from(["codex", "features", "enable", "unified_exec"])
+        let cli = MultitoolCli::try_parse_from(["arcvera", "features", "enable", "unified_exec"])
             .expect("parse should succeed");
         let Some(Subcommand::Features(FeaturesCli { sub })) = cli.subcommand else {
             panic!("expected features subcommand");
@@ -5494,7 +5448,7 @@ enabled = true
 
     #[test]
     fn features_disable_parses_feature_name() {
-        let cli = MultitoolCli::try_parse_from(["codex", "features", "disable", "shell_tool"])
+        let cli = MultitoolCli::try_parse_from(["arcvera", "features", "disable", "shell_tool"])
             .expect("parse should succeed");
         let Some(Subcommand::Features(FeaturesCli { sub })) = cli.subcommand else {
             panic!("expected features subcommand");
@@ -5603,7 +5557,7 @@ enabled = true
     }
 
     fn strict_config_feature_toggle_error(args: &[&str]) -> anyhow::Error {
-        let cli_args = std::iter::once("codex")
+        let cli_args = std::iter::once("arcvera")
             .chain(std::iter::once("--strict-config"))
             .chain(args.iter().copied());
         let cli = MultitoolCli::try_parse_from(cli_args).expect("parse should succeed");

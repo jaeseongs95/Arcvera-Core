@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Cross-process credential changes invalidate staged logins and cached EMA leases.
 
 use std::fs;
@@ -96,7 +98,7 @@ async fn logout_invalidates_pending_login_across_processes() -> Result<()> {
     if isolated_process(TEST).await? {
         return Ok(());
     }
-    let home = PathBuf::from(std::env::var("CODEX_HOME")?);
+    let home = PathBuf::from(std::env::var("ARCVERA_HOME")?);
     let keyring = FileKeyring(home.join("test-keyring"));
     fs::create_dir_all(&keyring.0)?;
     keyring::set_default_credential_builder(Box::new(keyring));

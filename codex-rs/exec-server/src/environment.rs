@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 mod connect_options;
 mod discovery_recovery;
 mod discovery_v2;
@@ -193,7 +195,7 @@ impl EnvironmentManager {
 
     /// Discovers configured environments without starting remote connections.
     ///
-    /// If `CODEX_HOME/environments.toml` is present, it defines the configured
+    /// If `ARCVERA_HOME/environments.toml` is present, it defines the configured
     /// environments. Otherwise this preserves the legacy
     /// `CODEX_EXEC_SERVER_URL` behavior.
     pub async fn prepare_from_codex_home(
@@ -208,7 +210,7 @@ impl EnvironmentManager {
         Ok(PreparedEnvironmentManager { source })
     }
 
-    /// Builds a manager from `CODEX_HOME` with an explicit outbound HTTP policy.
+    /// Builds a manager from `ARCVERA_HOME` with an explicit outbound HTTP policy.
     pub async fn from_codex_home(
         codex_home: impl AsRef<std::path::Path>,
         local_runtime_paths: Option<ExecServerRuntimeOptions>,

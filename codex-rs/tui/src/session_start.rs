@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Interactive recovery when starting an archived session.
 //! Retries preserve the launch-resolved local presentation settings from the first attempt.
 
@@ -150,7 +152,7 @@ fn session_start_error(
 fn archived_session_guidance(err: &color_eyre::Report) -> Option<String> {
     let err = err.to_string();
     let message = &err[err.find("session ")?..];
-    if !message.contains(" is archived. Run `codex unarchive ") {
+    if !message.contains(" is archived. Run `arcvera unarchive ") {
         return None;
     }
     let message = message

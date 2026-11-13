@@ -1,5 +1,7 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
-//! Shared implementation for `codex archive`, `codex delete`, and `codex unarchive`.
+//! Shared implementation for `arcvera archive`, `arcvera delete`, and `arcvera unarchive`.
 //!
 //! The CLI commands are thin app-server clients: resolve a user-provided UUID or exact session
 //! name, then call the corresponding app-server RPC.

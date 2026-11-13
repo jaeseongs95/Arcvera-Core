@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Compare model-visible prefixes from two app-server versions using the same client and inputs.
 //! The contract runner supplies a released CLI; ordinary runs check same-version determinism.
 
@@ -89,7 +91,7 @@ async fn prompt_prefix_matches_release() -> Result<()> {
         for (value, replacement) in [
             (environment.cwd.as_str(), "<ENVIRONMENT_CWD>"),
             (thread.cwd.to_string_lossy().as_ref(), "<CWD>"),
-            (home.path().to_string_lossy().as_ref(), "<CODEX_HOME>"),
+            (home.path().to_string_lossy().as_ref(), "<ARCVERA_HOME>"),
             (thread.id.as_str(), "<THREAD_ID>"),
             (thread.session_id.as_str(), "<SESSION_ID>"),
         ] {

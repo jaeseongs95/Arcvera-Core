@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Managed daemon lifecycle through the public CLI, using isolated standalone fixtures.
 #![cfg(unix)]
 
@@ -49,7 +51,7 @@ fn managed_daemon_restarts_from_deleted_working_directory() -> Result<()> {
         .arg(&project)
         .arg(&daemon.codex)
         .current_dir(&project)
-        .env("CODEX_HOME", daemon.home.path())
+        .env("ARCVERA_HOME", daemon.home.path())
         .output()?;
     ensure!(
         restarted.status.success(),
@@ -542,7 +544,7 @@ fn manual_update_rejects_an_unowned_installation() -> Result<()> {
         daemon
             .home
             .path()
-            .join("packages/standalone/current/bin/codex"),
+            .join("packages/standalone/current/bin/arcvera"),
     )?;
 
     assert_eq!(daemon.lifecycle("update")?["status"], "unsupported");

@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 #![allow(dead_code)]
 
 use std::path::PathBuf;
@@ -112,9 +114,9 @@ impl ExecServerHarness {
         if !command
             .as_std()
             .get_envs()
-            .any(|(key, value)| key == "CODEX_HOME" && value.is_some())
+            .any(|(key, value)| key == "ARCVERA_HOME" && value.is_some())
         {
-            command.env("CODEX_HOME", codex_home.path());
+            command.env("ARCVERA_HOME", codex_home.path());
         }
         let mut child = command.spawn()?;
 

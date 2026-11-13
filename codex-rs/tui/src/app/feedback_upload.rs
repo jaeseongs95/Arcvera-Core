@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Stage bounded TUI diagnostics on the app-server host for a single feedback upload.
 //! Log consent gates all staging; cleanup runs after staging or upload failures too.
 
@@ -32,7 +34,7 @@ pub(super) async fn fetch_feedback_upload(
     if params.include_logs {
         let staged = async {
             let directory = staging_dir.as_ref().ok_or_else(|| {
-                eyre!("App server did not report $CODEX_HOME; cannot stage feedback logs")
+                eyre!("App server did not report $ARCVERA_HOME; cannot stage feedback logs")
             })?;
             // These RPCs use the app-server's local filesystem, where feedback/upload
             // reads extraLogFiles, independently of the thread's executor environment.

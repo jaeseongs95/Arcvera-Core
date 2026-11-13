@@ -1,3 +1,5 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+# Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 status-label-model = 모델
 status-label-directory = 디렉터리
 status-label-permissions = 권한
@@ -147,8 +149,8 @@ status-empty = <없음>
 status-unknown = <알 수 없음>
 status-invalid-websocket = <유효하지 않은 WebSocket URL>
 status-unknown-version = 알 수 없음
-status-server-version-older = 백그라운드 Codex 서비스에서 실행 중인 v{ $server }은(는) 현재 Codex CLI v{ $client }보다 이전 버전입니다.
-status-server-version-different = 백그라운드 Codex 서비스에서 실행 중인 v{ $server }은(는) 현재 Codex CLI v{ $client }와 다른 버전입니다.
+status-server-version-older = 백그라운드 Codex 서비스에서 실행 중인 v{ $server }은(는) 현재 Arcvera Core CLI v{ $client }보다 이전 버전입니다.
+status-server-version-different = 백그라운드 Codex 서비스에서 실행 중인 v{ $server }은(는) 현재 Arcvera Core CLI v{ $client }와 다른 버전입니다.
 status-sandbox-external = 외부 샌드박스
 status-sandbox-external-network = 외부 샌드박스 (네트워크 접근 허용)
 status-title-name-app-name = 앱 이름

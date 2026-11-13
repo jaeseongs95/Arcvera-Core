@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use super::App;
 use crate::app_event::AppEvent;
 use crate::app_event::ThreadGoalSetMode;
@@ -17,7 +19,7 @@ use codex_protocol::ThreadId;
 
 const EPHEMERAL_THREAD_GOAL_ERROR_MESSAGE: &str = concat!(
     "Goals need a saved session. This session is temporary.\n",
-    "Run `codex` to start a saved session, or `codex resume` / `/resume` to reopen one.",
+    "Run `arcvera` to start a saved session, or `arcvera resume` / `/resume` to reopen one.",
 );
 
 impl App {

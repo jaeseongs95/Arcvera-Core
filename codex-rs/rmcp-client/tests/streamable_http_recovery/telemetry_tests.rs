@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Checks attribution when a session rebuild discovers credentials after anonymous startup.
 
 use super::streamable_http_test_support::arm_session_post_failure;
@@ -34,7 +36,7 @@ async fn recovery_retains_originator_without_initial_credentials() -> anyhow::Re
                 "--nocapture",
             ])
             .env("CODEX_MCP_RECOVERY_TELEMETRY_TEST_CHILD", "1")
-            .env("CODEX_HOME", home.path())
+            .env("ARCVERA_HOME", home.path())
             .output()
             .await?;
         assert!(

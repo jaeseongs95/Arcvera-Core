@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Renders doctor reports for terminal users.
 //!
 //! The renderer is intentionally separate from check construction so the JSON
@@ -1308,7 +1310,7 @@ mod tests {
                 "token expired",
             )
             .detail("OPENAI_API_KEY: present")
-            .remediation("Run `codex login`."),
+            .remediation("Run `arcvera login`."),
             DoctorCheck::new(
                 "updates.status",
                 "updates",
@@ -1358,7 +1360,7 @@ Codex Doctor v0.0.0
 
 Notes
    ⚠ terminal     narrow terminal
-   ✗ auth         token expired - Run `codex login`.
+   ✗ auth         token expired - Run `arcvera login`.
 ─────────────────────────────────────────────────────────────
 
 Environment
@@ -1387,7 +1389,7 @@ Environment
   ✓ state        state paths inspectable
 
 Configuration
-  ✗ auth         token expired — Run `codex login`.
+  ✗ auth         token expired — Run `arcvera login`.
       OPENAI_API_KEY           present
 
 Updates
@@ -1502,7 +1504,7 @@ Codex Doctor v0.0.0
 
 Notes
    ⚠ terminal     narrow terminal
-   ✗ auth         token expired - Run `codex login`.
+   ✗ auth         token expired - Run `arcvera login`.
 ─────────────────────────────────────────────────────────────
 
 Environment
@@ -1516,7 +1518,7 @@ Environment
   ✓ state        state paths inspectable
 
 Configuration
-  ✗ auth         token expired — Run `codex login`.
+  ✗ auth         token expired — Run `arcvera login`.
 
 Updates
   ✓ updates      update configuration is locally consistent
@@ -1610,7 +1612,7 @@ Codex Doctor v0.0.0
 
 Notes
    [!!] terminal     narrow terminal
-   [XX] auth         token expired - Run `codex login`.
+   [XX] auth         token expired - Run `arcvera login`.
 -------------------------------------------------------------
 
 Environment
@@ -1624,7 +1626,7 @@ Environment
   [ok] state        state paths inspectable
 
 Configuration
-  [XX] auth         token expired - Run `codex login`.
+  [XX] auth         token expired - Run `arcvera login`.
 
 Updates
   [ok] updates      update configuration is locally consistent
@@ -1980,8 +1982,7 @@ Run codex doctor without --summary for detailed diagnostics.
 
     #[test]
     fn copyable_items_use_check_status() {
-        let description =
-            "/tmp/logs_2.sqlite, ~/goals_1.sqlite integrity check; try --summary or `codex doctor`";
+        let description = "/tmp/logs_2.sqlite, ~/goals_1.sqlite integrity check; try --summary or `arcvera doctor`";
         let details = r"see ./logs, ../goals. C:\logs, D:/goals. c:\logs, \\server\share\logs, \\?\C:\logs, \\?\UNC\server\share\logs, \\.\pipe\codex, \??\C:\logs, \DosDevices\C:\logs, \rooted. http://localhost:8080: https://example.com; wss://example.com) and `/tmp/my data/logs_2.sqlite`";
         let mut rendered = String::new();
 

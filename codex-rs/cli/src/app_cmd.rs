@@ -1,25 +1,20 @@
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 pub struct AppCommand {
-    /// Workspace path to open in the Desktop app.
+    /// Legacy workspace argument (Desktop integration is disabled).
     #[arg(value_name = "PATH", default_value = ".")]
     pub path: PathBuf,
 
-    /// Override the app installer download URL (advanced).
+    /// Legacy installer URL argument (ignored; installation is disabled).
     #[arg(long = "download-url")]
     pub download_url_override: Option<String>,
 }
 
-pub async fn run_app(cmd: AppCommand) -> anyhow::Result<()> {
-    let workspace = std::fs::canonicalize(&cmd.path).unwrap_or(cmd.path);
-    #[cfg(target_os = "macos")]
-    {
-        crate::desktop_app::run_app_open_or_install(workspace, cmd.download_url_override).await
-    }
-    #[cfg(target_os = "windows")]
-    {
-        crate::desktop_app::run_app_open_or_install(workspace, cmd.download_url_override).await
-    }
+pub async fn run_app(_cmd: AppCommand) -> anyhow::Result<()> {
+    anyhow::bail!(
+        "Desktop app launch and installation are disabled in Arcvera Core. Download releases from https://github.com/jaeseongs95/Arcvera-Core/releases"
+    )
 }

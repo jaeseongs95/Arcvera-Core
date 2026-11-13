@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Slash-command dispatch and local-recall handoff for `ChatWidget`.
 //!
@@ -312,14 +313,10 @@ impl ChatWidget {
                 self.show_managed_worktree_picker();
             }
             SlashCommand::App => {
-                let Some(thread_id) = self.thread_id else {
-                    self.add_error_message(
-                        "Session is still starting; try /app again in a moment.".to_string(),
-                    );
-                    return;
-                };
-                self.app_event_tx
-                    .send(AppEvent::OpenDesktopThread { thread_id });
+                self.add_info_message(
+                    "Desktop app launch and installation are disabled in Arcvera Core. Download releases from https://github.com/jaeseongs95/Arcvera-Core/releases".to_string(),
+                    /*hint*/ None,
+                );
             }
             SlashCommand::Init => {
                 const INIT_PROMPT: &str = include_str!("../../assets/prompt_for_init_command.md");

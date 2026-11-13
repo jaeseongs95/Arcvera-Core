@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use crate::SandboxRuntimeAccount;
 use crate::WindowsSandboxProvisioningOutcome;
 use crate::WindowsSandboxProvisioningSettings;
@@ -286,7 +288,7 @@ pub fn require_logon_sandbox_creds(
     let needed_write = write_roots_override
         .map(<[PathBuf]>::to_vec)
         .unwrap_or_else(|| gather_write_roots_for_permissions(permissions, command_cwd, env_map));
-    // Do not grant the capability token write access to CODEX_HOME/.sandbox; the setup helper
+    // Do not grant the capability token write access to ARCVERA_HOME/.sandbox; the setup helper
     // grants the sandbox group access separately through lock_sandbox_dir.
     let request = SandboxSetupRequest {
         permissions,

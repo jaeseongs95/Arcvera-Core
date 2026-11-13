@@ -2,7 +2,7 @@
 source: tui/src/tooltips.rs
 expression: rendered
 ---
-Line::from_iter([Span::from("Tip:").fg(Color::Reset).bold(), Span::from(" Use the "), Span::from("desktop app").fg(Color::Reset).bold(), Span::from(". Install it")]) []
-Line::from("from") []
-Line::from(Span::from("https://chatgpt.com/codex?app-landing-page=true").fg(Color::Reset).underlined()) [TerminalHyperlink { columns: 0..47, destination: "https://chatgpt.com/codex?app-landing-page=true", destination_kind: Web }]
-Line::from_iter([Span::from("and run "), Span::from("codex app").fg(Color::Rgb(166, 227, 161)), Span::from(".")]) []
+Line::from_iter([Span::from("Tip:").fg(Color::Reset).bold(), Span::from(" The "), Span::from("desktop app").fg(Color::Reset).bold(), Span::from(" launcher and")]) []
+Line::from("installer are disabled in Arcvera Core.") []
+Line::from("Download releases from") []
+Line::from_iter([Span::from("https://github.com/jaeseongs95/Arcvera-Core/releases").fg(Color::Reset).underlined(), Span::from(".")]) [TerminalHyperlink { columns: 0..52, destination: "https://github.com/jaeseongs95/Arcvera-Core/releases", destination_kind: Web }]

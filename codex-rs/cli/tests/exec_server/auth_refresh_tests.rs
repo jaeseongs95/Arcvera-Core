@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Verify authentication updates across the running CLI executor process.
 
 use std::process::Stdio;
@@ -42,10 +44,10 @@ async fn executor_startup_rejects_agent_identity_before_cloud_config() -> Result
         home.path().join("config.toml"),
         "cli_auth_credentials_store = 'file'\n",
     )?;
-    let mut command = tokio::process::Command::new(codex_utils_cargo_bin::cargo_bin("codex")?);
+    let mut command = tokio::process::Command::new(codex_utils_cargo_bin::cargo_bin("arcvera")?);
     command
         .current_dir(home.path())
-        .env("CODEX_HOME", home.path())
+        .env("ARCVERA_HOME", home.path())
         .env_remove("CODEX_API_KEY")
         .env_remove("OPENAI_API_KEY")
         .env_remove("CODEX_ACCESS_TOKEN")
@@ -122,9 +124,9 @@ async fn noise_executor_refreshes_on_401_and_reloads_rotated_credentials() -> Re
         .expect(0)
         .mount(&registry)
         .await;
-    let mut child = tokio::process::Command::new(codex_utils_cargo_bin::cargo_bin("codex")?)
+    let mut child = tokio::process::Command::new(codex_utils_cargo_bin::cargo_bin("arcvera")?)
         .current_dir(home.path())
-        .env("CODEX_HOME", home.path())
+        .env("ARCVERA_HOME", home.path())
         .env_remove("CODEX_API_KEY")
         .env_remove("OPENAI_API_KEY")
         .env_remove("CODEX_ACCESS_TOKEN")

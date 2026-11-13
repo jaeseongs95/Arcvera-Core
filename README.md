@@ -2,69 +2,41 @@
 
 [English](README.md) · [한국어](README.ko.md)
 
-An independently maintained Windows CLI and Rust App Server derived from OpenAI Codex. It adds conversation controls and repairs confirmed defects while preserving authentication, permission checks, stored conversations, and ongoing work.
+An independently maintained Windows CLI and Rust App Server derived from OpenAI Codex. The public command is `arcvera`. Arcvera-Core currently communicates with OpenAI servers; upstream names retained in protocol identifiers and helper components identify implementation provenance. It is not an official OpenAI product.
 
-Arcvera-Core supports communication with OpenAI servers. Compatibility or interchangeability with the official Codex CLI is outside its support scope. Upstream version references identify source provenance; Arcvera-Core maintains its own commands, protocol, storage and release contracts.
-
-[Download latest release](https://github.com/jaeseongs95/Arcvera-Core/releases/latest) · [Release history](https://github.com/jaeseongs95/Arcvera-Core/releases) · [Build from source](docs/source-import.md)
+[Download releases](https://github.com/jaeseongs95/Arcvera-Core/releases) · [Build from source](docs/source-import.md)
 
 ## Start on Windows
 
-1. Download the complete Windows x86-64 ZIP and `SHA256SUMS.txt` from the release page.
-2. Compare the ZIP's SHA-256 with the checksum file, then extract it into a new folder with its directory layout intact.
-3. Run `bin\codex.exe`. Source compilation and CMD launchers are optional.
-
-Native voice requires the Microsoft Visual C++ v14 **X64** runtime installed
-separately by the user. Microsoft DLLs and installers are not bundled. See
-[runtime installation instructions](tools/windows-cli/RUNTIME.md) for the official
-download, supported version and missing-DLL recovery.
-
-For the published 1.0.0 package, run the first command in the download folder and the second in the extracted package folder:
+Download the complete Windows x86-64 ZIP and `SHA256SUMS.txt`, compare the ZIP hash, and extract to a new folder. For version 1.0.1:
 
 ```powershell
-Get-FileHash .\arcvera-core-1.0.0-windows-x86_64.zip -Algorithm SHA256
+Get-FileHash .\arcvera-core-1.0.1-windows-x86_64.zip -Algorithm SHA256
 ```
+
+In the extracted folder:
 
 ```powershell
-.\bin\codex.exe
+.\bin\arcvera.exe
 ```
-
-Keep `codex-package.json`, `package-receipt.json`, and the `bin` folder together. Retain the previous package for recovery.
-
-### Choose a connection
 
 | Entry point | Behavior |
 | --- | --- |
-| `bin\codex.exe` or `codex-patched.cmd` | Default startup; may reuse a compatible local shared server, depending on installation and settings. |
-| `codex-local.cmd` | Uses `--no-daemon` to start a separate embedded backend. |
-| `bin\codex.exe --remote <address>` | Connects to an explicit remote server; requires the appropriate authentication. |
+| `bin\arcvera.exe` or `arcvera.cmd` | Default startup using Arcvera's local shared server. |
+| `arcvera-local.cmd` | Starts an embedded backend with `--no-daemon`. |
+| `bin\arcvera.exe --remote <address>` | Connects to the explicitly selected remote server with appropriate authentication. |
 
-The ZIP already includes `codex-patched.cmd`, which passes arguments to `bin\codex.exe`. It provides a convenient default launch that can reuse the shared server. It does not replace a server version, configure a remote address, or pair a mobile device. An incompatible or unverified implicit server can cause startup to use the embedded backend. Check the actual server identity separately from the selected CLI file.
+The default home is `~/.arcvera`; set `ARCVERA_HOME` to select an existing directory. `CODEX_HOME` is ignored. Existing Codex data is not imported automatically. Sign in separately for the new Arcvera home. An official Codex or ChatGPT installation is not required.
 
-To replace the managed shared server, follow the [1.0.0 server update procedure and compatibility boundary](docs/releases/R41.md#shared-server-update). Use the complete ZIP and a separate PowerShell window after finishing active work. Changing an EXE path alone does not update a running server.
+Keep `codex-package.json`, `package-receipt.json`, the `bin` folder and all helper resources together. Individual executables are not a complete managed-server package. The internal helpers remain named `codex-app-server.exe` and `codex-code-mode-host.exe` and must come from the same release. Retain the previous package for recovery.
 
-### Individual executables
-
-Releases also provide `codex.exe`, `codex-app-server.exe`, and `codex-code-mode-host.exe` separately. Use the same release for all three. Keep the helper beside the executable being run, with the exact name `codex-code-mode-host.exe`; a missing helper can cause `os error 2`. If the CLI and server share a folder, put all three files there.
-
-These three files are not a complete managed-server installation package. Voice resources, launchers, updater support, and `app-server daemon update --from-cli` require the complete ZIP. Download and version checks do not establish first-time installation on a new PC.
+Native voice requires the Microsoft Visual C++ v14 **X64** runtime installed separately. Microsoft DLLs and installers are not bundled; see [runtime requirements](tools/windows-cli/RUNTIME.md).
 
 ## Current releases
 
-Arcvera-Core 1.0.0 (R41 scope): [release notes and SemVer policy (EN/KO)](docs/releases/R41.md), [indexed-context design and recovery](docs/context-index.md). A selected task and its dependency closure define eligible model API context, alongside preserved user/control and unclassified inputs. Cache observations report response-level counters; unprovided TTL/expiry remains unknown. Clients must declare the server's exact full Core version during initialization; earlier clients are unsupported. Seven unused workspace packages have been removed. OpenDIY-specific batch logging, cache response/wire diagnostic recording, Drive export and their session controls have been removed. Official Codex logging, telemetry and conversation storage remain. Legacy logging settings are ignored; existing settings and log files are not deleted or migrated automatically. The broader architecture work previously assigned to R41 moves to [R42](docs/roadmap/R42.md). Release versions are independent of upstream Codex 0.167.0; R41/R42 track scope. Pre-relocation source context regression passed 20 local suites (89 distinct tests) with 180 projection samples. Pre-relocation source version-contract tests (3), official diagnostics tests (2), API tests (194), SQLite filter test (1) and TUI session-control tests (15) passed. The final local build and complete 553-file package are identified in the [dated verification record](docs/releases/R41.md#final-verification-record--2026-11-13-kst). Three executable version/help checks, six legacy-setting startup cases, actual stdio/version retries and the stated isolated Desktop lifecycle controls are recorded there. Audit/publication outcomes are recorded separately; source-test results alone do not establish those results. Actual app/model/network performance is unmeasured. Native builds and runtime tests run locally; GitHub Actions runs the source and packaging checks described below.
+Arcvera-Core **1.0.1** is the native home-isolation and update-policy hotfix. It introduces `arcvera`, `ARCVERA_HOME` and `~/.arcvera`, and disables inherited automatic installers and update feeds. Download new versions manually from this repository's releases. See the [bilingual release note](docs/releases/v1.0.1.md) for the source snapshot and final executable verification record.
 
-The regression runs and measurements above predate moving two `#[cfg(test)]` modules into sibling files. A complete build-input comparison verified that only the two module placements and their required file notices changed; the original test bodies and production bytes reconstruct exactly. Fresh version-contract RED/GREEN demonstrated all three cases, and all four moved daemon tests passed. The AppServer pair uses the r41_initialize target, which includes the unchanged original initialize module; the original all-target GREEN was not run. Protocol and daemon results retain their original source identities, reconciled with the added target by exact input comparison. Final binaries, Desktop checks and publication have separate evidence recorded in the release verification appendix. Historical runs are not reported as executions of the new file layout.
-
-| Release | Main change | Verification boundary |
-| --- | --- | --- |
-| [R40](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v0.167.0-r40.20261108) · [Notes (EN/KO)](docs/releases/R40.md) | Temporary MCP reconnection, nonblocking context lookup, hook boundaries, scrolling, Korean text, and confirmed memory/provenance fixes | Final CLI, RPC, ConPTY, and isolated TEST Desktop checks; see the notes for failures and unrun cases. |
-| [R39](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v0.167.0-r39.20261107) · [Notes (EN/KO)](docs/releases/R39.md) | Compaction focused on unfinished work | 15 isolated final-package checks plus source compaction tests. Final Desktop joint testing was not run. |
-
-Both are based on official Codex 0.167.0. Publication does not establish the version installed on a PC. Earlier versions remain in the [release history](https://github.com/jaeseongs95/Arcvera-Core/releases).
-
-## CI for 1.0.0
-
-The [Core 1.0 workflow](.github/workflows/core-1.0.yml) runs on pull requests to `main` and `release/1.0.0`, and supports manual dispatch after it reaches the default branch. One Linux job verifies the complete source inventory and patch replay, source-verifier regressions, external-runtime distribution policy, and package assembly. Failed or skipped tests fail the job. It uses synthetic fixtures and does not establish native Windows, Desktop, audio, or performance acceptance. Product compilation, binary artifacts, releases and installation remain outside GitHub Actions. The retired R40 workflows are disabled.
+The previous [1.0.0 release](docs/releases/R41.md) introduced the R41 conversation and version-contract changes. Its historical test results do not establish the correctness of 1.0.1. Broader architecture work remains in [R42](docs/roadmap/R42.md). Release versions are independent of upstream Codex 0.167.0.
 
 ## Conversation controls
 
@@ -83,30 +55,27 @@ Enter these in the CLI conversation input, not PowerShell.
 
 Context overrides cannot exceed the model limit. Memory corrections are not immediate summary consolidation. Schedules skip busy occurrences and disappear when the CLI exits. Natural-language controls need the running CLI's tools. Reload acknowledgement does not prove every MCP server is ready.
 
-Run updater commands in PowerShell: `codex update --check`, `codex update --status`, or `codex update`. They require a supported installed package; see the [updater guide](tools/windows-cli/UPDATE.ko.md).
+
+Automatic updates are disabled. `arcvera update` and inherited daemon updater commands report the manual-download policy. Explicit `app-server daemon update --from-cli` remains available for installing the complete local package into Arcvera's own managed-server directory.
 
 ## Desktop and shared servers
 
-[OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop) is a separate project for the desktop UI and multi-session workflows. This repository supplies the CLI, App Server, and Windows package. Selecting a new CLI in Desktop does not replace an already running shared server.
+[OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop) is a separate client. It must launch `arcvera` and explicitly select `ARCVERA_HOME` when using a nondefault profile. Selecting a new CLI file does not replace a running server. Clients must declare the server's exact full Core version at initialization.
 
-Core 1.0.0 requires a Desktop client that explicitly declares the exact full Core version during initialization; the Desktop UI version remains independent. See the [client protocol and migration guidance](codex-rs/app-server/README.md#arcvera-core-100-initialization--초기화). Consult the release verification appendix for the exact tested Core and Desktop identities and integration results.
-
-Historically, Desktop 1.1.0 extensions required at least CLI and App Server R36 (`0.166.0+native-r36.20261103`). That earlier minimum does not establish compatibility with Core 1.0.0. R40 integration checks cover the isolated TEST Desktop candidate used in the tests, not every published Desktop installation. R39 final Desktop joint testing was not run.
-
-A connection, initialize response, or matching version alone does not prove full compatibility. Existing data and active work are preserved without automatic server replacement.
+Finish active work before an explicit managed-server replacement. Follow the [shared-server procedure](docs/releases/v1.0.1.md#shared-server-update), then verify the actual server version and path. No automatic profile migration or running-server replacement is performed by extracting the ZIP.
 
 ## Validation and limits
 
-Three version-contract tests on isolated 1.0.0 source each failed with production mutation and passed after restoration. They verify exact Core version declarations, rejection before session admission with a corrected retry, and prompt server-rejection reporting. The same three tests passed again on the pre-relocation source; this is a separate successful rerun, not new mutation evidence. Final release executable and Desktop results are recorded separately in the release verification appendix; see the [validation scope](docs/releases/R41.md#validation).
+The [release note](docs/releases/v1.0.1.md) separates source tests, final binaries and unrun cases. The originally reported nested SQLite/socket error has not been reproduced in a fresh 1.0.0 fixture; home collision and inherited updater behavior are independently confirmed defects. Their correction is not proof of the original error's direct cause.
 
-Tagged release notes identify tested binaries, original failures, and unrun cases. Real-model compaction quality, physical keyboard/IME and voice behavior, first-time installation, and sustained workloads have the gaps specified there. These tests do not establish that all GUI delays or memory growth have been resolved.
+Real-account/model behavior, physical IME, voice, sustained workloads, and clean-PC runtime installation require separate evidence. Full removal of upstream implementation names and multi-vendor login are not included in this hotfix.
 
-R40 excludes a full memory redesign, a new CodeMode architecture, broad refactoring, and structural caching improvements. Display-history bounds are not total process-memory limits; file creation is not proof of cloud upload.
+[Validation](docs/TESTING.md) · [Source build](docs/source-import.md) · [Windows packaging](tools/windows-cli/README.md) · [Modifications](MODIFICATIONS.md)
 
-[Validation](docs/TESTING.md) · [Release note format](docs/releases/FORMAT.md) · [Source build](docs/source-import.md) · [Windows packaging](tools/windows-cli/README.md) · [Modifications](MODIFICATIONS.md)
+The [Core 1.0 workflow](.github/workflows/core-1.0.yml) checks the source inventory, patch replay and packaging fixtures on Linux. It does not compile product binaries or establish native Windows runtime acceptance. Product builds and runtime tests run locally.
 
 ## License
 
-Independent work based on [OpenAI Codex](https://github.com/openai/codex); not an official OpenAI product. Git stores source and build tools; Releases stores executable assets. Credentials and operational logs are excluded.
+Independent work based on [OpenAI Codex](https://github.com/openai/codex). Source and build tools are stored in Git; executable assets are published in Releases. Original copyright, attribution and third-party notices are retained.
 
-[AGPL-3.0-or-later](LICENSE) · [Licensing / 라이선스](LICENSING.md) · [Original Apache-2.0](LICENSE-APACHE-2.0) · [NOTICE](NOTICE)
+[AGPL-3.0-or-later](LICENSE) · [Licensing](LICENSING.md) · [Original Apache-2.0](LICENSE-APACHE-2.0) · [NOTICE](NOTICE)

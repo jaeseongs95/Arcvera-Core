@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 mod streamable_http_test_support;
 
 use std::any::Any;
@@ -241,7 +243,7 @@ async fn auto_store_remains_pinned_across_session_recovery() -> anyhow::Result<(
             "--ignored",
             "--nocapture",
         ])
-        .env("CODEX_HOME", codex_home.path())
+        .env("ARCVERA_HOME", codex_home.path())
         .env(CHILD_SERVER_URL_ENV, &base_url)
         .status()
         .await?;

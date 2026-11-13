@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! App-level orchestration tests for the TUI.
 
@@ -602,7 +604,7 @@ async fn external_editor_writable_directory_rejected_snapshot() -> Result<()> {
     let codex_home = app.chat_widget.config_ref().codex_home.clone();
     let fallback_home = dirs::home_dir()
         .expect("home directory")
-        .join(".codex")
+        .join(".arcvera")
         .abs();
     let workspace_codex_home = app.chat_widget.config_ref().cwd.join(".codex");
     let permission_profile = PermissionProfile::workspace_write_with(
@@ -6653,7 +6655,7 @@ async fn ctrl_l_preserves_the_transcript_and_draft_after_clearing_the_screen() -
     let compact = transcript_composer::buffer_text(
         crate::custom_terminal::test_support::last_rendered_buffer(&tui.terminal),
     );
-    assert!(compact.contains("OpenAI Codex"));
+    assert!(compact.contains("Arcvera Core"));
     assert!(compact.contains("New exchange"));
     assert!(!compact.contains("Earlier exchange"));
     let ctrl_t = KeyEvent::new(KeyCode::Char('t'), KeyModifiers::CONTROL);
@@ -6996,7 +6998,7 @@ async fn set_thread_goal_draft_materializes_long_objective_and_confirms_before_p
     let saved_objective = goal.objective.clone();
     let codex_home = app_server
         .codex_home_path(&app.chat_widget.config_ref().codex_home)
-        .expect("codex home");
+        .expect("arcvera home");
     assert!(goal_files::objective_file_path(&goal.objective, Some(&codex_home)).is_some());
     assert_eq!(
         goal_files::objective_text_for_edit(&mut app_server, Some(&codex_home), &goal.objective)

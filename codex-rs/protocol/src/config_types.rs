@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_redacted_string::RedactedString;
 use schemars::JsonSchema;
@@ -113,7 +115,7 @@ pub enum SandboxMode {
     DangerFullAccess,
 }
 
-/// Validated plain profile-v2 name used to select `$CODEX_HOME/<name>.config.toml`.
+/// Validated plain profile-v2 name used to select `$ARCVERA_HOME/<name>.config.toml`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProfileV2Name(String);
 

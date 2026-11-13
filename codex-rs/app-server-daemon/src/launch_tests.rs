@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -355,10 +357,9 @@ async fn automatic_old_server_preserves_updater_state_for_both_update_settings()
             .to_string(),
         )
         .unwrap();
-        assert_eq!(
-            daemon.load_settings().await.unwrap().auto_update_enabled,
-            auto_update_enabled
-        );
+        // The persisted value is preserved below, but Arcvera always disables
+        // inherited automatic updates when applying settings.
+        assert!(!daemon.load_settings().await.unwrap().auto_update_enabled);
         let settings_bytes = std::fs::read(&daemon.settings_file).unwrap();
         // This is a synthetic managed starting reservation, never a user process.
         let reservation = std::fs::OpenOptions::new()

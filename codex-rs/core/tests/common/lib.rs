@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 #![allow(clippy::expect_used)]
 
 use anyhow::Context as _;
@@ -195,7 +197,7 @@ pub fn fetch_dotslash_file(
 
 /// Returns a default `Config` whose on-disk state is confined to the provided
 /// temporary directory. Using a per-test directory keeps tests hermetic and
-/// avoids clobbering a developer’s real `~/.codex`.
+/// avoids clobbering a developer’s real `~/.arcvera`.
 pub async fn load_default_config_for_test(codex_home: &TempDir) -> Config {
     load_default_config_for_test_with_cloud_config_bundle(
         codex_home,

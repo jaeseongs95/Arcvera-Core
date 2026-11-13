@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use std::time::Duration;
 
 use anyhow::Context;
@@ -126,7 +128,7 @@ async fn marketplace_remove_rejects_unknown_marketplace() -> Result<()> {
 #[tokio::test]
 async fn marketplace_remove_ignores_startup_project_config() -> Result<()> {
     let codex_home = TempDir::new()?;
-    // TestAppServer starts in CODEX_HOME, so put project config there to verify
+    // TestAppServer starts in ARCVERA_HOME, so put project config there to verify
     // that the global marketplace RPC does not use it.
     std::fs::create_dir_all(codex_home.path().join(".git"))?;
     std::fs::create_dir_all(codex_home.path().join(".codex"))?;

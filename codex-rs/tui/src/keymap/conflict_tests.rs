@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Regression coverage for conflict diagnostics and validation pass ordering.
 
@@ -31,7 +33,7 @@ fn conflicting_contexts_report_the_first_conflict_in_validation_order() {
             RuntimeKeymap::from_config(&keymap).expect_err("expected binding conflict"),
             format!(
                 "Ambiguous `tui.keymap.{context}` bindings: `{first}` and `{second}` use the same key. \
-Set unique keys in `~/.codex/config.toml` and retry. \
+Set unique keys in `~/.arcvera/config.toml` and retry. \
 See the Codex keymap documentation for supported actions and examples."
             )
         );

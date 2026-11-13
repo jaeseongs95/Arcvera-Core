@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use strum::IntoEnumIterator;
 use strum_macros::AsRefStr;
@@ -121,7 +122,7 @@ impl SlashCommand {
             SlashCommand::Clear => "clear the terminal and start a new chat",
             SlashCommand::Fork => "fork the current chat",
             SlashCommand::Worktree => "start or continue a conversation in a new worktree",
-            SlashCommand::App => "continue this session in the Desktop app",
+            SlashCommand::App => "Desktop launch disabled; show releases",
             SlashCommand::Quit | SlashCommand::Exit => "exit Codex",
             SlashCommand::Copy => "copy the last response or part of it",
             SlashCommand::Export => "export the conversation as markdown",

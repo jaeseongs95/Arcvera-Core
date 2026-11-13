@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use std::path::Path;
 use std::process::Command;
 use std::process::Stdio;
@@ -77,7 +79,7 @@ pub fn app_server_json_shutdown_event(
     )?;
     let output = Command::new(codex_utils_cargo_bin::cargo_bin(binary)?)
         .stdin(Stdio::null())
-        .env("CODEX_HOME", codex_home)
+        .env("ARCVERA_HOME", codex_home)
         .env(
             "CODEX_APP_SERVER_MANAGED_CONFIG_PATH",
             codex_home.join("managed_config.toml"),

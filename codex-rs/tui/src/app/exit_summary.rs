@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Exit output distinguishes a disconnected client from a stopped embedded server.
 //! Persisted sessions offer a direct UUID command and an optional named picker hint.
@@ -139,7 +141,7 @@ impl AppExitInfo {
             lines.push(crate::i18n::static_message("controls-exit-continue").to_string());
             lines.push(format!(
                 "  {}",
-                color_command(format!("codex resume {}", thread.thread_id)),
+                color_command(format!("arcvera resume {}", thread.thread_id)),
             ));
             if let Some(thread_name) = thread.thread_name.filter(|name| !name.is_empty()) {
                 lines.push(crate::i18n::message(
@@ -147,7 +149,7 @@ impl AppExitInfo {
                     &[
                         (
                             "command",
-                            color_command("codex resume".to_string()).as_str(),
+                            color_command("arcvera resume".to_string()).as_str(),
                         ),
                         ("value", color_command(thread_name).as_str()),
                     ],

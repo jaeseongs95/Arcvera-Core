@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::hash::Hash;
@@ -139,7 +141,7 @@ impl HostSkillsService {
             empty_remote_roots: Mutex::default(),
             root_scan_slots: Arc::new(Semaphore::new(MAX_CONCURRENT_ROOT_SCANS)),
         };
-        // The cache is shared by every process using this CODEX_HOME. Disabled services filter
+        // The cache is shared by every process using this ARCVERA_HOME. Disabled services filter
         // system roots when loading rather than mutating shared state.
         if bundled_skills_enabled {
             service.ensure_system_skills_installed();

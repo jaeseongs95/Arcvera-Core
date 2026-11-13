@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Covers OAuth recovery and authentication challenges in running MCP connections.
 
 use super::EnvVarGuard;
@@ -76,7 +78,7 @@ async fn rejected_refresh_requires_reauthentication_after_runtime_rebuild() -> a
     }))?;
     let credential_name = server_config.oauth_credential_name(server_name);
     let home = Arc::new(tempfile::tempdir()?);
-    let _codex_home_guard = EnvVarGuard::set("CODEX_HOME", home.path().as_os_str());
+    let _codex_home_guard = EnvVarGuard::set("ARCVERA_HOME", home.path().as_os_str());
     write_fallback_oauth_tokens(
         credential_name.as_ref(),
         &server_url,
@@ -285,7 +287,7 @@ async fn oauth_mode_refresh_replaces_the_live_connection(
         "environment_id": DEFAULT_MCP_SERVER_ENVIRONMENT_ID,
     }))?;
     let home = Arc::new(tempfile::tempdir()?);
-    let _codex_home_guard = EnvVarGuard::set("CODEX_HOME", home.path().as_os_str());
+    let _codex_home_guard = EnvVarGuard::set("ARCVERA_HOME", home.path().as_os_str());
     write_fallback_oauth_tokens(
         server_config.oauth_credential_name(server_name).as_ref(),
         &server_url,

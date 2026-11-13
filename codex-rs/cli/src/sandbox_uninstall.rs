@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Uninstalls the legacy Windows sandbox without loading config or removing user data.
 
 use clap::Args;
@@ -16,6 +18,6 @@ impl SandboxUninstallCommand {
             codex_windows_sandbox::clean_up_legacy_windows_sandbox()
         }
         #[cfg(not(target_os = "windows"))]
-        anyhow::bail!("`codex sandbox uninstall` is only supported on Windows")
+        anyhow::bail!("`arcvera sandbox uninstall` is only supported on Windows")
     }
 }

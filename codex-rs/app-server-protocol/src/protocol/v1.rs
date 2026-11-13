@@ -1,4 +1,5 @@
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -151,7 +152,7 @@ pub struct InitializeResponse {
     #[ts(optional)]
     pub supports_expected_turn_interrupt: Option<bool>,
     pub user_agent: String,
-    /// Absolute path to the server's $CODEX_HOME directory.
+    /// Absolute path to the server's $ARCVERA_HOME directory.
     pub codex_home: AbsolutePathBuf,
     /// Platform family for the running app-server target, for example
     /// `"unix"` or `"windows"`.

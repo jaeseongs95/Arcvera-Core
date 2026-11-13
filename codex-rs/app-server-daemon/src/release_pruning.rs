@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Tracks dedicated selections under the installer lock. Pruning requires both lifecycle and
 //! installer locks and valid history; inspect idle packages before a single best-effort retirement.
 
@@ -212,7 +214,10 @@ pub(crate) async fn prune(daemon: &Daemon, root: &Path, settings: &DaemonSetting
             .and_then(|s| s.strip_suffix(&format!("-{}", manifest.target)));
         if !(name == format!("{}-{}", manifest.version, manifest.target)
             || local.is_some_and(|digest| blake3::Hash::from_hex(digest).is_ok()))
-            || !matches!(manifest.entrypoint.as_str(), "bin/codex" | "bin/codex.exe")
+            || !matches!(
+                manifest.entrypoint.as_str(),
+                "bin/arcvera" | "bin/arcvera.exe"
+            )
         {
             continue;
         }
@@ -226,8 +231,8 @@ pub(crate) async fn prune(daemon: &Daemon, root: &Path, settings: &DaemonSetting
         while let Some(child) = pending.pop() {
             // The Unix installer adds this alias; it never traverses outside the release.
             #[cfg(unix)]
-            if child == path.join("codex")
-                && std::fs::read_link(&child).ok().as_deref() == Some(Path::new("bin/codex"))
+            if child == path.join("arcvera")
+                && std::fs::read_link(&child).ok().as_deref() == Some(Path::new("bin/arcvera"))
             {
                 continue;
             }

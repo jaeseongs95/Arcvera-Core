@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Ambient terminal rendering for the Codex companion.
 //!
 //! Ambient pets reuse the same extracted image frames as the full-screen viewer
@@ -139,7 +141,7 @@ impl AmbientPet {
     /// Load the active ambient pet and prepare its frame cache.
     ///
     /// This resolves the selected pet id, extracts per-frame PNGs into the
-    /// CODEX_HOME cache, and records the terminal protocol support snapshot used
+    /// ARCVERA_HOME cache, and records the terminal protocol support snapshot used
     /// for later draw requests. A caller that repeatedly recreates `AmbientPet`
     /// instead of mutating one instance would lose animation timing continuity
     /// and pay the frame-cache preparation cost more often than necessary.

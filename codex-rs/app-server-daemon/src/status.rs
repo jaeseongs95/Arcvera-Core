@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 //! Passive installation/process observations. This is not an update reservation or an idle gate.
 
@@ -180,7 +182,11 @@ async fn selected_binary(home: &Path) -> Result<PathBuf> {
             "selected installation is not a directory"
         );
     }
-    let name = if cfg!(windows) { "codex.exe" } else { "codex" };
+    let name = if cfg!(windows) {
+        "arcvera.exe"
+    } else {
+        "arcvera"
+    };
     let packaged = current.join("bin").join(name);
     let legacy = current.join(name);
     if exists(&packaged).await?

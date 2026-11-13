@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Verifies MCP argument handling and managed networking in standalone commands.
 
 use clap::Parser;
@@ -76,7 +78,7 @@ async fn isolated_test_home(test_name: &str) -> anyhow::Result<Option<PathBuf>> 
     }
 
     // Only the child receives the temporary home; the production loader resolves
-    // CODEX_HOME normally and the parent test process keeps its environment.
+    // ARCVERA_HOME normally and the parent test process keeps its environment.
     let home = tempfile::tempdir()?;
     let output = timeout(
         Duration::from_secs(45),
@@ -84,7 +86,7 @@ async fn isolated_test_home(test_name: &str) -> anyhow::Result<Option<PathBuf>> 
             .args(["--exact", &test_name, "--nocapture"])
             .kill_on_drop(true)
             .env(CHILD, &test_name)
-            .env("CODEX_HOME", home.path())
+            .env("ARCVERA_HOME", home.path())
             .env("NO_PROXY", "127.0.0.1,localhost")
             .env("no_proxy", "127.0.0.1,localhost")
             .env_remove("OPENAI_API_KEY")

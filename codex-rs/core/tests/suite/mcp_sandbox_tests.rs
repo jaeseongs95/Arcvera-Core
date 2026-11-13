@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Exercises an MCP server applying harness-provided sandbox state to a real CLI subprocess.
 //! The server passes request metadata unchanged; filesystem effects verify enforcement.
 
@@ -58,7 +60,7 @@ async fn mcp_server_enforces_sandbox_state_with_codex_sandbox() -> Result<()> {
     Mock::given(method("POST"))
         .and(path("/mcp"))
         .respond_with(SandboxMcpServer {
-            codex: cargo_bin("codex")?,
+            codex: cargo_bin("arcvera")?,
             codex_home: sandbox_home.path().to_path_buf(),
             cwd: server_cwd.path().to_path_buf(),
         })
@@ -189,7 +191,7 @@ impl Respond for SandboxMcpServer {
                 let mut command = background_command(&self.codex);
                 command
                     .current_dir(&self.cwd)
-                    .env("CODEX_HOME", &self.codex_home)
+                    .env("ARCVERA_HOME", &self.codex_home)
                     .env_remove("CODEX_ACCESS_TOKEN")
                     .env_remove("OPENAI_API_KEY")
                     .env("CODEX_TEST_WRITE_PATH", target_path)

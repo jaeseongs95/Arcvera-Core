@@ -1,4 +1,5 @@
 # Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+# Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 """Real isolated Git/index tests for derivative provenance failure boundaries."""
 import hashlib
 import json
@@ -139,6 +140,15 @@ class CurrentSourceChecks(unittest.TestCase):
         (root/'old.rs').write_bytes(b'// '+current.R41.encode()+b'\nfn changed() {}\n')
         with self.assertRaisesRegex(ValueError, 'Historical file notice removed'):
             current.build_manifest(root, base)
+
+    def test_101_notice_is_exact_and_preserves_historical_notice(self):
+        old = b'// ' + current.R41.encode() + b'\nfn old() {}\n'
+        marker = b'// ' + current.V101.encode() + b'\n'
+        self.assertEqual(current.notice('old.rs', marker + old, old), 'inline-1.0.1')
+        with self.assertRaisesRegex(ValueError, 'Historical file notice removed'):
+            current.notice('old.rs', marker + b'fn changed() {}\n', old)
+        with self.assertRaisesRegex(ValueError, 'Missing R41 file notice'):
+            current.notice('new.rs', marker.replace(b'2026-11-13', b'2026-11-12'), None)
 
     def test_external_notice_link_required(self):
         root, base = self.fixture()

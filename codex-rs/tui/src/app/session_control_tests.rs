@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use super::*;
 use crate::backend_id::BackendId;
@@ -265,7 +267,7 @@ fn memory_note_live_call_replay_preserves_independent_requests_in_real_storage()
                 .env(CHILD, "child-v1")
                 .env(FIXTURE_HOME, home.path())
                 .env(TOKEN, token)
-                .env("CODEX_HOME", home.path())
+                .env("ARCVERA_HOME", home.path())
                 .env("HOME", home.path());
             #[cfg(windows)]
             {
@@ -416,8 +418,8 @@ fn memory_note_live_call_replay_preserves_independent_requests_in_real_storage()
         "redirected child fixture home"
     );
     color_eyre::eyre::ensure!(
-        std::env::var_os("CODEX_HOME").as_deref() == Some(home_path.as_os_str()),
-        "child CODEX_HOME does not match the fixture"
+        std::env::var_os("ARCVERA_HOME").as_deref() == Some(home_path.as_os_str()),
+        "child ARCVERA_HOME does not match the fixture"
     );
     color_eyre::eyre::ensure!(
         std::fs::symlink_metadata(home_path.join(OWNER))?.is_file(),

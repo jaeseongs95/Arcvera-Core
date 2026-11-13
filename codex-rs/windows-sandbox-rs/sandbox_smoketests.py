@@ -1,3 +1,5 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+# Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 # sandbox_smoketests.py
 # Run a suite of smoke tests against the Windows sandbox via the Codex CLI
 # Requires: Python 3.8+ on Windows. No pip requirements.
@@ -511,7 +513,7 @@ def main() -> int:
             proxy_home.mkdir(parents=True, exist_ok=True)
             proxy_url = f"http://127.0.0.1:{proxy_port}"
             proxy_env = {
-                "CODEX_HOME": str(proxy_home),
+                "ARCVERA_HOME": str(proxy_home),
                 "HTTP_PROXY": proxy_url,
                 "http_proxy": proxy_url,
                 "ALL_PROXY": proxy_url,
@@ -555,7 +557,7 @@ def main() -> int:
                 "workspace-write",
                 direct_cmd,
                 WS_ROOT,
-                env_extra={"CODEX_HOME": str(proxy_home)},
+                env_extra={"ARCVERA_HOME": str(proxy_home)},
             )
             add(
                 "WS: direct loopback blocked",

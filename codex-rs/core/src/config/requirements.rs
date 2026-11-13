@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use codex_config::ConfigRequirements;
 use codex_config::RequirementSource;
 use codex_config::Sourced;
@@ -155,10 +157,10 @@ pub(super) fn push_sqlite_home_env_override_warning(
     tracing::warn!(
         ?source,
         ?value,
-        "`CODEX_SQLITE_HOME` is overridden by an exact requirement for sqlite_home"
+        "`ARCVERA_SQLITE_HOME` is overridden by an exact requirement for sqlite_home"
     );
     startup_warnings.push(format!(
-        "Environment value for `$CODEX_SQLITE_HOME` is overridden by the required `sqlite_home` value {value:?} from {source}."
+        "Environment value for `$ARCVERA_SQLITE_HOME` is overridden by the required `sqlite_home` value {value:?} from {source}."
     ));
 }
 

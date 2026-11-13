@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Exercises daemon startup and excluded resume/fork pickers with Cargo's CLI executable.
 
@@ -10,6 +12,28 @@ use std::collections::VecDeque;
 use std::fs;
 use std::process::Command;
 use std::time::Duration;
+
+#[tokio::test]
+#[cfg(windows)]
+#[ignore = "requires CARGO_BIN_EXE_arcvera pointing to the complete final package"]
+async fn independent_package_tui_uses_arcvera_home_and_quits() -> Result<()> {
+    ensure!(
+        !codex_app_server_daemon::is_elevated()?,
+        "requires non-elevated Windows package validation"
+    );
+    daemon_startup("independent-package").await
+}
+
+#[tokio::test]
+#[cfg(windows)]
+#[ignore = "requires CARGO_BIN_EXE_arcvera pointing to the complete final package"]
+async fn independent_package_tui_without_official_home_quits() -> Result<()> {
+    ensure!(
+        !codex_app_server_daemon::is_elevated()?,
+        "requires non-elevated Windows package validation"
+    );
+    daemon_startup("independent-package-absent").await
+}
 
 #[tokio::test]
 #[cfg(unix)]
@@ -122,11 +146,11 @@ async fn elevated_local_tui_uses_embedded_without_starting_daemon() -> Result<()
     for command in ["elevated", "elevated-resume", "elevated-fork"] {
         daemon_startup(command).await?;
     }
-    let codex = codex_utils_cargo_bin::cargo_bin("codex")?;
+    let codex = codex_utils_cargo_bin::cargo_bin("arcvera")?;
     let home = tempfile::tempdir()?;
     for operation in ["start", "restart"] {
         let output = Command::new(&codex)
-            .env("CODEX_HOME", home.path())
+            .env("ARCVERA_HOME", home.path())
             .args(["app-server", "daemon", operation])
             .output()?;
         ensure!(
@@ -151,7 +175,7 @@ async fn restrictive_launcher_uses_embedded_if_daemon_cannot_start() -> Result<(
         // The PTY creates its own breakaway-permitted job. Add Cargo's
         // restriction *inside* the PTY so it is the CLI's innermost job.
         let job = codex_utils_pty::JobObject::create_without_breakaway()?;
-        let codex = codex_utils_cargo_bin::cargo_bin("codex")?;
+        let codex = codex_utils_cargo_bin::cargo_bin("arcvera")?;
         let mut command = tokio::process::Command::new(codex);
         command
             .arg("--no-alt-screen")
@@ -182,6 +206,8 @@ async fn bedrock_onboarding_leaves_a_running_daemon_untouched() -> Result<()> {
 }
 
 async fn daemon_startup(command: &str) -> Result<()> {
+    let independent_package = command.starts_with("independent-package");
+    let official_conflict = command == "independent-package";
     let unknown_version = command == "version-unknown-embedded";
     let version_mismatch = command == "version-mismatch-embedded" || unknown_version;
     let upstream_version = env!("CARGO_PKG_VERSION")
@@ -198,7 +224,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
         env!("CARGO_PKG_VERSION")
     );
     // All provider traffic in the version fixture stays local; no turn is submitted.
-    let model_server = if version_mismatch {
+    let model_server = if version_mismatch || independent_package {
         Some(wiremock::MockServer::start().await)
     } else {
         None
@@ -208,7 +234,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
     #[cfg(not(windows))]
     let elevated = false;
     let elevated_launch = command.starts_with("elevated");
-    let codex = codex_utils_cargo_bin::cargo_bin("codex")?.canonicalize()?;
+    let codex = codex_utils_cargo_bin::cargo_bin("arcvera")?.canonicalize()?;
     let workspace = tempfile::tempdir()?;
     let workspace_path = workspace.path().canonicalize()?;
     #[cfg(unix)]
@@ -219,7 +245,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
     anyhow::ensure!(
         Command::new(&codex)
-            .env("CODEX_HOME", home.path())
+            .env("ARCVERA_HOME", home.path())
             .arg("--version")
             .output()?
             .status
@@ -262,7 +288,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
     let persisted = command == "mismatch-disable-persisted";
     let disabling = matches!(command, "mismatch-disable" | "mismatch-disable-persisted");
     let restart = command == "mismatch-restart" || disabling;
-    if !bedrock_onboarding {
+    if !bedrock_onboarding && !independent_package {
         fs::write(
             home.path().join("auth.json"),
             r#"{"OPENAI_API_KEY":"daemon-startup-test","tokens":null,"last_refresh":null}"#,
@@ -281,9 +307,29 @@ async fn daemon_startup(command: &str) -> Result<()> {
     ] {
         env.remove(key);
     }
-    env.insert("CODEX_HOME".into(), home.path().display().to_string());
+    let official_home = tempfile::tempdir()?;
+    if independent_package {
+        env.remove("CODEX_HOME");
+        if official_conflict {
+            fs::write(official_home.path().join("config.toml"), "invalid = [")?;
+            let old_bin = official_home
+                .path()
+                .join("packages/app-server-daemon/current/bin");
+            fs::create_dir_all(&old_bin)?;
+            fs::write(
+                old_bin.join("codex.exe"),
+                b"incompatible official installation fixture",
+            )?;
+            env.insert(
+                "CODEX_HOME".into(),
+                official_home.path().display().to_string(),
+            );
+        }
+        env.insert("CODEX_UI_LANGUAGE".into(), "en".into());
+    }
+    env.insert("ARCVERA_HOME".into(), home.path().display().to_string());
     env.insert(
-        "CODEX_SQLITE_HOME".into(),
+        "ARCVERA_SQLITE_HOME".into(),
         home.path().display().to_string(),
     );
     env.insert("TERM".into(), "xterm-256color".into());
@@ -308,7 +354,11 @@ async fn daemon_startup(command: &str) -> Result<()> {
         let managed = home
             .path()
             .join("packages/app-server-daemon/current/bin")
-            .join(if cfg!(windows) { "codex.exe" } else { "codex" });
+            .join(if cfg!(windows) {
+                "arcvera.exe"
+            } else {
+                "arcvera"
+            });
         fs::create_dir_all(home.path().join("packages/app-server-daemon/current/bin"))?;
         // Hard links change the executable's ctime and invalidate Rosetta's translation cache.
         #[cfg(unix)]
@@ -402,7 +452,12 @@ async fn daemon_startup(command: &str) -> Result<()> {
         } else {
             None
         };
-        let expected = if command == "start" {
+        let expected = if independent_package {
+            steps.push_back(("GPT-5.6-Terra", b"/status\r"));
+            steps.push_back(("Server:Localbackgroundserver", b"/app"));
+            steps.push_back(("Desktoplaunchdisabled;showreleases", b"\r"));
+            "https://github.com/jaeseongs95/Arcvera-Core/releases"
+        } else if command == "start" {
             // The draft header is visible before the session's command composer is ready.
             steps.push_back(("GPT-5.6-Terra", b"/status\r"));
             "Server:Localbackgroundserver"
@@ -490,7 +545,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
                     "payload": {
                         "session_id": thread_id, "id": thread_id,
                         "timestamp": "2025-01-05T12:00:00Z", "cwd": workspace_path,
-                        "originator": "codex", "cli_version": "0.0.0",
+                        "originator": "arcvera", "cli_version": "0.0.0",
                         "source": "cli", "model_provider": "openai"
                     }
                 });
@@ -646,7 +701,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
                             screen.screen().contents()
                         )
                         .replace(&*workspace_path.to_string_lossy(), "[WORKSPACE]")
-                        .replace(&*home.path().to_string_lossy(), "[CODEX_HOME]")
+                        .replace(&*home.path().to_string_lossy(), "[ARCVERA_HOME]")
                         .replace("     tab/⇧tab filter", "tab/shift+tab filter");
                         let transition = transition.lines().map(str::trim_end).collect::<Vec<_>>().join("\n");
                         let snapshot = codex_utils_cargo_bin::find_resource!(
@@ -675,8 +730,12 @@ async fn daemon_startup(command: &str) -> Result<()> {
                                 assert_eq!(settings["featureOverrides"], serde_json::json!({(flag): false}));
                             }
                         }
-                    } else if command == "start" {
-                        ensure!(text.contains("Server:Localbackgroundserver"));
+                    } else if command == "start" || independent_package {
+                        if independent_package {
+                            ensure!(text.contains("DesktopapplaunchandinstallationaredisabledinArcveraCore."), "{text}");
+                        } else {
+                            ensure!(text.contains("Server:Localbackgroundserver"));
+                        }
                         ensure!(home.path().join("app-server-daemon/daemon.pid").exists());
                     } else if command == "discovered" {
                         let previous_pid = existing_daemon.as_ref().context("missing original daemon PID")?;
@@ -701,6 +760,9 @@ async fn daemon_startup(command: &str) -> Result<()> {
                         ensure!(!all_output.contains("cannot install provided ErrorHook"), "{all_output}");
                         writer.send(b"/quit\r".to_vec()).await?;
                     }
+                    if independent_package {
+                        writer.send(b"/quit\r".to_vec()).await?;
+                    }
                     return Ok::<_, anyhow::Error>(());
                 }
             }
@@ -710,7 +772,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
             )
         })
         .await;
-        if version_mismatch && matches!(result, Ok(Ok(()))) {
+        if (version_mismatch || independent_package) && matches!(result, Ok(Ok(()))) {
             let status = tokio::time::timeout(Duration::from_secs(10), exit).await??;
             ensure!(status == 0, "embedded TUI quit failed: {status}");
         } else if command == "mismatch-cancel" && matches!(result, Ok(Ok(()))) {
@@ -753,6 +815,38 @@ async fn daemon_startup(command: &str) -> Result<()> {
             stopped.status.success(),
             "{}",
             String::from_utf8_lossy(&stopped.stderr)
+        );
+    }
+    if independent_package {
+        if official_conflict {
+            ensure!(fs::read_to_string(official_home.path().join("config.toml"))? == "invalid = [");
+            ensure!(
+                fs::read(
+                    official_home
+                        .path()
+                        .join("packages/app-server-daemon/current/bin/codex.exe")
+                )? == b"incompatible official installation fixture"
+            );
+            ensure!(
+                fs::read_dir(official_home.path())?.count() == 2,
+                "official home was accessed for output"
+            );
+        } else {
+            ensure!(
+                fs::read_dir(official_home.path())?.count() == 0,
+                "unused official fixture changed"
+            );
+        }
+        let status = Command::new(&codex)
+            .env_clear()
+            .envs(&env)
+            .args(["app-server", "daemon", "status", "--json"])
+            .output()?;
+        ensure!(status.status.success(), "passive status failed");
+        let status: serde_json::Value = serde_json::from_slice(&status.stdout)?;
+        ensure!(
+            status["status"] == "stopped",
+            "daemon remained active: {status}"
         );
     }
     if let Some(server) = model_server {

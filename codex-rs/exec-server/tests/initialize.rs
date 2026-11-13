@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 mod common;
 
 use anyhow::Context;
@@ -125,7 +127,7 @@ async fn discovery_prewarms_before_initialize_and_recovers_without_client_opt_in
     let helper_paths = common::exec_server::test_codex_helper_paths()?;
     let mut command = Command::new(helper_paths.codex_exe);
     command.args(["exec-server", "--listen", "ws://127.0.0.1:0"]);
-    command.env("CODEX_HOME", &discovery_home);
+    command.env("ARCVERA_HOME", &discovery_home);
     command.env("HOME", &user_home);
     command.env("USERPROFILE", &user_home);
     command.env("RUST_LOG", "codex_exec_server=warn");

@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Owns scheduled and manual installs, daemon restarts, and updater replacement.
 
 use std::collections::VecDeque;
@@ -50,6 +52,7 @@ pub(crate) async fn request_manual_update(
     daemon: &Daemon,
     http_client_factory: HttpClientFactory,
 ) -> Result<crate::UpdateOutput> {
+    ensure_arcvera_updater_available()?;
     if daemon
         .pid_file
         .file_name()
@@ -80,6 +83,7 @@ pub(crate) async fn run(
     http_client_factory: HttpClientFactory,
     restore_release: Option<String>,
 ) -> Result<()> {
+    ensure_arcvera_updater_available()?;
     let daemon = Daemon::from_environment()?;
     crate::backend::stderr_log::start(daemon.update_pid_file.with_extension("stderr.log"));
     let http = RouteAwareClientPool::new_without_request_logging(
@@ -93,6 +97,12 @@ pub(crate) async fn run(
         restore_release,
     )
     .await
+}
+
+pub(crate) fn ensure_arcvera_updater_available() -> Result<()> {
+    anyhow::bail!(
+        "Automatic updates are disabled in Arcvera Core. Download releases from https://github.com/jaeseongs95/Arcvera-Core/releases"
+    )
 }
 
 async fn run_with_http(
@@ -601,7 +611,7 @@ async fn run_installer_script(
     };
     let mut child = command
         .env(
-            "CODEX_HOME",
+            "ARCVERA_HOME",
             package_root
                 .parent()
                 .and_then(Path::parent)

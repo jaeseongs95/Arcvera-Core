@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Materializes oversized TUI goal objectives, pastes, and images as app-server-host files.
 
 use std::fs;
@@ -192,7 +194,7 @@ async fn ensure_goal_output_dir(
         return Ok(output_dir.clone());
     }
     let codex_home = codex_home
-        .context("App server did not report $CODEX_HOME; cannot materialize goal files")?;
+        .context("App server did not report $ARCVERA_HOME; cannot materialize goal files")?;
     let path = codex_home
         .join(GOAL_ATTACHMENT_DIR)
         .join(Uuid::new_v4().to_string());

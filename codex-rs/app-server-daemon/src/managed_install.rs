@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Resolves both package and legacy standalone layouts and compares installed executables.
 
 use std::path::Path;
@@ -240,7 +242,11 @@ pub(crate) fn path_digest(path: &Path) -> [u8; 32] {
 }
 
 fn managed_codex_file_name() -> &'static str {
-    if cfg!(windows) { "codex.exe" } else { "codex" }
+    if cfg!(windows) {
+        "arcvera.exe"
+    } else {
+        "arcvera"
+    }
 }
 
 fn parse_codex_version(output: &str) -> Result<String> {

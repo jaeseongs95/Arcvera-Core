@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use super::helpers::drain_insert_history_transcript;
 use super::*;
 use crate::bottom_pane::goal_status_indicator_line;
@@ -1249,7 +1251,7 @@ async fn rate_limit_snapshots_keep_separate_entries_per_limit_id() {
     let codex = chat
         .rate_limit_snapshots_by_limit_id
         .get("codex")
-        .expect("codex snapshot should exist");
+        .expect("arcvera snapshot should exist");
     let other = chat
         .rate_limit_snapshots_by_limit_id
         .get("codex_other")

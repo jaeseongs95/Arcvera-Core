@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use crate::clock_format::ClockFormat;
 use crate::exec_command::relativize_to_home;
@@ -284,7 +286,7 @@ mod tests {
         config.cwd = home.join("workspace").join("project").abs();
 
         let paths = [
-            home.join(".codex").join("AGENTS.md"),
+            home.join(".arcvera").join("AGENTS.md"),
             home.join("workspace").join("AGENTS.md"),
             config.cwd.join("AGENTS.md").to_path_buf(),
             config.cwd.join("nested").join("AGENTS.md").to_path_buf(),
@@ -295,7 +297,7 @@ mod tests {
 
         insta::assert_snapshot!(
             summary.replace('\\', "/"),
-            @"~/.codex/AGENTS.md, ../AGENTS.md, AGENTS.md, nested/AGENTS.md"
+            @"~/.arcvera/AGENTS.md, ../AGENTS.md, AGENTS.md, nested/AGENTS.md"
         );
     }
 

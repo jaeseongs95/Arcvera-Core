@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Doctor check that compares rollout files against the SQLite thread inventory.
 
 use super::CheckStatus;
@@ -211,7 +213,7 @@ fn missing_state_db_check(scan: RolloutScan, details: Vec<String>) -> DoctorChec
                 scan.reached_scan_cap
             ))
             .expected("rollout directories are fully scannable")
-            .remedy("Check file permissions and unexpected files under CODEX_HOME sessions."),
+            .remedy("Check file permissions and unexpected files under ARCVERA_HOME sessions."),
         );
     }
     check
@@ -429,7 +431,7 @@ fn parity_check_from_scan_and_rows(
                 scan.reached_scan_cap
             ))
             .expected("rollout directories are fully scannable")
-            .remedy("Check file permissions and unexpected files under CODEX_HOME sessions."),
+            .remedy("Check file permissions and unexpected files under ARCVERA_HOME sessions."),
         );
     }
     check
@@ -1302,7 +1304,7 @@ mod tests {
 
     impl Fixture {
         async fn new() -> Self {
-            let codex_home = TempDir::new().expect("codex home");
+            let codex_home = TempDir::new().expect("arcvera home");
             let sqlite_home = TempDir::new().expect("sqlite home");
             let _runtime = codex_state::StateRuntime::init(
                 codex_state::SqliteConfig::new_for_testing(sqlite_home.path().abs()),

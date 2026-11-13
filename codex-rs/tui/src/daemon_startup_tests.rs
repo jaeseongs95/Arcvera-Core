@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Opportunistic attachment may fall back; automatic startup requires a shared server.
 
@@ -370,7 +372,7 @@ async fn daemon_startup_falls_back_only_for_implicit_endpoints() -> color_eyre::
                 "previous startup warning",
                 "does not match this CLI",
                 env!("CARGO_PKG_VERSION"),
-                "codex app-server daemon update --from-cli --yes --no-force",
+                "arcvera app-server daemon update --from-cli --yes --no-force",
             ] {
                 assert!(visible.contains(expected), "{visible}");
             }

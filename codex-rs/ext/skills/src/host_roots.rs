@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use std::collections::HashSet;
 use std::io;
 use std::sync::Arc;
@@ -132,7 +134,7 @@ fn roots_from_layer_stack(
                 }
             }
             ConfigLayerSource::User { .. } => {
-                // Deprecated user skills location (`$CODEX_HOME/skills`), kept for backward
+                // Deprecated user skills location (`$ARCVERA_HOME/skills`), kept for backward
                 // compatibility.
                 roots.push(local_root(
                     config_folder.join(SKILLS_DIR_NAME),

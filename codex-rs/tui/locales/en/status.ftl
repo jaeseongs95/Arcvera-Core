@@ -1,3 +1,5 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+# Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 status-label-model = Model
 status-label-directory = Directory
 status-label-permissions = Permissions
@@ -147,8 +149,8 @@ status-empty = <none>
 status-unknown = <unknown>
 status-invalid-websocket = <invalid websocket URL>
 status-unknown-version = unknown
-status-server-version-older = A background Codex service is running v{ $server }, older than your Codex CLI v{ $client }.
-status-server-version-different = A background Codex service is running v{ $server }, different from your Codex CLI v{ $client }.
+status-server-version-older = A background Codex service is running v{ $server }, older than your Arcvera Core CLI v{ $client }.
+status-server-version-different = A background Codex service is running v{ $server }, different from your Arcvera Core CLI v{ $client }.
 status-sandbox-external = external-sandbox
 status-sandbox-external-network = external-sandbox (network access enabled)
 status-title-name-app-name = app-name

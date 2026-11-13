@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Offline editing, uncertain submissions, and stale events never consume local work.
 
@@ -137,7 +139,7 @@ async fn daemon_startup_reconnect_version_refusal_reaches_history_without_restor
         for expected in [
             "does not match this CLI",
             env!("CARGO_PKG_VERSION"),
-            "codex app-server daemon update --from-cli --yes --no-force",
+            "arcvera app-server daemon update --from-cli --yes --no-force",
         ] {
             assert!(visible.contains(expected), "{visible}");
         }

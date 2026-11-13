@@ -1,4 +1,5 @@
 # Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+# Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 # Modified for OpenDIY Codex R33 (2026-11-02); see MODIFICATIONS.md.
 """Local package tests. These are not tests of the patched CLI's runtime."""
 
@@ -58,25 +59,25 @@ class PackageTests(unittest.TestCase):
 
     def test_copies_helpers_replaces_binary_and_records_relative_paths(self):
         receipt = self.build()
-        self.assertEqual(digest(self.output / "bin/codex.exe"), digest(self.binary))
+        self.assertEqual(digest(self.output / "bin/arcvera.exe"), digest(self.binary))
         self.assertEqual((self.output / "helper.dat").read_bytes(), b"preserved helper")
         self.assertEqual(self.asset.read_bytes(), b"frozen prompt\r\n")
         self.assertEqual(receipt, json.loads((self.output / "package-receipt.json").read_text()))
         metadata = json.loads((self.output / "codex-package.json").read_text())
-        self.assertEqual(metadata["opendiyUpdate"], {"schema": 1, "minLauncher": 1})
+        self.assertEqual(metadata["entrypoint"], "bin/arcvera.exe")
+        self.assertNotIn("opendiyUpdate", metadata)
+        self.assertFalse((self.output / "bin/codex.exe").exists())
         for item in receipt["files"]:
             self.assertFalse(Path(item["path"]).is_absolute())
             self.assertEqual(item["sha256"], digest(self.output / item["path"]))
 
-    def test_update_contract_is_generated_instead_of_trusting_vendor_metadata(self):
+    def test_inherited_update_contract_is_removed_without_changing_vendor_metadata(self):
         metadata = json.loads(self.metadata.read_text())
         metadata["opendiyUpdate"] = {"schema": 2, "minLauncher": "2"}
         self.metadata.write_text(json.dumps(metadata), encoding="utf-8")
         self.build()
         generated = json.loads((self.output / "codex-package.json").read_text())
-        self.assertEqual(generated["opendiyUpdate"], {"schema": 1, "minLauncher": 1})
-        self.assertIs(type(generated["opendiyUpdate"]["schema"]), int)
-        self.assertIs(type(generated["opendiyUpdate"]["minLauncher"]), int)
+        self.assertNotIn("opendiyUpdate", generated)
         self.assertEqual(json.loads(self.metadata.read_text()), metadata)
 
     def test_launcher_uses_adjacent_binary_and_preserves_arguments_exit(self):
@@ -84,7 +85,7 @@ class PackageTests(unittest.TestCase):
         captured = self.root / "argv.json"
         env = dict(os.environ, PACKAGE_FIXTURE_ARGV=str(captured))
         result = subprocess.run(
-            'cmd.exe /d /c codex-patched.cmd --literal "two words" 한글',
+            'cmd.exe /d /c arcvera.cmd --literal "two words" 한글',
             cwd=self.output, env=env,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
@@ -97,7 +98,7 @@ class PackageTests(unittest.TestCase):
         captured = self.root / "remote-argv.txt"
         env = dict(os.environ, PACKAGE_FIXTURE_ARGV=str(captured))
         result = subprocess.run(
-            'cmd.exe /d /c codex-patched.cmd -c "key=value" remote-control status --json',
+            'cmd.exe /d /c arcvera.cmd -c "key=value" remote-control status --json',
             cwd=self.output, env=env,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
@@ -110,7 +111,7 @@ class PackageTests(unittest.TestCase):
         captured = self.root / "local-argv.txt"
         env = dict(os.environ, PACKAGE_FIXTURE_ARGV=str(captured))
         result = subprocess.run(
-            'cmd.exe /d /c codex-local.cmd --literal "two words" 한글',
+            'cmd.exe /d /c arcvera-local.cmd --literal "two words" 한글',
             cwd=self.output, env=env,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
@@ -199,7 +200,7 @@ class PackageTests(unittest.TestCase):
 
     def triple(self):
         binaries = {}
-        for name, filename in (("cli", "codex.exe"), ("app-server", "codex-app-server.exe"),
+        for name, filename in (("cli", "arcvera.exe"), ("app-server", "codex-app-server.exe"),
                                ("code-mode-host", "codex-code-mode-host.exe")):
             target = self.root / "candidate" / filename
             target.parent.mkdir(exist_ok=True)

@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use anyhow::Context;
 use anyhow::Result;
 use app_test_support::ChatGptAuthFixture;
@@ -177,7 +179,7 @@ async fn sandbox_state_skips_cloud_bootstrap() -> Result<()> {
     bootstrap_cloud_config_bundle(
         &[],
         &options,
-        || panic!("supplied state must skip CODEX_HOME resolution"),
+        || panic!("supplied state must skip ARCVERA_HOME resolution"),
         /*strict_config*/ false,
     )
     .await?;

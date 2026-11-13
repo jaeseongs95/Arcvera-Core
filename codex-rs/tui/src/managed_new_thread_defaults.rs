@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use crate::app::has_launch_setting;
 use crate::legacy_core::config::Config;
 use crate::legacy_core::config::ConfigOverrides;
@@ -18,7 +20,7 @@ pub(crate) fn apply_managed_new_thread_defaults(
     // dedicated flags such as `-m` (`harness_overrides`), generic `-c key=value` settings
     // (`cli_kv_overrides`), and explicitly selected profiles.
     // Model and reasoning effort are a compatibility-sensitive pair, so an explicit override of
-    // either opts out of both managed values. For example, `codex -m gpt-5.4` keeps that model and
+    // either opts out of both managed values. For example, `arcvera -m gpt-5.4` keeps that model and
     // its existing/default effort, while `-c model_reasoning_effort=low` does not switch to the
     // managed model. Service tier remains independent and is resolved against the selected model
     // before the thread starts.

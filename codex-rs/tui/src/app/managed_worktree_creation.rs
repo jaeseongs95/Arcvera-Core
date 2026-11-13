@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Managed checkout creation and handoff from blocking Git work to the TUI event loop.
 //!
 //! Source-only blockers are checked before allocation. The completion event rechecks the
@@ -25,7 +27,7 @@ pub(super) fn background_terminals_blocker(
                             || source.message.contains("unknown method"))) =>
         {
             Some(
-                "The local Codex service cannot check background terminals. Run `codex app-server daemon update`, then restart Codex.",
+                "The local Arcvera service cannot check background terminals. After active work finishes, download a complete Arcvera release and run its CLI with `arcvera app-server daemon update --from-cli --yes`, then restart Arcvera.",
             )
         }
         _ => Some("Active background terminals block /cd."),

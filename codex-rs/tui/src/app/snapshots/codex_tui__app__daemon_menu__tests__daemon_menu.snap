@@ -4,10 +4,10 @@ expression: "render_bottom_popup(&app.chat_widget, 80)"
 ---
   Daemon
   Running daemon: v0.153.0
+  Download Arcvera releases manually; automatic updates are disabled.
 
 
-› 1. Install latest public stable
-  2. Use this CLI build
-  3. Restart background server
+› 1. Use this CLI build
+  2. Restart background server
 
   enter select · esc back

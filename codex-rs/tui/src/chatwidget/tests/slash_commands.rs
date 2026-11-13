@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use super::helpers::drain_insert_history_transcript;
 use super::*;
@@ -3369,33 +3370,26 @@ async fn slash_fork_with_name_requests_named_fork() {
 }
 
 #[tokio::test]
-async fn slash_app_requests_desktop_handoff() {
-    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
-    let thread_id = ThreadId::new();
-    chat.thread_id = Some(thread_id);
-
-    chat.dispatch_command(SlashCommand::App);
-
-    assert_matches!(
-        rx.try_recv(),
-        Ok(AppEvent::OpenDesktopThread {
-            thread_id: actual_thread_id,
-        }) if actual_thread_id == thread_id
-    );
-}
-
-#[tokio::test]
-async fn slash_app_without_thread_id_shows_starting_error() {
-    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
-
-    chat.dispatch_command(SlashCommand::App);
-
-    let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 1, "expected app startup error");
-    assert_chatwidget_snapshot!(
-        "slash_app_without_thread_id_shows_starting_error",
-        lines_to_single_string(&cells[0])
-    );
+async fn slash_app_reports_disabled_with_or_without_thread() {
+    for thread_id in [None, Some(ThreadId::new())] {
+        let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+        chat.thread_id = thread_id;
+        chat.dispatch_command(SlashCommand::App);
+        let cell = match rx.try_recv() {
+            Ok(AppEvent::InsertHistoryCell(cell)) => cell,
+            other => panic!("expected disabled notice, got {other:?}"),
+        };
+        let text = lines_to_single_string(&cell.display_lines(/*width*/ 200));
+        assert!(
+            text.contains("Desktop app launch and installation are disabled"),
+            "{text}"
+        );
+        assert!(
+            text.contains("https://github.com/jaeseongs95/Arcvera-Core/releases"),
+            "{text}"
+        );
+        assert_matches!(rx.try_recv(), Err(TryRecvError::Empty));
+    }
 }
 
 #[tokio::test]

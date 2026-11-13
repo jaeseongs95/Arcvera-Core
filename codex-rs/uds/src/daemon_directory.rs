@@ -1,7 +1,9 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! The host-local rendezvous root for privileged app-server RPC sockets.
 //!
 //! Every listener uses this root, which sandboxes hide even before a daemon
-//! starts. It must not depend on HOME, TMPDIR, CODEX_HOME, or command settings.
+//! starts. It must not depend on HOME, TMPDIR, ARCVERA_HOME, or command settings.
 
 use std::fs;
 use std::io;

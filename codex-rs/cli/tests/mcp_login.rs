@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Exercises terminal OAuth pasteback and its shared callback validation through the CLI.
 
 use std::collections::BTreeMap;
@@ -134,10 +136,10 @@ impl Fixture {
     }
 
     async fn start(&self) -> Result<Login> {
-        let mut child = Command::new(codex_utils_cargo_bin::cargo_bin("codex")?)
+        let mut child = Command::new(codex_utils_cargo_bin::cargo_bin("arcvera")?)
             .kill_on_drop(true)
             .current_dir(self.home.path())
-            .env("CODEX_HOME", self.home.path())
+            .env("ARCVERA_HOME", self.home.path())
             .env("NO_PROXY", "127.0.0.1,localhost")
             .env("no_proxy", "127.0.0.1,localhost")
             .args(["mcp", "login", "manual", "--no-browser"])
@@ -290,10 +292,10 @@ async fn add_persists_client_secret_for_subsequent_login_without_disclosure() ->
         .await;
     let output = timeout(
         TEST_TIMEOUT,
-        Command::new(codex_utils_cargo_bin::cargo_bin("codex")?)
+        Command::new(codex_utils_cargo_bin::cargo_bin("arcvera")?)
             .kill_on_drop(true)
             .current_dir(fixture.home.path())
-            .env("CODEX_HOME", fixture.home.path())
+            .env("ARCVERA_HOME", fixture.home.path())
             .env("NO_PROXY", "127.0.0.1,localhost")
             .env("no_proxy", "127.0.0.1,localhost")
             .args([

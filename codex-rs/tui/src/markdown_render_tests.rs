@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use super::MarkdownStyles;
 use crate::render::highlight::set_syntax_theme;
 use crate::style::accent_color;
@@ -956,7 +958,7 @@ fn file_link_preserves_label_and_decodes_fallback_destination() {
 #[test]
 fn file_link_keeps_descriptive_label_and_target() {
     let text = render_markdown_text_for_cwd(
-        "Your `codex` launcher [automatically adds those overrides](/home/dev-user/code/openai/project/dotslash-gen/bin/codex:1105), even though you did not specify any.",
+        "Your `arcvera` launcher [automatically adds those overrides](/home/dev-user/code/openai/project/dotslash-gen/bin/codex:1105), even though you did not specify any.",
         Path::new("/home/dev-user/code/openai"),
     );
     let expected = Text::from(Line::from_iter([

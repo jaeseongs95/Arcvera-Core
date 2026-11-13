@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use std::process::Command;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -195,7 +197,7 @@ fn store_lock_is_released_when_holder_process_exits() -> Result<()> {
         .arg("--exact")
         .arg(LOCK_HOLDER_CHILD_TEST)
         .arg("--ignored")
-        .env("CODEX_HOME", env.path())
+        .env("ARCVERA_HOME", env.path())
         .env(LOCK_HOLDER_READY_PATH_ENV, &ready_file)
         .spawn()
         .context("spawn OAuth store lock holder test process")?;

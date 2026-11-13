@@ -1,3 +1,5 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+# Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 #!/usr/bin/env python3
 """List skills from a GitHub repo path."""
 
@@ -32,7 +34,7 @@ def _request(url: str) -> bytes:
 
 
 def _codex_home() -> str:
-    return os.environ.get("CODEX_HOME", os.path.expanduser("~/.codex"))
+    return os.environ.get("ARCVERA_HOME", os.path.expanduser("~/.arcvera"))
 
 
 def _installed_skills() -> set[str]:

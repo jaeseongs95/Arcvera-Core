@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 #![cfg(target_os = "linux")]
 
 use std::net::TcpListener;
@@ -36,8 +38,8 @@ mode = "full"
     )?;
 
     let url = format!("http://127.0.0.2:{port}/");
-    let output = std::process::Command::new(codex_utils_cargo_bin::cargo_bin("codex")?)
-        .env("CODEX_HOME", codex_home.path())
+    let output = std::process::Command::new(codex_utils_cargo_bin::cargo_bin("arcvera")?)
+        .env("ARCVERA_HOME", codex_home.path())
         .args([
             "sandbox",
             "--permission-profile",
@@ -108,8 +110,8 @@ allow_local_binding = false
     )?;
 
     let url = format!("http://127.0.0.2:{port}/");
-    let output = tokio::process::Command::new(codex_utils_cargo_bin::cargo_bin("codex")?)
-        .env("CODEX_HOME", codex_home.path())
+    let output = tokio::process::Command::new(codex_utils_cargo_bin::cargo_bin("arcvera")?)
+        .env("ARCVERA_HOME", codex_home.path())
         .args([
             "sandbox",
             "--permission-profile",

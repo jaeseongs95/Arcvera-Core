@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 use super::*;
 use crate::token_data::IdTokenInfo;
 use anyhow::Context;
@@ -606,7 +608,7 @@ fn secrets_keyring_auth_storage_load_returns_deserialized_auth() -> anyhow::Resu
 
 #[test]
 fn keyring_auth_storage_compute_store_key_for_home_directory() -> anyhow::Result<()> {
-    let codex_home = PathBuf::from("~/.codex");
+    let codex_home = PathBuf::from("~/.arcvera");
 
     let key = compute_store_key(codex_home.as_path())?;
 
