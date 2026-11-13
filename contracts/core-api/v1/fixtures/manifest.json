@@ -1,0 +1,57 @@
+{
+  "status": "DRAFT",
+  "cases": [
+    {
+      "file": "submit-task.valid.json",
+      "schema": "../schemas.json#/$defs/SubmitTask",
+      "valid": true
+    },
+    {
+      "file": "submit-task.bad-revision.json",
+      "schema": "../schemas.json#/$defs/SubmitTask",
+      "valid": false
+    },
+    {
+      "file": "submit-task.missing-lease.json",
+      "schema": "../schemas.json#/$defs/SubmitTask",
+      "valid": false
+    },
+    {
+      "file": "problem.valid.json",
+      "schema": "../schemas.json#/$defs/Problem",
+      "valid": true
+    },
+    {
+      "file": "descriptor.valid.json",
+      "schema": "../bootstrap-descriptor.schema.json",
+      "valid": true
+    },
+    {
+      "file": "descriptor.http.invalid.json",
+      "schema": "../bootstrap-descriptor.schema.json",
+      "valid": false
+    },
+    {
+      "file": "descriptor.remote.invalid.json",
+      "schema": "../bootstrap-descriptor.schema.json",
+      "valid": false
+    },
+    {
+      "file": "descriptor.port0.invalid.json",
+      "schema": "../bootstrap-descriptor.schema.json",
+      "valid": false
+    },
+    {
+      "file": "descriptor.bad-pin.invalid.json",
+      "schema": "../bootstrap-descriptor.schema.json",
+      "valid": false
+    },
+    {
+      "file": "descriptor.unknown-field.invalid.json",
+      "schema": "../bootstrap-descriptor.schema.json",
+      "valid": false
+    }
+  ],
+  "limitation": "Schema fixtures only. Runtime idempotency, authentication, revision/CAS, SSE ordering and confidentiality require actual integration tests.",
+  "fixtureNotice": "All descriptor identities, credentials, endpoints and certificate are synthetic test data; never install or use for production authentication."
+}

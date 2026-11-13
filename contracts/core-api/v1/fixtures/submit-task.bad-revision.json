@@ -1,0 +1,18 @@
+{
+  "operation": {
+    "operationId": "123e4567-e89b-42d3-a456-426614174001",
+    "createdAt": "2026-11-13T09:00:00.000Z"
+  },
+  "expectedRevision": 7,
+  "lease": {
+    "leaseId": "123e4567-e89b-42d3-a456-426614174002",
+    "revision": "3",
+    "clientInstanceId": "123e4567-e89b-42d3-a456-426614174003"
+  },
+  "input": [
+    {
+      "type": "text",
+      "text": "Hello"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "schemaMajor": 1,
+  "protocolVersion": "1.0",
+  "descriptorId": "123e4567-e89b-42d3-a456-426614174001",
+  "instanceId": "123e4567-e89b-42d3-a456-426614174002",
+  "storeEpoch": "123e4567-e89b-42d3-a456-426614174003",
+  "profileId": "123e4567-e89b-42d3-a456-426614174004",
+  "credentialId": "123e4567-e89b-42d3-a456-426614174005",
+  "generation": "1",
+  "principal": {
+    "id": "123e4567-e89b-42d3-a456-426614174006",
+    "scopes": [
+      "conversation:read",
+      "conversation:write"
+    ]
+  },
+  "osUserSid": "S-1-5-21-100-200-300-1001",
+  "endpoint": {
+    "scheme": "http",
+    "host": "127.0.0.1",
+    "port": 43127,
+    "trustAnchorDer": "MIIDHTCCAgWgAwIBAgIJANnuZlVokNziMA0GCSqGSIb3DQEBDAUAMCMxITAfBgNVBAMTGEFyY3ZlcmEgQ29udHJhY3QgRml4dHVyZTAeFw0yNjExMTMwOTMyMzhaFw0yNjEyMTMwOTMyMzhaMCMxITAfBgNVBAMTGEFyY3ZlcmEgQ29udHJhY3QgRml4dHVyZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKTcoWauWwnoyEqbGLvjbm4TLvLKmAvIpJY3pCWWPIIjZgTNyM8RmFxViZWUczd2WLFYaaF1CoeRZWOI78fMuGObz9UqQ3cO9BowwQmOtt/BS0jDtoAyvVnHtvxMkd8gCvv2UV1b73+BH3rx1JQrB2iYV5D4t2W+aC2sHr/A+ytPSLS2F2f6JngW9632/wUA7e9usI/MTClycwxrqSVGkLXOiyX0HcpS6znpsGGNnSaaojghqqnAvpZsYdgdTFay0zrQuDowuuILerBQUstFdTSB53goUInwgqGHw1y6L/FFuywiy4NICgGunSJPUw3egRIWACiaz96sIpKHfNS1Cw8CAwEAAaNUMFIwHQYDVR0OBBYEFBN/SZTHqtUzJJb6uKYm+74vJcR1MAsGA1UdDwQEAwIFoDAPBgNVHREECDAGhwR/AAABMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA0GCSqGSIb3DQEBDAUAA4IBAQB+hBmVwvfDT97QQzMALkNyrNY/qfMdY6ka27AxoKd5BMiTAxjgln1zeN/fHGcnIaqXNjKEtBihXFcHyyKVjLRH5XGs3mQ9jTaI54gxTM5DM/GiAf1YVHVHNmci4bO+tr51mn44KhndXFvJgMqGeXoxoMqfrf5CJ23AfPOCzsAzeAt/YksdashACGGX7Per0Yy9CFI1bDoB4FP0is7L9HR2X5a+G/MtS8o5CuSsGZoS47oRLKkfAKxfl9Jv0A6V/yCBNM30D9JOGWYUyutruGHGo+m8/txXYgOXmSm2VZ7Cs1Aqn0lAI7Ljm+9twLmJXtI6AA1Tpy7YVzqRIEksvfZo",
+    "serverSpkiSha256": "sha256:55902e1afc063738f83eba1bf8f2dd09c10580f698250c02a059871f02de677f"
+  },
+  "credential": "zNr_hx9bO3CNNwvmBeLomj7cpR4gJmq1D2bKiOfYmNs",
+  "issuedAt": "2026-11-13T09:32:40.126Z",
+  "expiresAt": "2026-11-13T09:47:40.126Z"
+}

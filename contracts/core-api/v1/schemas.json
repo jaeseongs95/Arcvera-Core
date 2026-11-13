@@ -1,0 +1,1622 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.arcvera.dev/core/v1/schemas.json",
+  "title": "Arcvera Core API draft v1",
+  "x-contract-status": "DRAFT",
+  "$defs": {
+    "Id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "Revision": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+      "description": "Non-negative decimal int64; never a floating-point counter."
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+    "Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "TaskRunState": {
+      "type": "string",
+      "enum": [
+        "QUEUED",
+        "RUNNING",
+        "SUSPENDED",
+        "CANCEL_REQUESTED",
+        "COMPLETED",
+        "CANCELLED",
+        "FAILED"
+      ]
+    },
+    "ExecutionTurnState": {
+      "type": "string",
+      "enum": [
+        "PREPARED",
+        "READY",
+        "AUTHORIZED",
+        "ACCEPTED",
+        "RUNNING",
+        "NOT_EXECUTED",
+        "SUCCEEDED",
+        "FAILED",
+        "CANCELLED"
+      ]
+    },
+    "Capability": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "support": {
+          "type": "string",
+          "enum": [
+            "SUPPORTED",
+            "UNSUPPORTED",
+            "UNVERIFIED"
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "support",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "Principal": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 128
+        }
+      },
+      "required": [
+        "id",
+        "scopes"
+      ],
+      "additionalProperties": false
+    },
+    "Profile": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "providerId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "authentication": {
+          "type": "string",
+          "enum": [
+            "READY",
+            "EXPIRED",
+            "REVOKED",
+            "UNVERIFIED",
+            "UNCONFIGURED"
+          ]
+        },
+        "eligibility": {
+          "type": "string",
+          "enum": [
+            "ELIGIBLE",
+            "INELIGIBLE",
+            "UNVERIFIED"
+          ]
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        }
+      },
+      "required": [
+        "id",
+        "providerId",
+        "authentication",
+        "eligibility",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "Retention": {
+      "type": "object",
+      "properties": {
+        "requestMaxAge": {
+          "type": "string",
+          "format": "duration"
+        },
+        "clockSkewTolerance": {
+          "type": "string",
+          "format": "duration"
+        },
+        "redeliveryGrace": {
+          "type": "string",
+          "format": "duration"
+        },
+        "operationRetention": {
+          "type": "string",
+          "format": "duration"
+        },
+        "eventRetention": {
+          "type": "string",
+          "format": "duration"
+        },
+        "detailRetention": {
+          "type": "string",
+          "format": "duration"
+        }
+      },
+      "required": [
+        "requestMaxAge",
+        "clockSkewTolerance",
+        "redeliveryGrace",
+        "operationRetention",
+        "eventRetention",
+        "detailRetention"
+      ],
+      "additionalProperties": false
+    },
+    "Limits": {
+      "type": "object",
+      "properties": {
+        "pageSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 128
+        },
+        "inputBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        },
+        "eventBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        },
+        "pendingOperations": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "leaseDuration": {
+          "type": "string",
+          "format": "duration"
+        },
+        "snapshotPageBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        },
+        "snapshotPages": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "snapshotTotalBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        },
+        "responseBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        },
+        "historyPageBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        }
+      },
+      "required": [
+        "pageSize",
+        "inputBytes",
+        "eventBytes",
+        "pendingOperations",
+        "leaseDuration",
+        "snapshotPageBytes",
+        "snapshotPages",
+        "snapshotTotalBytes",
+        "responseBytes",
+        "historyPageBytes"
+      ],
+      "additionalProperties": false
+    },
+    "Handshake": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": "1.0"
+        },
+        "schemaMajor": {
+          "const": 1
+        },
+        "contractRevision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "buildVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instanceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "storeEpoch": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "serverTime": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+        },
+        "principal": {
+          "$ref": "#/$defs/Principal"
+        },
+        "profiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Profile"
+          },
+          "maxItems": 128
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Capability"
+          },
+          "maxItems": 128
+        },
+        "retention": {
+          "$ref": "#/$defs/Retention"
+        },
+        "limits": {
+          "$ref": "#/$defs/Limits"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "schemaMajor",
+        "contractRevision",
+        "buildVersion",
+        "instanceId",
+        "storeEpoch",
+        "serverTime",
+        "principal",
+        "profiles",
+        "capabilities",
+        "retention",
+        "limits"
+      ],
+      "additionalProperties": false
+    },
+    "OperationKey": {
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+        }
+      },
+      "required": [
+        "operationId",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    },
+    "CreateConversation": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/OperationKey"
+        },
+        "profileId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "operation",
+        "profileId",
+        "title"
+      ],
+      "additionalProperties": false
+    },
+    "TextInput": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "SubmitTask": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/OperationKey"
+        },
+        "expectedRevision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "lease": {
+          "$ref": "#/$defs/LeaseProof"
+        },
+        "input": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TextInput"
+          },
+          "maxItems": 128
+        }
+      },
+      "required": [
+        "operation",
+        "expectedRevision",
+        "lease",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "CancelTask": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/OperationKey"
+        },
+        "expectedRevision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        }
+      },
+      "required": [
+        "operation",
+        "expectedRevision"
+      ],
+      "additionalProperties": false
+    },
+    "Conversation": {
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "profileId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "activeTaskRunId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "streamEpoch": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "conversationId",
+        "revision",
+        "profileId",
+        "title",
+        "activeTaskRunId",
+        "streamEpoch"
+      ],
+      "additionalProperties": false
+    },
+    "Turn": {
+      "type": "object",
+      "properties": {
+        "executionTurnId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "MODEL",
+            "TOOL",
+            "CONTROL"
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/ExecutionTurnState"
+        },
+        "ownerEpoch": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "statusRevision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "connection": {
+          "type": "string",
+          "enum": [
+            "CONNECTED",
+            "LOST",
+            "UNVERIFIED"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "RESOLVED",
+            "UNRESOLVED"
+          ]
+        },
+        "callId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "detailId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "executionTurnId",
+        "kind",
+        "state",
+        "ownerEpoch",
+        "statusRevision",
+        "connection",
+        "outcome",
+        "callId",
+        "detailId"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "TOOL"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "callId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Effect": {
+      "type": "object",
+      "properties": {
+        "effectId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "originExecutionTurnId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "taskRunId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "ACTIVE",
+            "STOP_REQUESTED",
+            "CLOSED"
+          ]
+        },
+        "ownerEpoch": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "statusRevision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "connection": {
+          "type": "string",
+          "enum": [
+            "CONNECTED",
+            "LOST",
+            "UNVERIFIED"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "RESOLVED",
+            "UNRESOLVED"
+          ]
+        }
+      },
+      "required": [
+        "effectId",
+        "originExecutionTurnId",
+        "taskRunId",
+        "state",
+        "ownerEpoch",
+        "statusRevision",
+        "connection",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "TaskRun": {
+      "type": "object",
+      "properties": {
+        "taskRunId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "conversationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "state": {
+          "$ref": "#/$defs/TaskRunState"
+        },
+        "turns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Turn"
+          },
+          "maxItems": 1024
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Effect"
+          },
+          "maxItems": 256
+        }
+      },
+      "required": [
+        "taskRunId",
+        "conversationId",
+        "revision",
+        "state",
+        "turns",
+        "effects"
+      ],
+      "additionalProperties": false
+    },
+    "OperationReceipt": {
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+        },
+        "payloadDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ACCEPTED",
+            "REJECTED"
+          ]
+        },
+        "resourceType": {
+          "type": "string",
+          "enum": [
+            "CONVERSATION",
+            "TASK_RUN",
+            "APPROVAL",
+            "INPUT_LEASE"
+          ]
+        },
+        "resourceId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+              "description": "Non-negative decimal int64; never a floating-point counter."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "operationId",
+        "createdAt",
+        "payloadDigest",
+        "status",
+        "resourceType",
+        "resourceId",
+        "revision",
+        "errorCode"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "ACCEPTED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "resourceId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revision": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+                "description": "Non-negative decimal int64; never a floating-point counter."
+              },
+              "errorCode": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "REJECTED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "errorCode": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              }
+            }
+          }
+        }
+      ]
+    },
+    "LeaseProof": {
+      "type": "object",
+      "properties": {
+        "leaseId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "clientInstanceId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "leaseId",
+        "revision",
+        "clientInstanceId"
+      ],
+      "additionalProperties": false
+    },
+    "AcquireLease": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/OperationKey"
+        },
+        "expectedRevision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "clientInstanceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "inputMode": {
+          "type": "string",
+          "enum": [
+            "GUI",
+            "TERMINAL"
+          ]
+        }
+      },
+      "required": [
+        "operation",
+        "expectedRevision",
+        "clientInstanceId",
+        "inputMode"
+      ],
+      "additionalProperties": false
+    },
+    "ChangeLease": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/OperationKey"
+        },
+        "expectedRevision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "clientInstanceId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "operation",
+        "expectedRevision",
+        "clientInstanceId"
+      ],
+      "additionalProperties": false
+    },
+    "InputLease": {
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "leaseId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "clientInstanceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "inputMode": {
+          "type": "string",
+          "enum": [
+            "GUI",
+            "TERMINAL"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "HELD",
+            "RELEASED",
+            "EXPIRED"
+          ]
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+        },
+        "serverTime": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+        }
+      },
+      "required": [
+        "conversationId",
+        "leaseId",
+        "revision",
+        "clientInstanceId",
+        "inputMode",
+        "state",
+        "expiresAt",
+        "serverTime"
+      ],
+      "additionalProperties": false
+    },
+    "LeaseStatus": {
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "lease": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InputLease"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "conversationId",
+        "lease"
+      ],
+      "additionalProperties": false
+    },
+    "Approval": {
+      "type": "object",
+      "properties": {
+        "approvalId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "conversationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "taskRunId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "executionTurnId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "TOOL",
+            "PERMISSION",
+            "QUESTION"
+          ]
+        },
+        "secret": {
+          "type": "boolean"
+        },
+        "allowedDecisions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 128
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+        }
+      },
+      "required": [
+        "approvalId",
+        "requestId",
+        "conversationId",
+        "taskRunId",
+        "executionTurnId",
+        "revision",
+        "kind",
+        "secret",
+        "allowedDecisions",
+        "prompt",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "ApprovalReply": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/OperationKey"
+        },
+        "expectedRevision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "executionTurnId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "decision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "operation",
+        "expectedRevision",
+        "requestId",
+        "executionTurnId",
+        "decision",
+        "answer"
+      ],
+      "additionalProperties": false
+    },
+    "Message": {
+      "type": "object",
+      "properties": {
+        "messageId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "USER",
+            "ASSISTANT",
+            "TOOL",
+            "SYSTEM"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "PARTIAL",
+            "COMPLETE",
+            "FAILED"
+          ]
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DisplayPart"
+          },
+          "maxItems": 128
+        },
+        "detailIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "maxItems": 128
+        }
+      },
+      "required": [
+        "messageId",
+        "role",
+        "state",
+        "parts",
+        "detailIds"
+      ],
+      "additionalProperties": false
+    },
+    "DisplayPart": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "image"
+            },
+            "assetId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "mimeType": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "type",
+            "assetId",
+            "mimeType"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "command"
+            },
+            "executionTurnId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "displayCommand": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "type",
+            "executionTurnId",
+            "displayCommand"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "fileChange"
+            },
+            "executionTurnId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "changeKind": {
+              "type": "string",
+              "enum": [
+                "ADDED",
+                "MODIFIED",
+                "DELETED"
+              ]
+            },
+            "detailId": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "type",
+            "executionTurnId",
+            "path",
+            "changeKind",
+            "detailId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "reasoningPreview"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "extension"
+            },
+            "extensionKind": {
+              "type": "string",
+              "enum": [
+                "PLUGIN",
+                "SKILL",
+                "HOOK",
+                "MCP"
+              ]
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "executionTurnId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "detailId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "extensionKind",
+            "name",
+            "executionTurnId",
+            "detailId"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Detail": {
+      "type": "object",
+      "properties": {
+        "detailId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "conversationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DisplayPart"
+          },
+          "maxItems": 128
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextPageToken": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "detailId",
+        "conversationId",
+        "revision",
+        "parts",
+        "truncated",
+        "nextPageToken"
+      ],
+      "additionalProperties": false
+    },
+    "Cursor": {
+      "type": "object",
+      "properties": {
+        "streamEpoch": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sequence": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        }
+      },
+      "required": [
+        "streamEpoch",
+        "sequence"
+      ],
+      "additionalProperties": false
+    },
+    "Snapshot": {
+      "type": "object",
+      "properties": {
+        "schemaMajor": {
+          "const": 1
+        },
+        "conversationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "streamEpoch": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "aggregateRevision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "appliedThroughSequence": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "resumeAfter": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "state": {
+          "type": "object",
+          "properties": {
+            "conversation": {
+              "$ref": "#/$defs/Conversation"
+            },
+            "tasks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TaskRun"
+              },
+              "maxItems": 32
+            },
+            "pendingApprovals": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Approval"
+              },
+              "maxItems": 128
+            },
+            "messages": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Message"
+              },
+              "maxItems": 128
+            },
+            "lease": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/InputLease"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "conversation",
+            "tasks",
+            "pendingApprovals",
+            "messages",
+            "lease"
+          ],
+          "additionalProperties": false
+        },
+        "snapshotId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "pageIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 31
+        },
+        "pageCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "totalBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        },
+        "nextPageToken": {
+          "$ref": "#/$defs/PageToken"
+        }
+      },
+      "required": [
+        "schemaMajor",
+        "conversationId",
+        "streamEpoch",
+        "aggregateRevision",
+        "appliedThroughSequence",
+        "resumeAfter",
+        "state",
+        "snapshotId",
+        "pageIndex",
+        "pageCount",
+        "totalBytes",
+        "nextPageToken"
+      ],
+      "additionalProperties": false
+    },
+    "HistoryPage": {
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "snapshotRevision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Message"
+          },
+          "maxItems": 128
+        },
+        "nextPageToken": {
+          "$ref": "#/$defs/PageToken"
+        }
+      },
+      "required": [
+        "conversationId",
+        "snapshotRevision",
+        "messages",
+        "nextPageToken"
+      ],
+      "additionalProperties": false
+    },
+    "Problem": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "format": "uri-reference"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "integer",
+          "minimum": 400,
+          "maximum": 599
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instance": {
+          "type": "string",
+          "format": "uri-reference"
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "INVALID_REQUEST",
+            "UNAUTHENTICATED",
+            "FORBIDDEN",
+            "NOT_FOUND",
+            "REVISION_CONFLICT",
+            "OPERATION_CONFLICT",
+            "REQUEST_EXPIRED",
+            "BUSY",
+            "OUTCOME_UNRESOLVED",
+            "CAPABILITY_UNSUPPORTED",
+            "CURSOR_GAP",
+            "SCHEMA_MISMATCH",
+            "LEASE_REQUIRED",
+            "LEASE_CONFLICT",
+            "APPROVAL_STALE",
+            "INTERNAL_ERROR",
+            "SNAPSHOT_LIMIT_EXCEEDED"
+          ]
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "retryAfterSeconds": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "snapshotUri": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri-reference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "detail",
+        "instance",
+        "code",
+        "correlationId",
+        "retryAfterSeconds",
+        "snapshotUri"
+      ],
+      "additionalProperties": false
+    },
+    "PageToken": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

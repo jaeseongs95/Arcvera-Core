@@ -1,0 +1,896 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Arcvera Core / Desktop draft contract",
+    "version": "0.2.0",
+    "description": "Internal P0 draft. Routes and schemas are proposed; no implementation or capability support is implied."
+  },
+  "x-contract-status": "DRAFT",
+  "servers": [
+    {
+      "url": "/",
+      "description": "Resolve only against the numeric loopback origin from the verified Core connection descriptor. No default port is assumed."
+    }
+  ],
+  "security": [
+    {
+      "CoreBearer": []
+    }
+  ],
+  "paths": {
+    "/api/v1/handshake": {
+      "get": {
+        "operationId": "handshake",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Handshake"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations": {
+      "post": {
+        "operationId": "createConversation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Durably accepted; not completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/OperationReceipt"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "schemas.json#/$defs/CreateConversation"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversationId}": {
+      "get": {
+        "operationId": "getConversation",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Conversation"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversationId}/tasks": {
+      "post": {
+        "operationId": "submitTask",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Durably accepted; not completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/OperationReceipt"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "schemas.json#/$defs/SubmitTask"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{taskRunId}": {
+      "get": {
+        "operationId": "getTask",
+        "parameters": [
+          {
+            "name": "taskRunId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/TaskRun"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{taskRunId}/cancel": {
+      "post": {
+        "operationId": "cancelTask",
+        "parameters": [
+          {
+            "name": "taskRunId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Durably accepted; not completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/OperationReceipt"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "schemas.json#/$defs/CancelTask"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/operations/{operationId}": {
+      "get": {
+        "operationId": "getOperation",
+        "parameters": [
+          {
+            "name": "operationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/OperationReceipt"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversationId}/snapshot": {
+      "get": {
+        "operationId": "getSnapshot",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Snapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        },
+        "description": "Immutable paged snapshot pinned to one epoch/revision/sequence. Apply atomically only after all bounded pages pass validation."
+      }
+    },
+    "/api/v1/conversations/{conversationId}/history": {
+      "get": {
+        "operationId": "getHistory",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "snapshotRevision",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$",
+              "description": "Non-negative decimal int64; never a floating-point counter."
+            }
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/HistoryPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversationId}/input-lease": {
+      "get": {
+        "operationId": "getInputLease",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/LeaseStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "acquireInputLease",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Durably accepted; not completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/OperationReceipt"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "schemas.json#/$defs/AcquireLease"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/input-leases/{leaseId}/renew": {
+      "post": {
+        "operationId": "renewInputLease",
+        "parameters": [
+          {
+            "name": "leaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Durably accepted; not completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/OperationReceipt"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "schemas.json#/$defs/ChangeLease"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/input-leases/{leaseId}/release": {
+      "post": {
+        "operationId": "releaseInputLease",
+        "parameters": [
+          {
+            "name": "leaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Durably accepted; not completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/OperationReceipt"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "schemas.json#/$defs/ChangeLease"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/approvals/{approvalId}/reply": {
+      "post": {
+        "operationId": "replyApproval",
+        "parameters": [
+          {
+            "name": "approvalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Durably accepted; not completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/OperationReceipt"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "schemas.json#/$defs/ApprovalReply"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversationId}/details/{detailId}": {
+      "get": {
+        "operationId": "getDetail",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "detailId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Detail"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversationId}/events": {
+      "get": {
+        "operationId": "openEvents",
+        "description": "Cursor from snapshot or Last-Event-ID; never both. Durable SSE id is streamEpoch:sequence. Transient/control frames have no SSE id. Replay gap returns 410 Problem before stream or SNAPSHOT_REQUIRED during stream.",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "streamEpoch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+              "description": "Non-negative decimal int64; never a floating-point counter."
+            }
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AcceptLanguage"
+          },
+          {
+            "$ref": "#/components/parameters/DisplayTimeZone"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded stream; Content-Type text/event-stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "events.schema.json"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed failure; HTTP success is never substituted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "schemas.json#/$defs/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CoreBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Core-issued local credential read by trusted Desktop process; never vendor OAuth or legacy CLI config."
+      }
+    },
+    "parameters": {
+      "AcceptLanguage": {
+        "name": "Accept-Language",
+        "in": "header",
+        "required": false,
+        "description": "RFC language priority list; invalid syntax returns INVALID_REQUEST. Valid unsupported language negotiates the default.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "DisplayTimeZone": {
+        "name": "X-Arcvera-Time-Zone",
+        "in": "header",
+        "required": false,
+        "description": "Valid IANA ZoneId or UTC; invalid ID returns INVALID_REQUEST. Affects display only, never storage or wire timestamps.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        }
+      }
+    }
+  }
+}

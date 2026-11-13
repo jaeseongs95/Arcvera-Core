@@ -1,0 +1,11 @@
+{
+  "type": "about:blank",
+  "title": "Revision conflict",
+  "status": 409,
+  "detail": "Reload the target revision.",
+  "instance": "/api/v1/tasks/123e4567-e89b-42d3-a456-426614174001/cancel",
+  "code": "REVISION_CONFLICT",
+  "correlationId": "123e4567-e89b-42d3-a456-426614174003",
+  "retryAfterSeconds": null,
+  "snapshotUri": null
+}

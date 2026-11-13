@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.arcvera.dev/core/v1/bootstrap-descriptor.schema.json",
+  "title": "Core local bootstrap descriptor",
+  "x-contract-status": "DRAFT",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaMajor", "protocolVersion", "descriptorId", "instanceId", "storeEpoch", "profileId", "credentialId", "generation", "principal", "osUserSid", "endpoint", "credential", "issuedAt", "expiresAt"],
+  "properties": {
+    "schemaMajor": {"const": 1},
+    "protocolVersion": {"const": "1.0"},
+    "descriptorId": {"type": "string", "format": "uuid"},
+    "instanceId": {"type": "string", "format": "uuid"},
+    "storeEpoch": {"type": "string", "format": "uuid"},
+    "profileId": {"type": "string", "format": "uuid"},
+    "credentialId": {"type": "string", "format": "uuid"},
+    "generation": {"$ref": "schemas.json#/$defs/Revision"},
+    "principal": {"$ref": "schemas.json#/$defs/Principal"},
+    "osUserSid": {"type": "string", "pattern": "^S-1-[0-9]+(?:-[0-9]+){1,15}$", "maxLength": 184},
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scheme", "host", "port", "trustAnchorDer", "serverSpkiSha256"],
+      "properties": {
+        "scheme": {"const": "https"},
+        "host": {"enum": ["127.0.0.1", "::1"]},
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "trustAnchorDer": {"type": "string", "contentEncoding": "base64", "minLength": 128, "maxLength": 16384, "pattern": "^[A-Za-z0-9+/]+={0,2}$"},
+        "serverSpkiSha256": {"$ref": "schemas.json#/$defs/Digest"}
+      }
+    },
+    "credential": {"type": "string", "pattern": "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$"},
+    "issuedAt": {"$ref": "schemas.json#/$defs/Timestamp"},
+    "expiresAt": {"$ref": "schemas.json#/$defs/Timestamp"}
+  }
+}

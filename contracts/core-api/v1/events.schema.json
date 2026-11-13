@@ -1,0 +1,328 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.arcvera.dev/core/v1/events.schema.json",
+  "title": "Core SSE envelope",
+  "x-contract-status": "DRAFT",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "durable"
+        },
+        "schemaMajor": {
+          "const": 1
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "conversationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "taskRunId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "executionTurnId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "streamEpoch": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sequence": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "aggregateRevision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+        },
+        "payload": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "conversationChanged"
+                },
+                "conversation": {
+                  "$ref": "https://schemas.arcvera.dev/core/v1/schemas.json#/$defs/Conversation"
+                }
+              },
+              "required": [
+                "type",
+                "conversation"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "taskChanged"
+                },
+                "task": {
+                  "$ref": "https://schemas.arcvera.dev/core/v1/schemas.json#/$defs/TaskRun"
+                }
+              },
+              "required": [
+                "type",
+                "task"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "messageCompleted"
+                },
+                "message": {
+                  "allOf": [
+                    {
+                      "$ref": "https://schemas.arcvera.dev/core/v1/schemas.json#/$defs/Message"
+                    },
+                    {
+                      "properties": {
+                        "state": {
+                          "enum": [
+                            "COMPLETE",
+                            "FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "type",
+                "message"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "approvalChanged"
+                },
+                "approval": {
+                  "$ref": "https://schemas.arcvera.dev/core/v1/schemas.json#/$defs/Approval"
+                }
+              },
+              "required": [
+                "type",
+                "approval"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "leaseChanged"
+                },
+                "lease": {
+                  "$ref": "https://schemas.arcvera.dev/core/v1/schemas.json#/$defs/InputLease"
+                }
+              },
+              "required": [
+                "type",
+                "lease"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "detailAvailable"
+                },
+                "detailId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "detailType": {
+                  "type": "string",
+                  "enum": [
+                    "COMMAND",
+                    "FILE_CHANGE",
+                    "REASONING_PREVIEW",
+                    "PLUGIN",
+                    "SKILL",
+                    "HOOK",
+                    "MCP"
+                  ]
+                }
+              },
+              "required": [
+                "type",
+                "detailId",
+                "detailType"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "schemaMajor",
+        "eventId",
+        "conversationId",
+        "taskRunId",
+        "executionTurnId",
+        "streamEpoch",
+        "sequence",
+        "aggregateRevision",
+        "occurredAt",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "transient"
+        },
+        "schemaMajor": {
+          "const": 1
+        },
+        "conversationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "taskRunId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "executionTurnId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "exchangeId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "streamFrame": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+          "description": "Non-negative decimal int64; never a floating-point counter."
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "textDelta"
+            },
+            "messageId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "messageId",
+            "text"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "schemaMajor",
+        "conversationId",
+        "taskRunId",
+        "executionTurnId",
+        "exchangeId",
+        "streamFrame",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "control"
+        },
+        "schemaMajor": {
+          "const": 1
+        },
+        "conversationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "SNAPSHOT_REQUIRED",
+            "REAUTHENTICATE",
+            "STREAM_CLOSED"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "CURSOR_GAP",
+            "EPOCH_CHANGED",
+            "SCHEMA_MISMATCH",
+            "CREDENTIAL_REVOKED",
+            "SLOW_CONSUMER",
+            "SERVER_STOPPING"
+          ]
+        },
+        "snapshotUri": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri-reference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "schemaMajor",
+        "conversationId",
+        "type",
+        "code",
+        "snapshotUri"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}
