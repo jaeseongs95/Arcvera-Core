@@ -241,7 +241,8 @@
         "eventBytes": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 1048576
+          "maximum": 1048576,
+          "description": "Maximum raw UTF-8 bytes in an SSE block before its final empty-line terminator, including field names, spaces, comments, ignored fields and nonempty-line terminators. The final terminator is separately bounded to 2 bytes; an optional leading stream BOM is separately bounded to 3 bytes."
         },
         "pendingOperations": {
           "type": "integer",

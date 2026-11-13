@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "66f1dc55d5ee771a98d30ac47b6809e86763e054b5905fd495179274e26b57bc",
+  "sourceTreeSha256": "4f316d8c9f85a612145f4bd2cacd929d4be3718ee3bb0c5303a71c49689b7920",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "1441559ff57b0e5a114ceed4dffc59cb97b47e461aa21fbfa810f12e25a36532"
+    "sha256": "5ffb5ff150722f3dc933788e4c62ed6d990a2560cdf49cbda640e149f9011361"
   },
   "files": [
     {
@@ -65800,9 +65800,9 @@
     {
       "path": "contracts/core-api/v1/contract.ko.md",
       "gitMode": "100644",
-      "bytes": 17659,
-      "sha256": "55aa8b1fab07d45d0c95977a1944aee65d31bef701668031610529a054ffa684",
-      "gitBlob": "d7c61c362f51729e04497ac0d7afa0e323b3606b"
+      "bytes": 19329,
+      "sha256": "b202c769e9af2d73276b996913d46eb8ea50711ce80080bfe38786f41524d2e0",
+      "gitBlob": "87200900990d0b933707e8d00c9f90523e24a23b"
     },
     {
       "path": "contracts/core-api/v1/events.schema.json",
@@ -65919,9 +65919,9 @@
     {
       "path": "contracts/core-api/v1/schemas.json",
       "gitMode": "100644",
-      "bytes": 48438,
-      "sha256": "30f13ffc4837aeef2bee31862a2facedc790fc73238ef2d8a9d87581b636a4fb",
-      "gitBlob": "935287e747ae65845731f275dd2fbd7f2ffd5e33"
+      "bytes": 48753,
+      "sha256": "934ac751a93b77a15208600571d49dddbaa5afc8b285a31378cf7dae3c3c3836",
+      "gitBlob": "8d895ce03d4b5006c4597fa80b7282b61d8b65c0"
     },
     {
       "path": "docs/TESTING.md",
@@ -66248,9 +66248,9 @@
     {
       "path": "java/build.gradle",
       "gitMode": "100644",
-      "bytes": 1846,
-      "sha256": "1f6909762a888d2616d57fa1a4d04a2e097d3b80c8eca075bff08cef1ecd4683",
-      "gitBlob": "6779d6eb2c15ae3dc6a008150f644b7a339054f6"
+      "bytes": 2156,
+      "sha256": "3b1f7ab68a97be2eeacfcb18e7e637fcf1d7b9bb09fd1847ad5b1ec29ca6a79b",
+      "gitBlob": "da44ea8794614e0f5405df0e6fece235df5c7f53"
     },
     {
       "path": "java/gradle/wrapper/gradle-wrapper.jar",
@@ -66288,6 +66288,13 @@
       "gitBlob": "3592b8f40abc2b74f6e37b5442573df6d637980a"
     },
     {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/BootstrapDescriptorPublisher.java",
+      "gitMode": "100644",
+      "bytes": 4280,
+      "sha256": "9e6f8af4f2a8e84bc7d8c9e387683cb1ceba24c4ff030171671ae07e80de0179",
+      "gitBlob": "a0f4a99312b1cb06fd7bfdda45b675a3dccdc029"
+    },
+    {
       "path": "java/src/main/java/io/arcvera/core/bootstrap/BootstrapSchedulingConfiguration.java",
       "gitMode": "100644",
       "bytes": 857,
@@ -66304,9 +66311,16 @@
     {
       "path": "java/src/main/java/io/arcvera/core/bootstrap/CredentialRegistry.java",
       "gitMode": "100644",
-      "bytes": 11591,
-      "sha256": "332c056c82912c63c1e7b172924bf9d274e4fcc15bc80bfbabb8dc89380fa477",
-      "gitBlob": "21e29ad9cabaee043df800eedc7e5401188029d6"
+      "bytes": 13157,
+      "sha256": "252b73d8c6cc7a8a7965b7893bb7cf25feee7610647123535146cbec272c8e42",
+      "gitBlob": "447f14854c0c7a58d8f4e22e685cbecbfdd5e4b1"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/LocalBootstrapLifecycle.java",
+      "gitMode": "100644",
+      "bytes": 3741,
+      "sha256": "502824adddd54c96dfb3d6f99f2de1df14d27b4adcabede8ecaff481c89b42d0",
+      "gitBlob": "5487fc9a43a227e9255c7db92eb8d6fbef775a57"
     },
     {
       "path": "java/src/main/java/io/arcvera/core/bootstrap/LocalCredentialIntrospector.java",
@@ -66314,6 +66328,27 @@
       "bytes": 1517,
       "sha256": "f2f750f212be37c3f97e02091edffc0e8d9565a3b4e08eb599a26b0628d6a03c",
       "gitBlob": "816e622efaca784ab36aaf4302c1effb7c83cc65"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/LocalHttpsConfiguration.java",
+      "gitMode": "100644",
+      "bytes": 3229,
+      "sha256": "9c3a9e6bc6f1666c683a7c45c4d54d8371a1d97b04b8d831d09ce215b0fa453a",
+      "gitBlob": "03963cee4599538c54d21f8536450bac3b766297"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/LocalTlsMaterial.java",
+      "gitMode": "100644",
+      "bytes": 4387,
+      "sha256": "8e5cae970ac9d1083b24aa71aa1a1444367de816daae100d718c796c63fee070",
+      "gitBlob": "e98f1a3cf6a52dd1c9d546a30529a0052f6c4bfc"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/WindowsProfileLock.java",
+      "gitMode": "100644",
+      "bytes": 17155,
+      "sha256": "e98c9107a1aeda6ac6dad2e7dce20088709ef025646ebc6c7298b29c75526280",
+      "gitBlob": "29fa958a815b85fdb1095c491f365fd55b417f48"
     },
     {
       "path": "java/src/main/java/io/arcvera/core/domain/ExecutionTurn.java",
@@ -66337,11 +66372,18 @@
       "gitBlob": "7238e8aab5e613c4b770f0bab0a4c6556bbe14de"
     },
     {
+      "path": "java/src/main/java/io/arcvera/core/lease/InputLeaseStore.java",
+      "gitMode": "100644",
+      "bytes": 15585,
+      "sha256": "e64bf5e48f259eec45b36a0de9e525dac557f2399a2dbf0a3828d6a63f226f20",
+      "gitBlob": "06e9ed76da61491e1b417dec73be797ef1347d0b"
+    },
+    {
       "path": "java/src/main/java/io/arcvera/core/store/AcceptanceTransaction.java",
       "gitMode": "100644",
-      "bytes": 2757,
-      "sha256": "13439d1e1d4b8cc7cd13d5606d27478230293246b8c8e574a748842b342dad23",
-      "gitBlob": "c0fd47bc89cee9d7401471db92583dd27b404bee"
+      "bytes": 3704,
+      "sha256": "84edea24cdc604e72c97512979faedb5f8627a6af15aec72053540efa8c380cb",
+      "gitBlob": "278ae7cb39c5fe3254e7a21ae299902e4f9a0c23"
     },
     {
       "path": "java/src/main/java/io/arcvera/core/store/ConversationRepository.java",
@@ -66372,32 +66414,39 @@
       "gitBlob": "191ad901133da5fb1e61884deaa7e035e37fb90f"
     },
     {
+      "path": "java/src/main/java/io/arcvera/core/store/OperationIdentityService.java",
+      "gitMode": "100644",
+      "bytes": 2357,
+      "sha256": "4274c51155f2dbb719dce91dd623b737d0ab7c557faa56325588d4a40c5a9a3e",
+      "gitBlob": "65abf951cef7df5452533293120b7a5e9cbb9e85"
+    },
+    {
       "path": "java/src/main/java/io/arcvera/core/store/ReceiptRepository.java",
       "gitMode": "100644",
-      "bytes": 581,
-      "sha256": "d6bc5a4782e950f0a6082e7be3cb3ff60185f7b9c1b52f02e73db9c9ea56a9fd",
-      "gitBlob": "b8645f72a3e92890975148f70887ae000126bcab"
+      "bytes": 820,
+      "sha256": "7d59159af16e71ae993cb09a73831e0cf15bb8e6aafc0f1352a2f1a604c5047e",
+      "gitBlob": "f742d59ed6cb3240993afad58a211f51d616956b"
     },
     {
       "path": "java/src/main/java/io/arcvera/core/store/ReceiptRow.java",
       "gitMode": "100644",
-      "bytes": 910,
-      "sha256": "df6d4af2dd668d5387748c843cf09cf3ef1785ca785288e53feb3cd7c48d7539",
-      "gitBlob": "ea518943fa9751d3b99dcdea840d3b942c7bed5f"
+      "bytes": 1060,
+      "sha256": "69d2cc9d832691b2ad2d27e72c080f71bc0fe268fb56d8e97442a0feea27ef1d",
+      "gitBlob": "6af5c9e3fcd1446c293be10cae007ac73fffb84c"
     },
     {
       "path": "java/src/main/java/io/arcvera/core/store/ReceiptRowMapper.java",
       "gitMode": "100644",
-      "bytes": 915,
-      "sha256": "995d2d6beefd9f47bebb8006ba1beacb3f4ff06e05a21df40448cc684bf55d84",
-      "gitBlob": "d6a846a49f6d4c4f4836fcf1540ed86c5011a13d"
+      "bytes": 1007,
+      "sha256": "032721c1a2a2fd145cdaf20f1236eba067fb313c22236e3371ad83208aa3c054",
+      "gitBlob": "dcdac117df9c06733aadac486ec26e6d54614a46"
     },
     {
       "path": "java/src/main/java/io/arcvera/core/store/TaskAcceptanceStore.java",
       "gitMode": "100644",
-      "bytes": 6973,
-      "sha256": "59d840e06840ccec7b7950d41e54eb21258df29fb8a04cbb9513d3a44f716f34",
-      "gitBlob": "8c289c4da63c2ae502fa527ce1a5d6cb477974dd"
+      "bytes": 8047,
+      "sha256": "209b8218e2951fcb4aaf9657c98fc3e7fc5473e0d770ffd4525fa0d15175c7af",
+      "gitBlob": "191b92483e6124cb98d63114360c1c87f36c88cf"
     },
     {
       "path": "java/src/main/java/io/arcvera/core/store/TaskRepository.java",
@@ -66414,11 +66463,18 @@
       "gitBlob": "84d9dc7e67a4d0497d8900244e9a3721ee864dbb"
     },
     {
+      "path": "java/src/test/java/io/arcvera/core/bootstrap/BootstrapDescriptorPublisherTest.java",
+      "gitMode": "100644",
+      "bytes": 7245,
+      "sha256": "4f77a718cd8b44fdfc446a04d4c6666a8421eb28f0b7b487940f365b1ff9650d",
+      "gitBlob": "815314bb5b43fe249efd0885fcbfb88e58077f49"
+    },
+    {
       "path": "java/src/test/java/io/arcvera/core/bootstrap/CredentialRegistryTest.java",
       "gitMode": "100644",
-      "bytes": 12173,
-      "sha256": "606c71f7e36060e87c851f294a383b6b9995896993c5593ebd35a6f53c89e026",
-      "gitBlob": "d2d1f3e848bc8cddee02faf5a73afb9aa5c84996"
+      "bytes": 12891,
+      "sha256": "5a919d57437c54a0ccbea3991b7182df10dd920c9c7458ff68ffdcff5cfc406d",
+      "gitBlob": "5223612f8f82233adc00b966af8f65bc8c981430"
     },
     {
       "path": "java/src/test/java/io/arcvera/core/bootstrap/LocalCredentialIntrospectorTest.java",
@@ -66428,6 +66484,27 @@
       "gitBlob": "1946a0e8daa2898b93682438f8e154a52b2aa503"
     },
     {
+      "path": "java/src/test/java/io/arcvera/core/bootstrap/LocalHttpsIntegrationTest.java",
+      "gitMode": "100644",
+      "bytes": 16497,
+      "sha256": "77e162219a447615543da3442f97f76e85f0c8cf5295d4599dad88bf7a95e5c1",
+      "gitBlob": "0a7019c5ba7e6cadfcc59b36ddc829031a99eae3"
+    },
+    {
+      "path": "java/src/test/java/io/arcvera/core/bootstrap/LocalTlsMaterialTest.java",
+      "gitMode": "100644",
+      "bytes": 2142,
+      "sha256": "1145b1f7ade6b8961b39dcbe41a30457032d6833dce7d5d062f204d8c67bb12b",
+      "gitBlob": "de5f09fff0229c866a4f9dba674e83e770479b21"
+    },
+    {
+      "path": "java/src/test/java/io/arcvera/core/bootstrap/WindowsProfileLockTest.java",
+      "gitMode": "100644",
+      "bytes": 1969,
+      "sha256": "5cf5679e0b065e6bf95c0521294a1fa33fb135007a89d2a352a31bb1f28c7ecb",
+      "gitBlob": "5d787c3aee6cc316ffab50cb8bc87927cedb929d"
+    },
+    {
       "path": "java/src/test/java/io/arcvera/core/domain/TaskRunTest.java",
       "gitMode": "100644",
       "bytes": 9891,
@@ -66435,11 +66512,18 @@
       "gitBlob": "ef2f060a9ea458dfe25f67ccb4ee872603a75980"
     },
     {
+      "path": "java/src/test/java/io/arcvera/core/store/InputLeaseStoreTest.java",
+      "gitMode": "100644",
+      "bytes": 19898,
+      "sha256": "58416e21e1910021fe1161e702810b5c1f45a2eaf514c43ad6e0b937c318d2da",
+      "gitBlob": "f3dac60d3fbd67239300a5258ae76387511c253d"
+    },
+    {
       "path": "java/src/test/java/io/arcvera/core/store/TaskAcceptanceStoreTest.java",
       "gitMode": "100644",
-      "bytes": 18359,
-      "sha256": "74fa6e3513c4cb6c31fd63b6612ee3d19c2f68b7df179ce835750de4c24de83c",
-      "gitBlob": "035629e24aa2bf0cb1e36f09fb86f8dc60fcc3d4"
+      "bytes": 19464,
+      "sha256": "2dd1eea68160069f338fa47fc91d1d378244965abb71eb9433d5c43049feafa6",
+      "gitBlob": "bd00dd60919429ee03f06e537a9bd6056f7571d8"
     },
     {
       "path": "patches/BUILD.bazel",
@@ -68620,6 +68704,11 @@
       "notice": "external-in-CURRENT_SOURCE.json"
     },
     {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/BootstrapDescriptorPublisher.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
       "path": "java/src/main/java/io/arcvera/core/bootstrap/BootstrapSchedulingConfiguration.java",
       "status": "added",
       "notice": "external-in-CURRENT_SOURCE.json"
@@ -68635,7 +68724,27 @@
       "notice": "external-in-CURRENT_SOURCE.json"
     },
     {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/LocalBootstrapLifecycle.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
       "path": "java/src/main/java/io/arcvera/core/bootstrap/LocalCredentialIntrospector.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/LocalHttpsConfiguration.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/LocalTlsMaterial.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/bootstrap/WindowsProfileLock.java",
       "status": "added",
       "notice": "external-in-CURRENT_SOURCE.json"
     },
@@ -68651,6 +68760,11 @@
     },
     {
       "path": "java/src/main/java/io/arcvera/core/domain/TaskRun.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/lease/InputLeaseStore.java",
       "status": "added",
       "notice": "external-in-CURRENT_SOURCE.json"
     },
@@ -68676,6 +68790,11 @@
     },
     {
       "path": "java/src/main/java/io/arcvera/core/store/EventRow.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/main/java/io/arcvera/core/store/OperationIdentityService.java",
       "status": "added",
       "notice": "external-in-CURRENT_SOURCE.json"
     },
@@ -68710,6 +68829,11 @@
       "notice": "external-in-CURRENT_SOURCE.json"
     },
     {
+      "path": "java/src/test/java/io/arcvera/core/bootstrap/BootstrapDescriptorPublisherTest.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
       "path": "java/src/test/java/io/arcvera/core/bootstrap/CredentialRegistryTest.java",
       "status": "added",
       "notice": "external-in-CURRENT_SOURCE.json"
@@ -68720,7 +68844,27 @@
       "notice": "external-in-CURRENT_SOURCE.json"
     },
     {
+      "path": "java/src/test/java/io/arcvera/core/bootstrap/LocalHttpsIntegrationTest.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/test/java/io/arcvera/core/bootstrap/LocalTlsMaterialTest.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/test/java/io/arcvera/core/bootstrap/WindowsProfileLockTest.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
       "path": "java/src/test/java/io/arcvera/core/domain/TaskRunTest.java",
+      "status": "added",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "java/src/test/java/io/arcvera/core/store/InputLeaseStoreTest.java",
       "status": "added",
       "notice": "external-in-CURRENT_SOURCE.json"
     },

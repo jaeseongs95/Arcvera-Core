@@ -21714,10 +21714,10 @@ index 0000000000000000000000000000000000000000..f31e1a879dca9bcbdd21c5ea06fde9ad
 +정상 protected fixture·TLS·handshake; 다른 owner·그룹 읽기/쓰기·부모 교체 권한; 링크/읽는 중 교체; oversize·중복 키; DNS·http·port0; 잘못된/만료 인증서·SAN·SPKI; stale port에서 TLS 실패 시 bearer 미전송; 만료/미래 자격; generation 역행/동일세대 변조; 회전·revoke·SSE 종료; profile/principal/storeEpoch 불일치; 반복 재접속 뒤 context/connection 수 회수다. schema fixture만으로 이 OS/TLS/런타임 사례가 통과했다고 보고하지 않는다.
 diff --git a/contracts/core-api/v1/contract.ko.md b/contracts/core-api/v1/contract.ko.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..d7c61c362f51729e04497ac0d7afa0e323b3606b
+index 0000000000000000000000000000000000000000..87200900990d0b933707e8d00c9f90523e24a23b
 --- /dev/null
 +++ b/contracts/core-api/v1/contract.ko.md
-@@ -0,0 +1,92 @@
+@@ -0,0 +1,103 @@
 +# Core 2.0 / Desktop 3.0 P0 공유 계약 초안
 +
 +상태: DRAFT. 구조 협의와 구현 입력이며, HTTP 엔드포인트 구현이나 기능 지원을 뜻하지 않는다. `openapi.json`, `schemas.json`, `events.schema.json`이 전송 형태의 정본이다. 이 문서는 스키마만으로 판정할 수 없는 의미를 정의한다. 내부 협업 문서이며 공개 배포 문서는 별도 영문·한글판을 작성한다.
@@ -21762,6 +21762,17 @@ index 0000000000000000000000000000000000000000..d7c61c362f51729e04497ac0d7afa0e3
 +## 이벤트·스냅샷
 +
 +durable SSE의 `id:`는 `streamEpoch:sequence`, `event:`는 `durable`이며 data는 `events.schema.json`이다. UUID `eventId`는 이벤트 정체성이고 SSE 커서와 다르다. transient는 `event: transient`, control은 `event: control`; 둘에는 SSE `id:`를 넣지 않는다. heartbeat 주석에도 커서가 없다.
++
++SSE 줄 끝은 [WHATWG의 CRLF·CR·LF 규칙](https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream)을 따른다. `limits.eventBytes`는 마지막 빈 줄 종결자 직전까지 한 블록의 원시 UTF-8 바이트 수다. 필드명·콜론·공백·주석·무시되는 필드 및 비어 있지 않은 각 줄의 종결자도 포함한다. 마지막 빈 줄 종결자만 이 계수에서 제외하고 별도로 최대 2바이트를 허용한다. 스트림 첫머리의 선택적 BOM은 한 번만 최대 3바이트를 별도 허용한다. 그 밖의 BOM은 일반 내용으로 계수한다. 주석이나 알 수 없는 필드를 만났다는 이유로 블록 계수를 초기화하지 않는다.
++
++| 원시 입력 표기 | eventBytes 계수 | 마지막 구분자 |
++|---|---:|---:|
++| `data: x\n\n` | 8 | 1바이트 |
++| `data: x\r\r` | 8 | 1바이트 |
++| `data: x\r\n\r\n` | 9 | 2바이트 |
++| `data: 가\n\n` | 10 | 1바이트 |
++
++빈 줄의 CR을 받으면 다음 바이트를 기다리지 않고 블록을 끝낼 수 있다. 바로 뒤 LF는 이미 끝난 블록 구분자의 두 번째 바이트로 흡수하고 다음 블록 내용으로 세지 않는다. 수신 청크 경계와 무관하게 같은 바이트열은 같은 계수·초과 판정을 낸다. 입력 상한은 역직렬화 전에 적용하고, 부분 필드·블록은 상한 안에서만 보관한다. 빈 줄 없이 EOF가 오면 불완전 블록을 전달하지 않는다. 빈 블록·heartbeat에도 무제한 큐를 만들지 않는다. 이 계수 정의와 예시는 계약이며 실제 Core SSE 송신·Desktop 소비의 통합 시험을 대신하지 않는다.
 +
 +재접속은 `Last-Event-ID` 또는 `(streamEpoch, after)` 쿼리 한 가지를 쓴다. 두 방식 동시 사용·부분 쿼리·형식 오류는 거부한다. 인증된 같은 대화·epoch에 대해 `sequence > after`를 재생한다. 중복은 epoch와 순번으로 한 번만 반영한다. 누락을 건너뛰지 않는다.
 +
@@ -23497,10 +23508,10 @@ index 0000000000000000000000000000000000000000..10ebc5abef7e07a8dd317744ba50c0ae
 +}
 diff --git a/contracts/core-api/v1/schemas.json b/contracts/core-api/v1/schemas.json
 new file mode 100644
-index 0000000000000000000000000000000000000000..935287e747ae65845731f275dd2fbd7f2ffd5e33
+index 0000000000000000000000000000000000000000..8d895ce03d4b5006c4597fa80b7282b61d8b65c0
 --- /dev/null
 +++ b/contracts/core-api/v1/schemas.json
-@@ -0,0 +1,1657 @@
+@@ -0,0 +1,1658 @@
 +{
 +  "$schema": "https://json-schema.org/draft/2020-12/schema",
 +  "$id": "https://schemas.arcvera.dev/core/v1/schemas.json",
@@ -23744,7 +23755,8 @@ index 0000000000000000000000000000000000000000..935287e747ae65845731f275dd2fbd7f
 +        "eventBytes": {
 +          "type": "integer",
 +          "minimum": 1,
-+          "maximum": 1048576
++          "maximum": 1048576,
++          "description": "Maximum raw UTF-8 bytes in an SSE block before its final empty-line terminator, including field names, spaces, comments, ignored fields and nonempty-line terminators. The final terminator is separately bounded to 2 bytes; an optional leading stream BOM is separately bounded to 3 bytes."
 +        },
 +        "pendingOperations": {
 +          "type": "integer",
@@ -25962,16 +25974,20 @@ index 0000000000000000000000000000000000000000..abc78ba75aadd92886791870acfb674e
 +/build/
 diff --git a/java/build.gradle b/java/build.gradle
 new file mode 100644
-index 0000000000000000000000000000000000000000..6779d6eb2c15ae3dc6a008150f644b7a339054f6
+index 0000000000000000000000000000000000000000..da44ea8794614e0f5405df0e6fece235df5c7f53
 --- /dev/null
 +++ b/java/build.gradle
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,35 @@
 +plugins { id 'java' }
 +repositories { mavenCentral() }
 +dependencies {
 +    implementation platform('org.springframework.boot:spring-boot-dependencies:4.1.2')
 +    implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
 +    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
++    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
++    // Outside Boot BOM: public X.509 certificate builder and Windows handle APIs.
++    implementation 'org.bouncycastle:bcpkix-jdk18on:1.86'
++    implementation 'net.java.dev.jna:jna-platform:5.19.1'
 +    testImplementation platform('org.springframework.boot:spring-boot-dependencies:4.1.2')
 +    testImplementation 'org.junit.jupiter:junit-jupiter'
 +    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -25980,7 +25996,7 @@ index 0000000000000000000000000000000000000000..6779d6eb2c15ae3dc6a008150f644b7a
 +}
 +java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
 +tasks.withType(JavaCompile).configureEach { options.compilerArgs += ['-Xlint:all', '-Werror'] }
-+tasks.withType(Test).configureEach { useJUnitPlatform(); maxParallelForks = 1; maxHeapSize = '256m'; jvmArgs '-XX:ActiveProcessorCount=1' }
++tasks.withType(Test).configureEach { useJUnitPlatform(); maxParallelForks = 1; maxHeapSize = '256m'; jvmArgs '-XX:ActiveProcessorCount=1', '--enable-native-access=ALL-UNNAMED' }
 +test { exclude '**/store/**' }
 +tasks.register('dbTest', Test) {
 +    description = 'Runs the explicit external database integration tests.'
@@ -27255,6 +27271,88 @@ index 0000000000000000000000000000000000000000..3592b8f40abc2b74f6e37b5442573df6
 +++ b/java/settings.gradle
 @@ -0,0 +1 @@
 +rootProject.name = 'arcvera-core-java'
+diff --git a/java/src/main/java/io/arcvera/core/bootstrap/BootstrapDescriptorPublisher.java b/java/src/main/java/io/arcvera/core/bootstrap/BootstrapDescriptorPublisher.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..a0f4a99312b1cb06fd7bfdda45b675a3dccdc029
+--- /dev/null
++++ b/java/src/main/java/io/arcvera/core/bootstrap/BootstrapDescriptorPublisher.java
+@@ -0,0 +1,76 @@
++package io.arcvera.core.bootstrap;
++
++import java.io.IOException;
++import java.security.GeneralSecurityException;
++import java.time.format.DateTimeFormatter;
++import java.time.format.DateTimeFormatterBuilder;
++import java.util.Arrays;
++import java.util.List;
++import java.util.Objects;
++import java.util.UUID;
++import java.time.Instant;
++import tools.jackson.databind.json.JsonMapper;
++
++/** Couples registry transition to protected publication while its profile lock is held. */
++public final class BootstrapDescriptorPublisher implements AutoCloseable {
++    private static final DateTimeFormatter TIMESTAMP = new DateTimeFormatterBuilder().appendInstant(3).toFormatter();
++    private final CredentialRegistry registry;
++    private final WindowsProfileLock lock;
++    private final JsonMapper mapper;
++    private final UUID storeEpoch;
++    private final int port;
++    private final String anchor;
++    private final String pin;
++    private final Instant certificateExpiry;
++
++    public BootstrapDescriptorPublisher(CredentialRegistry registry, WindowsProfileLock lock, JsonMapper mapper,
++                                        UUID storeEpoch, int port, LocalTlsMaterial tls) throws GeneralSecurityException {
++        this.registry = Objects.requireNonNull(registry);
++        this.lock = Objects.requireNonNull(lock);
++        this.mapper = Objects.requireNonNull(mapper);
++        this.storeEpoch = Objects.requireNonNull(storeEpoch);
++        if (port < 1 || port > 65535) throw new IllegalArgumentException("Invalid loopback port");
++        if (!lock.sid().equals(registry.binding().osPrincipal())) throw new IllegalArgumentException("OS principal mismatch");
++        if (registry.binding().scopes().size() > 128) throw new IllegalArgumentException("Too many scopes");
++        this.port = port;
++        if (!"127.0.0.1".equals(Objects.requireNonNull(tls).numericLoopback())) throw new IllegalArgumentException("TLS address mismatch");
++        this.anchor = tls.trustAnchorDer();
++        this.pin = tls.spkiSha256();
++        this.certificateExpiry = tls.certificate().getNotAfter().toInstant();
++        registry.bindCertificateExpiry(certificateExpiry);
++    }
++
++    public CredentialRegistry.IssuedCredential issue() throws IOException { return registry.issueAndPublish(this::publish); }
++    public CredentialRegistry.IssuedCredential rotate(UUID id, long generation) throws IOException {
++        return registry.rotateAndPublish(id, generation, this::publish);
++    }
++
++    @Override public void close() throws IOException {
++        registry.revoke();
++        lock.withdraw();
++    }
++
++    private void publish(CredentialRegistry.IssuedCredential credential) throws IOException {
++        if (credential.expiresAt().isAfter(certificateExpiry)) {
++            throw new CredentialRegistry.PublicationNotCommittedException("TLS certificate expires before credential", null);
++        }
++        var binding = registry.binding();
++        var descriptor = new Descriptor(1, "1.0", UUID.randomUUID().toString(), binding.instanceId().toString(),
++                storeEpoch.toString(), lock.profileId().toString(), credential.credentialId().toString(),
++                Long.toString(credential.generation()), new Principal(binding.osPrincipal(), binding.scopes().stream().sorted().toList()),
++                lock.sid(), new Endpoint("https", "127.0.0.1", port, anchor, pin), credential.token(),
++                TIMESTAMP.format(credential.issuedAt()), TIMESTAMP.format(credential.expiresAt()));
++        byte[] bytes = mapper.writeValueAsBytes(descriptor);
++        try { lock.publish(bytes); }
++        finally { Arrays.fill(bytes, (byte) 0); }
++    }
++
++    private record Principal(String id, List<String> scopes) { }
++    private record Endpoint(String scheme, String host, int port, String trustAnchorDer, String serverSpkiSha256) { }
++    private record Descriptor(int schemaMajor, String protocolVersion, String descriptorId, String instanceId,
++                              String storeEpoch, String profileId, String credentialId, String generation,
++                              Principal principal, String osUserSid, Endpoint endpoint, String credential,
++                              String issuedAt, String expiresAt) {
++        @Override public String toString() { return "Descriptor[redacted]"; }
++    }
++}
 diff --git a/java/src/main/java/io/arcvera/core/bootstrap/BootstrapSchedulingConfiguration.java b/java/src/main/java/io/arcvera/core/bootstrap/BootstrapSchedulingConfiguration.java
 new file mode 100644
 index 0000000000000000000000000000000000000000..1d823c5f0bb14ee5a23b40e5976b51b1cecf5d25
@@ -27302,10 +27400,10 @@ index 0000000000000000000000000000000000000000..251a54e7628206237a5c6a8d786ff790
 +}
 diff --git a/java/src/main/java/io/arcvera/core/bootstrap/CredentialRegistry.java b/java/src/main/java/io/arcvera/core/bootstrap/CredentialRegistry.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..21e29ad9cabaee043df800eedc7e5401188029d6
+index 0000000000000000000000000000000000000000..447f14854c0c7a58d8f4e22e685cbecbfdd5e4b1
 --- /dev/null
 +++ b/java/src/main/java/io/arcvera/core/bootstrap/CredentialRegistry.java
-@@ -0,0 +1,249 @@
+@@ -0,0 +1,282 @@
 +package io.arcvera.core.bootstrap;
 +
 +import java.security.MessageDigest;
@@ -27340,6 +27438,9 @@ index 0000000000000000000000000000000000000000..21e29ad9cabaee043df800eedc7e5401
 +    private long rotationTick;
 +    private Instant lastObserved;
 +    private boolean revoked;
++    private Instant certificateExpiry;
++    private long certificateStartTick;
++    private long certificateLifetimeNanos;
 +
 +    public CredentialRegistry(Clock clock, SecureRandom random, LongSupplier ticker, UUID instanceId,
 +                              String osPrincipal, Set<String> scopes) {
@@ -27356,6 +27457,7 @@ index 0000000000000000000000000000000000000000..21e29ad9cabaee043df800eedc7e5401
 +
 +    // ceiling: one lock per Core instance; revisit only if measured authentication throughput requires it.
 +    public synchronized IssuedCredential issue() {
++        expireCertificate(now(), ticker.getAsLong());
 +        if (current != null || revoked) throw new IllegalStateException("Credential already issued or revoked");
 +        Candidate candidate = create(0, now(), ticker.getAsLong());
 +        current = candidate.entry;
@@ -27365,6 +27467,7 @@ index 0000000000000000000000000000000000000000..21e29ad9cabaee043df800eedc7e5401
 +    /** Holds authentication locked: a confirmed non-commit preserves state; an uncertain failure revokes it. */
 +    public synchronized IssuedCredential issueAndPublish(CredentialPublisher publisher) throws IOException {
 +        Objects.requireNonNull(publisher);
++        expireCertificate(now(), ticker.getAsLong());
 +        if (current != null || revoked) throw new IllegalStateException("Credential already issued or revoked");
 +        Candidate candidate = create(0, now(), ticker.getAsLong());
 +        publish(publisher, candidate.credential);
@@ -27382,6 +27485,7 @@ index 0000000000000000000000000000000000000000..21e29ad9cabaee043df800eedc7e5401
 +    }
 +
 +    private void checkRotation(UUID expectedCredentialId, long expectedGeneration, Instant now, long tick) {
++        expireCertificate(now, tick);
 +        if (revoked || current == null || !current.id.equals(expectedCredentialId)
 +                || current.generation != expectedGeneration
 +                || (now.isBefore(current.expiresAt.minus(ROTATE_BEFORE)) && !elapsed(tick, current.issuedTick, TTL.minus(ROTATE_BEFORE)))
@@ -27444,6 +27548,8 @@ index 0000000000000000000000000000000000000000..21e29ad9cabaee043df800eedc7e5401
 +        if (revoked || !validTokenShape(token)) return Optional.empty();
 +        Instant now = now();
 +        long tick = ticker.getAsLong();
++        expireCertificate(now, tick);
++        if (revoked) return Optional.empty();
 +        purgeExpiredAt(now, tick);
 +        byte[] hash = digest(token);
 +        if (matchesToken(current, hash, now, tick)) return Optional.of(claims(current));
@@ -27453,7 +27559,27 @@ index 0000000000000000000000000000000000000000..21e29ad9cabaee043df800eedc7e5401
 +
 +    /** Intended to be called by a single managed lifecycle scheduler. */
 +    public synchronized void purgeExpired() {
-+        purgeExpiredAt(now(), ticker.getAsLong());
++        Instant now = now();
++        long tick = ticker.getAsLong();
++        expireCertificate(now, tick);
++        purgeExpiredAt(now, tick);
++    }
++
++    /** Binds this instance to its TLS certificate before any credential is issued. */
++    public synchronized void bindCertificateExpiry(Instant expiry) {
++        Objects.requireNonNull(expiry);
++        if (current != null || revoked || certificateExpiry != null) throw new IllegalStateException("Certificate binding unavailable");
++        Instant now = now();
++        long lifetime = Duration.between(now, expiry).toNanos();
++        if (lifetime <= 0) throw new IllegalArgumentException("Certificate already expired");
++        certificateExpiry = expiry;
++        certificateStartTick = ticker.getAsLong();
++        certificateLifetimeNanos = lifetime;
++    }
++
++    private void expireCertificate(Instant now, long tick) {
++        if (certificateExpiry != null && (!now.isBefore(certificateExpiry)
++                || tick - certificateStartTick >= certificateLifetimeNanos)) revoke();
 +    }
 +
 +    private void purgeExpiredAt(Instant now, long tick) {
@@ -27481,6 +27607,11 @@ index 0000000000000000000000000000000000000000..21e29ad9cabaee043df800eedc7e5401
 +    public record Claims(UUID instanceId, String osPrincipal, Set<String> scopes,
 +                         UUID credentialId, long generation) {
 +        public Claims { scopes = Set.copyOf(scopes); }
++    }
++
++    public Binding binding() { return new Binding(instanceId, osPrincipal, scopes); }
++    public record Binding(UUID instanceId, String osPrincipal, Set<String> scopes) {
++        public Binding { scopes = Set.copyOf(scopes); }
 +    }
 +
 +    public synchronized void revoke() {
@@ -27555,6 +27686,91 @@ index 0000000000000000000000000000000000000000..21e29ad9cabaee043df800eedc7e5401
 +        @Override public String toString() { return "IssuedCredential[redacted]"; }
 +    }
 +}
+diff --git a/java/src/main/java/io/arcvera/core/bootstrap/LocalBootstrapLifecycle.java b/java/src/main/java/io/arcvera/core/bootstrap/LocalBootstrapLifecycle.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..5487fc9a43a227e9255c7db92eb8d6fbef775a57
+--- /dev/null
++++ b/java/src/main/java/io/arcvera/core/bootstrap/LocalBootstrapLifecycle.java
+@@ -0,0 +1,79 @@
++package io.arcvera.core.bootstrap;
++
++import java.io.IOException;
++import java.security.GeneralSecurityException;
++import java.util.Objects;
++import java.util.UUID;
++import org.springframework.boot.web.server.context.WebServerInitializedEvent;
++import org.springframework.context.ApplicationContext;
++import org.springframework.context.ApplicationContextException;
++import org.springframework.context.ApplicationListener;
++import org.springframework.context.SmartLifecycle;
++import tools.jackson.databind.json.JsonMapper;
++
++/** Explicitly assembled once per local application context; owns the supplied profile lock. */
++public final class LocalBootstrapLifecycle implements SmartLifecycle, ApplicationListener<WebServerInitializedEvent> {
++    private final ApplicationContext context;
++    private final CredentialRegistry registry;
++    private final WindowsProfileLock lock;
++    private final JsonMapper mapper;
++    private final UUID storeEpoch;
++    private final LocalTlsMaterial tls;
++    private BootstrapDescriptorPublisher publisher;
++    private boolean running;
++    private boolean closed;
++
++    public LocalBootstrapLifecycle(ApplicationContext context, CredentialRegistry registry, WindowsProfileLock lock,
++                                   JsonMapper mapper, UUID storeEpoch, LocalTlsMaterial tls) {
++        this.context = Objects.requireNonNull(context);
++        this.registry = Objects.requireNonNull(registry);
++        this.lock = Objects.requireNonNull(lock);
++        this.mapper = Objects.requireNonNull(mapper);
++        this.storeEpoch = Objects.requireNonNull(storeEpoch);
++        this.tls = Objects.requireNonNull(tls);
++    }
++
++    @Override public synchronized void onApplicationEvent(WebServerInitializedEvent event) {
++        if (event.getApplicationContext() != context) return;
++        if (closed || publisher != null) throw new ApplicationContextException("Duplicate local server initialization");
++        try {
++            publisher = new BootstrapDescriptorPublisher(registry, lock, mapper, storeEpoch, event.getWebServer().getPort(), tls);
++            publisher.issue();
++        } catch (IOException | GeneralSecurityException | RuntimeException failure) {
++            registry.revoke();
++            var startupFailure = new ApplicationContextException("Local bootstrap publication failed", failure);
++            try { stop(); } catch (RuntimeException | Error cleanupFailure) { startupFailure.addSuppressed(cleanupFailure); }
++            throw startupFailure;
++        } catch (Error failure) {
++            registry.revoke();
++            try { stop(); } catch (RuntimeException | Error cleanupFailure) { failure.addSuppressed(cleanupFailure); }
++            throw failure;
++        }
++    }
++
++    public synchronized BootstrapDescriptorPublisher publisher() {
++        if (closed || publisher == null) throw new IllegalStateException("Local bootstrap unavailable");
++        return publisher;
++    }
++
++    @Override public synchronized void start() {
++        if (closed) throw new IllegalStateException("Local bootstrap closed");
++        running = true;
++    }
++
++    @Override public synchronized void stop() {
++        if (closed) return;
++        closed = true;
++        running = false;
++        registry.revoke();
++        IOException failure = null;
++        try { if (publisher != null) publisher.close(); }
++        catch (IOException e) { failure = e; }
++        try { lock.close(); }
++        catch (IOException e) { if (failure == null) failure = e; else failure.addSuppressed(e); }
++        if (failure != null) throw new IllegalStateException("Local bootstrap cleanup failed", failure);
++    }
++
++    @Override public synchronized boolean isRunning() { return running; }
++    @Override public int getPhase() { return Integer.MAX_VALUE; }
++}
 diff --git a/java/src/main/java/io/arcvera/core/bootstrap/LocalCredentialIntrospector.java b/java/src/main/java/io/arcvera/core/bootstrap/LocalCredentialIntrospector.java
 new file mode 100644
 index 0000000000000000000000000000000000000000..816e622efaca784ab36aaf4302c1effb7c83cc65
@@ -27587,6 +27803,495 @@ index 0000000000000000000000000000000000000000..816e622efaca784ab36aaf4302c1effb
 +                "credentialId", claims.credentialId().toString(),
 +                "generation", claims.generation(),
 +                "scope", claims.scopes()), authorities);
++    }
++}
+diff --git a/java/src/main/java/io/arcvera/core/bootstrap/LocalHttpsConfiguration.java b/java/src/main/java/io/arcvera/core/bootstrap/LocalHttpsConfiguration.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..03963cee4599538c54d21f8536450bac3b766297
+--- /dev/null
++++ b/java/src/main/java/io/arcvera/core/bootstrap/LocalHttpsConfiguration.java
+@@ -0,0 +1,60 @@
++package io.arcvera.core.bootstrap;
++
++import java.net.InetAddress;
++import java.util.Collections;
++import jakarta.servlet.http.HttpServletRequest;
++import org.springframework.boot.ssl.DefaultSslBundleRegistry;
++import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
++import org.springframework.boot.web.server.ConfigurableWebServerFactory;
++import org.springframework.boot.web.server.Ssl;
++import org.springframework.boot.web.server.WebServerFactoryCustomizer;
++import org.springframework.context.annotation.Bean;
++import org.springframework.context.annotation.Configuration;
++import org.springframework.security.config.annotation.web.builders.HttpSecurity;
++import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
++import org.springframework.security.config.http.SessionCreationPolicy;
++import org.springframework.security.oauth2.server.resource.introspection.OpaqueTokenIntrospector;
++import org.springframework.security.web.SecurityFilterChain;
++
++/** Imported explicitly by the local server assembly, after its protection prerequisites are established. */
++@Configuration(proxyBeanMethods = false)
++@EnableWebSecurity
++@ConditionalOnProperty(name = "arcvera.bootstrap.explicit-https", havingValue = "true")
++public class LocalHttpsConfiguration {
++    @Bean
++    WebServerFactoryCustomizer<ConfigurableWebServerFactory> localHttpsServer(LocalTlsMaterial material) {
++        return factory -> {
++            try {
++                factory.setAddress(InetAddress.getByAddress(new byte[]{127, 0, 0, 1}));
++            } catch (java.net.UnknownHostException impossible) {
++                throw new IllegalStateException("Invalid loopback bytes", impossible);
++            }
++            factory.setPort(0);
++            var bundles = new DefaultSslBundleRegistry("arcvera-local", material.serverBundle());
++            factory.setSslBundles(bundles);
++            var ssl = Ssl.forBundle("arcvera-local");
++            ssl.setEnabledProtocols(new String[]{"TLSv1.3", "TLSv1.2"});
++            factory.setSsl(ssl);
++        };
++    }
++
++    @Bean
++    SecurityFilterChain localSecurity(HttpSecurity http, OpaqueTokenIntrospector introspector) throws Exception {
++        http.authorizeHttpRequests(authorize -> authorize
++                        .requestMatchers(LocalHttpsConfiguration::invalidAuthority).denyAll()
++                        .anyRequest().authenticated())
++                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
++                .requestCache(cache -> cache.disable())
++                .httpBasic(basic -> basic.disable())
++                .formLogin(form -> form.disable())
++                .oauth2ResourceServer(oauth -> oauth.opaqueToken(opaque -> opaque.introspector(introspector)));
++        return http.build();
++    }
++
++    private static boolean invalidAuthority(HttpServletRequest request) {
++        var hosts = Collections.list(request.getHeaders("Host"));
++        return hosts.size() != 1 || !("127.0.0.1:" + request.getLocalPort()).equals(hosts.getFirst())
++                || !"127.0.0.1".equals(request.getServerName())
++                || request.getServerPort() != request.getLocalPort() || request.getHeader("Origin") != null;
++    }
++}
+diff --git a/java/src/main/java/io/arcvera/core/bootstrap/LocalTlsMaterial.java b/java/src/main/java/io/arcvera/core/bootstrap/LocalTlsMaterial.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..e98f1a3cf6a52dd1c9d546a30529a0052f6c4bfc
+--- /dev/null
++++ b/java/src/main/java/io/arcvera/core/bootstrap/LocalTlsMaterial.java
+@@ -0,0 +1,80 @@
++package io.arcvera.core.bootstrap;
++
++import java.math.BigInteger;
++import java.security.GeneralSecurityException;
++import java.security.KeyPairGenerator;
++import java.security.KeyStore;
++import java.security.MessageDigest;
++import java.security.SecureRandom;
++import java.security.cert.X509Certificate;
++import java.security.spec.ECGenParameterSpec;
++import java.time.Clock;
++import java.time.Duration;
++import java.util.Base64;
++import java.util.Date;
++import java.util.HexFormat;
++import java.util.Objects;
++import org.bouncycastle.asn1.x500.X500Name;
++import org.bouncycastle.asn1.x509.BasicConstraints;
++import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
++import org.bouncycastle.asn1.x509.Extension;
++import org.bouncycastle.asn1.x509.GeneralName;
++import org.bouncycastle.asn1.x509.GeneralNames;
++import org.bouncycastle.asn1.x509.KeyPurposeId;
++import org.bouncycastle.asn1.x509.KeyUsage;
++import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
++import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
++import org.bouncycastle.operator.OperatorCreationException;
++import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
++import org.springframework.boot.ssl.SslBundle;
++import org.springframework.boot.ssl.SslBundleKey;
++import org.springframework.boot.ssl.SslStoreBundle;
++
++/** A process-local TLS identity. Its private key is never exported into the descriptor. */
++public final class LocalTlsMaterial {
++    private final X509Certificate certificate;
++    private final SslBundle serverBundle;
++    private final String numericLoopback;
++
++    public LocalTlsMaterial(Clock clock, SecureRandom random, String numericLoopback)
++            throws GeneralSecurityException, java.io.IOException, OperatorCreationException {
++        Objects.requireNonNull(clock);
++        Objects.requireNonNull(random);
++        if (!"127.0.0.1".equals(numericLoopback) && !"::1".equals(numericLoopback)) {
++            throw new IllegalArgumentException("Numeric loopback address required");
++        }
++        this.numericLoopback = numericLoopback;
++        var generator = KeyPairGenerator.getInstance("EC");
++        generator.initialize(new ECGenParameterSpec("secp256r1"), random);
++        var keyPair = generator.generateKeyPair();
++        var subject = new X500Name("CN=Arcvera local instance");
++        var now = clock.instant();
++        var builder = new JcaX509v3CertificateBuilder(subject, new BigInteger(128, random).setBit(127),
++                Date.from(now.minusSeconds(30)), Date.from(now.plus(Duration.ofDays(1))), subject, keyPair.getPublic());
++        builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(false));
++        builder.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature));
++        builder.addExtension(Extension.extendedKeyUsage, false, new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth));
++        builder.addExtension(Extension.subjectAlternativeName, false,
++                new GeneralNames(new GeneralName(GeneralName.iPAddress, numericLoopback)));
++        var signer = new JcaContentSignerBuilder("SHA256withECDSA").setSecureRandom(random).build(keyPair.getPrivate());
++        certificate = new JcaX509CertificateConverter().getCertificate(builder.build(signer));
++        byte[] passwordBytes = new byte[32];
++        random.nextBytes(passwordBytes);
++        String password = Base64.getUrlEncoder().withoutPadding().encodeToString(passwordBytes);
++        var store = KeyStore.getInstance("PKCS12");
++        store.load(null, null);
++        store.setKeyEntry("arcvera", keyPair.getPrivate(), password.toCharArray(), new java.security.cert.Certificate[]{certificate});
++        serverBundle = SslBundle.of(SslStoreBundle.of(store, password, null), SslBundleKey.of(password, "arcvera"));
++    }
++
++    public X509Certificate certificate() { return certificate; }
++    public String numericLoopback() { return numericLoopback; }
++    public SslBundle serverBundle() { return serverBundle; }
++    public String trustAnchorDer() throws GeneralSecurityException {
++        return Base64.getEncoder().encodeToString(certificate.getEncoded());
++    }
++    public String spkiSha256() throws GeneralSecurityException {
++        return "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(certificate.getPublicKey().getEncoded()));
++    }
++    @Override public String toString() { return "LocalTlsMaterial[redacted]"; }
++}
+diff --git a/java/src/main/java/io/arcvera/core/bootstrap/WindowsProfileLock.java b/java/src/main/java/io/arcvera/core/bootstrap/WindowsProfileLock.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..29fa958a815b85fdb1095c491f365fd55b417f48
+--- /dev/null
++++ b/java/src/main/java/io/arcvera/core/bootstrap/WindowsProfileLock.java
+@@ -0,0 +1,331 @@
++package io.arcvera.core.bootstrap;
++
++import com.sun.jna.Memory;
++import com.sun.jna.Native;
++import com.sun.jna.Platform;
++import com.sun.jna.Pointer;
++import com.sun.jna.platform.win32.Advapi32;
++import com.sun.jna.platform.win32.Advapi32Util;
++import com.sun.jna.platform.win32.Kernel32;
++import com.sun.jna.platform.win32.WinBase;
++import com.sun.jna.platform.win32.WinDef.DWORD;
++import com.sun.jna.platform.win32.WinNT;
++import com.sun.jna.ptr.IntByReference;
++import com.sun.jna.ptr.PointerByReference;
++import com.sun.jna.win32.StdCallLibrary;
++import com.sun.jna.win32.W32APIOptions;
++import java.io.IOException;
++import java.nio.file.Path;
++import java.security.MessageDigest;
++import java.security.NoSuchAlgorithmException;
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.List;
++import java.util.Objects;
++import java.util.UUID;
++
++/** Owns an exclusive profile lock and the non-delete-sharing ancestor handles until close. */
++public final class WindowsProfileLock implements AutoCloseable {
++    private static final int READ_CONTROL = 0x00020000;
++    private static final int FILE_READ_ATTRIBUTES = 0x80;
++    private static final int SHARE_READ_WRITE = 3;
++    private static final int OPEN_EXISTING = 3;
++    private static final int OPEN_ALWAYS = 4;
++    private static final int OPEN_REPARSE = 0x00200000;
++    private static final int BACKUP_SEMANTICS = 0x02000000;
++    private static final int ATTR_DIRECTORY = 0x10;
++    private static final int ATTR_REPARSE = 0x400;
++    private static final int FILE_ATTRIBUTE_TAG_INFO = 9;
++    private static final int FILE_STANDARD_INFO = 1;
++    private static final int FILE_ID_INFO = 18;
++    private static final int FILE_DISPOSITION_INFO = 4;
++    private final List<WinNT.HANDLE> handles = new ArrayList<>();
++    private final Path directory;
++    private final String sid;
++    private final UUID profileId;
++    private boolean closed;
++    private byte[] ownedId;
++    private byte[] ownedDigest;
++
++    public interface SecurityApi extends StdCallLibrary {
++        boolean ConvertStringSecurityDescriptorToSecurityDescriptorW(String sddl, int revision,
++                PointerByReference descriptor, IntByReference size);
++    }
++
++    public WindowsProfileLock(Path home, UUID profileId) throws IOException {
++        Objects.requireNonNull(home);
++        Objects.requireNonNull(profileId);
++        this.profileId = profileId;
++        if (!Platform.isWindows()) throw new IOException("Windows profile protection unavailable");
++        if (!home.isAbsolute() || !home.normalize().equals(home)) throw new IOException("Home must be an absolute normalized path");
++        sid = currentSid();
++        directory = home.resolve("runtime").resolve("core2").resolve(profileId.toString());
++        Pointer security = null;
++        try {
++            var api = Native.load("Advapi32", SecurityApi.class, W32APIOptions.UNICODE_OPTIONS);
++            var descriptor = new PointerByReference();
++            String sddl = "O:" + sid + "D:P(A;;FA;;;" + sid + ")(A;;FA;;;SY)";
++            if (!api.ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, descriptor, null)) throw error("Create security descriptor");
++            security = descriptor.getValue();
++            var attributes = new WinBase.SECURITY_ATTRIBUTES();
++            attributes.dwLength = new DWORD(attributes.size());
++            attributes.lpSecurityDescriptor = security;
++            attributes.bInheritHandle = false;
++            attributes.write();
++
++            Path part = home.getRoot();
++            holdDirectory(part, false);
++            for (Path name : home) {
++                part = part.resolve(name);
++                holdDirectory(part, false);
++            }
++            for (String name : List.of("runtime", "core2", profileId.toString())) {
++                part = part.resolve(name);
++                if (!Kernel32.INSTANCE.CreateDirectory(part.toString(), attributes)
++                        && Kernel32.INSTANCE.GetLastError() != 183) throw error("Create protected directory");
++                holdDirectory(part, true);
++            }
++            WinNT.HANDLE lock = Kernel32.INSTANCE.CreateFile(directory.resolve("profile.lock").toString(),
++                    WinNT.GENERIC_READ | WinNT.GENERIC_WRITE | READ_CONTROL, 0, attributes,
++                    OPEN_ALWAYS, OPEN_REPARSE, null);
++            if (WinBase.INVALID_HANDLE_VALUE.equals(lock)) throw error("Acquire profile lock");
++            handles.add(lock);
++            verifyType(lock, false);
++            verifySecurity(lock);
++            try (Memory standard = new Memory(24)) {
++                if (!Kernel32.INSTANCE.GetFileInformationByHandleEx(lock, FILE_STANDARD_INFO, standard, new DWORD(24))) throw error("Read lock file information");
++                if (standard.getLong(8) != 0 || standard.getInt(16) != 1 || standard.getByte(20) != 0) {
++                    throw new IOException("Profile lock is not an empty single-link file");
++                }
++            }
++        } catch (IOException | RuntimeException | Error failure) {
++            try { close(); } catch (IOException closeFailure) { failure.addSuppressed(closeFailure); }
++            throw failure;
++        } finally {
++            if (security != null) Kernel32.INSTANCE.LocalFree(security);
++        }
++    }
++
++    public Path directory() { return directory; }
++    public String sid() { return sid; }
++    public UUID profileId() { return profileId; }
++
++    /** Publishes only a new file or this lock holder's last verified file. */
++    synchronized void publish(byte[] contents) throws IOException {
++        Objects.requireNonNull(contents);
++        if (closed) throw new CredentialRegistry.PublicationNotCommittedException("Profile lock closed", null);
++        if (contents.length == 0 || contents.length > 65536) {
++            throw new CredentialRegistry.PublicationNotCommittedException("Descriptor size rejected", null);
++        }
++        Path target = directory.resolve("connection.json");
++        Path temporary = directory.resolve(".connection-" + UUID.randomUUID() + ".tmp");
++        Pointer security = null;
++        boolean created = false;
++        boolean moveAttempted = false;
++        byte[] tempId;
++        Throwable primary = null;
++        try {
++            var existing = inspect(target, true);
++            if (ownedId == null ? existing != null : existing == null || !Arrays.equals(ownedId, existing.id)
++                    || !MessageDigest.isEqual(ownedDigest, existing.digest)) {
++                throw new IOException("Descriptor conflict");
++            }
++            var api = Native.load("Advapi32", SecurityApi.class, W32APIOptions.UNICODE_OPTIONS);
++            var descriptor = new PointerByReference();
++            String sddl = "O:" + sid + "D:P(A;;FA;;;" + sid + ")(A;;FA;;;SY)";
++            if (!api.ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, descriptor, null)) throw error("Create security descriptor");
++            security = descriptor.getValue();
++            var attributes = new WinBase.SECURITY_ATTRIBUTES();
++            attributes.dwLength = new DWORD(attributes.size());
++            attributes.lpSecurityDescriptor = security;
++            attributes.bInheritHandle = false;
++            attributes.write();
++            var handle = Kernel32.INSTANCE.CreateFile(temporary.toString(), WinNT.GENERIC_READ | WinNT.GENERIC_WRITE | READ_CONTROL,
++                    0, attributes, 1, OPEN_REPARSE, null);
++            if (WinBase.INVALID_HANDLE_VALUE.equals(handle)) throw error("Create protected temporary descriptor");
++            created = true;
++            try {
++                verifyType(handle, false);
++                verifySecurity(handle);
++                verifySingleLink(handle);
++                tempId = fileId(handle);
++                var written = new IntByReference();
++                if (!Kernel32.INSTANCE.WriteFile(handle, contents, contents.length, written, null) || written.getValue() != contents.length) {
++                    throw error("Write descriptor");
++                }
++                if (!Kernel32.INSTANCE.FlushFileBuffers(handle)) throw error("Flush descriptor");
++            } finally {
++                if (!Kernel32.INSTANCE.CloseHandle(handle)) throw error("Close descriptor temporary file");
++            }
++            moveAttempted = true;
++            if (!Kernel32.INSTANCE.MoveFileEx(temporary.toString(), target.toString(), new DWORD(9))) throw error("Replace descriptor");
++            created = false;
++            var published = inspect(target, false);
++            if (!Arrays.equals(tempId, published.id) || !MessageDigest.isEqual(digest(contents), published.digest)) throw new IOException("Published descriptor mismatch");
++            ownedId = published.id;
++            ownedDigest = published.digest;
++        } catch (IOException failure) {
++            IOException result = moveAttempted ? failure
++                    : new CredentialRegistry.PublicationNotCommittedException("Descriptor was not replaced", failure);
++            primary = result;
++            throw result;
++        } catch (RuntimeException | Error failure) {
++            primary = failure;
++            throw failure;
++        } finally {
++            IOException cleanup = null;
++            if (created && !Kernel32.INSTANCE.DeleteFile(temporary.toString()) && Kernel32.INSTANCE.GetLastError() != 2)
++                cleanup = error("Remove unpublished descriptor temporary file");
++            if (security != null) Kernel32.INSTANCE.LocalFree(security);
++            if (cleanup != null) {
++                if (primary != null) primary.addSuppressed(cleanup); else throw cleanup;
++            }
++        }
++    }
++
++    private record FileObservation(byte[] id, byte[] digest) { }
++
++    synchronized void withdraw() throws IOException {
++        if (closed) throw new IOException("Profile lock closed");
++        if (ownedId == null) return;
++        var handle = Kernel32.INSTANCE.CreateFile(directory.resolve("connection.json").toString(),
++                WinNT.GENERIC_READ | READ_CONTROL | 0x00010000, 7, null, OPEN_EXISTING, OPEN_REPARSE, null);
++        if (WinBase.INVALID_HANDLE_VALUE.equals(handle)) throw error("Open owned descriptor for withdrawal");
++        try {
++            FileObservation current = observe(handle);
++            if (!Arrays.equals(ownedId, current.id) || !MessageDigest.isEqual(ownedDigest, current.digest)) {
++                throw new IOException("Descriptor changed; withdrawal refused");
++            }
++            try (Memory disposition = new Memory(1)) {
++                disposition.setByte(0, (byte) 1);
++                if (!Kernel32.INSTANCE.SetFileInformationByHandle(handle, FILE_DISPOSITION_INFO, disposition, new DWORD(1))) {
++                    throw error("Withdraw descriptor");
++                }
++            }
++        } finally {
++            if (!Kernel32.INSTANCE.CloseHandle(handle)) throw error("Close withdrawn descriptor");
++        }
++        ownedId = null;
++        ownedDigest = null;
++    }
++
++    private FileObservation inspect(Path path, boolean allowMissing) throws IOException {
++        var handle = Kernel32.INSTANCE.CreateFile(path.toString(), WinNT.GENERIC_READ | READ_CONTROL,
++                7, null, OPEN_EXISTING, OPEN_REPARSE, null);
++        if (WinBase.INVALID_HANDLE_VALUE.equals(handle)) {
++            if (allowMissing && Kernel32.INSTANCE.GetLastError() == 2) return null;
++            throw error("Open descriptor");
++        }
++        try {
++            return observe(handle);
++        } finally {
++            if (!Kernel32.INSTANCE.CloseHandle(handle)) throw error("Close descriptor");
++        }
++    }
++
++    private FileObservation observe(WinNT.HANDLE handle) throws IOException {
++        verifyType(handle, false);
++        verifySecurity(handle);
++        int length = verifySingleLink(handle);
++        if (length < 1 || length > 65536) throw new IOException("Descriptor size rejected");
++        byte[] bytes = new byte[length];
++        try {
++            var read = new IntByReference();
++            if (!Kernel32.INSTANCE.ReadFile(handle, bytes, length, read, null) || read.getValue() != length) throw error("Read descriptor");
++            return new FileObservation(fileId(handle), digest(bytes));
++        } finally { Arrays.fill(bytes, (byte) 0); }
++    }
++
++    private static byte[] fileId(WinNT.HANDLE handle) throws IOException {
++        try (Memory identity = new Memory(24)) {
++            if (!Kernel32.INSTANCE.GetFileInformationByHandleEx(handle, FILE_ID_INFO, identity, new DWORD(24))) throw error("Read descriptor identity");
++            return identity.getByteArray(0, 24);
++        }
++    }
++
++    private static int verifySingleLink(WinNT.HANDLE handle) throws IOException {
++        try (Memory info = new Memory(24)) {
++            if (!Kernel32.INSTANCE.GetFileInformationByHandleEx(handle, FILE_STANDARD_INFO, info, new DWORD(24))) throw error("Read file information");
++            long length = info.getLong(8);
++            if (info.getInt(16) != 1 || info.getByte(20) != 0 || length < 0 || length > 65536) {
++                throw new IOException("Descriptor is not a bounded single-link file");
++            }
++            return (int) length;
++        }
++    }
++
++    private static byte[] digest(byte[] contents) {
++        try { return MessageDigest.getInstance("SHA-256").digest(contents); }
++        catch (NoSuchAlgorithmException e) { throw new IllegalStateException("SHA-256 unavailable", e); }
++    }
++
++    private void holdDirectory(Path path, boolean protectedDirectory) throws IOException {
++        WinNT.HANDLE handle = Kernel32.INSTANCE.CreateFile(path.toString(), READ_CONTROL | FILE_READ_ATTRIBUTES,
++                SHARE_READ_WRITE, null, OPEN_EXISTING, OPEN_REPARSE | BACKUP_SEMANTICS, null);
++        if (WinBase.INVALID_HANDLE_VALUE.equals(handle)) throw error("Open directory");
++        handles.add(handle);
++        verifyType(handle, true);
++        if (protectedDirectory) verifySecurity(handle);
++    }
++
++    private static void verifyType(WinNT.HANDLE handle, boolean directory) throws IOException {
++        try (Memory info = new Memory(8)) {
++            if (!Kernel32.INSTANCE.GetFileInformationByHandleEx(handle, FILE_ATTRIBUTE_TAG_INFO, info, new DWORD(8))) throw error("Read file attributes");
++            int attributes = info.getInt(0);
++            if ((attributes & ATTR_REPARSE) != 0 || ((attributes & ATTR_DIRECTORY) != 0) != directory) {
++                throw new IOException("Reparse point or unexpected file type");
++            }
++        }
++    }
++
++    private void verifySecurity(WinNT.HANDLE handle) throws IOException {
++        var sd = new PointerByReference();
++        int result = Advapi32.INSTANCE.GetSecurityInfo(handle, 1, 5, null, null, null, null, sd);
++        if (result != 0) throw new IOException("Read security descriptor failed: " + result);
++        try {
++            var descriptor = new WinNT.SECURITY_DESCRIPTOR_RELATIVE(sd.getValue());
++            if ((descriptor.Control & 0x1000) == 0 || descriptor.getOwner() == null
++                    || !sid.equals(Advapi32Util.convertSidToStringSid(descriptor.getOwner()))) {
++                throw new IOException("Unexpected owner or unprotected DACL");
++            }
++            var acl = descriptor.getDiscretionaryACL();
++            if (acl == null) throw new IOException("Missing DACL");
++            var entries = acl.getACEs();
++            boolean user = false;
++            boolean system = false;
++            for (var ace : entries) {
++                if (!(ace instanceof WinNT.ACCESS_ALLOWED_ACE allowed) || ace.AceFlags != 0) throw new IOException("Unexpected DACL entry");
++                String aceSid = allowed.getSidString();
++                if (sid.equals(aceSid)) user = true;
++                else if ("S-1-5-18".equals(aceSid)) system = true;
++                else throw new IOException("Unexpected DACL principal");
++            }
++            if (entries.length != 2 || !user || !system) throw new IOException("Incomplete protected DACL");
++        } finally {
++            Kernel32.INSTANCE.LocalFree(sd.getValue());
++        }
++    }
++
++    private static String currentSid() throws IOException {
++        var token = new WinNT.HANDLEByReference();
++        if (!Advapi32.INSTANCE.OpenProcessToken(Kernel32.INSTANCE.GetCurrentProcess(), WinNT.TOKEN_QUERY, token)) throw error("Open process token");
++        try { return Advapi32Util.getTokenAccount(token.getValue()).sidString; }
++        finally { if (!Kernel32.INSTANCE.CloseHandle(token.getValue())) throw error("Close process token"); }
++    }
++
++    private static IOException error(String operation) { return new IOException(operation + " failed with Windows error " + Kernel32.INSTANCE.GetLastError()); }
++
++    @Override public synchronized void close() throws IOException {
++        if (closed) return;
++        closed = true;
++        IOException failure = null;
++        for (int i = handles.size() - 1; i >= 0; i--) {
++            if (!Kernel32.INSTANCE.CloseHandle(handles.get(i))) {
++                IOException next = error("Close profile handle");
++                if (failure == null) failure = next; else failure.addSuppressed(next);
++            }
++        }
++        handles.clear();
++        if (failure != null) throw failure;
 +    }
 +}
 diff --git a/java/src/main/java/io/arcvera/core/domain/ExecutionTurn.java b/java/src/main/java/io/arcvera/core/domain/ExecutionTurn.java
@@ -27802,14 +28507,219 @@ index 0000000000000000000000000000000000000000..7238e8aab5e613c4b770f0bab0a4c655
 +    private ExecutionTurn turn(UUID id) { var value = turns.get(id); if (value == null) throw new IllegalArgumentException("unknown turn"); return value; }
 +    private void require(State expected) { if (state != expected) throw new IllegalStateException("unexpected task state: " + state); }
 +}
+diff --git a/java/src/main/java/io/arcvera/core/lease/InputLeaseStore.java b/java/src/main/java/io/arcvera/core/lease/InputLeaseStore.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..06e9ed76da61491e1b417dec73be797ef1347d0b
+--- /dev/null
++++ b/java/src/main/java/io/arcvera/core/lease/InputLeaseStore.java
+@@ -0,0 +1,198 @@
++package io.arcvera.core.lease;
++
++import io.arcvera.core.store.OperationIdentityService;
++import java.time.Clock;
++import java.time.Duration;
++import java.time.Instant;
++import java.time.LocalDateTime;
++import java.time.ZoneOffset;
++import java.time.temporal.ChronoUnit;
++import java.util.Objects;
++import java.util.Optional;
++import java.util.UUID;
++import org.springframework.dao.DataIntegrityViolationException;
++import org.springframework.jdbc.core.simple.JdbcClient;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.PlatformTransactionManager;
++import org.springframework.transaction.support.TransactionSynchronizationManager;
++import org.springframework.transaction.support.TransactionTemplate;
++
++/** Caller supplies a principal already authenticated and authorized for the conversation. */
++@Service
++public final class InputLeaseStore {
++    public enum Mode { GUI, TERMINAL }
++    public enum State { HELD, RELEASED, EXPIRED }
++    public enum Action { ACQUIRE, RENEW, RELEASE }
++    public record Policy(Duration ttl, Duration maxAge, Duration futureTolerance, Duration grace, Duration retention) {
++        public Policy {
++            Objects.requireNonNull(ttl); Objects.requireNonNull(maxAge); Objects.requireNonNull(futureTolerance);
++            Objects.requireNonNull(grace); Objects.requireNonNull(retention);
++            if (ttl.isNegative() || ttl.isZero() || ttl.getNano() % 1_000_000 != 0 || maxAge.isNegative() || maxAge.isZero()
++                    || futureTolerance.isNegative() || grace.isNegative() || retention.compareTo(maxAge.plus(grace)) < 0)
++                throw new IllegalArgumentException("invalid lease policy");
++        }
++    }
++    public record Proof(UUID leaseId, long revision, UUID clientInstanceId) {
++        public Proof {
++            Objects.requireNonNull(leaseId); Objects.requireNonNull(clientInstanceId);
++            if (revision < 0) throw new IllegalArgumentException("negative revision");
++        }
++    }
++    public record Request(String principal, UUID operationId, Instant createdAt, String digest,
++                          UUID conversationId, long expectedRevision, UUID clientInstanceId,
++                          Action action, UUID leaseId, Mode mode) {
++        public Request {
++            Objects.requireNonNull(principal); Objects.requireNonNull(operationId); Objects.requireNonNull(createdAt);
++            Objects.requireNonNull(digest); Objects.requireNonNull(conversationId); Objects.requireNonNull(clientInstanceId);
++            Objects.requireNonNull(action);
++            if (principal.isBlank() || digest.isBlank() || expectedRevision < 0 || createdAt.getNano() % 1_000_000 != 0
++                    || (action == Action.ACQUIRE && (leaseId != null || mode == null))
++                    || (action != Action.ACQUIRE && (leaseId == null || mode != null))) throw new IllegalArgumentException("invalid request");
++        }
++    }
++    public record Lease(UUID conversationId, UUID leaseId, long revision, UUID clientInstanceId,
++                        Mode mode, State state, Instant expiresAt, Instant serverTime) { }
++    public static final class Conflict extends RuntimeException {
++        private static final long serialVersionUID = 1L;
++        public Conflict(String message) { super(message); }
++    }
++    private record Stored(Lease lease, String principal) { }
++    private record Outcome(Lease lease, String error) { }
++    private final JdbcClient jdbc;
++    private final OperationIdentityService identities;
++    private final TransactionTemplate transaction;
++    private final Clock clock;
++    private final Policy policy;
++    public InputLeaseStore(JdbcClient jdbc, OperationIdentityService identities, PlatformTransactionManager manager, Clock clock, Policy policy) {
++        this.jdbc = jdbc; this.identities = identities; this.transaction = new TransactionTemplate(manager); this.clock = clock; this.policy = policy;
++    }
++    public void initialize() {
++        jdbc.sql("CREATE TABLE input_lease (conversation_id CHAR(36) PRIMARY KEY REFERENCES conversation(id), lease_id CHAR(36) NOT NULL UNIQUE, revision BIGINT NOT NULL, principal VARCHAR(255) NOT NULL, client_id CHAR(36) NOT NULL, input_mode VARCHAR(16) NOT NULL CHECK (input_mode IN ('GUI','TERMINAL')), state VARCHAR(16) NOT NULL CHECK (state IN ('HELD','RELEASED')), expires_at TIMESTAMP NOT NULL)").update();
++        jdbc.sql("CREATE TABLE lease_receipt (id CHAR(36) PRIMARY KEY REFERENCES operation_identity(id), conversation_id CHAR(36) NOT NULL REFERENCES conversation(id), expected_revision BIGINT NOT NULL, requested_client CHAR(36) NOT NULL, requested_lease CHAR(36), requested_mode VARCHAR(16), lease_id CHAR(36) NOT NULL, revision BIGINT NOT NULL, client_id CHAR(36) NOT NULL, input_mode VARCHAR(16) NOT NULL, state VARCHAR(16) NOT NULL, expires_at TIMESTAMP NOT NULL, server_time TIMESTAMP NOT NULL)").update();
++    }
++    private Instant now() { return clock.instant().truncatedTo(ChronoUnit.MILLIS); }
++    private static LocalDateTime fields(Instant instant) { return LocalDateTime.ofInstant(instant, ZoneOffset.UTC); }
++    private static Instant instant(java.sql.ResultSet rs, String column) throws java.sql.SQLException {
++        return rs.getObject(column, LocalDateTime.class).toInstant(ZoneOffset.UTC);
++    }
++    private Optional<Stored> stored(UUID conversation) {
++        return jdbc.sql("SELECT * FROM input_lease WHERE conversation_id=:conversation").param("conversation", conversation.toString())
++                .query((rs, n) -> new Stored(new Lease(conversation, UUID.fromString(rs.getString("lease_id")), rs.getLong("revision"),
++                        UUID.fromString(rs.getString("client_id")), Mode.valueOf(rs.getString("input_mode")),
++                        State.valueOf(rs.getString("state")), instant(rs, "expires_at"), now()), rs.getString("principal"))).optional();
++    }
++    public Optional<Lease> query(UUID conversation) {
++        if (TransactionSynchronizationManager.isActualTransactionActive()) throw new IllegalStateException("query must own its transaction");
++        return Objects.requireNonNull(transaction.execute(status -> {
++            Instant time = observe(conversation);
++            return stored(conversation).map(s -> project(s.lease(), time));
++        }));
++    }
++    private static Lease project(Lease lease, Instant time) {
++        State state = lease.state() == State.HELD && !time.isBefore(lease.expiresAt()) ? State.EXPIRED : lease.state();
++        return new Lease(lease.conversationId(), lease.leaseId(), lease.revision(), lease.clientInstanceId(), lease.mode(), state, lease.expiresAt(), time);
++    }
++    public Lease change(Request request) {
++        if (TransactionSynchronizationManager.isActualTransactionActive()) throw new IllegalStateException("change must own its transaction");
++        Instant time = now();
++        if (request.createdAt().isBefore(time.minus(policy.maxAge())) || request.createdAt().isAfter(time.plus(policy.futureTolerance())))
++            throw new IllegalArgumentException("request outside time window");
++        try {
++            Outcome outcome = Objects.requireNonNull(transaction.execute(status -> apply(request)));
++            if (outcome.error() != null) throw new Conflict(outcome.error());
++            return outcome.lease();
++        } catch (DataIntegrityViolationException failure) {
++            var existing = identities.find(request.principal(), request.operationId());
++            if (existing.isEmpty()) throw failure;
++            return replay(request, existing.get());
++        }
++    }
++    private Outcome apply(Request request) {
++        var existing = identities.find(request.principal(), request.operationId());
++        if (existing.isPresent()) return new Outcome(replay(request, existing.get()), null);
++        UUID identity = identities.reserve(request.principal(), request.operationId(), request.action().name(), request.createdAt(), request.digest());
++        Instant time;
++        Optional<Stored> current;
++        long oldRevision;
++        try {
++            time = observe(request.conversationId());
++            current = stored(request.conversationId());
++            oldRevision = current.map(s -> s.lease().revision()).orElse(0L);
++            if (oldRevision != request.expectedRevision() || oldRevision == Long.MAX_VALUE) throw new Conflict("stale revision");
++            if (request.action() == Action.ACQUIRE) {
++                if (current.isPresent() && project(current.get().lease(), time).state() == State.HELD) throw new Conflict("lease held");
++            } else {
++                if (current.isEmpty()) throw new Conflict("lease absent");
++                Stored s = current.get();
++                if (!s.principal().equals(request.principal()) || !s.lease().clientInstanceId().equals(request.clientInstanceId())
++                        || !s.lease().leaseId().equals(request.leaseId()) || project(s.lease(), time).state() != State.HELD)
++                    throw new Conflict("lease proof rejected");
++            }
++        } catch (Conflict rejected) {
++            identities.discard(identity);
++            return new Outcome(null, rejected.getMessage());
++        }
++        UUID leaseId = request.action() == Action.ACQUIRE ? UUID.randomUUID() : request.leaseId();
++        Mode mode = request.action() == Action.ACQUIRE ? request.mode() : current.orElseThrow().lease().mode();
++        State state = request.action() == Action.RELEASE ? State.RELEASED : State.HELD;
++        Instant expires = request.action() == Action.RELEASE ? current.orElseThrow().lease().expiresAt() : time.plus(policy.ttl());
++        Lease result = new Lease(request.conversationId(), leaseId, oldRevision + 1, request.clientInstanceId(), mode, state, expires, time);
++        if (current.isEmpty()) {
++            jdbc.sql("INSERT INTO input_lease(conversation_id,lease_id,revision,principal,client_id,input_mode,state,expires_at) VALUES (:conversation,:lease,:revision,:principal,:client,:mode,:state,:expires)")
++                    .param("conversation", request.conversationId().toString()).param("lease", leaseId.toString()).param("revision", result.revision())
++                    .param("principal", request.principal()).param("client", request.clientInstanceId().toString()).param("mode", mode.name())
++                    .param("state", state.name()).param("expires", fields(expires)).update();
++        } else {
++            int changed = jdbc.sql("UPDATE input_lease SET lease_id=:lease,revision=:next,principal=:principal,client_id=:client,input_mode=:mode,state=:state,expires_at=:expires WHERE conversation_id=:conversation AND revision=:expected")
++                    .param("lease", leaseId.toString()).param("next", result.revision()).param("principal", request.principal())
++                    .param("client", request.clientInstanceId().toString()).param("mode", mode.name()).param("state", state.name())
++                    .param("expires", fields(expires)).param("conversation", request.conversationId().toString()).param("expected", oldRevision).update();
++            if (changed != 1) throw new Conflict("stale revision");
++        }
++        jdbc.sql("INSERT INTO lease_receipt(id,conversation_id,expected_revision,requested_client,requested_lease,requested_mode,lease_id,revision,client_id,input_mode,state,expires_at,server_time) VALUES (:id,:conversation,:expected,:requestedClient,:requestedLease,:requestedMode,:lease,:revision,:client,:mode,:state,:expires,:time)")
++                .param("id", identity.toString()).param("conversation", request.conversationId().toString()).param("expected", request.expectedRevision())
++                .param("requestedClient", request.clientInstanceId().toString()).param("requestedLease", request.leaseId() == null ? null : request.leaseId().toString())
++                .param("requestedMode", request.mode() == null ? null : request.mode().name()).param("lease", leaseId.toString()).param("revision", result.revision())
++                .param("client", result.clientInstanceId().toString()).param("mode", mode.name()).param("state", state.name())
++                .param("expires", fields(expires)).param("time", fields(time)).update();
++        return new Outcome(result, null);
++    }
++    public void lockConversation(UUID conversation) {
++        if (!TransactionSynchronizationManager.isActualTransactionActive()) throw new IllegalStateException("transaction required");
++        if (jdbc.sql("UPDATE conversation SET revision=revision WHERE id=:id").param("id", conversation.toString()).update() != 1)
++            throw new Conflict("conversation absent");
++    }
++    private Instant observe(UUID conversation) {
++        lockConversation(conversation);
++        Instant time = now();
++        LocalDateTime previous = jdbc.sql("SELECT COALESCE(lease_observed_at,:time) FROM conversation WHERE id=:id")
++                .param("time", fields(time)).param("id", conversation.toString())
++                .query((rs, row) -> rs.getObject(1, LocalDateTime.class)).single();
++        if (time.isBefore(previous.toInstant(ZoneOffset.UTC))) throw new Conflict("clock moved backwards");
++        jdbc.sql("UPDATE conversation SET lease_observed_at=:time WHERE id=:id").param("time", fields(time)).param("id", conversation.toString()).update();
++        return time;
++    }
++    /** Must run after lockConversation within the same transaction that records the input. */
++    public void requireProof(String principal, UUID conversation, Proof proof) {
++        if (!TransactionSynchronizationManager.isActualTransactionActive()) throw new IllegalStateException("transaction required");
++        Instant time = observe(conversation);
++        Stored s = stored(conversation).orElseThrow(() -> new Conflict("lease absent"));
++        if (!s.principal().equals(principal) || !s.lease().leaseId().equals(proof.leaseId())
++                || s.lease().revision() != proof.revision() || !s.lease().clientInstanceId().equals(proof.clientInstanceId())
++                || project(s.lease(), time).state() != State.HELD) throw new Conflict("lease proof rejected");
++    }
++    private Lease replay(Request request, OperationIdentityService.Identity identity) {
++        if (!identity.operation().equals(request.action().name()) || !identity.createdAt().equals(request.createdAt()) || !identity.digest().equals(request.digest()))
++            throw new Conflict("request identity conflict");
++        return jdbc.sql("SELECT * FROM lease_receipt WHERE id=:id").param("id", identity.id().toString()).query((rs, n) -> {
++            String requestedLease = rs.getString("requested_lease"); String requestedMode = rs.getString("requested_mode");
++            if (!rs.getString("conversation_id").equals(request.conversationId().toString()) || rs.getLong("expected_revision") != request.expectedRevision()
++                    || !rs.getString("requested_client").equals(request.clientInstanceId().toString())
++                    || !Objects.equals(requestedLease, request.leaseId() == null ? null : request.leaseId().toString())
++                    || !Objects.equals(requestedMode, request.mode() == null ? null : request.mode().name())) throw new Conflict("request identity conflict");
++            return new Lease(request.conversationId(), UUID.fromString(rs.getString("lease_id")), rs.getLong("revision"),
++                    UUID.fromString(rs.getString("client_id")), Mode.valueOf(rs.getString("input_mode")), State.valueOf(rs.getString("state")),
++                    instant(rs, "expires_at"), instant(rs, "server_time"));
++        }).optional().orElseThrow(() -> new Conflict("request identity conflict"));
++    }
++}
 diff --git a/java/src/main/java/io/arcvera/core/store/AcceptanceTransaction.java b/java/src/main/java/io/arcvera/core/store/AcceptanceTransaction.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..c0fd47bc89cee9d7401471db92583dd27b404bee
+index 0000000000000000000000000000000000000000..278ae7cb39c5fe3254e7a21ae299902e4f9a0c23
 --- /dev/null
 +++ b/java/src/main/java/io/arcvera/core/store/AcceptanceTransaction.java
-@@ -0,0 +1,38 @@
+@@ -0,0 +1,48 @@
 +package io.arcvera.core.store;
 +
++import io.arcvera.core.lease.InputLeaseStore;
 +import java.util.UUID;
 +import org.springframework.jdbc.core.simple.JdbcClient;
 +import org.springframework.stereotype.Service;
@@ -27818,21 +28728,28 @@ index 0000000000000000000000000000000000000000..c0fd47bc89cee9d7401471db92583dd2
 +/** Invoked through Spring's transaction proxy; duplicate recovery runs after rollback. */
 +@Service
 +public class AcceptanceTransaction {
++    public record Result(TaskAcceptanceStore.Receipt receipt, String error) { }
 +    private final JdbcClient jdbc;
 +    private final TaskRepository tasks;
 +    private final ReceiptRepository receipts;
 +    private final EventRepository events;
-+    AcceptanceTransaction(JdbcClient jdbc, TaskRepository tasks, ReceiptRepository receipts, EventRepository events) {
-+        this.jdbc = jdbc; this.tasks = tasks; this.receipts = receipts; this.events = events;
++    private final OperationIdentityService identities;
++    private final InputLeaseStore leases;
++    AcceptanceTransaction(JdbcClient jdbc, TaskRepository tasks, ReceiptRepository receipts, EventRepository events, OperationIdentityService identities, InputLeaseStore leases) {
++        this.jdbc = jdbc; this.tasks = tasks; this.receipts = receipts; this.events = events; this.identities = identities; this.leases = leases;
 +    }
 +    @Transactional
-+    public TaskAcceptanceStore.Receipt accept(TaskAcceptanceStore.Request request) {
++    public Result accept(TaskAcceptanceStore.Request request) {
 +        var prior = receipts.findReceipt(request.principal(), request.operationId().toString());
-+        if (prior.isPresent()) return TaskAcceptanceStore.sameReceipt(request, prior.get());
++        if (prior.isPresent()) return new Result(TaskAcceptanceStore.sameReceipt(request, prior.get()), null);
++        if (identities.find(request.principal(), request.operationId()).isPresent()) throw new TaskAcceptanceStore.Conflict("request identity conflict");
++        UUID identity = identities.reserve(request.principal(), request.operationId(), request.operation(), request.createdAt(), request.payloadDigest());
++        try { leases.requireProof(request.principal(), request.conversationId(), request.lease()); }
++        catch (InputLeaseStore.Conflict rejected) {
++            identities.discard(identity);
++            return new Result(null, rejected.getMessage());
++        }
 +        String conversation = request.conversationId().toString();
-+        var reservation = receipts.save(new ReceiptRow(UUID.randomUUID().toString(), null, request.principal(), request.operationId().toString(),
-+                request.operation(), TaskAcceptanceStore.utcFields(request.createdAt()), request.payloadDigest(), conversation,
-+                request.expectedRevision(), null, null, null));
 +        String task = UUID.randomUUID().toString();
 +        tasks.save(new TaskRow(task, null, conversation, "QUEUED"));
 +        int changed = jdbc.sql("UPDATE conversation SET revision=revision+1,durable_sequence=durable_sequence+1,active_task=:task WHERE id=:conversation AND revision=:revision AND active_task IS NULL")
@@ -27841,9 +28758,11 @@ index 0000000000000000000000000000000000000000..c0fd47bc89cee9d7401471db92583dd2
 +        long sequence = jdbc.sql("SELECT durable_sequence FROM conversation WHERE id=:conversation").param("conversation", conversation).query(Long.class).single();
 +        long revision = request.expectedRevision() + 1;
 +        events.save(new EventRow(UUID.randomUUID().toString(), null, conversation, sequence, task));
-+        receipts.save(new ReceiptRow(reservation.id(), reservation.rowVersion(), reservation.principal(), reservation.operationId(), reservation.operation(),
-+                reservation.createdAt(), reservation.payloadDigest(), reservation.conversationId(), reservation.expectedRevision(), task, revision, sequence));
-+        return new TaskAcceptanceStore.Receipt(UUID.fromString(task), request.conversationId(), revision, sequence);
++        jdbc.sql("INSERT INTO request_receipt(id,row_version,conversation_id,expected_revision,proof_lease,proof_revision,proof_client,task_id,revision,sequence) VALUES (:id,0,:conversation,:expected,:lease,:leaseRevision,:client,:task,:revision,:sequence)")
++                .param("id", identity.toString()).param("conversation", conversation).param("expected", request.expectedRevision())
++                .param("lease", request.lease().leaseId().toString()).param("leaseRevision", request.lease().revision()).param("client", request.lease().clientInstanceId().toString())
++                .param("task", task).param("revision", revision).param("sequence", sequence).update();
++        return new Result(new TaskAcceptanceStore.Receipt(UUID.fromString(task), request.conversationId(), revision, sequence), null);
 +    }
 +}
 diff --git a/java/src/main/java/io/arcvera/core/store/ConversationRepository.java b/java/src/main/java/io/arcvera/core/store/ConversationRepository.java
@@ -27890,27 +28809,70 @@ index 0000000000000000000000000000000000000000..191ad901133da5fb1e61884deaa7e035
 +import org.springframework.data.relational.core.mapping.Column;
 +@Table("journal_event")
 +record EventRow(@Id @Column("id") String id, @Version @Column("row_version") Long rowVersion, @Column("conversation_id") String conversationId, @Column("sequence") long sequence, @Column("task_id") String taskId) { }
+diff --git a/java/src/main/java/io/arcvera/core/store/OperationIdentityService.java b/java/src/main/java/io/arcvera/core/store/OperationIdentityService.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..65abf951cef7df5452533293120b7a5e9cbb9e85
+--- /dev/null
++++ b/java/src/main/java/io/arcvera/core/store/OperationIdentityService.java
+@@ -0,0 +1,37 @@
++package io.arcvera.core.store;
++
++import java.time.Instant;
++import java.time.LocalDateTime;
++import java.time.ZoneOffset;
++import java.util.Optional;
++import java.util.UUID;
++import org.springframework.jdbc.core.simple.JdbcClient;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.support.TransactionSynchronizationManager;
++
++/** Global request identity. Reserve and complete a typed receipt in one transaction. */
++@Service
++public final class OperationIdentityService {
++    public record Identity(UUID id, String operation, Instant createdAt, String digest) { }
++    private final JdbcClient jdbc;
++    public OperationIdentityService(JdbcClient jdbc) { this.jdbc = jdbc; }
++    public Optional<Identity> find(String principal, UUID operationId) {
++        return jdbc.sql("SELECT id,operation,created_at,payload_digest FROM operation_identity WHERE principal=:principal AND operation_id=:operationId")
++                .param("principal", principal).param("operationId", operationId.toString())
++                .query((rs, n) -> new Identity(UUID.fromString(rs.getString(1)), rs.getString(2),
++                        rs.getObject(3, LocalDateTime.class).toInstant(ZoneOffset.UTC), rs.getString(4))).optional();
++    }
++    public UUID reserve(String principal, UUID operationId, String operation, Instant createdAt, String digest) {
++        if (!TransactionSynchronizationManager.isActualTransactionActive()) throw new IllegalStateException("transaction required");
++        UUID id = UUID.randomUUID();
++        jdbc.sql("INSERT INTO operation_identity(id,principal,operation_id,operation,created_at,payload_digest) VALUES (:id,:principal,:operationId,:operation,:createdAt,:digest)")
++                .param("id", id.toString()).param("principal", principal).param("operationId", operationId.toString())
++                .param("operation", operation).param("createdAt", LocalDateTime.ofInstant(createdAt, ZoneOffset.UTC)).param("digest", digest).update();
++        return id;
++    }
++    public void discard(UUID id) {
++        if (!TransactionSynchronizationManager.isActualTransactionActive()) throw new IllegalStateException("transaction required");
++        if (jdbc.sql("DELETE FROM operation_identity WHERE id=:id").param("id", id.toString()).update() != 1)
++            throw new IllegalStateException("reservation missing");
++    }
++}
 diff --git a/java/src/main/java/io/arcvera/core/store/ReceiptRepository.java b/java/src/main/java/io/arcvera/core/store/ReceiptRepository.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..b8645f72a3e92890975148f70887ae000126bcab
+index 0000000000000000000000000000000000000000..f742d59ed6cb3240993afad58a211f51d616956b
 --- /dev/null
 +++ b/java/src/main/java/io/arcvera/core/store/ReceiptRepository.java
 @@ -0,0 +1,9 @@
 +package io.arcvera.core.store;
 +import java.util.Optional;
 +import org.springframework.data.jdbc.repository.query.Query;
-+import org.springframework.data.repository.CrudRepository;
++import org.springframework.data.repository.Repository;
 +import org.springframework.data.repository.query.Param;
-+interface ReceiptRepository extends CrudRepository<ReceiptRow, String> {
-+    @Query(value = "SELECT * FROM request_receipt WHERE principal = :principal AND operation_id = :operationId", rowMapperClass = ReceiptRowMapper.class)
++interface ReceiptRepository extends Repository<ReceiptRow, String> {
++    @Query(value = "SELECT r.id,r.row_version,i.principal,i.operation_id,i.operation,i.created_at,i.payload_digest,r.conversation_id,r.expected_revision,r.proof_lease,r.proof_revision,r.proof_client,r.task_id,r.revision,r.sequence FROM request_receipt r JOIN operation_identity i ON r.id=i.id WHERE i.principal = :principal AND i.operation_id = :operationId", rowMapperClass = ReceiptRowMapper.class)
 +    Optional<ReceiptRow> findReceipt(@Param("principal") String principal, @Param("operationId") String operationId);
 +}
 diff --git a/java/src/main/java/io/arcvera/core/store/ReceiptRow.java b/java/src/main/java/io/arcvera/core/store/ReceiptRow.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..ea518943fa9751d3b99dcdea840d3b942c7bed5f
+index 0000000000000000000000000000000000000000..6af5c9e3fcd1446c293be10cae007ac73fffb84c
 --- /dev/null
 +++ b/java/src/main/java/io/arcvera/core/store/ReceiptRow.java
-@@ -0,0 +1,12 @@
+@@ -0,0 +1,13 @@
 +package io.arcvera.core.store;
 +import java.time.LocalDateTime;
 +import org.springframework.data.annotation.Id;
@@ -27921,11 +28883,12 @@ index 0000000000000000000000000000000000000000..ea518943fa9751d3b99dcdea840d3b94
 +record ReceiptRow(@Id @Column("id") String id, @Version @Column("row_version") Long rowVersion, @Column("principal") String principal,
 +                  @Column("operation_id") String operationId, @Column("operation") String operation, @Column("created_at") LocalDateTime createdAt,
 +                  @Column("payload_digest") String payloadDigest, @Column("conversation_id") String conversationId,
-+                  @Column("expected_revision") long expectedRevision, @Column("task_id") String taskId,
++                  @Column("expected_revision") long expectedRevision, @Column("proof_lease") String proofLease,
++                  @Column("proof_revision") long proofRevision, @Column("proof_client") String proofClient, @Column("task_id") String taskId,
 +                  @Column("revision") Long revision, @Column("sequence") Long sequence) { }
 diff --git a/java/src/main/java/io/arcvera/core/store/ReceiptRowMapper.java b/java/src/main/java/io/arcvera/core/store/ReceiptRowMapper.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..d6a846a49f6d4c4f4836fcf1540ed86c5011a13d
+index 0000000000000000000000000000000000000000..dcdac117df9c06733aadac486ec26e6d54614a46
 --- /dev/null
 +++ b/java/src/main/java/io/arcvera/core/store/ReceiptRowMapper.java
 @@ -0,0 +1,16 @@
@@ -27942,17 +28905,18 @@ index 0000000000000000000000000000000000000000..d6a846a49f6d4c4f4836fcf1540ed86c
 +        return new ReceiptRow(row.getString("id"), row.getObject("row_version", Long.class), row.getString("principal"),
 +                row.getString("operation_id"), row.getString("operation"), row.getObject("created_at", LocalDateTime.class),
 +                row.getString("payload_digest"), row.getString("conversation_id"), row.getLong("expected_revision"),
-+                row.getString("task_id"), row.getObject("revision", Long.class), row.getObject("sequence", Long.class));
++                row.getString("proof_lease"), row.getLong("proof_revision"), row.getString("proof_client"), row.getString("task_id"), row.getObject("revision", Long.class), row.getObject("sequence", Long.class));
 +    }
 +}
 diff --git a/java/src/main/java/io/arcvera/core/store/TaskAcceptanceStore.java b/java/src/main/java/io/arcvera/core/store/TaskAcceptanceStore.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..8c289c4da63c2ae502fa527ce1a5d6cb477974dd
+index 0000000000000000000000000000000000000000..191b92483e6124cb98d63114360c1c87f36c88cf
 --- /dev/null
 +++ b/java/src/main/java/io/arcvera/core/store/TaskAcceptanceStore.java
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,100 @@
 +package io.arcvera.core.store;
 +
++import io.arcvera.core.lease.InputLeaseStore;
 +import java.time.Clock;
 +import java.time.Duration;
 +import java.time.Instant;
@@ -27976,10 +28940,10 @@ index 0000000000000000000000000000000000000000..8c289c4da63c2ae502fa527ce1a5d6cb
 +        }
 +    }
 +    public record Request(String principal, UUID operationId, String operation, Instant createdAt,
-+                          String payloadDigest, UUID conversationId, long expectedRevision) {
++                          String payloadDigest, UUID conversationId, long expectedRevision, InputLeaseStore.Proof lease) {
 +        public Request {
 +            Objects.requireNonNull(principal); Objects.requireNonNull(operationId); Objects.requireNonNull(operation);
-+            Objects.requireNonNull(createdAt); Objects.requireNonNull(payloadDigest); Objects.requireNonNull(conversationId);
++            Objects.requireNonNull(createdAt); Objects.requireNonNull(payloadDigest); Objects.requireNonNull(conversationId); Objects.requireNonNull(lease);
 +            if (principal.isBlank() || operation.isBlank() || payloadDigest.isBlank() || expectedRevision < 0
 +                    || createdAt.getNano() % 1_000_000 != 0) throw new IllegalArgumentException("invalid request");
 +        }
@@ -27994,20 +28958,22 @@ index 0000000000000000000000000000000000000000..8c289c4da63c2ae502fa527ce1a5d6cb
 +    private final ConversationRepository conversations;
 +    private final ReceiptRepository receipts;
 +    private final AcceptanceTransaction acceptance;
++    private final OperationIdentityService identities;
 +    private final Clock clock;
 +    private final Retention policy;
 +    TaskAcceptanceStore(JdbcClient jdbc, ConversationRepository conversations, ReceiptRepository receipts,
-+                        AcceptanceTransaction acceptance, Clock clock, Retention policy) {
++                        AcceptanceTransaction acceptance, OperationIdentityService identities, Clock clock, Retention policy) {
 +        this.jdbc = Objects.requireNonNull(jdbc); this.conversations = Objects.requireNonNull(conversations);
 +        this.receipts = Objects.requireNonNull(receipts); this.acceptance = Objects.requireNonNull(acceptance);
-+        this.clock = Objects.requireNonNull(clock); this.policy = Objects.requireNonNull(policy);
++        this.identities = Objects.requireNonNull(identities); this.clock = Objects.requireNonNull(clock); this.policy = Objects.requireNonNull(policy);
 +    }
 +    /** Initial schema only; schema provisioning and migration belong to deployment. */
 +    public void initialize() {
-+        jdbc.sql("CREATE TABLE conversation (id CHAR(36) PRIMARY KEY, revision BIGINT NOT NULL, durable_sequence BIGINT NOT NULL, active_task CHAR(36))").update();
++        jdbc.sql("CREATE TABLE conversation (id CHAR(36) PRIMARY KEY, revision BIGINT NOT NULL, durable_sequence BIGINT NOT NULL, active_task CHAR(36), lease_observed_at TIMESTAMP)").update();
 +        jdbc.sql("CREATE TABLE task_run (id CHAR(36) PRIMARY KEY, row_version BIGINT NOT NULL, conversation_id CHAR(36) NOT NULL REFERENCES conversation(id), state VARCHAR(32) NOT NULL CHECK (state IN ('QUEUED','RUNNING','SUSPENDED','CANCEL_REQUESTED','COMPLETED','CANCELLED','FAILED')), UNIQUE(id,conversation_id))").update();
 +        jdbc.sql("ALTER TABLE conversation ADD CONSTRAINT active_task_fk FOREIGN KEY (active_task,id) REFERENCES task_run(id,conversation_id)").update();
-+        jdbc.sql("CREATE TABLE request_receipt (id CHAR(36) PRIMARY KEY, row_version BIGINT NOT NULL, principal VARCHAR(255) NOT NULL, operation_id CHAR(36) NOT NULL, operation VARCHAR(255) NOT NULL, created_at TIMESTAMP NOT NULL, payload_digest VARCHAR(255) NOT NULL, conversation_id CHAR(36) NOT NULL REFERENCES conversation(id), expected_revision BIGINT NOT NULL, task_id CHAR(36) REFERENCES task_run(id), revision BIGINT, sequence BIGINT, UNIQUE(principal,operation_id))").update();
++        jdbc.sql("CREATE TABLE operation_identity (id CHAR(36) PRIMARY KEY, principal VARCHAR(255) NOT NULL, operation_id CHAR(36) NOT NULL, operation VARCHAR(255) NOT NULL, created_at TIMESTAMP NOT NULL, payload_digest VARCHAR(255) NOT NULL, UNIQUE(principal,operation_id))").update();
++        jdbc.sql("CREATE TABLE request_receipt (id CHAR(36) PRIMARY KEY REFERENCES operation_identity(id), row_version BIGINT NOT NULL, conversation_id CHAR(36) NOT NULL REFERENCES conversation(id), expected_revision BIGINT NOT NULL, proof_lease CHAR(36) NOT NULL, proof_revision BIGINT NOT NULL, proof_client CHAR(36) NOT NULL, task_id CHAR(36) NOT NULL REFERENCES task_run(id), revision BIGINT NOT NULL, sequence BIGINT NOT NULL)").update();
 +        jdbc.sql("CREATE TABLE journal_event (id CHAR(36) PRIMARY KEY, row_version BIGINT NOT NULL, conversation_id CHAR(36) NOT NULL REFERENCES conversation(id), sequence BIGINT NOT NULL, task_id CHAR(36) NOT NULL REFERENCES task_run(id), UNIQUE(conversation_id,sequence))").update();
 +    }
 +    public void createConversation(UUID id) { conversations.save(new ConversationRow(id.toString(), null, 0, null)); }
@@ -28017,17 +28983,25 @@ index 0000000000000000000000000000000000000000..8c289c4da63c2ae502fa527ce1a5d6cb
 +        Instant now = clock.instant();
 +        if (request.createdAt().isBefore(now.minus(policy.maxAge())) || request.createdAt().isAfter(now.plus(policy.futureTolerance())))
 +            throw new IllegalArgumentException("request outside time window");
-+        try { return acceptance.accept(request); }
++        try {
++            var result = acceptance.accept(request);
++            if (result.error() != null) throw new InputLeaseStore.Conflict(result.error());
++            return result.receipt();
++        }
 +        catch (DataIntegrityViolationException failure) {
 +            var prior = receipts.findReceipt(request.principal(), request.operationId().toString());
-+            if (prior.isEmpty()) throw failure;
++            if (prior.isEmpty()) {
++                if (identities.find(request.principal(), request.operationId()).isPresent()) throw new Conflict("request identity conflict");
++                throw failure;
++            }
 +            return sameReceipt(request, prior.get());
 +        }
 +    }
 +    static Receipt sameReceipt(Request request, ReceiptRow stored) {
 +        if (!stored.operation().equals(request.operation()) || !stored.createdAt().toInstant(ZoneOffset.UTC).equals(request.createdAt())
 +                || !stored.payloadDigest().equals(request.payloadDigest()) || !stored.conversationId().equals(request.conversationId().toString())
-+                || stored.expectedRevision() != request.expectedRevision()) throw new Conflict("request identity conflict");
++                || stored.expectedRevision() != request.expectedRevision() || !stored.proofLease().equals(request.lease().leaseId().toString())
++                || stored.proofRevision() != request.lease().revision() || !stored.proofClient().equals(request.lease().clientInstanceId().toString())) throw new Conflict("request identity conflict");
 +        if (stored.taskId() == null || stored.revision() == null || stored.sequence() == null) throw new IllegalStateException("incomplete receipt");
 +        return new Receipt(UUID.fromString(stored.taskId()), UUID.fromString(stored.conversationId()), stored.revision(), stored.sequence());
 +    }
@@ -28062,12 +29036,147 @@ index 0000000000000000000000000000000000000000..84d9dc7e67a4d0497d8900244e9a3721
 +import org.springframework.data.relational.core.mapping.Column;
 +@Table("task_run")
 +record TaskRow(@Id @Column("id") String id, @Version @Column("row_version") Long rowVersion, @Column("conversation_id") String conversationId, @Column("state") String state) { }
+diff --git a/java/src/test/java/io/arcvera/core/bootstrap/BootstrapDescriptorPublisherTest.java b/java/src/test/java/io/arcvera/core/bootstrap/BootstrapDescriptorPublisherTest.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..815314bb5b43fe249efd0885fcbfb88e58077f49
+--- /dev/null
++++ b/java/src/test/java/io/arcvera/core/bootstrap/BootstrapDescriptorPublisherTest.java
+@@ -0,0 +1,129 @@
++package io.arcvera.core.bootstrap;
++
++import static org.junit.jupiter.api.Assertions.*;
++
++import java.io.IOException;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.security.SecureRandom;
++import java.time.Clock;
++import java.time.Duration;
++import java.util.Set;
++import java.util.UUID;
++import java.util.concurrent.atomic.AtomicLong;
++import org.junit.jupiter.api.Test;
++import tools.jackson.databind.json.JsonMapper;
++
++class BootstrapDescriptorPublisherTest {
++    @Test void actualProtectedPublicationAndTamperFailure() throws Exception {
++        try (var fixture = new Fixture()) {
++            var first = fixture.publisher.issue();
++            var firstDocument = fixture.mapper.readTree(Files.readAllBytes(fixture.file));
++            assertTrue(first.token().equals(firstDocument.get("credential").asString()));
++            assertEquals(fixture.instance.toString(), firstDocument.get("instanceId").asString());
++            assertEquals(fixture.profile.toString(), firstDocument.get("profileId").asString());
++            assertEquals(fixture.epoch.toString(), firstDocument.get("storeEpoch").asString());
++            assertEquals(fixture.lock.sid(), firstDocument.get("osUserSid").asString());
++            assertEquals("https", firstDocument.get("endpoint").get("scheme").asString());
++            assertEquals("127.0.0.1", firstDocument.get("endpoint").get("host").asString());
++            assertEquals(fixture.tls.spkiSha256(), firstDocument.get("endpoint").get("serverSpkiSha256").asString());
++            assertTrue(fixture.registry.authenticate(first.token()).isPresent());
++            fixture.ticker.set(Duration.ofMinutes(13).toNanos());
++            var second = fixture.publisher.rotate(first.credentialId(), first.generation());
++            var secondDocument = fixture.mapper.readTree(Files.readAllBytes(fixture.file));
++            assertEquals("1", secondDocument.get("generation").asString());
++            assertTrue(second.token().equals(secondDocument.get("credential").asString()));
++            assertNotEquals(firstDocument.get("descriptorId").asString(), secondDocument.get("descriptorId").asString());
++            assertTrue(fixture.registry.authenticate(second.token()).isPresent());
++            Files.writeString(fixture.file, "tampered");
++            fixture.ticker.addAndGet(Duration.ofMinutes(13).toNanos());
++            assertThrows(CredentialRegistry.PublicationNotCommittedException.class,
++                    () -> fixture.publisher.rotate(second.credentialId(), second.generation()));
++            assertEquals("tampered", Files.readString(fixture.file));
++            assertTrue(fixture.registry.authenticate(second.token()).isPresent());
++        }
++    }
++
++    @Test void unknownExistingDescriptorIsNeverOverwritten() throws Exception {
++        try (var fixture = new Fixture()) {
++            Files.writeString(fixture.file, "foreign");
++            assertThrows(CredentialRegistry.PublicationNotCommittedException.class, fixture.publisher::issue);
++            assertEquals("foreign", Files.readString(fixture.file));
++            assertNotNull(fixture.registry.issue());
++        }
++    }
++
++    @Test void certificateExpiryCannotPrecedePublishedCredential() throws Exception {
++        try (var fixture = new Fixture()) {
++            var later = new CredentialRegistry(Clock.offset(fixture.clock, Duration.ofHours(23).plusMinutes(50)),
++                    fixture.random, fixture.ticker::get, fixture.instance, fixture.lock.sid(), Set.of("read"));
++            var publisher = new BootstrapDescriptorPublisher(later, fixture.lock, fixture.mapper, fixture.epoch, 12345, fixture.tls);
++            assertThrows(CredentialRegistry.PublicationNotCommittedException.class, publisher::issue);
++            assertFalse(Files.exists(fixture.file));
++            assertNotNull(later.issue());
++        }
++    }
++
++    @Test void hardLinkedDescriptorCannotBeReplaced() throws Exception {
++        try (var fixture = new Fixture()) {
++            var first = fixture.publisher.issue();
++            Path alias = fixture.lock.directory().resolve("descriptor-alias");
++            Files.createLink(alias, fixture.file);
++            try {
++                fixture.ticker.set(Duration.ofMinutes(13).toNanos());
++                assertThrows(CredentialRegistry.PublicationNotCommittedException.class,
++                        () -> fixture.publisher.rotate(first.credentialId(), first.generation()));
++                assertTrue(fixture.registry.authenticate(first.token()).isPresent());
++            } finally {
++                Files.deleteIfExists(alias);
++            }
++            assertNotNull(fixture.publisher.rotate(first.credentialId(), first.generation()));
++        }
++    }
++
++    @Test void closeRevokesAndWithdrawsOnlyUnchangedOwnedDescriptor() throws Exception {
++        try (var fixture = new Fixture()) {
++            var credential = fixture.publisher.issue();
++            fixture.publisher.close();
++            assertFalse(Files.exists(fixture.file));
++            assertTrue(fixture.registry.authenticate(credential.token()).isEmpty());
++            fixture.publisher.close();
++        }
++    }
++
++    @Test void closeRefusesToDeleteModifiedDescriptorButStillRevokes() throws Exception {
++        try (var fixture = new Fixture()) {
++            var credential = fixture.publisher.issue();
++            Files.writeString(fixture.file, "other generation");
++            assertThrows(IOException.class, fixture.publisher::close);
++            assertEquals("other generation", Files.readString(fixture.file));
++            assertTrue(fixture.registry.authenticate(credential.token()).isEmpty());
++        }
++    }
++
++    private static final class Fixture implements AutoCloseable {
++        final Path home = Files.createTempDirectory(Path.of("D:/codex/build/core200-java25-20261113/reports/bootstrap"), "descriptor-fixture-");
++        final UUID profile = UUID.randomUUID();
++        final UUID instance = UUID.randomUUID();
++        final UUID epoch = UUID.randomUUID();
++        final AtomicLong ticker = new AtomicLong();
++        final Clock clock = Clock.systemUTC();
++        final SecureRandom random = new SecureRandom();
++        final JsonMapper mapper = JsonMapper.builder().build();
++        final WindowsProfileLock lock = new WindowsProfileLock(home, profile);
++        final Path file = lock.directory().resolve("connection.json");
++        final CredentialRegistry registry = new CredentialRegistry(clock, random, ticker::get, instance, lock.sid(), Set.of("read"));
++        final LocalTlsMaterial tls = new LocalTlsMaterial(clock, random, "127.0.0.1");
++        final BootstrapDescriptorPublisher publisher = new BootstrapDescriptorPublisher(registry, lock, mapper, epoch, 12345, tls);
++        Fixture() throws Exception { }
++        @Override public void close() throws IOException {
++            lock.close();
++            Files.deleteIfExists(file);
++            Files.deleteIfExists(home.resolve("runtime/core2").resolve(profile.toString()).resolve("profile.lock"));
++            Files.deleteIfExists(home.resolve("runtime/core2").resolve(profile.toString()));
++            Files.deleteIfExists(home.resolve("runtime/core2"));
++            Files.deleteIfExists(home.resolve("runtime"));
++            Files.deleteIfExists(home);
++        }
++    }
++}
 diff --git a/java/src/test/java/io/arcvera/core/bootstrap/CredentialRegistryTest.java b/java/src/test/java/io/arcvera/core/bootstrap/CredentialRegistryTest.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..d2d1f3e848bc8cddee02faf5a73afb9aa5c84996
+index 0000000000000000000000000000000000000000..5223612f8f82233adc00b966af8f65bc8c981430
 --- /dev/null
 +++ b/java/src/test/java/io/arcvera/core/bootstrap/CredentialRegistryTest.java
-@@ -0,0 +1,252 @@
+@@ -0,0 +1,269 @@
 +package io.arcvera.core.bootstrap;
 +
 +import static org.junit.jupiter.api.Assertions.*;
@@ -28197,6 +29306,23 @@ index 0000000000000000000000000000000000000000..d2d1f3e848bc8cddee02faf5a73afb9a
 +        var c = registry.issue();
 +        clock.setWallOnly(c.expiresAt());
 +        assertFalse(valid(c));
++    }
++
++    @Test void certificateExpiryRevokesOnMonotonicDeadlineWithWallClockStopped() {
++        registry.bindCertificateExpiry(clock.instant().plusSeconds(600));
++        var c = registry.issue();
++        clock.advanceTick(java.time.Duration.ofSeconds(600));
++        assertFalse(valid(c));
++        assertThrows(IllegalStateException.class, registry::issue);
++    }
++
++    @Test void certificateExpiryRevokesOnWallClockDeadlineBeforeTicker() {
++        var deadline = clock.instant().plusSeconds(600);
++        registry.bindCertificateExpiry(deadline);
++        var c = registry.issue();
++        clock.setWallOnly(deadline);
++        assertFalse(valid(c));
++        assertThrows(IllegalStateException.class, registry::issue);
 +    }
 +
 +    @Test void competingRotationsHaveOneWinner() throws Exception {
@@ -28396,6 +29522,396 @@ index 0000000000000000000000000000000000000000..1946a0e8daa2898b93682438f8e154a5
 +        assertTrue(executor.getQueue().isEmpty());
 +    }
 +}
+diff --git a/java/src/test/java/io/arcvera/core/bootstrap/LocalHttpsIntegrationTest.java b/java/src/test/java/io/arcvera/core/bootstrap/LocalHttpsIntegrationTest.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..0a7019c5ba7e6cadfcc59b36ddc829031a99eae3
+--- /dev/null
++++ b/java/src/test/java/io/arcvera/core/bootstrap/LocalHttpsIntegrationTest.java
+@@ -0,0 +1,287 @@
++package io.arcvera.core.bootstrap;
++
++import static org.junit.jupiter.api.Assertions.*;
++
++import java.net.ProxySelector;
++import java.net.URI;
++import java.net.http.HttpClient;
++import java.net.http.HttpRequest;
++import java.net.http.HttpResponse;
++import java.security.KeyStore;
++import java.security.SecureRandom;
++import java.security.cert.X509Certificate;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.io.ByteArrayInputStream;
++import java.io.BufferedReader;
++import java.io.InputStreamReader;
++import java.nio.charset.StandardCharsets;
++import java.security.cert.CertificateFactory;
++import java.util.Base64;
++import java.time.Clock;
++import java.time.Duration;
++import java.util.Set;
++import java.util.UUID;
++import java.util.concurrent.atomic.AtomicLong;
++import java.util.concurrent.atomic.AtomicReference;
++import javax.net.ssl.SSLContext;
++import javax.net.ssl.TrustManagerFactory;
++import org.junit.jupiter.api.Test;
++import org.springframework.boot.SpringBootConfiguration;
++import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
++import org.springframework.boot.builder.SpringApplicationBuilder;
++import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
++import org.springframework.boot.web.server.context.WebServerApplicationContext;
++import org.springframework.context.annotation.Bean;
++import org.springframework.context.annotation.Import;
++import org.springframework.context.ApplicationContext;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.RestController;
++import tools.jackson.databind.json.JsonMapper;
++
++class LocalHttpsIntegrationTest {
++    @SpringBootConfiguration(proxyBeanMethods = false)
++    @EnableAutoConfiguration(exclude = DataSourceAutoConfiguration.class)
++    @Import({LocalHttpsConfiguration.class, LocalCredentialIntrospector.class, Probe.class})
++    static class FixtureApplication {
++        @Bean Clock clock() { return Clock.systemUTC(); }
++        @Bean SecureRandom random() { return new SecureRandom(); }
++        @Bean AtomicLong ticker() { return new AtomicLong(); }
++        @Bean CredentialRegistry registry(Clock clock, SecureRandom random, AtomicLong ticker, WindowsProfileLock lock) {
++            return new CredentialRegistry(clock, random, ticker::get, UUID.randomUUID(), lock.sid(), Set.of("read"));
++        }
++        @Bean LocalTlsMaterial localTlsMaterial(Clock clock, SecureRandom random) throws Exception {
++            return new LocalTlsMaterial(clock, random, "127.0.0.1");
++        }
++        @Bean JsonMapper mapper() { return JsonMapper.builder().build(); }
++        @Bean LocalBootstrapLifecycle localBootstrapLifecycle(ApplicationContext context, CredentialRegistry registry,
++                WindowsProfileLock lock, JsonMapper mapper, LocalTlsMaterial tls) {
++            return new LocalBootstrapLifecycle(context, registry, lock, mapper, UUID.randomUUID(), tls);
++        }
++    }
++
++    @SpringBootConfiguration(proxyBeanMethods = false)
++    @EnableAutoConfiguration(exclude = DataSourceAutoConfiguration.class)
++    @Import({LocalHttpsConfiguration.class, LocalCredentialIntrospector.class, Probe.class})
++    static class RandomFailureApplication {
++        @Bean JsonMapper mapper() { return JsonMapper.builder().build(); }
++        @Bean LocalBootstrapLifecycle localBootstrapLifecycle(ApplicationContext context, CredentialRegistry registry,
++                WindowsProfileLock lock, JsonMapper mapper, LocalTlsMaterial tls) {
++            return new LocalBootstrapLifecycle(context, registry, lock, mapper, UUID.randomUUID(), tls);
++        }
++    }
++
++    @RestController
++    static class Probe {
++        @GetMapping("/probe") String probe() { return "ok"; }
++    }
++
++    @Test void realHttpsBearerRotationAndRevocation() throws Exception {
++        Path home = Files.createTempDirectory(Path.of("D:/codex/build/core200-java25-20261113/reports/bootstrap"), "https-fixture-");
++        UUID profile = UUID.randomUUID();
++        Path directory = home.resolve("runtime/core2").resolve(profile.toString());
++        Path descriptor = directory.resolve("connection.json");
++        var savedRegistry = new AtomicReference<CredentialRegistry>();
++        var savedToken = new AtomicReference<String>();
++        try (var lock = new WindowsProfileLock(home, profile);
++             var context = new SpringApplicationBuilder(FixtureApplication.class)
++                .properties("arcvera.bootstrap.explicit-https=true", "spring.main.banner-mode=off")
++                .initializers(application -> application.getBeanFactory().registerSingleton("windowsProfileLock", lock))
++                .run()) {
++            var port = ((WebServerApplicationContext) context).getWebServer().getPort();
++            var registry = context.getBean(CredentialRegistry.class);
++            savedRegistry.set(registry);
++            var tls = context.getBean(LocalTlsMaterial.class);
++            var mapper = context.getBean(JsonMapper.class);
++            var publisher = context.getBean(LocalBootstrapLifecycle.class).publisher();
++            var document = mapper.readTree(Files.readAllBytes(descriptor));
++            String oldToken = document.get("credential").asString();
++            savedToken.set(oldToken);
++            UUID oldId = UUID.fromString(document.get("credentialId").asString());
++            long oldGeneration = Long.parseLong(document.get("generation").asString());
++            var endpointData = document.get("endpoint");
++            assertEquals(tls.spkiSha256(), endpointData.get("serverSpkiSha256").asString());
++            var anchor = (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(
++                    new ByteArrayInputStream(Base64.getDecoder().decode(endpointData.get("trustAnchorDer").asString())));
++            URI endpoint = URI.create("https://127.0.0.1:" + port + "/probe");
++            try (HttpClient client = client(anchor)) {
++                assertEquals(401, send(client, endpoint, null));
++                assertEquals(401, send(client, endpoint, "invalid"));
++                assertEquals(200, send(client, endpoint, document.get("credential").asString()));
++                var foreignOrigin = HttpRequest.newBuilder(endpoint).header("Authorization", "Bearer " + oldToken)
++                        .header("Origin", "https://example.invalid").GET().build();
++                assertEquals(403, client.send(foreignOrigin, HttpResponse.BodyHandlers.discarding()).statusCode());
++                assertEquals(403, sendWrongHost(anchor, port, oldToken));
++                context.getBean(AtomicLong.class).set(Duration.ofMinutes(13).toNanos());
++                var next = publisher.rotate(oldId, oldGeneration);
++                var rotated = mapper.readTree(Files.readAllBytes(descriptor));
++                assertEquals(200, send(client, endpoint, oldToken));
++                assertEquals(200, send(client, endpoint, rotated.get("credential").asString()));
++                context.getBean(AtomicLong.class).addAndGet(Duration.ofSeconds(30).toNanos());
++                assertEquals(401, send(client, endpoint, oldToken));
++                assertTrue(registry.authenticate(next.token()).isPresent());
++                savedToken.set(next.token());
++                registry.revoke();
++                assertEquals(401, send(client, endpoint, next.token()));
++            }
++            var other = new LocalTlsMaterial(Clock.systemUTC(), new SecureRandom(), "127.0.0.1");
++            try (HttpClient wrongTrust = client(other.certificate())) {
++                assertThrows(javax.net.ssl.SSLHandshakeException.class, () -> send(wrongTrust, endpoint, oldToken));
++            }
++        } finally {
++            if (savedRegistry.get() != null) {
++                assertTrue(savedRegistry.get().authenticate(savedToken.get()).isEmpty());
++                assertFalse(Files.exists(descriptor));
++            }
++            Files.deleteIfExists(descriptor);
++            Files.deleteIfExists(directory.resolve("profile.lock"));
++            Files.deleteIfExists(directory);
++            Files.deleteIfExists(home.resolve("runtime/core2"));
++            Files.deleteIfExists(home.resolve("runtime"));
++            Files.deleteIfExists(home);
++        }
++    }
++
++    private static HttpClient client(X509Certificate anchor) throws Exception {
++        return HttpClient.newBuilder().sslContext(sslContext(anchor)).proxy(ProxySelector.of(null)).connectTimeout(Duration.ofSeconds(5)).build();
++    }
++
++    @Test void contextShutdownRevokesLiveCredentialAndWithdrawsDescriptor() throws Exception {
++        Path home = Files.createTempDirectory(Path.of("D:/codex/build/core200-java25-20261113/reports/bootstrap"), "lifecycle-fixture-");
++        UUID profile = UUID.randomUUID();
++        Path directory = home.resolve("runtime/core2").resolve(profile.toString());
++        Path descriptor = directory.resolve("connection.json");
++        try (var lock = new WindowsProfileLock(home, profile)) {
++            CredentialRegistry registry;
++            String token;
++            try (var context = new SpringApplicationBuilder(FixtureApplication.class)
++                    .properties("arcvera.bootstrap.explicit-https=true", "spring.main.banner-mode=off")
++                    .initializers(application -> application.getBeanFactory().registerSingleton("windowsProfileLock", lock))
++                    .run()) {
++                registry = context.getBean(CredentialRegistry.class);
++                token = context.getBean(JsonMapper.class).readTree(Files.readAllBytes(descriptor)).get("credential").asString();
++                assertTrue(registry.authenticate(token).isPresent());
++            }
++            assertTrue(registry.authenticate(token).isEmpty());
++            assertFalse(Files.exists(descriptor));
++            try (var reacquired = new WindowsProfileLock(home, profile)) {
++                assertEquals(directory, reacquired.directory());
++            }
++        } finally {
++            Files.deleteIfExists(descriptor);
++            Files.deleteIfExists(directory.resolve("profile.lock"));
++            Files.deleteIfExists(directory);
++            Files.deleteIfExists(home.resolve("runtime/core2"));
++            Files.deleteIfExists(home.resolve("runtime"));
++            Files.deleteIfExists(home);
++        }
++    }
++
++    @Test void startupPublicationConflictReleasesLockWithoutDeletingForeignFile() throws Exception {
++        Path home = Files.createTempDirectory(Path.of("D:/codex/build/core200-java25-20261113/reports/bootstrap"), "startup-failure-fixture-");
++        UUID profile = UUID.randomUUID();
++        Path directory = home.resolve("runtime/core2").resolve(profile.toString());
++        Path descriptor = directory.resolve("connection.json");
++        try (var lock = new WindowsProfileLock(home, profile)) {
++            Files.writeString(descriptor, "foreign");
++            assertThrows(RuntimeException.class, () -> new SpringApplicationBuilder(FixtureApplication.class)
++                    .properties("arcvera.bootstrap.explicit-https=true", "spring.main.banner-mode=off")
++                    .initializers(application -> application.getBeanFactory().registerSingleton("windowsProfileLock", lock))
++                    .run());
++            assertEquals("foreign", Files.readString(descriptor));
++            try (var reacquired = new WindowsProfileLock(home, profile)) {
++                assertEquals(directory, reacquired.directory());
++            }
++        } finally {
++            Files.deleteIfExists(descriptor);
++            Files.deleteIfExists(directory.resolve("profile.lock"));
++            Files.deleteIfExists(directory);
++            Files.deleteIfExists(home.resolve("runtime/core2"));
++            Files.deleteIfExists(home.resolve("runtime"));
++            Files.deleteIfExists(home);
++        }
++    }
++
++    @Test void startupRandomErrorRevokesAndReleasesLockAndPreservesForeignFile() throws Exception {
++        Path home = Files.createTempDirectory(Path.of("D:/codex/build/core200-java25-20261113/reports/bootstrap"), "random-error-fixture-");
++        UUID profile = UUID.randomUUID();
++        Path directory = home.resolve("runtime/core2").resolve(profile.toString());
++        Path descriptor = directory.resolve("connection.json");
++        var expected = new AssertionError("fixture random failure");
++        try (var lock = new WindowsProfileLock(home, profile)) {
++            Files.writeString(descriptor, "foreign");
++            var clock = Clock.systemUTC();
++            var registry = new CredentialRegistry(clock, new FailingRandom(expected), System::nanoTime,
++                    UUID.randomUUID(), lock.sid(), Set.of("read"));
++            var tls = new LocalTlsMaterial(clock, new SecureRandom(), "127.0.0.1");
++            Throwable failure = assertThrows(Throwable.class, () -> {
++                try (var context = new SpringApplicationBuilder(RandomFailureApplication.class)
++                        .properties("arcvera.bootstrap.explicit-https=true", "spring.main.banner-mode=off")
++                        .initializers(application -> {
++                            application.getBeanFactory().registerSingleton("windowsProfileLock", lock);
++                            application.getBeanFactory().registerSingleton("credentialRegistry", registry);
++                            application.getBeanFactory().registerSingleton("localTlsMaterial", tls);
++                        }).run()) {
++                    assertFalse(context.isActive());
++                }
++            });
++            boolean found = false;
++            for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
++                if (cause == expected) found = true;
++            }
++            assertTrue(found, "original Error must remain in the cause chain");
++            assertThrows(IllegalStateException.class, registry::issue);
++            assertEquals("foreign", Files.readString(descriptor));
++            try (var reacquired = new WindowsProfileLock(home, profile)) {
++                assertEquals(directory, reacquired.directory());
++            }
++        } finally {
++            Files.deleteIfExists(descriptor);
++            Files.deleteIfExists(directory.resolve("profile.lock"));
++            Files.deleteIfExists(directory);
++            Files.deleteIfExists(home.resolve("runtime/core2"));
++            Files.deleteIfExists(home.resolve("runtime"));
++            Files.deleteIfExists(home);
++        }
++    }
++
++    private static final class FailingRandom extends SecureRandom {
++        private static final long serialVersionUID = 1L;
++        private final Error failure;
++        FailingRandom(Error failure) { this.failure = failure; }
++        @Override public void nextBytes(byte[] bytes) { throw failure; }
++    }
++
++    private static SSLContext sslContext(X509Certificate anchor) throws Exception {
++        var trustStore = KeyStore.getInstance("PKCS12");
++        trustStore.load(null, null);
++        trustStore.setCertificateEntry("local", anchor);
++        var managers = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
++        managers.init(trustStore);
++        var ssl = SSLContext.getInstance("TLS");
++        ssl.init(null, managers.getTrustManagers(), null);
++        return ssl;
++    }
++
++    private static int sendWrongHost(X509Certificate anchor, int port, String token) throws Exception {
++        try (var socket = (javax.net.ssl.SSLSocket) sslContext(anchor).getSocketFactory().createSocket("127.0.0.1", port)) {
++            var params = socket.getSSLParameters();
++            params.setEndpointIdentificationAlgorithm("HTTPS");
++            socket.setSSLParameters(params);
++            socket.setSoTimeout(5000);
++            socket.startHandshake();
++            var output = socket.getOutputStream();
++            output.write(("GET /probe HTTP/1.1\r\nHost: example.invalid:" + port
++                    + "\r\nAuthorization: Bearer " + token + "\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
++            output.flush();
++            var line = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.US_ASCII)).readLine();
++            return Integer.parseInt(line.substring(9, 12));
++        }
++    }
++
++    private static int send(HttpClient client, URI endpoint, String token) throws Exception {
++        var request = HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5)).GET();
++        if (token != null) request.header("Authorization", "Bearer " + token);
++        return client.send(request.build(), HttpResponse.BodyHandlers.discarding()).statusCode();
++    }
++}
+diff --git a/java/src/test/java/io/arcvera/core/bootstrap/LocalTlsMaterialTest.java b/java/src/test/java/io/arcvera/core/bootstrap/LocalTlsMaterialTest.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..de5f09fff0229c866a4f9dba674e83e770479b21
+--- /dev/null
++++ b/java/src/test/java/io/arcvera/core/bootstrap/LocalTlsMaterialTest.java
+@@ -0,0 +1,40 @@
++package io.arcvera.core.bootstrap;
++
++import static org.junit.jupiter.api.Assertions.*;
++
++import java.io.ByteArrayInputStream;
++import java.security.MessageDigest;
++import java.security.SecureRandom;
++import java.security.cert.CertificateFactory;
++import java.security.cert.X509Certificate;
++import java.time.Clock;
++import java.util.Base64;
++import java.util.HexFormat;
++import org.junit.jupiter.api.Test;
++
++class LocalTlsMaterialTest {
++    @Test void generatedCertificateIsSelfSignedAndHasRequiredServerExtensions() throws Exception {
++        var material = new LocalTlsMaterial(Clock.systemUTC(), new SecureRandom(), "127.0.0.1");
++        var certificate = material.certificate();
++        certificate.checkValidity();
++        certificate.verify(certificate.getPublicKey());
++        assertEquals(certificate.getSubjectX500Principal(), certificate.getIssuerX500Principal());
++        assertEquals(-1, certificate.getBasicConstraints());
++        assertTrue(certificate.getKeyUsage()[0]);
++        assertTrue(certificate.getExtendedKeyUsage().contains("1.3.6.1.5.5.7.3.1"));
++        assertTrue(certificate.getSubjectAlternativeNames().stream()
++                .anyMatch(name -> name.get(0).equals(7) && name.get(1).equals("127.0.0.1")));
++        var encoded = Base64.getDecoder().decode(material.trustAnchorDer());
++        var parsed = (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(new ByteArrayInputStream(encoded));
++        assertEquals(certificate, parsed);
++        assertEquals("sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
++                .digest(parsed.getPublicKey().getEncoded())), material.spkiSha256());
++        assertNotNull(material.serverBundle().createSslContext());
++        assertFalse(material.toString().contains(material.trustAnchorDer()));
++    }
++
++    @Test void nonNumericOrNonLoopbackHostIsRejected() {
++        assertThrows(IllegalArgumentException.class, () -> new LocalTlsMaterial(Clock.systemUTC(), new SecureRandom(), "localhost"));
++        assertThrows(IllegalArgumentException.class, () -> new LocalTlsMaterial(Clock.systemUTC(), new SecureRandom(), "0.0.0.0"));
++    }
++}
+diff --git a/java/src/test/java/io/arcvera/core/bootstrap/WindowsProfileLockTest.java b/java/src/test/java/io/arcvera/core/bootstrap/WindowsProfileLockTest.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..5d787c3aee6cc316ffab50cb8bc87927cedb929d
+--- /dev/null
++++ b/java/src/test/java/io/arcvera/core/bootstrap/WindowsProfileLockTest.java
+@@ -0,0 +1,45 @@
++package io.arcvera.core.bootstrap;
++
++import static org.junit.jupiter.api.Assertions.*;
++
++import java.io.IOException;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.util.UUID;
++import org.junit.jupiter.api.Test;
++
++class WindowsProfileLockTest {
++    @Test void protectedProfileHasExclusiveLockAndRejectsHardLinks() throws Exception {
++        Path root = Path.of("D:/codex/build/core200-java25-20261113/reports/bootstrap");
++        Path home = Files.createTempDirectory(root, "lock-fixture-");
++        UUID profile = UUID.randomUUID();
++        Path directory = home.resolve("runtime/core2").resolve(profile.toString());
++        Path lockFile = directory.resolve("profile.lock");
++        Path alias = directory.resolve("alias.lock");
++        try {
++            try (var lock = new WindowsProfileLock(home, profile)) {
++                assertEquals(directory, lock.directory());
++                assertTrue(lock.sid().startsWith("S-1-"));
++                assertThrows(IOException.class, () -> new WindowsProfileLock(home, profile));
++            }
++            try (var reacquired = new WindowsProfileLock(home, profile)) {
++                assertEquals(directory, reacquired.directory());
++                assertTrue(Files.exists(lockFile));
++            }
++            Files.createLink(alias, lockFile);
++            assertThrows(IOException.class, () -> new WindowsProfileLock(home, profile));
++            Files.delete(alias);
++            try (var reacquired = new WindowsProfileLock(home, profile)) {
++                assertEquals(directory, reacquired.directory());
++                assertTrue(Files.exists(lockFile));
++            }
++        } finally {
++            Files.deleteIfExists(alias);
++            Files.deleteIfExists(lockFile);
++            Files.deleteIfExists(directory);
++            Files.deleteIfExists(home.resolve("runtime/core2"));
++            Files.deleteIfExists(home.resolve("runtime"));
++            Files.deleteIfExists(home);
++        }
++    }
++}
 diff --git a/java/src/test/java/io/arcvera/core/domain/TaskRunTest.java b/java/src/test/java/io/arcvera/core/domain/TaskRunTest.java
 new file mode 100644
 index 0000000000000000000000000000000000000000..ef2f060a9ea458dfe25f67ccb4ee872603a75980
@@ -28535,14 +30051,288 @@ index 0000000000000000000000000000000000000000..ef2f060a9ea458dfe25f67ccb4ee8726
 +        effect.confirmClosed(); task.confirmCancelled();
 +    }
 +}
-diff --git a/java/src/test/java/io/arcvera/core/store/TaskAcceptanceStoreTest.java b/java/src/test/java/io/arcvera/core/store/TaskAcceptanceStoreTest.java
+diff --git a/java/src/test/java/io/arcvera/core/store/InputLeaseStoreTest.java b/java/src/test/java/io/arcvera/core/store/InputLeaseStoreTest.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..035629e24aa2bf0cb1e36f09fb86f8dc60fcc3d4
+index 0000000000000000000000000000000000000000..f3dac60d3fbd67239300a5258ae76387511c253d
 --- /dev/null
-+++ b/java/src/test/java/io/arcvera/core/store/TaskAcceptanceStoreTest.java
-@@ -0,0 +1,264 @@
++++ b/java/src/test/java/io/arcvera/core/store/InputLeaseStoreTest.java
+@@ -0,0 +1,267 @@
 +package io.arcvera.core.store;
 +
++import static org.junit.jupiter.api.Assertions.*;
++
++import io.arcvera.core.lease.InputLeaseStore;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.time.Clock;
++import java.time.Duration;
++import java.time.Instant;
++import java.time.LocalDateTime;
++import java.time.ZoneId;
++import java.time.ZoneOffset;
++import java.util.List;
++import java.util.Map;
++import java.util.TimeZone;
++import java.util.UUID;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.Executors;
++import java.util.concurrent.TimeUnit;
++import java.util.concurrent.atomic.AtomicReference;
++import org.junit.jupiter.api.AfterAll;
++import org.junit.jupiter.api.BeforeAll;
++import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.TestInstance;
++import org.springframework.boot.SpringBootConfiguration;
++import org.springframework.boot.WebApplicationType;
++import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
++import org.springframework.boot.builder.SpringApplicationBuilder;
++import org.springframework.context.ConfigurableApplicationContext;
++import org.springframework.context.annotation.Bean;
++import org.springframework.context.annotation.Import;
++import org.springframework.core.env.MapPropertySource;
++import org.springframework.data.jdbc.repository.config.EnableJdbcRepositories;
++import org.springframework.jdbc.core.simple.JdbcClient;
++import org.springframework.transaction.PlatformTransactionManager;
++import org.springframework.transaction.support.TransactionTemplate;
++import com.zaxxer.hikari.HikariDataSource;
++
++@TestInstance(TestInstance.Lifecycle.PER_CLASS)
++class InputLeaseStoreTest {
++    private static final Instant BASE = Instant.parse("2026-03-08T07:30:00.123Z");
++    private final String schema = "core_lease_" + UUID.randomUUID().toString().replace("-", "");
++    private ConfigurableApplicationContext context;
++    private HikariDataSource pool;
++    private JdbcClient jdbc;
++    private InputLeaseStore leases;
++    private TaskAcceptanceStore tasks;
++    private MutableClock clock;
++    private boolean created;
++
++    @SpringBootConfiguration
++    @EnableAutoConfiguration
++    @Import({TaskAcceptanceStore.class, AcceptanceTransaction.class, OperationIdentityService.class, InputLeaseStore.class})
++    @EnableJdbcRepositories(basePackageClasses = ConversationRepository.class)
++    static class TestApplication {
++        @Bean Clock clock() { return new MutableClock(); }
++        @Bean TaskAcceptanceStore.Retention retention() {
++            return new TaskAcceptanceStore.Retention(Duration.ofHours(1), Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofHours(2));
++        }
++        @Bean InputLeaseStore.Policy leasePolicy() {
++            return new InputLeaseStore.Policy(Duration.ofSeconds(10), Duration.ofHours(1), Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofHours(2));
++        }
++    }
++    static final class MutableClock extends Clock {
++        final AtomicReference<Instant> value = new AtomicReference<>(BASE);
++        @Override public ZoneId getZone() { return ZoneOffset.UTC; }
++        @Override public Clock withZone(ZoneId zone) { return Clock.fixed(value.get(), zone); }
++        @Override public Instant instant() { return value.get(); }
++    }
++    private String required(String key) {
++        String value = System.getenv(key);
++        if (value == null || value.isBlank()) throw new IllegalStateException("missing " + key);
++        return value;
++    }
++    private String scopedUrl() {
++        String base = required("ARCVERA_TEST_DB_URL");
++        return base + (base.contains("?") ? "&" : "?") + "currentSchema=" + schema;
++    }
++    @BeforeAll void setup() throws Exception {
++        boolean ready = false;
++        try {
++            context = new SpringApplicationBuilder(TestApplication.class).web(WebApplicationType.NONE)
++                    .properties(Map.of("spring.datasource.url", "jdbc:postgresql://127.0.0.1:1/invalid", "spring.datasource.hikari.maximum-pool-size", "1"))
++                    .initializers(app -> {
++                        try {
++                            String password = Files.readString(Path.of(required("ARCVERA_TEST_DB_PASSWORD_FILE"))).strip();
++                            app.getEnvironment().getPropertySources().addFirst(new MapPropertySource("isolatedLeaseDatabase", Map.of(
++                                    "spring.datasource.url", scopedUrl(), "spring.datasource.username", required("ARCVERA_TEST_DB_USER"),
++                                    "spring.datasource.password", password, "spring.datasource.type", "com.zaxxer.hikari.HikariDataSource",
++                                    "spring.datasource.hikari.maximum-pool-size", "4", "spring.main.banner-mode", "off", "logging.level.root", "ERROR")));
++                        } catch (java.io.IOException failure) { throw new java.io.UncheckedIOException(failure); }
++                    }).run();
++            pool = context.getBean(HikariDataSource.class);
++            assertEquals(scopedUrl(), pool.getJdbcUrl()); assertEquals(4, pool.getMaximumPoolSize());
++            jdbc = context.getBean(JdbcClient.class);
++            jdbc.sql("CREATE SCHEMA " + schema).update(); created = true;
++            tasks = context.getBean(TaskAcceptanceStore.class); tasks.initialize();
++            leases = context.getBean(InputLeaseStore.class); leases.initialize();
++            clock = (MutableClock) context.getBean(Clock.class); ready = true;
++        } finally { if (!ready) cleanup(); }
++    }
++    @AfterAll void cleanup() {
++        if (context == null || !context.isActive()) return;
++        try {
++            if (created) {
++                if (!schema.matches("core_lease_[0-9a-f]{32}")) throw new IllegalStateException("unexpected schema");
++                jdbc.sql("DROP SCHEMA " + schema + " CASCADE").update();
++                assertEquals(0, jdbc.sql("SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name=:schema").param("schema", schema).query(Integer.class).single());
++            }
++        } finally { context.close(); }
++        if (pool != null) assertTrue(pool.isClosed());
++    }
++    private UUID conversation() { UUID id = UUID.randomUUID(); tasks.createConversation(id); return id; }
++    private InputLeaseStore.Request acquire(UUID conversation, UUID client, UUID operation) {
++        return new InputLeaseStore.Request("alice", operation, clock.instant(), "digest", conversation, 0, client, InputLeaseStore.Action.ACQUIRE, null, InputLeaseStore.Mode.GUI);
++    }
++    private InputLeaseStore.Request change(UUID conversation, InputLeaseStore.Lease lease, InputLeaseStore.Action action) {
++        return new InputLeaseStore.Request("alice", UUID.randomUUID(), clock.instant(), "change", conversation, lease.revision(), lease.clientInstanceId(), action, lease.leaseId(), null);
++    }
++    private InputLeaseStore.Proof proof(InputLeaseStore.Lease lease) {
++        return new InputLeaseStore.Proof(lease.leaseId(), lease.revision(), lease.clientInstanceId());
++    }
++    @Test void lifecycleReplayAndProofBinding() {
++        clock.value.set(BASE); UUID conversation = conversation(); UUID client = UUID.randomUUID();
++        assertTrue(leases.query(conversation).isEmpty());
++        var request = acquire(conversation, client, UUID.randomUUID());
++        var first = leases.change(request);
++        assertEquals(1, first.revision()); assertEquals(BASE.plusSeconds(10), first.expiresAt());
++        assertEquals(first, leases.change(request));
++        var changedPayload = new InputLeaseStore.Request("alice", request.operationId(), BASE, "other", conversation, 0, client, InputLeaseStore.Action.ACQUIRE, null, InputLeaseStore.Mode.GUI);
++        assertThrows(InputLeaseStore.Conflict.class, () -> leases.change(changedPayload));
++        for (var changed : List.of(
++                new InputLeaseStore.Request("alice", request.operationId(), BASE.minusMillis(1), "digest", conversation, 0, client, InputLeaseStore.Action.ACQUIRE, null, InputLeaseStore.Mode.GUI),
++                new InputLeaseStore.Request("alice", request.operationId(), BASE, "digest", conversation, 0, UUID.randomUUID(), InputLeaseStore.Action.ACQUIRE, null, InputLeaseStore.Mode.GUI),
++                new InputLeaseStore.Request("alice", request.operationId(), BASE, "digest", conversation, 1, client, InputLeaseStore.Action.ACQUIRE, null, InputLeaseStore.Mode.GUI),
++                new InputLeaseStore.Request("alice", request.operationId(), BASE, "digest", conversation, 0, client, InputLeaseStore.Action.ACQUIRE, null, InputLeaseStore.Mode.TERMINAL)))
++            assertThrows(InputLeaseStore.Conflict.class, () -> leases.change(changed));
++        var renewed = leases.change(change(conversation, first, InputLeaseStore.Action.RENEW));
++        assertEquals(2, renewed.revision());
++        var stale = new TaskAcceptanceStore.Request("alice", UUID.randomUUID(), "task", BASE, "task", conversation, 0, proof(first));
++        assertThrows(InputLeaseStore.Conflict.class, () -> tasks.acceptTask(stale));
++        var valid = new TaskAcceptanceStore.Request("alice", UUID.randomUUID(), "task", BASE, "task", conversation, 0, proof(renewed));
++        var receipt = tasks.acceptTask(valid); assertEquals(receipt, tasks.acceptTask(valid));
++        assertThrows(TaskAcceptanceStore.Conflict.class, () -> tasks.acceptTask(new TaskAcceptanceStore.Request("alice", request.operationId(), "task", BASE, "digest", conversation, 0, proof(renewed))));
++        assertThrows(InputLeaseStore.Conflict.class, () -> leases.change(new InputLeaseStore.Request("alice", valid.operationId(), BASE, "task", conversation, renewed.revision(), client, InputLeaseStore.Action.RELEASE, renewed.leaseId(), null)));
++        var released = leases.change(change(conversation, renewed, InputLeaseStore.Action.RELEASE));
++        assertEquals(InputLeaseStore.State.RELEASED, released.state());
++        assertThrows(InputLeaseStore.Conflict.class, () -> leases.change(change(conversation, renewed, InputLeaseStore.Action.RENEW)));
++        var next = leases.change(new InputLeaseStore.Request("alice", UUID.randomUUID(), BASE, "next", conversation, released.revision(), UUID.randomUUID(), InputLeaseStore.Action.ACQUIRE, null, InputLeaseStore.Mode.TERMINAL));
++        assertNotEquals(first.leaseId(), next.leaseId()); assertEquals(released.revision() + 1, next.revision());
++    }
++    @Test void expiryRollbackAndNewGeneration() {
++        clock.value.set(BASE); UUID conversation = conversation(); var first = leases.change(acquire(conversation, UUID.randomUUID(), UUID.randomUUID()));
++        clock.value.set(BASE.plusSeconds(10));
++        assertEquals(InputLeaseStore.State.EXPIRED, leases.query(conversation).orElseThrow().state());
++        assertThrows(InputLeaseStore.Conflict.class, () -> leases.change(change(conversation, first, InputLeaseStore.Action.RENEW)));
++        clock.value.set(BASE.plusSeconds(9));
++        assertThrows(InputLeaseStore.Conflict.class, () -> leases.query(conversation));
++        var recreated = new InputLeaseStore(jdbc, context.getBean(OperationIdentityService.class), context.getBean(PlatformTransactionManager.class), clock, context.getBean(InputLeaseStore.Policy.class));
++        assertThrows(InputLeaseStore.Conflict.class, () -> recreated.query(conversation));
++        clock.value.set(BASE.plusSeconds(10));
++        var next = leases.change(new InputLeaseStore.Request("alice", UUID.randomUUID(), clock.instant(), "new", conversation, first.revision(), UUID.randomUUID(), InputLeaseStore.Action.ACQUIRE, null, InputLeaseStore.Mode.TERMINAL));
++        assertNotEquals(first.leaseId(), next.leaseId()); assertEquals(2, next.revision());
++        var old = new TaskAcceptanceStore.Request("alice", UUID.randomUUID(), "task", clock.instant(), "old", conversation, 0, proof(first));
++        assertThrows(InputLeaseStore.Conflict.class, () -> tasks.acceptTask(old));
++        clock.value.set(BASE);
++    }
++    @Test void competingAcquiresHaveOneWinner() throws Exception {
++        clock.value.set(BASE); UUID conversation = conversation(); var latch = new CountDownLatch(1);
++        try (var executor = Executors.newFixedThreadPool(2)) {
++            var requests = List.of(acquire(conversation, UUID.randomUUID(), UUID.randomUUID()), acquire(conversation, UUID.randomUUID(), UUID.randomUUID()));
++            var futures = requests.stream().map(request -> executor.submit(() -> {
++                latch.await(); try { leases.change(request); return true; } catch (InputLeaseStore.Conflict expected) { return false; }
++            })).toList();
++            latch.countDown(); int winners = 0; for (var future : futures) if (future.get(10, TimeUnit.SECONDS)) winners++;
++            assertEquals(1, winners);
++        }
++        assertEquals(1, jdbc.sql("SELECT COUNT(*) FROM input_lease WHERE conversation_id=:id").param("id", conversation.toString()).query(Integer.class).single());
++        assertEquals(1, jdbc.sql("SELECT COUNT(*) FROM lease_receipt WHERE conversation_id=:id").param("id", conversation.toString()).query(Integer.class).single());
++    }
++    @Test void databaseFailureRollsBackIdentityAndLease() {
++        clock.value.set(BASE); UUID conversation = conversation(); var request = acquire(conversation, UUID.randomUUID(), UUID.randomUUID());
++        jdbc.sql("ALTER TABLE lease_receipt ADD CONSTRAINT lease_test_failure CHECK (conversation_id <> '" + conversation + "')").update();
++        try {
++            assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> leases.change(request));
++            assertEquals(0, jdbc.sql("SELECT COUNT(*) FROM input_lease WHERE conversation_id=:id").param("id", conversation.toString()).query(Integer.class).single());
++            assertEquals(0, jdbc.sql("SELECT COUNT(*) FROM operation_identity WHERE operation_id=:id").param("id", request.operationId().toString()).query(Integer.class).single());
++        } finally { jdbc.sql("ALTER TABLE lease_receipt DROP CONSTRAINT lease_test_failure").update(); }
++    }
++    @Test void reservationOutsideTransactionIsRejected() {
++        var identities = context.getBean(OperationIdentityService.class);
++        assertThrows(IllegalStateException.class, () -> identities.reserve("alice", UUID.randomUUID(), "task", BASE, "digest"));
++    }
++    @Test void duplicateConcurrentRequestsReplayOneReceipt() throws Exception {
++        clock.value.set(BASE); UUID conversation = conversation(); var request = acquire(conversation, UUID.randomUUID(), UUID.randomUUID());
++        var latch = new CountDownLatch(1);
++        try (var executor = Executors.newFixedThreadPool(2)) {
++            var first = executor.submit(() -> { latch.await(); return leases.change(request); });
++            var second = executor.submit(() -> { latch.await(); return leases.change(request); });
++            latch.countDown(); assertEquals(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS));
++        }
++        assertEquals(1, jdbc.sql("SELECT COUNT(*) FROM lease_receipt WHERE conversation_id=:id").param("id", conversation.toString()).query(Integer.class).single());
++    }
++    @Test void wrongProofCannotAcceptTaskAndExpiryDoesNotCancelAcceptedTask() {
++        clock.value.set(BASE); UUID conversation = conversation(); var first = leases.change(acquire(conversation, UUID.randomUUID(), UUID.randomUUID()));
++        for (var candidate : List.of(new InputLeaseStore.Proof(UUID.randomUUID(), first.revision(), first.clientInstanceId()),
++                new InputLeaseStore.Proof(first.leaseId(), first.revision() + 1, first.clientInstanceId()),
++                new InputLeaseStore.Proof(first.leaseId(), first.revision(), UUID.randomUUID()))) {
++            var request = new TaskAcceptanceStore.Request("alice", UUID.randomUUID(), "task", BASE, "input", conversation, 0, candidate);
++            assertThrows(InputLeaseStore.Conflict.class, () -> tasks.acceptTask(request));
++        }
++        var otherPrincipal = new TaskAcceptanceStore.Request("bob", UUID.randomUUID(), "task", BASE, "input", conversation, 0, proof(first));
++        assertThrows(InputLeaseStore.Conflict.class, () -> tasks.acceptTask(otherPrincipal));
++        var otherConversation = new TaskAcceptanceStore.Request("alice", UUID.randomUUID(), "task", BASE, "input", conversation(), 0, proof(first));
++        assertThrows(InputLeaseStore.Conflict.class, () -> tasks.acceptTask(otherConversation));
++        var accepted = tasks.acceptTask(new TaskAcceptanceStore.Request("alice", UUID.randomUUID(), "task", BASE, "input", conversation, 0, proof(first)));
++        clock.value.set(BASE.plusSeconds(10));
++        assertEquals(InputLeaseStore.State.EXPIRED, leases.query(conversation).orElseThrow().state());
++        var snapshot = tasks.snapshot(conversation);
++        assertEquals(accepted.taskId(), snapshot.activeTaskId()); assertEquals("QUEUED", snapshot.activeState());
++        clock.value.set(BASE);
++    }
++    @Test void expiredWhileWaitingForLockIsRejectedAndObservationSurvivesRollback() throws Exception {
++        clock.value.set(BASE); UUID conversation = conversation(); var first = leases.change(acquire(conversation, UUID.randomUUID(), UUID.randomUUID()));
++        var locked = new CountDownLatch(1); var release = new CountDownLatch(1); var started = new CountDownLatch(1);
++        var tx = new TransactionTemplate(context.getBean(PlatformTransactionManager.class));
++        try (var executor = Executors.newFixedThreadPool(2)) {
++            var blocker = executor.submit(() -> tx.execute(status -> {
++                leases.lockConversation(conversation); locked.countDown();
++                try { if (!release.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("release timeout"); }
++                catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); throw new IllegalStateException(interrupted); }
++                return true;
++            }));
++            assertTrue(locked.await(10, TimeUnit.SECONDS));
++            var candidate = executor.submit(() -> {
++                started.countDown();
++                try {
++                    tasks.acceptTask(new TaskAcceptanceStore.Request("alice", UUID.randomUUID(), "task", BASE, "input", conversation, 0, proof(first)));
++                    return false;
++                } catch (InputLeaseStore.Conflict expected) { return true; }
++            });
++            try {
++                assertTrue(started.await(10, TimeUnit.SECONDS));
++                assertThrows(java.util.concurrent.TimeoutException.class, () -> candidate.get(250, TimeUnit.MILLISECONDS));
++                clock.value.set(BASE.plusSeconds(10));
++            } finally { release.countDown(); }
++            assertTrue(blocker.get(10, TimeUnit.SECONDS)); assertTrue(candidate.get(10, TimeUnit.SECONDS));
++        }
++        clock.value.set(BASE.plusSeconds(9));
++        assertThrows(InputLeaseStore.Conflict.class, () -> leases.query(conversation));
++        assertNull(tasks.snapshot(conversation).activeTaskId()); clock.value.set(BASE);
++    }
++    @Test void utcCalendarFieldsSurviveJvmDstGapAndFold() {
++        TimeZone original = TimeZone.getDefault();
++        try {
++            TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"));
++            for (Instant time : List.of(Instant.parse("2026-03-08T02:30:00.123Z"), Instant.parse("2026-11-01T01:30:00.123Z"))) {
++                clock.value.set(time); UUID conversation = conversation(); var lease = leases.change(acquire(conversation, UUID.randomUUID(), UUID.randomUUID()));
++                LocalDateTime fields = jdbc.sql("SELECT expires_at FROM input_lease WHERE conversation_id=:id").param("id", conversation.toString())
++                        .query((rs, n) -> rs.getObject(1, LocalDateTime.class)).single();
++                assertEquals(lease.expiresAt(), fields.toInstant(ZoneOffset.UTC));
++                assertEquals(time.plusSeconds(10), lease.expiresAt());
++            }
++        } finally { TimeZone.setDefault(original); clock.value.set(BASE); }
++    }
++}
+diff --git a/java/src/test/java/io/arcvera/core/store/TaskAcceptanceStoreTest.java b/java/src/test/java/io/arcvera/core/store/TaskAcceptanceStoreTest.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..bd00dd60919429ee03f06e537a9bd6056f7571d8
+--- /dev/null
++++ b/java/src/test/java/io/arcvera/core/store/TaskAcceptanceStoreTest.java
+@@ -0,0 +1,279 @@
++package io.arcvera.core.store;
++
++import io.arcvera.core.lease.InputLeaseStore;
 +import static org.junit.jupiter.api.Assertions.*;
 +
 +import java.nio.file.Files;
@@ -28574,7 +30364,7 @@ index 0000000000000000000000000000000000000000..035629e24aa2bf0cb1e36f09fb86f8dc
 +import org.springframework.context.ConfigurableApplicationContext;
 +import org.springframework.context.support.GenericApplicationContext;
 +import org.springframework.context.annotation.Bean;
-+import org.springframework.context.annotation.ComponentScan;
++import org.springframework.context.annotation.Import;
 +import org.springframework.core.env.MapPropertySource;
 +import org.springframework.data.jdbc.repository.config.EnableJdbcRepositories;
 +import org.springframework.transaction.PlatformTransactionManager;
@@ -28590,6 +30380,8 @@ index 0000000000000000000000000000000000000000..035629e24aa2bf0cb1e36f09fb86f8dc
 +    private JdbcClient jdbc;
 +    private TransactionTemplate tx;
 +    private TaskAcceptanceStore store;
++    private InputLeaseStore leases;
++    private final Map<UUID, InputLeaseStore.Proof> proofs = new java.util.concurrent.ConcurrentHashMap<>();
 +    private ConfigurableApplicationContext context;
 +    private HikariDataSource pool;
 +    private boolean schemaCreated;
@@ -28624,6 +30416,8 @@ index 0000000000000000000000000000000000000000..035629e24aa2bf0cb1e36f09fb86f8dc
 +            tx = new TransactionTemplate(context.getBean(PlatformTransactionManager.class));
 +            store = context.getBean(TaskAcceptanceStore.class);
 +            store.initialize();
++            leases = context.getBean(InputLeaseStore.class);
++            leases.initialize();
 +            ready = true;
 +        } finally { if (!ready) cleanup(); }
 +    }
@@ -28638,12 +30432,15 @@ index 0000000000000000000000000000000000000000..035629e24aa2bf0cb1e36f09fb86f8dc
 +    }
 +    @SpringBootConfiguration
 +    @EnableAutoConfiguration
-+    @ComponentScan(basePackageClasses = TaskAcceptanceStore.class)
++    @Import({TaskAcceptanceStore.class, AcceptanceTransaction.class, OperationIdentityService.class, InputLeaseStore.class})
 +    @EnableJdbcRepositories(basePackageClasses = ConversationRepository.class)
 +    static class TestApplication {
 +        @Bean Clock clock() { return new MutableClock(Instant.parse("2026-03-08T07:30:00Z")); }
 +        @Bean TaskAcceptanceStore.Retention retention() {
 +            return new TaskAcceptanceStore.Retention(Duration.ofHours(1), Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofHours(2));
++        }
++        @Bean InputLeaseStore.Policy leasePolicy() {
++            return new InputLeaseStore.Policy(Duration.ofMinutes(10), Duration.ofHours(1), Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofHours(2));
 +        }
 +    }
 +    static final class MutableClock extends Clock {
@@ -28691,7 +30488,12 @@ index 0000000000000000000000000000000000000000..035629e24aa2bf0cb1e36f09fb86f8dc
 +        assertEquals(scopedUrl(), pool.getJdbcUrl()); assertEquals(4, pool.getMaximumPoolSize());
 +    }
 +    private TaskAcceptanceStore.Request request(UUID conversation, UUID operationId, String operation, Instant time, String digest) {
-+        return new TaskAcceptanceStore.Request("principal", operationId, operation, time, digest, conversation, 0);
++        var proof = proofs.computeIfAbsent(conversation, id -> {
++            var client = UUID.randomUUID();
++            var lease = leases.change(new InputLeaseStore.Request("principal", UUID.randomUUID(), time, "acquire", id, 0, client, InputLeaseStore.Action.ACQUIRE, null, InputLeaseStore.Mode.GUI));
++            return new InputLeaseStore.Proof(lease.leaseId(), lease.revision(), client);
++        });
++        return new TaskAcceptanceStore.Request("principal", operationId, operation, time, digest, conversation, 0, proof);
 +    }
 +    private long count(String table, UUID conversation) {
 +        return jdbc.sql("SELECT COUNT(*) FROM " + table + " WHERE conversation_id=:id").param("id", conversation.toString()).query(Long.class).single();
@@ -28722,7 +30524,7 @@ index 0000000000000000000000000000000000000000..035629e24aa2bf0cb1e36f09fb86f8dc
 +        store.acceptTask(request(conversation, op, "accept", now, "digest"));
 +        for (var changed : List.of(request(conversation, op, "other", now, "digest"), request(conversation, op, "accept", now, "other"), request(conversation, op, "accept", now.minusSeconds(1), "digest")))
 +            assertThrows(TaskAcceptanceStore.Conflict.class, () -> store.acceptTask(changed));
-+        var revised = new TaskAcceptanceStore.Request("principal", op, "accept", now, "digest", conversation, 1);
++        var revised = new TaskAcceptanceStore.Request("principal", op, "accept", now, "digest", conversation, 1, proofs.get(conversation));
 +        assertThrows(TaskAcceptanceStore.Conflict.class, () -> store.acceptTask(revised));
 +        assertEquals(1, count("task_run", conversation)); assertEquals(1, count("request_receipt", conversation));
 +    }
@@ -28741,7 +30543,8 @@ index 0000000000000000000000000000000000000000..035629e24aa2bf0cb1e36f09fb86f8dc
 +    }
 +    @Test void ambientTransactionIsRejectedBeforeWrites() {
 +        UUID conversation = UUID.randomUUID(); store.createConversation(conversation);
-+        assertThrows(IllegalStateException.class, () -> tx.execute(status -> store.acceptTask(request(conversation, UUID.randomUUID(), "accept", now, "digest"))));
++        var request = request(conversation, UUID.randomUUID(), "accept", now, "digest");
++        assertThrows(IllegalStateException.class, () -> tx.execute(status -> store.acceptTask(request)));
 +        assertEquals(0, count("task_run", conversation)); assertEquals(0, count("request_receipt", conversation)); assertEquals(0, count("journal_event", conversation));
 +        var snapshot = store.snapshot(conversation); assertEquals(0, snapshot.revision()); assertEquals(0, snapshot.sequence()); assertNull(snapshot.activeTaskId());
 +    }
@@ -28757,6 +30560,7 @@ index 0000000000000000000000000000000000000000..035629e24aa2bf0cb1e36f09fb86f8dc
 +    }
 +    @Test void invalidTimeAndRetentionAreRejected() {
 +        UUID conversation = UUID.randomUUID(); store.createConversation(conversation);
++        request(conversation, UUID.randomUUID(), "accept", now, "digest");
 +        assertThrows(IllegalArgumentException.class, () -> store.acceptTask(request(conversation, UUID.randomUUID(), "accept", now.minusSeconds(3601), "digest")));
 +        assertThrows(IllegalArgumentException.class, () -> store.acceptTask(request(conversation, UUID.randomUUID(), "accept", now.plusSeconds(61), "digest")));
 +        assertThrows(IllegalArgumentException.class, () -> new TaskAcceptanceStore.Retention(Duration.ofHours(1), Duration.ZERO, Duration.ofMinutes(1), Duration.ofHours(1)));
@@ -28773,7 +30577,7 @@ index 0000000000000000000000000000000000000000..035629e24aa2bf0cb1e36f09fb86f8dc
 +                    UUID conversation = UUID.randomUUID(); store.createConversation(conversation);
 +                    var request = request(conversation, UUID.randomUUID(), "accept", instant, "digest");
 +                    var receipt = store.acceptTask(request);
-+                    LocalDateTime stored = jdbc.sql("SELECT created_at FROM request_receipt WHERE operation_id=:id").param("id", request.operationId().toString())
++                    LocalDateTime stored = jdbc.sql("SELECT created_at FROM operation_identity WHERE operation_id=:id").param("id", request.operationId().toString())
 +                            .query((rs, row) -> rs.getObject(1, LocalDateTime.class)).single();
 +                    assertEquals(instant, stored.toInstant(ZoneOffset.UTC)); assertEquals(receipt, store.acceptTask(request));
 +                }

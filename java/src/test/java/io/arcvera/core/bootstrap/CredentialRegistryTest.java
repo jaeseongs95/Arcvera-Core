@@ -129,6 +129,23 @@ class CredentialRegistryTest {
         assertFalse(valid(c));
     }
 
+    @Test void certificateExpiryRevokesOnMonotonicDeadlineWithWallClockStopped() {
+        registry.bindCertificateExpiry(clock.instant().plusSeconds(600));
+        var c = registry.issue();
+        clock.advanceTick(java.time.Duration.ofSeconds(600));
+        assertFalse(valid(c));
+        assertThrows(IllegalStateException.class, registry::issue);
+    }
+
+    @Test void certificateExpiryRevokesOnWallClockDeadlineBeforeTicker() {
+        var deadline = clock.instant().plusSeconds(600);
+        registry.bindCertificateExpiry(deadline);
+        var c = registry.issue();
+        clock.setWallOnly(deadline);
+        assertFalse(valid(c));
+        assertThrows(IllegalStateException.class, registry::issue);
+    }
+
     @Test void competingRotationsHaveOneWinner() throws Exception {
         var old = registry.issue();
         clock.set(old.expiresAt().minusSeconds(120));

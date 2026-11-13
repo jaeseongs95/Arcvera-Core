@@ -8,5 +8,6 @@ import org.springframework.data.relational.core.mapping.Column;
 record ReceiptRow(@Id @Column("id") String id, @Version @Column("row_version") Long rowVersion, @Column("principal") String principal,
                   @Column("operation_id") String operationId, @Column("operation") String operation, @Column("created_at") LocalDateTime createdAt,
                   @Column("payload_digest") String payloadDigest, @Column("conversation_id") String conversationId,
-                  @Column("expected_revision") long expectedRevision, @Column("task_id") String taskId,
+                  @Column("expected_revision") long expectedRevision, @Column("proof_lease") String proofLease,
+                  @Column("proof_revision") long proofRevision, @Column("proof_client") String proofClient, @Column("task_id") String taskId,
                   @Column("revision") Long revision, @Column("sequence") Long sequence) { }

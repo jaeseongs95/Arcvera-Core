@@ -4,6 +4,10 @@ dependencies {
     implementation platform('org.springframework.boot:spring-boot-dependencies:4.1.2')
     implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
     implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    // Outside Boot BOM: public X.509 certificate builder and Windows handle APIs.
+    implementation 'org.bouncycastle:bcpkix-jdk18on:1.86'
+    implementation 'net.java.dev.jna:jna-platform:5.19.1'
     testImplementation platform('org.springframework.boot:spring-boot-dependencies:4.1.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -12,7 +16,7 @@ dependencies {
 }
 java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
 tasks.withType(JavaCompile).configureEach { options.compilerArgs += ['-Xlint:all', '-Werror'] }
-tasks.withType(Test).configureEach { useJUnitPlatform(); maxParallelForks = 1; maxHeapSize = '256m'; jvmArgs '-XX:ActiveProcessorCount=1' }
+tasks.withType(Test).configureEach { useJUnitPlatform(); maxParallelForks = 1; maxHeapSize = '256m'; jvmArgs '-XX:ActiveProcessorCount=1', '--enable-native-access=ALL-UNNAMED' }
 test { exclude '**/store/**' }
 tasks.register('dbTest', Test) {
     description = 'Runs the explicit external database integration tests.'

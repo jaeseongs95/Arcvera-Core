@@ -1,5 +1,6 @@
 package io.arcvera.core.store;
 
+import io.arcvera.core.lease.InputLeaseStore;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -31,7 +32,7 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.data.jdbc.repository.config.EnableJdbcRepositories;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -47,6 +48,8 @@ class TaskAcceptanceStoreTest {
     private JdbcClient jdbc;
     private TransactionTemplate tx;
     private TaskAcceptanceStore store;
+    private InputLeaseStore leases;
+    private final Map<UUID, InputLeaseStore.Proof> proofs = new java.util.concurrent.ConcurrentHashMap<>();
     private ConfigurableApplicationContext context;
     private HikariDataSource pool;
     private boolean schemaCreated;
@@ -81,6 +84,8 @@ class TaskAcceptanceStoreTest {
             tx = new TransactionTemplate(context.getBean(PlatformTransactionManager.class));
             store = context.getBean(TaskAcceptanceStore.class);
             store.initialize();
+            leases = context.getBean(InputLeaseStore.class);
+            leases.initialize();
             ready = true;
         } finally { if (!ready) cleanup(); }
     }
@@ -95,12 +100,15 @@ class TaskAcceptanceStoreTest {
     }
     @SpringBootConfiguration
     @EnableAutoConfiguration
-    @ComponentScan(basePackageClasses = TaskAcceptanceStore.class)
+    @Import({TaskAcceptanceStore.class, AcceptanceTransaction.class, OperationIdentityService.class, InputLeaseStore.class})
     @EnableJdbcRepositories(basePackageClasses = ConversationRepository.class)
     static class TestApplication {
         @Bean Clock clock() { return new MutableClock(Instant.parse("2026-03-08T07:30:00Z")); }
         @Bean TaskAcceptanceStore.Retention retention() {
             return new TaskAcceptanceStore.Retention(Duration.ofHours(1), Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofHours(2));
+        }
+        @Bean InputLeaseStore.Policy leasePolicy() {
+            return new InputLeaseStore.Policy(Duration.ofMinutes(10), Duration.ofHours(1), Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofHours(2));
         }
     }
     static final class MutableClock extends Clock {
@@ -148,7 +156,12 @@ class TaskAcceptanceStoreTest {
         assertEquals(scopedUrl(), pool.getJdbcUrl()); assertEquals(4, pool.getMaximumPoolSize());
     }
     private TaskAcceptanceStore.Request request(UUID conversation, UUID operationId, String operation, Instant time, String digest) {
-        return new TaskAcceptanceStore.Request("principal", operationId, operation, time, digest, conversation, 0);
+        var proof = proofs.computeIfAbsent(conversation, id -> {
+            var client = UUID.randomUUID();
+            var lease = leases.change(new InputLeaseStore.Request("principal", UUID.randomUUID(), time, "acquire", id, 0, client, InputLeaseStore.Action.ACQUIRE, null, InputLeaseStore.Mode.GUI));
+            return new InputLeaseStore.Proof(lease.leaseId(), lease.revision(), client);
+        });
+        return new TaskAcceptanceStore.Request("principal", operationId, operation, time, digest, conversation, 0, proof);
     }
     private long count(String table, UUID conversation) {
         return jdbc.sql("SELECT COUNT(*) FROM " + table + " WHERE conversation_id=:id").param("id", conversation.toString()).query(Long.class).single();
@@ -179,7 +192,7 @@ class TaskAcceptanceStoreTest {
         store.acceptTask(request(conversation, op, "accept", now, "digest"));
         for (var changed : List.of(request(conversation, op, "other", now, "digest"), request(conversation, op, "accept", now, "other"), request(conversation, op, "accept", now.minusSeconds(1), "digest")))
             assertThrows(TaskAcceptanceStore.Conflict.class, () -> store.acceptTask(changed));
-        var revised = new TaskAcceptanceStore.Request("principal", op, "accept", now, "digest", conversation, 1);
+        var revised = new TaskAcceptanceStore.Request("principal", op, "accept", now, "digest", conversation, 1, proofs.get(conversation));
         assertThrows(TaskAcceptanceStore.Conflict.class, () -> store.acceptTask(revised));
         assertEquals(1, count("task_run", conversation)); assertEquals(1, count("request_receipt", conversation));
     }
@@ -198,7 +211,8 @@ class TaskAcceptanceStoreTest {
     }
     @Test void ambientTransactionIsRejectedBeforeWrites() {
         UUID conversation = UUID.randomUUID(); store.createConversation(conversation);
-        assertThrows(IllegalStateException.class, () -> tx.execute(status -> store.acceptTask(request(conversation, UUID.randomUUID(), "accept", now, "digest"))));
+        var request = request(conversation, UUID.randomUUID(), "accept", now, "digest");
+        assertThrows(IllegalStateException.class, () -> tx.execute(status -> store.acceptTask(request)));
         assertEquals(0, count("task_run", conversation)); assertEquals(0, count("request_receipt", conversation)); assertEquals(0, count("journal_event", conversation));
         var snapshot = store.snapshot(conversation); assertEquals(0, snapshot.revision()); assertEquals(0, snapshot.sequence()); assertNull(snapshot.activeTaskId());
     }
@@ -214,6 +228,7 @@ class TaskAcceptanceStoreTest {
     }
     @Test void invalidTimeAndRetentionAreRejected() {
         UUID conversation = UUID.randomUUID(); store.createConversation(conversation);
+        request(conversation, UUID.randomUUID(), "accept", now, "digest");
         assertThrows(IllegalArgumentException.class, () -> store.acceptTask(request(conversation, UUID.randomUUID(), "accept", now.minusSeconds(3601), "digest")));
         assertThrows(IllegalArgumentException.class, () -> store.acceptTask(request(conversation, UUID.randomUUID(), "accept", now.plusSeconds(61), "digest")));
         assertThrows(IllegalArgumentException.class, () -> new TaskAcceptanceStore.Retention(Duration.ofHours(1), Duration.ZERO, Duration.ofMinutes(1), Duration.ofHours(1)));
@@ -230,7 +245,7 @@ class TaskAcceptanceStoreTest {
                     UUID conversation = UUID.randomUUID(); store.createConversation(conversation);
                     var request = request(conversation, UUID.randomUUID(), "accept", instant, "digest");
                     var receipt = store.acceptTask(request);
-                    LocalDateTime stored = jdbc.sql("SELECT created_at FROM request_receipt WHERE operation_id=:id").param("id", request.operationId().toString())
+                    LocalDateTime stored = jdbc.sql("SELECT created_at FROM operation_identity WHERE operation_id=:id").param("id", request.operationId().toString())
                             .query((rs, row) -> rs.getObject(1, LocalDateTime.class)).single();
                     assertEquals(instant, stored.toInstant(ZoneOffset.UTC)); assertEquals(receipt, store.acceptTask(request));
                 }

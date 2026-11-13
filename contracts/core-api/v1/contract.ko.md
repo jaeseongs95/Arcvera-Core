@@ -43,6 +43,17 @@ conversation InputLease 정본은 Core다. Desktop은 mirror와 입력 gate를 �
 
 durable SSE의 `id:`는 `streamEpoch:sequence`, `event:`는 `durable`이며 data는 `events.schema.json`이다. UUID `eventId`는 이벤트 정체성이고 SSE 커서와 다르다. transient는 `event: transient`, control은 `event: control`; 둘에는 SSE `id:`를 넣지 않는다. heartbeat 주석에도 커서가 없다.
 
+SSE 줄 끝은 [WHATWG의 CRLF·CR·LF 규칙](https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream)을 따른다. `limits.eventBytes`는 마지막 빈 줄 종결자 직전까지 한 블록의 원시 UTF-8 바이트 수다. 필드명·콜론·공백·주석·무시되는 필드 및 비어 있지 않은 각 줄의 종결자도 포함한다. 마지막 빈 줄 종결자만 이 계수에서 제외하고 별도로 최대 2바이트를 허용한다. 스트림 첫머리의 선택적 BOM은 한 번만 최대 3바이트를 별도 허용한다. 그 밖의 BOM은 일반 내용으로 계수한다. 주석이나 알 수 없는 필드를 만났다는 이유로 블록 계수를 초기화하지 않는다.
+
+| 원시 입력 표기 | eventBytes 계수 | 마지막 구분자 |
+|---|---:|---:|
+| `data: x\n\n` | 8 | 1바이트 |
+| `data: x\r\r` | 8 | 1바이트 |
+| `data: x\r\n\r\n` | 9 | 2바이트 |
+| `data: 가\n\n` | 10 | 1바이트 |
+
+빈 줄의 CR을 받으면 다음 바이트를 기다리지 않고 블록을 끝낼 수 있다. 바로 뒤 LF는 이미 끝난 블록 구분자의 두 번째 바이트로 흡수하고 다음 블록 내용으로 세지 않는다. 수신 청크 경계와 무관하게 같은 바이트열은 같은 계수·초과 판정을 낸다. 입력 상한은 역직렬화 전에 적용하고, 부분 필드·블록은 상한 안에서만 보관한다. 빈 줄 없이 EOF가 오면 불완전 블록을 전달하지 않는다. 빈 블록·heartbeat에도 무제한 큐를 만들지 않는다. 이 계수 정의와 예시는 계약이며 실제 Core SSE 송신·Desktop 소비의 통합 시험을 대신하지 않는다.
+
 재접속은 `Last-Event-ID` 또는 `(streamEpoch, after)` 쿼리 한 가지를 쓴다. 두 방식 동시 사용·부분 쿼리·형식 오류는 거부한다. 인증된 같은 대화·epoch에 대해 `sequence > after`를 재생한다. 중복은 epoch와 순번으로 한 번만 반영한다. 누락을 건너뛰지 않는다.
 
 snapshot의 `appliedThroughSequence`와 `resumeAfter`는 같은 N이며 상태도 정확히 N 시점이다. `aggregateRevision`은 포함된 Conversation 버전과 같다. 서버는 이를 한 일관된 읽기로 만든다. Desktop은 상태와 N을 함께 저장하고 N+1부터 재생한다. UI 저장 ACK는 실행 효과 완료 ACK가 아니다.

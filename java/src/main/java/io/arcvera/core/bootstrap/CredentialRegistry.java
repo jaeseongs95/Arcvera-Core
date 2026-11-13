@@ -32,6 +32,9 @@ public final class CredentialRegistry {
     private long rotationTick;
     private Instant lastObserved;
     private boolean revoked;
+    private Instant certificateExpiry;
+    private long certificateStartTick;
+    private long certificateLifetimeNanos;
 
     public CredentialRegistry(Clock clock, SecureRandom random, LongSupplier ticker, UUID instanceId,
                               String osPrincipal, Set<String> scopes) {
@@ -48,6 +51,7 @@ public final class CredentialRegistry {
 
     // ceiling: one lock per Core instance; revisit only if measured authentication throughput requires it.
     public synchronized IssuedCredential issue() {
+        expireCertificate(now(), ticker.getAsLong());
         if (current != null || revoked) throw new IllegalStateException("Credential already issued or revoked");
         Candidate candidate = create(0, now(), ticker.getAsLong());
         current = candidate.entry;
@@ -57,6 +61,7 @@ public final class CredentialRegistry {
     /** Holds authentication locked: a confirmed non-commit preserves state; an uncertain failure revokes it. */
     public synchronized IssuedCredential issueAndPublish(CredentialPublisher publisher) throws IOException {
         Objects.requireNonNull(publisher);
+        expireCertificate(now(), ticker.getAsLong());
         if (current != null || revoked) throw new IllegalStateException("Credential already issued or revoked");
         Candidate candidate = create(0, now(), ticker.getAsLong());
         publish(publisher, candidate.credential);
@@ -74,6 +79,7 @@ public final class CredentialRegistry {
     }
 
     private void checkRotation(UUID expectedCredentialId, long expectedGeneration, Instant now, long tick) {
+        expireCertificate(now, tick);
         if (revoked || current == null || !current.id.equals(expectedCredentialId)
                 || current.generation != expectedGeneration
                 || (now.isBefore(current.expiresAt.minus(ROTATE_BEFORE)) && !elapsed(tick, current.issuedTick, TTL.minus(ROTATE_BEFORE)))
@@ -136,6 +142,8 @@ public final class CredentialRegistry {
         if (revoked || !validTokenShape(token)) return Optional.empty();
         Instant now = now();
         long tick = ticker.getAsLong();
+        expireCertificate(now, tick);
+        if (revoked) return Optional.empty();
         purgeExpiredAt(now, tick);
         byte[] hash = digest(token);
         if (matchesToken(current, hash, now, tick)) return Optional.of(claims(current));
@@ -145,7 +153,27 @@ public final class CredentialRegistry {
 
     /** Intended to be called by a single managed lifecycle scheduler. */
     public synchronized void purgeExpired() {
-        purgeExpiredAt(now(), ticker.getAsLong());
+        Instant now = now();
+        long tick = ticker.getAsLong();
+        expireCertificate(now, tick);
+        purgeExpiredAt(now, tick);
+    }
+
+    /** Binds this instance to its TLS certificate before any credential is issued. */
+    public synchronized void bindCertificateExpiry(Instant expiry) {
+        Objects.requireNonNull(expiry);
+        if (current != null || revoked || certificateExpiry != null) throw new IllegalStateException("Certificate binding unavailable");
+        Instant now = now();
+        long lifetime = Duration.between(now, expiry).toNanos();
+        if (lifetime <= 0) throw new IllegalArgumentException("Certificate already expired");
+        certificateExpiry = expiry;
+        certificateStartTick = ticker.getAsLong();
+        certificateLifetimeNanos = lifetime;
+    }
+
+    private void expireCertificate(Instant now, long tick) {
+        if (certificateExpiry != null && (!now.isBefore(certificateExpiry)
+                || tick - certificateStartTick >= certificateLifetimeNanos)) revoke();
     }
 
     private void purgeExpiredAt(Instant now, long tick) {
@@ -173,6 +201,11 @@ public final class CredentialRegistry {
     public record Claims(UUID instanceId, String osPrincipal, Set<String> scopes,
                          UUID credentialId, long generation) {
         public Claims { scopes = Set.copyOf(scopes); }
+    }
+
+    public Binding binding() { return new Binding(instanceId, osPrincipal, scopes); }
+    public record Binding(UUID instanceId, String osPrincipal, Set<String> scopes) {
+        public Binding { scopes = Set.copyOf(scopes); }
     }
 
     public synchronized void revoke() {

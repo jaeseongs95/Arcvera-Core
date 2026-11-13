@@ -11,6 +11,6 @@ public final class ReceiptRowMapper implements RowMapper<ReceiptRow> {
         return new ReceiptRow(row.getString("id"), row.getObject("row_version", Long.class), row.getString("principal"),
                 row.getString("operation_id"), row.getString("operation"), row.getObject("created_at", LocalDateTime.class),
                 row.getString("payload_digest"), row.getString("conversation_id"), row.getLong("expected_revision"),
-                row.getString("task_id"), row.getObject("revision", Long.class), row.getObject("sequence", Long.class));
+                row.getString("proof_lease"), row.getLong("proof_revision"), row.getString("proof_client"), row.getString("task_id"), row.getObject("revision", Long.class), row.getObject("sequence", Long.class));
     }
 }
