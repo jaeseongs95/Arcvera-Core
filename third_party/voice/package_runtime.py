@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 # Modified for Arcvera-Core (2026-11-13); see MODIFICATIONS.md.
 """Validate prepared runtime files before copying them into a private package.
 

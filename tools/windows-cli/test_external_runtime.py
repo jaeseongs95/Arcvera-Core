@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 """Distribution-policy regression cases; no native compilation or installation."""
 
 import json

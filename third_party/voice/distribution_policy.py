@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 """Arcvera distribution policy (2026-11-13); see MODIFICATIONS.md.
 
 Microsoft CRTs and their installers are external prerequisites, irrespective of
