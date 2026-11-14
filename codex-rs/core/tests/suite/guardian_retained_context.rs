@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R39 (2026-11-07); see MODIFICATIONS.md.
 //! Retained-instruction and answer lifecycles through real sessions and durable checkpoints.
 //! Real user input covers steering and compaction. Resume and child forks use production paths.
@@ -13,6 +14,7 @@ use codex_core::ForkSnapshot;
 use codex_core::TurnInputRequest;
 use codex_core::compact::content_items_to_text;
 use codex_core::config::Config;
+use codex_core::config::Constrained;
 use codex_core::config::ThreadStoreConfig;
 use codex_extension_api::ExtensionFuture;
 use codex_extension_api::ExtensionRegistryBuilder;
@@ -33,12 +35,14 @@ use codex_history::RolloutItem;
 use codex_history::VerifiedAnswer;
 use codex_history::VerifiedQuestionAnswer;
 use codex_protocol::ResponseItemId;
+use codex_protocol::config_types::ApprovalsReviewer;
 use codex_protocol::config_types::CollaborationMode;
 use codex_protocol::config_types::ModeKind;
 use codex_protocol::config_types::Settings;
 use codex_protocol::mcp::ClientMcpExtensions;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseItem;
+use codex_protocol::protocol::AskForApproval;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::Op;
 use codex_protocol::protocol::ThreadHistoryMode;
@@ -780,6 +784,259 @@ async fn legacy_checkpoint_recovers_root_excerpt_before_discarding_backup(
         Some(&expected)
     );
     resumed.shutdown_and_wait().await?;
+    Ok(())
+}
+
+// Synthetic historical checkpoint: the persisted retained restriction exists,
+// but the replacement model window no longer contains its original message.
+#[test_case(ThreadHistoryMode::Legacy; "legacy")]
+#[test_case(ThreadHistoryMode::Paginated; "paginated")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn standalone_fork_summary_only_checkpoint(history_mode: ThreadHistoryMode) -> Result<()> {
+    skip_if_no_network!(Ok(()));
+    const RESTRICTION: &str = "D32 fixture: never publish the private release.";
+    const SUMMARY: &str = "D32 synthetic compacted project summary.";
+    let server = start_mock_server().await;
+    let test = test_codex()
+        .with_history_mode(history_mode)
+        .with_config(|config| {
+            config.experimental_thread_store = ThreadStoreConfig::Local;
+            config
+                .features
+                .disable(Feature::TokenBudget)
+                .expect("local compaction");
+            config.permissions.approval_policy = Constrained::allow_any(AskForApproval::OnRequest);
+            config.approvals_reviewer = ApprovalsReviewer::AutoReview;
+            for feature in [
+                Feature::GuardianApproval,
+                Feature::Collab,
+                Feature::MultiAgentV2,
+            ] {
+                config.features.enable(feature).expect("fixture feature");
+            }
+        })
+        .build_with_auto_env(&server)
+        .await?;
+    mount_sse_sequence(&server, vec![sse(vec![ev_completed("d32-parent")])]).await;
+    test.codex
+        .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
+            text: RESTRICTION.into(),
+            text_elements: Vec::new(),
+        }]))
+        .await?;
+    wait_for_event(&test.codex, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
+    mount_sse_sequence(
+        &server,
+        vec![sse(vec![
+            ev_assistant_message("d32-parent-summary", SUMMARY),
+            ev_completed("d32-parent-compact"),
+        ])],
+    )
+    .await;
+    compact_and_assert_answers(&test, &test.codex, &[]).await?;
+    let mut checkpoint = load_context(&test, &test.codex)
+        .await?
+        .into_iter()
+        .rev()
+        .find_map(|item| match item {
+            RolloutItem::Compacted(checkpoint) => Some(checkpoint),
+            _ => None,
+        })
+        .context("fixture requires a real parent checkpoint")?;
+    let retained = checkpoint
+        .retained_context
+        .as_ref()
+        .context("parent retained evidence")?;
+    assert!(retained.ordered_entries().any(|(_, entry)| matches!(entry,
+        RetainedContextEntry::UserMessage(message) if message.text.contains(RESTRICTION))));
+    let replacement = checkpoint
+        .replacement_history
+        .as_mut()
+        .context("fixture requires replacement history")?;
+    replacement.retain(|item| {
+        !serde_json::to_string(&item.item)
+            .expect("serialize fixture item")
+            .contains(RESTRICTION)
+    });
+    let replacement_wire = serde_json::to_string(
+        &replacement
+            .iter()
+            .map(|item| &item.item)
+            .collect::<Vec<_>>(),
+    )?;
+    assert!(!replacement_wire.contains(RESTRICTION));
+    assert!(
+        replacement_wire.contains(SUMMARY),
+        "fixture must retain a summary"
+    );
+    // Validate that the synthetic shape can deserialize with the current type
+    // before using the production append, storage load, and resume paths.
+    // Compatibility with a historical producer remains unverified.
+    let wire = serde_json::to_value(&checkpoint)?;
+    let checkpoint = serde_json::from_value(wire)?;
+    test.codex
+        .append_rollout_items(&[RolloutItem::Compacted(checkpoint)])
+        .await?;
+    test.codex.flush_rollout().await?;
+    let stored = load_context(&test, &test.codex).await?;
+    let stored = stored
+        .iter()
+        .rev()
+        .find_map(|item| match item {
+            RolloutItem::Compacted(checkpoint) => Some(checkpoint),
+            _ => None,
+        })
+        .context("fixture gap: persisted checkpoint unavailable")?;
+    assert!(
+        stored
+            .retained_context
+            .as_ref()
+            .context("stored retained context")?
+            .ordered_entries()
+            .any(|(_, entry)| matches!(entry,
+            RetainedContextEntry::UserMessage(message) if message.text.contains(RESTRICTION)))
+    );
+    let stored_window = serde_json::to_string(
+        &stored
+            .replacement_history
+            .as_ref()
+            .context("stored replacement")?
+            .iter()
+            .map(|item| &item.item)
+            .collect::<Vec<_>>(),
+    )?;
+    assert!(
+        stored_window.contains(SUMMARY) && !stored_window.contains(RESTRICTION),
+        "fixture gap: stored checkpoint is not summary-only"
+    );
+    let parent = resume(&test, &test.codex).await?;
+    let parent_history = parent.conversation_history_snapshot().await;
+    assert!(parent_history.retained_context().context("replayed retained evidence")?.ordered_entries().any(|(_, entry)|
+        matches!(entry, RetainedContextEntry::UserMessage(message) if message.text.contains(RESTRICTION))));
+    assert!(
+        !serde_json::to_string(&parent_history.items().collect::<Vec<_>>())?.contains(RESTRICTION),
+        "fixture gap: replayed parent window still contains the original restriction"
+    );
+    assert!(serde_json::to_string(&parent_history.items().collect::<Vec<_>>())?.contains(SUMMARY));
+
+    let mut created = test.thread_manager.subscribe_thread_created();
+    mount_sse_sequence(&server, vec![
+        sse(vec![ev_function_call_with_namespace("d32-spawn", "collaboration", "spawn_agent",
+            &json!({"task_name":"d32-worker","message":"Inspect the project.","fork_turns":"all"}).to_string()), ev_completed("d32-spawned")]),
+        sse(vec![ev_completed("d32-parent-done")]),
+        sse(vec![ev_completed("d32-worker-done")]),
+    ]).await;
+    parent
+        .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
+            text: "Delegate an inspection.".into(),
+            text_elements: Vec::new(),
+        }]))
+        .await?;
+    wait_for_event(&parent, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    let worker_id = tokio::time::timeout(Duration::from_secs(15), created.recv())
+        .await
+        .context("fixture gap: worker spawn was not observed within 15 seconds")??;
+    let worker = test.thread_manager.get_thread(worker_id).await?;
+    wait_for_event(&worker, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    let worker_history = worker.conversation_history_snapshot().await;
+    assert!(!worker_history.retained_context().context("worker retained context")?.ordered_entries().any(|(_, entry)|
+        matches!(entry, RetainedContextEntry::UserMessage(message) if message.text.contains(RESTRICTION))),
+        "parent restriction must not become worker-local authorization");
+    let live_root = worker
+        .guardian_root_snapshot()
+        .await
+        .context("fixture gap: V2 root snapshot unavailable")?;
+    assert!(
+        live_root.messages.iter().any(|message| matches!(message,
+        codex_core::GuardianRootMessage::User(text) if text.contains(RESTRICTION))),
+        "fixture gap: live V2 root restriction was not available before standalone fork"
+    );
+    parent.shutdown_and_wait().await?;
+    let fork = if history_mode == ThreadHistoryMode::Paginated {
+        let prepared = test
+            .thread_store
+            .prepare_fork(PrepareForkParams {
+                thread_id: worker.startup_metadata().thread_id,
+                boundary: ForkBoundary::Latest,
+            })
+            .await?;
+        test.thread_manager
+            .fork_prepared_thread(
+                codex_core::StartThreadOptions::new(test.config.clone()),
+                prepared,
+            )
+            .await?
+    } else {
+        test.thread_manager
+            .fork_thread_from_history(
+                ForkSnapshot::Interrupted,
+                codex_core::StartThreadOptions::new(test.config.clone()),
+                InitialHistory::Resumed(ResumedHistory {
+                    history_revision: None,
+                    conversation_id: worker.startup_metadata().thread_id,
+                    history: Arc::new(load_context(&test, &worker).await?),
+                    rollout_path: None,
+                }),
+            )
+            .await?
+    };
+    assert!(
+        fork.thread.guardian_root_snapshot().await.is_none(),
+        "fixture must be a standalone root"
+    );
+    let root_history = fork.thread.conversation_history_snapshot().await;
+    let retained = root_history
+        .retained_context()
+        .context("standalone retained context")?;
+    if let Some((order, _)) = retained.ordered_entries().find(|(_, entry)|
+        matches!(entry, RetainedContextEntry::UserMessage(message) if message.text.contains(RESTRICTION))) {
+        assert!(matches!(order, RetainedContextOrder::Inherited(_)), "parent source must retain inherited provenance");
+    }
+    let review = mount_sse_sequence(
+        &server,
+        vec![
+            sse(vec![
+                ev_function_call(
+                    "d32-action",
+                    "exec_command",
+                    r#"{"cmd":"echo d32-fixture","sandbox_permissions":"require_escalated"}"#,
+                ),
+                ev_completed("d32-action"),
+            ]),
+            sse(vec![
+                ev_assistant_message("d32-review", r#"{"outcome":"deny"}"#),
+                ev_completed("d32-review"),
+            ]),
+            sse(vec![ev_completed("d32-done")]),
+        ],
+    )
+    .await;
+    fork.thread
+        .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
+            text: "Continue the synthetic inspection.".into(),
+            text_elements: Vec::new(),
+        }]))
+        .await?;
+    wait_for_event(&fork.thread, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
+    let requests = review.requests();
+    let guardian = requests
+        .iter()
+        .find(|request| request.body_json()["client_metadata"]["x-openai-subagent"] == "guardian")
+        .context("fixture gap: no Guardian request observed")?;
+    let input = serde_json::to_string(&guardian.input())?;
+    let missing = codex_guardian_context::GuardianRootMessage::IncompleteRootInstructions.render();
+    assert!(
+        input.contains(RESTRICTION) || input.contains(missing.trim_end()),
+        "Guardian input omitted the retained parent restriction without disclosing incomplete instructions"
+    );
+    fork.thread.shutdown_and_wait().await?;
+    worker.shutdown_and_wait().await?;
     Ok(())
 }
 
