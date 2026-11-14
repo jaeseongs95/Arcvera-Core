@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::time::Duration;
 
 use anyhow::Result;
@@ -203,7 +204,7 @@ async fn hooks_list_shows_discovered_hook() -> Result<()> {
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(request_id)).await??;
     let config_path = AbsolutePathBuf::from_absolute_path(std::fs::canonicalize(
         codex_home.path().join("config.toml"),
@@ -285,7 +286,7 @@ async fn hooks_list_shows_discovered_plugin_hook() -> Result<()> {
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(request_id)).await??;
     let plugin_hooks_path = AbsolutePathBuf::from_absolute_path(std::fs::canonicalize(
         codex_home
@@ -382,7 +383,7 @@ async fn plugin_upgrade_refreshes_hook_runtime_for_loaded_session() -> Result<()
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(hooks_list_id)).await??;
     let hook = data[0]
         .hooks
@@ -508,7 +509,7 @@ async fn plugin_upgrade_refreshes_hook_runtime_for_loaded_session() -> Result<()
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(hooks_list_id)).await??;
     let expected_hook_path = codex_home
         .path()
@@ -594,7 +595,8 @@ async fn loaded_session_refreshes_externally_updated_plugin_hooks() -> Result<()
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } = timeout(DEFAULT_TIMEOUT, mcp.read_response(list_id)).await??;
+    let HooksListResponse { data, .. } =
+        timeout(DEFAULT_TIMEOUT, mcp.read_response(list_id)).await??;
     let trusted_hooks = data[0]
         .hooks
         .iter()
@@ -665,7 +667,7 @@ async fn loaded_session_refreshes_externally_updated_plugin_hooks() -> Result<()
                 ..Default::default()
             })
             .await?;
-        let HooksListResponse { data } =
+        let HooksListResponse { data, .. } =
             timeout(DEFAULT_TIMEOUT, mcp.read_response(list_id)).await??;
         let hook = data[0]
             .hooks
@@ -854,7 +856,7 @@ source = "{}"
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(hooks_list_id)).await??;
     let expected_hook_path = new_plugin_root
         .join("hooks/log_version.py")
@@ -928,7 +930,7 @@ async fn hooks_list_shows_discovered_plugin_mcp_tool_hook() -> Result<()> {
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(request_id)).await??;
     let source_path = AbsolutePathBuf::from_absolute_path(std::fs::canonicalize(
         codex_home
@@ -1025,7 +1027,7 @@ enabled = false
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(request_id)).await??;
     let source_path = AbsolutePathBuf::from_absolute_path(std::fs::canonicalize(
         plugin_root.join("hooks/hooks.json"),
@@ -1153,7 +1155,7 @@ async fn hooks_list_shows_plugin_hook_load_warnings() -> Result<()> {
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(request_id)).await??;
 
     assert_eq!(data.len(), 1);
@@ -1212,7 +1214,7 @@ timeout = 5
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(request_id)).await??;
     let project_config_path =
         AbsolutePathBuf::try_from(workspace.path().join(".codex/config.toml"))?;
@@ -1302,7 +1304,8 @@ async fn hooks_list_uses_root_repo_hooks_for_linked_worktrees() -> Result<()> {
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } = timeout(DEFAULT_TIMEOUT, mcp.read_response(list_id)).await??;
+    let HooksListResponse { data, .. } =
+        timeout(DEFAULT_TIMEOUT, mcp.read_response(list_id)).await??;
     let repo_hook = data[0].hooks[0].clone();
     let worktree_hook = data[1].hooks[0].clone();
     let repo_config_path =
@@ -1351,7 +1354,8 @@ async fn hooks_list_uses_root_repo_hooks_for_linked_worktrees() -> Result<()> {
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } = timeout(DEFAULT_TIMEOUT, mcp.read_response(list_id)).await??;
+    let HooksListResponse { data, .. } =
+        timeout(DEFAULT_TIMEOUT, mcp.read_response(list_id)).await??;
     assert_eq!(data[0].hooks[0].trust_status, HookTrustStatus::Trusted);
 
     Ok(())
@@ -1375,7 +1379,7 @@ async fn config_batch_write_toggles_user_hook() -> Result<()> {
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(request_id)).await??;
     let hook = &data[0].hooks[0];
     assert_eq!(hook.enabled, true);
@@ -1405,7 +1409,7 @@ async fn config_batch_write_toggles_user_hook() -> Result<()> {
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(request_id)).await??;
     assert_eq!(data[0].hooks.len(), 1);
     assert_eq!(data[0].hooks[0].key, hook.key);
@@ -1436,7 +1440,7 @@ async fn config_batch_write_toggles_user_hook() -> Result<()> {
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(request_id)).await??;
     assert_eq!(data[0].hooks[0].enabled, true);
     Ok(())
@@ -1497,7 +1501,7 @@ command = "python3 {}"
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(hook_list_id)).await??;
     let hook = data[0].hooks[0].clone();
     assert_eq!(hook.trust_status, HookTrustStatus::Untrusted);
@@ -1555,7 +1559,7 @@ command = "python3 {}"
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(hook_list_id)).await??;
     let trusted_hook = &data[0].hooks[0];
     assert_eq!(trusted_hook.key, hook.key);
@@ -1615,7 +1619,7 @@ command = "python3 {}"
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(hook_list_id)).await??;
     let modified_hook = &data[0].hooks[0];
     assert_eq!(modified_hook.key, hook.key);
@@ -1703,7 +1707,7 @@ command = "python3 {}"
             ..Default::default()
         })
         .await?;
-    let HooksListResponse { data } =
+    let HooksListResponse { data, .. } =
         timeout(DEFAULT_TIMEOUT, mcp.read_response(hook_list_id)).await??;
     let hook = &data[0].hooks[0];
     assert_eq!(hook.enabled, true);

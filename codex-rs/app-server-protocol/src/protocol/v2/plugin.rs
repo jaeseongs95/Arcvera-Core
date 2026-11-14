@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::AppSummary;
 use super::HookEventName;
 use super::HookSource;
@@ -64,6 +65,32 @@ pub struct HooksListParams {
 #[ts(export_to = "v2/")]
 pub struct HooksListResponse {
     pub data: Vec<HooksListEntry>,
+    /// Configuration discovery and a current-thread runtime snapshot have different scope.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub scope: Option<HooksListScope>,
+    /// Absent for configuration discovery and for older servers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime: Option<HooksRuntimeInfo>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum HooksListScope {
+    Configuration,
+    CurrentThread,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct HooksRuntimeInfo {
+    /// Ordinary configured feature state; built-in hooks may still operate when false.
+    pub feature_enabled: bool,
+    /// Installed base handlers only; excludes per-turn environment/executor overlays.
+    pub base_handler_count: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

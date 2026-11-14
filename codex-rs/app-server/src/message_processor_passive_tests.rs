@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! New method contracts through the real initialized JSON-RPC dispatcher and listener.
@@ -40,6 +41,31 @@ async fn setup(uri: &str) -> Result<(TempDir, Arc<Config>, Arc<MessageProcessor>
     let state_db = codex_core::init_state_db(&config)
         .await
         .expect("passive fixture must initialize its isolated state database");
+    let config = Arc::new(config);
+    let auth = AuthManager::shared_from_config(config.as_ref(), false).await?;
+    let (processor, rx) =
+        build_test_processor_with_state_db(Arc::clone(&config), auth, Some(state_db)).await;
+    Ok((home, config, processor, rx))
+}
+
+async fn setup_without_hooks(
+    uri: &str,
+) -> Result<(TempDir, Arc<Config>, Arc<MessageProcessor>, Receiver)> {
+    let home = TempDir::new()?;
+    MockResponsesConfig::new(uri)
+        .with_approval_policy("on-request")
+        .with_extra_config("[features]\nhooks = false\n")
+        .write(home.path())?;
+    let mut config = ConfigBuilder::default()
+        .codex_home(home.path().to_path_buf())
+        .build()
+        .await?;
+    config.model_catalog = Some(codex_models_manager::bundled_models_response()?);
+    config.sqlite = codex_state::SqliteConfig::new_for_testing(config.codex_home.clone());
+    config.features.enable(codex_features::Feature::Sqlite)?;
+    let state_db = codex_core::init_state_db(&config)
+        .await
+        .expect("isolated state database");
     let config = Arc::new(config);
     let auth = AuthManager::shared_from_config(config.as_ref(), false).await?;
     let (processor, rx) =
@@ -137,6 +163,59 @@ fn assert_passive_unavailable(error: codex_app_server_protocol::JSONRPCErrorErro
             "kind": "threadSubscriptionUnavailable", "reason": reason,
         }))
     );
+}
+
+
+#[tokio::test]
+async fn hooks_list_distinguishes_runtime_gate_from_configuration_and_old_servers() -> Result<()> {
+    use codex_app_server_protocol::{HooksListResponse, HooksListScope};
+    let server = create_mock_responses_server_sequence_unchecked(Vec::new()).await;
+    for enabled in [true, false] {
+        let (_home, _, processor, mut rx) = if enabled {
+            setup(&server.uri()).await?
+        } else {
+            setup_without_hooks(&server.uri()).await?
+        };
+        let connection = ConnectionId(1);
+        let session = initialize(&processor, &mut rx, connection).await;
+        let thread = start(&processor, &mut rx, connection, &session)
+            .await
+            .thread;
+        send(
+            &processor,
+            connection,
+            &session,
+            json!({"id":61,"method":"hooks/list","params":{"threadId":thread.id}}),
+        )
+        .await;
+        let result: HooksListResponse = read_response_from(&mut rx, connection, 61).await;
+        assert_eq!(result.scope, Some(HooksListScope::CurrentThread));
+        #[derive(serde::Deserialize)]
+        struct OldHooksListResponse {
+            data: Vec<serde_json::Value>,
+        }
+        let old_client: OldHooksListResponse =
+            serde_json::from_value(serde_json::to_value(&result)?)?;
+        assert_eq!(old_client.data.len(), 1);
+        let runtime = result
+            .runtime
+            .expect("runtime scope has installed engine metadata");
+        assert_eq!(runtime.feature_enabled, enabled);
+        assert_eq!(runtime.base_handler_count, 0);
+        send(
+            &processor,
+            connection,
+            &session,
+            json!({"id":62,"method":"hooks/list","params":{}}),
+        )
+        .await;
+        let result: HooksListResponse = read_response_from(&mut rx, connection, 62).await;
+        assert_eq!(result.scope, Some(HooksListScope::Configuration));
+        assert!(result.runtime.is_none());
+    }
+    let old: HooksListResponse = serde_json::from_value(json!({"data":[]}))?;
+    assert!(old.scope.is_none() && old.runtime.is_none());
+    Ok(())
 }
 
 async fn finish(processor: &Arc<MessageProcessor>, rx: Receiver) {

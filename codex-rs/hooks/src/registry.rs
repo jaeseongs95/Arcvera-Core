@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use crate::engine::ClaudeHooksEngine;
 use crate::engine::CommandShell;
 use crate::engine::ConfiguredHandler;
@@ -72,6 +73,15 @@ pub struct Hooks {
 }
 
 impl Hooks {
+    /// State of the installed runtime snapshot, not a fresh configuration read.
+    pub fn configured_feature_enabled(&self) -> bool {
+        self.engine.enabled
+    }
+
+    /// Base installed handlers; per-turn environment and executor overlays are separate.
+    pub fn base_handler_count(&self) -> usize {
+        self.engine.handlers.len()
+    }
     /// Bind this session's hook runtime and output files to its thread, rejecting unloadable
     /// required managed hooks.
     pub fn new(

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::*;
 use crate::model_catalog::ModelCatalog;
 use codex_config::ConfigPathContext;
@@ -639,8 +640,23 @@ impl CatalogRequestProcessor {
                 .get_thread(thread_id)
                 .await
                 .map_err(|_| invalid_request(format!("thread not found: {thread_id}")))?;
+            let _activity = self
+                .thread_manager
+                .admit_thread_activity(thread_id)
+                .map_err(|_| invalid_request("thread is closing"))?;
+            drop(
+                self.thread_manager
+                    .lock_loaded_thread(thread_id, &thread)
+                    .await
+                    .map_err(crate::error_code::passive_runtime_unavailable)?,
+            );
             let cwd = thread.config_snapshot().await.cwd().to_path_buf();
-            let hooks = thread.list_hooks();
+            let (hooks, feature_enabled, base_handler_count) = thread.list_hooks_with_runtime();
+            let _identity = self
+                .thread_manager
+                .lock_loaded_thread(thread_id, &thread)
+                .await
+                .map_err(crate::error_code::passive_runtime_unavailable)?;
             return Ok(HooksListResponse {
                 data: vec![codex_app_server_protocol::HooksListEntry {
                     cwd,
@@ -648,6 +664,11 @@ impl CatalogRequestProcessor {
                     warnings: hooks.warnings,
                     errors: Vec::new(),
                 }],
+                scope: Some(codex_app_server_protocol::HooksListScope::CurrentThread),
+                runtime: Some(codex_app_server_protocol::HooksRuntimeInfo {
+                    feature_enabled,
+                    base_handler_count,
+                }),
             });
         }
 
@@ -713,7 +734,11 @@ impl CatalogRequestProcessor {
                 errors: Vec::new(),
             });
         }
-        Ok(HooksListResponse { data })
+        Ok(HooksListResponse {
+            data,
+            scope: Some(codex_app_server_protocol::HooksListScope::Configuration),
+            runtime: None,
+        })
     }
 
     async fn skills_config_write_response_inner(

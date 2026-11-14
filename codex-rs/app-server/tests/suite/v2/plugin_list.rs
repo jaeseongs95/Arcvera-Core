@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 use std::sync::OnceLock;
@@ -5231,7 +5232,7 @@ async fn wait_for_plugin_hooks(
                     ..Default::default()
                 })
                 .await?;
-            let HooksListResponse { data } = mcp.read_response(request_id).await?;
+            let HooksListResponse { data, .. } = mcp.read_response(request_id).await?;
             let hooks = data
                 .into_iter()
                 .flat_map(|entry| entry.hooks)

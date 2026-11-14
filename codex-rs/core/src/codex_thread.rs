@@ -1291,12 +1291,20 @@ impl CodexThread {
 
     /// List the thread's current hook declarations, including its selected, ready environments.
     pub fn list_hooks(&self) -> codex_hooks::HookListOutcome {
+        self.list_hooks_with_runtime().0
+    }
+
+    /// Capture declarations and installed feature state from one Hooks snapshot.
+    pub fn list_hooks_with_runtime(&self) -> (codex_hooks::HookListOutcome, bool, usize) {
         let environments = self.session.services.turn_environments.snapshot_now();
         let sources = crate::hook_environment_executor::environment_hook_sources(
             &environments,
             /*target_environments*/ &[],
         );
-        self.session.hooks().list_with_environment_hooks(sources)
+        let hooks = self.session.hooks();
+        let enabled = hooks.configured_feature_enabled();
+        let count = hooks.base_handler_count();
+        (hooks.list_with_environment_hooks(sources), enabled, count)
     }
 
     /// Observes this thread's published MCP connections that match the requested config.

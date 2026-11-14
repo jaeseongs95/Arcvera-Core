@@ -255,6 +255,32 @@
         "warnings"
       ],
       "type": "object"
+    },
+    "HooksListScope": {
+      "enum": [
+        "configuration",
+        "currentThread"
+      ],
+      "type": "string"
+    },
+    "HooksRuntimeInfo": {
+      "properties": {
+        "baseHandlerCount": {
+          "description": "Installed base handlers only; excludes per-turn environment/executor overlays.",
+          "format": "uint",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "featureEnabled": {
+          "description": "Ordinary configured feature state; built-in hooks may still operate when false.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "baseHandlerCount",
+        "featureEnabled"
+      ],
+      "type": "object"
     }
   },
   "properties": {
@@ -263,6 +289,28 @@
         "$ref": "#/definitions/HooksListEntry"
       },
       "type": "array"
+    },
+    "runtime": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/HooksRuntimeInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Absent for configuration discovery and for older servers."
+    },
+    "scope": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/HooksListScope"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration discovery and a current-thread runtime snapshot have different scope."
     }
   },
   "required": [

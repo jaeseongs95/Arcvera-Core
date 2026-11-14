@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Exercises the goal extension's no-activity breaker through the public API.
 
 use anyhow::Result;
@@ -116,7 +117,7 @@ command_windows = """Write-Output '{"continue":false}'"""
                 ..Default::default()
             })
             .await?;
-        let HooksListResponse { data } = mcp.read_response(list).await?;
+        let HooksListResponse { data, .. } = mcp.read_response(list).await?;
         let hook = data[0]
             .hooks
             .iter()
