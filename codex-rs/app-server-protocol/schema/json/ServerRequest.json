@@ -503,6 +503,14 @@
       ],
       "type": "object"
     },
+    "ElicitationOrigin": {
+      "description": "The publisher of an elicitation; this does not grant approval authority.",
+      "enum": [
+        "core",
+        "mcpServer"
+      ],
+      "type": "string"
+    },
     "ExecCommandApprovalParams": {
       "properties": {
         "approvalId": {
@@ -1493,6 +1501,17 @@
         }
       ],
       "properties": {
+        "origin": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ElicitationOrigin"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Host-supplied publisher identity, not an approval grant."
+        },
         "serverName": {
           "type": "string"
         },

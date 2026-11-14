@@ -3242,6 +3242,14 @@
       "title": "DynamicToolCallResponse",
       "type": "object"
     },
+    "ElicitationOrigin": {
+      "description": "The publisher of an elicitation; this does not grant approval authority.",
+      "enum": [
+        "core",
+        "mcpServer"
+      ],
+      "type": "string"
+    },
     "ExecCommandApprovalParams": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "properties": {
@@ -4485,6 +4493,17 @@
         }
       ],
       "properties": {
+        "origin": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ElicitationOrigin"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Host-supplied publisher identity, not an approval grant."
+        },
         "serverName": {
           "type": "string"
         },
@@ -14423,12 +14442,60 @@
               "$ref": "#/definitions/v2/HooksListEntry"
             },
             "type": "array"
+          },
+          "runtime": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/HooksRuntimeInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Absent for configuration discovery and for older servers."
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/HooksListScope"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Configuration discovery and a current-thread runtime snapshot have different scope."
           }
         },
         "required": [
           "data"
         ],
         "title": "HooksListResponse",
+        "type": "object"
+      },
+      "HooksListScope": {
+        "enum": [
+          "configuration",
+          "currentThread"
+        ],
+        "type": "string"
+      },
+      "HooksRuntimeInfo": {
+        "properties": {
+          "baseHandlerCount": {
+            "description": "Installed base handlers only; excludes per-turn environment/executor overlays.",
+            "format": "uint",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "featureEnabled": {
+            "description": "Ordinary configured feature state; built-in hooks may still operate when false.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "baseHandlerCount",
+          "featureEnabled"
+        ],
         "type": "object"
       },
       "ImageDetail": {
@@ -15832,6 +15899,13 @@
               "$ref": "#/definitions/v2/Resource"
             },
             "type": "array"
+          },
+          "runtimeRegistrationId": {
+            "description": "Non-secret identity of the matching live connection-owned published registration.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "runtimeStatus": {
             "anyOf": [
@@ -22896,6 +22970,405 @@
         "title": "ThreadCompactStartResponse",
         "type": "object"
       },
+      "ThreadContextCache": {
+        "properties": {
+          "cachedInputTokens": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "effectiveTtlSeconds": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "estimatedExpiry": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "minimumValidUntil": {
+            "description": "Unknown unless supported by confirmed retention evidence; currently null.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "minimumValidUntilProvenance": {
+            "type": "string"
+          },
+          "minimumValidUntilScope": {
+            "description": "Unknown without confirmed retention evidence; individual fragment TTLs remain unknown.",
+            "type": "string"
+          },
+          "observationId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provenance": {
+            "type": "string"
+          },
+          "requestContextIndexRevision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "requestStartedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requestedTtlSeconds": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "revisionStatus": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "serverConfirmedExpiry": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "totalInputTokens": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "ttlApplication": {
+            "type": "string"
+          },
+          "ttlSupport": {
+            "type": "string"
+          },
+          "uncachedInputTokens": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "writeInputTokens": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "minimumValidUntilProvenance",
+          "minimumValidUntilScope",
+          "provenance",
+          "revisionStatus",
+          "scope",
+          "status",
+          "ttlApplication",
+          "ttlSupport"
+        ],
+        "type": "object"
+      },
+      "ThreadContextFragment": {
+        "properties": {
+          "estimatedTokens": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ThreadContextSourceKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "required": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "residency": {
+            "$ref": "#/definitions/v2/ThreadContextResidency"
+          },
+          "residentOccurrence": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "residentSerializedBytes": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "selected": {
+            "type": "boolean"
+          },
+          "selectionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sourceId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sourceOrdinal": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "residency",
+          "selected"
+        ],
+        "type": "object"
+      },
+      "ThreadContextLimits": {
+        "properties": {
+          "effectiveContextWindow": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "provenance": {
+            "type": "string"
+          },
+          "requestedContextWindowOverride": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "provenance"
+        ],
+        "type": "object"
+      },
+      "ThreadContextRequestSizes": {
+        "properties": {
+          "baseInstructionsSerializedBytes": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "componentPayloadBytes": {
+            "description": "Sum of the four JSON component payloads; excludes transport keys/envelopes. This value is not a provider token count or the bytes sent by a delta request.",
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "contextIndexRevision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "historyVersion": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "inputSerializedBytes": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "observationId": {
+            "type": "string"
+          },
+          "outputSchemaSerializedBytes": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "provenance": {
+            "type": "string"
+          },
+          "recordedAt": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "toolDefinitionsSerializedBytes": {
+            "description": "Standalone tools field only; incremental definitions in input are counted in input.",
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "baseInstructionsSerializedBytes",
+          "componentPayloadBytes",
+          "contextIndexRevision",
+          "historyVersion",
+          "inputSerializedBytes",
+          "observationId",
+          "outputSchemaSerializedBytes",
+          "provenance",
+          "recordedAt",
+          "scope",
+          "toolDefinitionsSerializedBytes"
+        ],
+        "type": "object"
+      },
+      "ThreadContextResidency": {
+        "enum": [
+          "resident",
+          "notResident",
+          "unknown"
+        ],
+        "type": "string"
+      },
+      "ThreadContextSizes": {
+        "properties": {
+          "archiveSerializedBytes": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "baseEstimatedTokens": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "estimateProvenance": {
+            "type": "string"
+          },
+          "excludedResidentSerializedBytes": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "navigationEstimatedTokens": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "residentSerializedBytes": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "selectedBodyEstimatedTokens": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "selectedResidentSerializedBytes": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "toolEstimatedTokens": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "totalEstimatedTokens": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "estimateProvenance",
+          "excludedResidentSerializedBytes",
+          "navigationEstimatedTokens",
+          "residentSerializedBytes",
+          "selectedBodyEstimatedTokens",
+          "selectedResidentSerializedBytes"
+        ],
+        "type": "object"
+      },
+      "ThreadContextSourceKind": {
+        "enum": [
+          "user",
+          "assistant",
+          "control",
+          "opaque",
+          "tool_call",
+          "tool_result",
+          "unknown"
+        ],
+        "type": "string"
+      },
       "ThreadDeleteParams": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "properties": {
@@ -23115,6 +23588,20 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "runtimeMcpRegistrationId": {
+            "description": "Opaque, non-secret registration identity; an ACK alone does not mean ready.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runtimeMcpServersApplied": {
+            "description": "Explicit registration ACK; missing on servers without runtime MCP support.",
+            "type": [
+              "boolean",
+              "null"
             ]
           },
           "sandbox": {
@@ -25778,6 +26265,29 @@
               "null"
             ]
           },
+          "runtimeMcpGeneration": {
+            "description": "Server-issued pending identity; false applied means queued, not ready.",
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "runtimeMcpRegistrationId": {
+            "description": "Stable across retries of one registration; compare with connected status identity.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runtimeMcpServersApplied": {
+            "description": "Explicit MCP registration ACK, independent of native runtime-tool support.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "sandbox": {
             "allOf": [
               {
@@ -26547,6 +27057,20 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "runtimeMcpRegistrationId": {
+            "description": "Opaque, non-secret registration identity; an ACK alone does not mean ready.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runtimeMcpServersApplied": {
+            "description": "Explicit registration ACK; missing on servers without runtime MCP support.",
+            "type": [
+              "boolean",
+              "null"
             ]
           },
           "sandbox": {

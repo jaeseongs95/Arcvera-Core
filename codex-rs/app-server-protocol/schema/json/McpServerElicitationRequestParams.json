@@ -1,6 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
+    "ElicitationOrigin": {
+      "description": "The publisher of an elicitation; this does not grant approval authority.",
+      "enum": [
+        "core",
+        "mcpServer"
+      ],
+      "type": "string"
+    },
     "McpElicitationArrayType": {
       "enum": [
         "array"
@@ -628,6 +636,17 @@
     }
   ],
   "properties": {
+    "origin": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ElicitationOrigin"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Host-supplied publisher identity, not an approval grant."
+    },
     "serverName": {
       "type": "string"
     },
