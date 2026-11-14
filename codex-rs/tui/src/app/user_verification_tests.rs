@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Covers the controller's RPC boundary, cancellation generations, and proof redaction.
 
 use super::*;

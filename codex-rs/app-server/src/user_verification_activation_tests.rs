@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Verifies that host initialization owns capability projection and response eligibility.
 
 use super::test_support::Harness;

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::*;
 use crate::mcp::tests::test_elicitation_config;
 use async_channel::Receiver;

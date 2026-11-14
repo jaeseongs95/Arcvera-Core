@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use crate::app::app_server_requests::AppServerRequestResolution;
 use crate::app::app_server_requests::PendingAppServerRequests;
 use crate::app::app_server_requests::ResolvedAppServerRequest;

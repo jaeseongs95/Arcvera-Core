@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use crate::mcp::RequestId;
 use crate::models::AdditionalPermissionProfile;
 use crate::models::PermissionProfile;

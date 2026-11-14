@@ -1,3 +1,13 @@
+# Arcvera-Core 1.1.0 candidate / 1.1.0 후보
+
+The 1.1.0 candidate adds indexed context selection and retrieval, body-free composition metadata, explicit provider cache policies, and MCP/hook runtime and reload handling. Native verification and release preparation remain in progress. Source inventory and derivative notices continue through `CURRENT_SOURCE.json`; original copyright, licenses and notices remain preserved. See [candidate notes](docs/releases/v1.1.0.md).
+
+The candidate also introduces explicit HTTP(S) mouse-link ownership and aligns cooperating configuration writers on the resolved target. File links and URLs opened programmatically for authentication retain their existing paths. Native regression and joint Desktop verification remain pending; non-cooperating path replacement is outside the guarantee.
+
+1.1.0 후보는 인덱스 문맥 선택과 조회, 본문 없는 구성 메타데이터, 명시적 제공자 캐시 정책, MCP/hook 런타임 및 재로드 처리를 추가합니다. 네이티브 검증과 릴리스 준비가 진행 중입니다. 소스 목록과 파생 변경 고지는 `CURRENT_SOURCE.json`을 통해 유지하며 원 저작권·라이선스·고지를 보존합니다. [후보 안내](docs/releases/v1.1.0.md)를 참고하십시오.
+
+후보에는 HTTP(S) 마우스 링크의 명시적 소유권과 협력하는 설정 writer의 해석된 대상 잠금도 포함됩니다. 파일 링크와 프로그램이 인증을 위해 여는 URL은 기존 경로를 유지합니다. 네이티브 회귀와 Desktop 공동 검증은 대기 중이며 비협력 프로세스의 경로 교체는 보장 범위 밖입니다.
+
 # Arcvera-Core 1.0.1 native hotfix / 네이티브 핫픽스 (2026-11-13)
 
 ## English

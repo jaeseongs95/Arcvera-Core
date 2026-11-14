@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::*;
 use app_test_support::ChatGptAuthFixture;
 use app_test_support::write_chatgpt_auth;

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! MCP elicitation request tracking and policy handling.
 //!
 //! RMCP clients call into this module when a server asks Codex to elicit data

@@ -38,6 +38,24 @@ Arcvera-Core **1.0.1** is the native home-isolation and update-policy hotfix. It
 
 The previous [1.0.0 release](docs/releases/R41.md) introduced the R41 conversation and version-contract changes. Its historical test results do not establish the correctness of 1.0.1. Broader architecture work remains in [R42](docs/roadmap/R42.md). Release versions are independent of upstream Codex 0.167.0.
 
+## 1.1.0 candidate: context and cache controls
+
+The 1.1.0 candidate is under native verification and is not yet a published release. Indexed context selects task fragments and dependencies for active model input while preserving originals for authorized retrieval. Unrelated details can leave active input without deleting their originals. Request-only navigation follows selected history, so navigation changes do not disturb its stable prefix. With an indexed focus, selected context owns its input budget; an oversized selection reports an error instead of silently replacing required evidence with a summary.
+
+The experimental `thread/context/read` returns body-free metadata for a loaded thread through the existing connection and runtime access checks. It separates UTF-8 serialized resident bytes, local token estimates and provider-reported usage. Pages bind to a snapshot; restart pagination on a stale snapshot. Unavailable archive sizes, provider support, expiry and individual fragment TTLs remain unknown. `hooks/list` distinguishes installed current-thread runtime information from configuration discovery. Reload acknowledgement alone does not establish MCP readiness. Hook stdout and stderr are each limited to 1 MiB; exceeding a limit produces an error.
+
+The candidate adds `--terminal-link-owner=tui|host` for mouse-activated HTTP(S) links. The default is `tui`; select `host` only when the terminal host actually opens those links. File links and URLs opened programmatically for authentication retain their existing handling. Do not infer option support from a version string alone. Cooperating configuration writers use the resolved target for locking and the current read for version checks; independent external path replacement is not covered. These changes await native and Desktop integration verification.
+
+Prompt cache policy is opt-in for a Responses-compatible provider. Replace `example` with the configured provider ID, and use this example only when that provider supports the selected wire policy:
+
+```toml
+[model_providers.example.capabilities.prompt_cache]
+kind = "implicit"
+ttl = "30m" # or "12h"
+```
+
+The explicit legacy alternative is `kind = "legacy"` with `retention = "in_memory"` or `"24h"`. Without a policy the existing wire behavior is preserved. Requested TTL and reported cache activity do not confirm provider support, application or retention. Minimum validity, effective TTL, individual fragment TTL and server-confirmed expiry remain unknown. TTL does not change authorization, required selection or original retention. See the [1.1.0 candidate notes](docs/releases/v1.1.0.md).
+
 ## Conversation controls
 
 Enter these in the CLI conversation input, not PowerShell.
@@ -45,6 +63,7 @@ Enter these in the CLI conversation input, not PowerShell.
 | Command | Purpose |
 | --- | --- |
 | `/context 120000` · `/context reset` | Set or reset the conversation context override |
+| `/context inspect` · `/context inspect next` · `/context cancel` | 1.1.0 candidate: inspect bounded metadata pages or cancel their presentation |
 | `/memory view` · `/memory enable on` | Inspect memory or explicitly enable it |
 | `/cron add --every 10m -- Check whether the build has finished` | Schedule a repeating prompt for this CLI session |
 | `/cron list` · `/cron remove 1` | Inspect schedules or remove the actual schedule ID |
