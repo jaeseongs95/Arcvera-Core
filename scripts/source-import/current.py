@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 # Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 # Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 """Explicit derivative manifest generation and read-only integrity checks; no builds."""
@@ -19,6 +20,7 @@ EXCLUDED = (MANIFEST, DELTA)
 LICENSE_LINK = 'codex-rs/vendor/bubblewrap/LICENSE'
 R41 = 'Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.'
 V101 = 'Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.'
+V110 = 'Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.'
 HISTORICAL = ['SOURCE_BASELINE.json', 'upstream/source-inventory.json',
               'upstream/official-0.167.0.patch', 'upstream/windows-prompt-inputs.json',
               'upstream/LICENSE', 'upstream/NOTICE']
@@ -184,12 +186,20 @@ def notice(path, data, old):
             if previous[:2] == preamble:
                 previous = previous[2:]
         markers = {(prefix + R41).encode(): 'inline-r41',
-                   (prefix + V101).encode(): 'inline-1.0.1'}
+                   (prefix + V101).encode(): 'inline-1.0.1',
+                   (prefix + V110).encode(): 'inline-1.1.0'}
         if not lines or lines[0] not in markers:
             raise ValueError(f'Missing R41 file notice: {path}')
-        # Retain any original leading notice, even when the original first line is R41.
-        if previous and b'Modified for ' in previous[0] and previous[0] not in lines[:3]:
-            raise ValueError(f'Historical file notice removed: {path}')
+        # Retain the original notice only in the leading comment block.
+        if previous and b'Modified for ' in previous[0]:
+            comment_prefix = b'//' if path.endswith('.rs') else b'#'
+            for line in lines:
+                if line.strip() and not line.lstrip().startswith(comment_prefix):
+                    raise ValueError(f'Historical file notice removed: {path}')
+                if line == previous[0]:
+                    break
+            else:
+                raise ValueError(f'Historical file notice removed: {path}')
         return markers[lines[0]]
     return 'external-in-CURRENT_SOURCE.json'
 
@@ -197,7 +207,7 @@ def notice(path, data, old):
 def derivative_notice(root, base, path, mode, oid, data, old):
     required = path.endswith(('.rs', '.toml', '.py')) or PurePosixPath(path).name == 'Cargo.lock'
     if (base == BASE_COMMIT and old is not None and required and
-            not any(marker.encode() in data.split(b'\n', 1)[0] for marker in (R41, V101))):
+            not any(marker.encode() in data.split(b'\n', 1)[0] for marker in (R41, V101, V110))):
         # A byte-for-byte upstream restoration has no derivative inline notice.
         # Query only this safe path; never load unrelated upstream tree entries.
         entry = git(root, 'ls-tree', '-z', OFFICIAL, '--', ':(literal)' + path)
