@@ -3684,6 +3684,13 @@ async fn guardian_ephemeral_retry_preserves_parallel_trunk_and_fork_history() ->
         .name("guardian_ephemeral_retry_preserves_parallel_trunk_and_fork_history".to_string())
         .stack_size(TEST_STACK_SIZE_BYTES)
         .spawn(|| -> anyhow::Result<()> {
+            // Capture this fixture's underlying persistence error instead of interpreting a
+            // failed closed review as an unsafe-action verdict. All inputs are test-owned.
+            let subscriber = tracing_subscriber::fmt()
+                .with_max_level(tracing::Level::ERROR)
+                .with_test_writer()
+                .finish();
+            let _diagnostic_scope = tracing::subscriber::set_default(subscriber);
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()?;
