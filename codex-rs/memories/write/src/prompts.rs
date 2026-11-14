@@ -17,8 +17,8 @@ static CONSOLIDATION_PROMPT_TEMPLATE: LazyLock<Template> = LazyLock::new(|| {
 });
 static CONSOLIDATION_V2_TEMPLATE: LazyLock<Template> = LazyLock::new(|| {
     parse_embedded_template(
-        include_str!("../templates/memories/consolidation_v2.md"),
-        "memories/consolidation_v2.md",
+        include_str!("../templates/memories/consolidation_v2_publication.md"),
+        "memories/consolidation_v2_publication.md",
     )
 });
 static STAGE_ONE_INPUT_TEMPLATE: LazyLock<Template> = LazyLock::new(|| {

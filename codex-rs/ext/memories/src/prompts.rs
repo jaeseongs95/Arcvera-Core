@@ -11,15 +11,15 @@ use std::sync::LazyLock;
 
 static MEMORY_TOOL_DEVELOPER_INSTRUCTIONS_TEMPLATE: LazyLock<Template> = LazyLock::new(|| {
     parse_embedded_template(
-        include_str!("../templates/memories/read_path.md"),
-        "memories/read_path.md",
+        include_str!("../templates/memories/read_path_publication.md"),
+        "memories/read_path_publication.md",
     )
 });
 
 static MEMORY_V2_TEMPLATE: LazyLock<Template> = LazyLock::new(|| {
     parse_embedded_template(
-        include_str!("../templates/memories/read_path_v2.md"),
-        "memories/read_path_v2.md",
+        include_str!("../templates/memories/read_path_v2_publication.md"),
+        "memories/read_path_v2_publication.md",
     )
 });
 

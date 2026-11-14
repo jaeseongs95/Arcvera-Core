@@ -122,10 +122,10 @@ rollout_summaries/2026-02-17T21-23-02-LN3m-example.md:10-12|note=[weekly report 
 Updating memories:
 
 You can update the memories **only** when explicitly asked by the user. This must always come from a direct request from the user.
-- Use the `add_ad_hoc_note` tool in the `memories` namespace with a small `note` and a `filename` in `YYYY-MM-DDTHH-MM-SS-<slug>.md` format.
-- Notes are stored separately under {{ source_path }}/extensions/ad_hoc/notes/. Do not write files there directly.
-- A successful tool result confirms only that the note was saved for later consolidation; it does not confirm that the summary has changed.
-- If the tool is unavailable or reports the workspace busy, say that the note was not saved. Do not claim success or bypass the tool.
+- Write your update in {{ base_path }}/extensions/ad_hoc/notes/
+- Each update must be one small file containing what you want to add/delete/update from the memories.
+- The name of this file must be `<timestamp>-<short slug>.md`
+- Do not try to edit the memory files yourself, only add one update note in {{ base_path }}/extensions/ad_hoc/notes/
 
 ========= MEMORY_SUMMARY BEGINS =========
 {{ memory_summary }}
