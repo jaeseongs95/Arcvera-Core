@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::borrow::Borrow;
 
 use crate::compact_retained_tool_outputs::is_retained_tool_output;
@@ -13,6 +14,7 @@ use codex_protocol::models::ContentItem;
 use codex_protocol::models::FunctionCallOutputBody;
 use codex_protocol::models::FunctionCallOutputPayload;
 use codex_protocol::models::ResponseItem;
+#[cfg(test)]
 use codex_utils_output_truncation::approx_token_count;
 
 const CONTEXT_WINDOW_TRUNCATED_OUTPUT_MESSAGE: &str =
@@ -78,17 +80,15 @@ pub(crate) fn trim_function_call_history_to_fit_context_window(
     };
     // Keep the unclamped total so replacing an item cannot lose an overflow hidden by i64
     // saturation in the normal history estimator.
-    let base_tokens =
-        i128::try_from(approx_token_count(&base_instructions.text)).unwrap_or(i128::MAX);
+    let mut estimated_tokens = history.estimate_projected_token_count_wide(base_instructions);
     let original_items = history.annotated_items();
-    let mut estimated_tokens = history_item_groups(original_items.iter().map(|item| &item.item))
-        .map(|group| group.estimated_token_count())
-        .fold(base_tokens, i128::saturating_add);
+    let selected: Vec<_> = history.projected_annotated_items().collect();
     let initial_estimated_tokens = i64::try_from(estimated_tokens).unwrap_or(i64::MAX);
     let mut rewritten_items = Vec::new();
     let mut consumed_items: usize = 0;
+    let mut removed_notices = std::collections::BTreeSet::new();
 
-    for group in history_item_groups(original_items.iter().map(|item| &item.item))
+    for group in history_item_groups(selected.iter().map(|(_, item)| &item.item))
         .collect::<Vec<_>>()
         .into_iter()
         .rev()
@@ -97,9 +97,10 @@ pub(crate) fn trim_function_call_history_to_fit_context_window(
             break;
         }
         let group_item_count = 1 + usize::from(group.attached_notice.is_some());
-        let source_index = original_items
+        let selected_index = selected
             .len()
             .saturating_sub(consumed_items.saturating_add(group_item_count));
+        let source_index = selected[selected_index].0;
         let Some(rewritten_item) = original_items.get(source_index).and_then(|envelope| {
             if turn_context
                 .config
@@ -115,19 +116,24 @@ pub(crate) fn trim_function_call_history_to_fit_context_window(
         }) else {
             break;
         };
+        let replacement_tokens = i128::from(estimate_item_token_count(&rewritten_item.item));
+        if replacement_tokens >= group.estimated_token_count() {
+            // Rewriting a small output must not make the request larger.
+            break;
+        }
         estimated_tokens = estimated_tokens
             .saturating_sub(group.estimated_token_count())
-            .saturating_add(i128::from(estimate_item_token_count(&rewritten_item.item)));
+            .saturating_add(replacement_tokens);
         consumed_items += group_item_count;
-        rewritten_items.push(rewritten_item);
+        rewritten_items.push((source_index, rewritten_item));
+        if group.attached_notice.is_some() {
+            removed_notices.insert(selected[selected_index + 1].0);
+        }
     }
 
     let rewritten_outputs = rewritten_items.len();
     if rewritten_outputs > 0 {
-        let retained_len = original_items.len() - consumed_items;
-        let mut items = original_items[..retained_len].to_vec();
-        items.extend(rewritten_items.into_iter().rev());
-        history.replace_annotated(items);
+        history.rewrite_compaction_outputs(rewritten_items, &removed_notices);
     }
 
     let final_estimated_tokens = i64::try_from(estimated_tokens).unwrap_or(i64::MAX);

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Parent model history and bounded host-owned context facts.
 //! Compaction replaces the model window and can activate thread-owned Guardian review.
@@ -775,10 +776,47 @@ impl ContextManager {
 
     /// Only model sampling and compaction use this view. Guardian retains the original history.
     pub(crate) fn projected_items(&self) -> Vec<ResponseItemEnvelope> {
+        self.projected_annotated_items()
+            .map(|(_, envelope)| envelope.clone())
+            .collect()
+    }
+
+    /// Borrow the exact selected resident positions; accounting must not copy payload bodies.
+    pub(crate) fn projected_annotated_items(
+        &self,
+    ) -> impl Clone + DoubleEndedIterator<Item = (usize, &ResponseItemEnvelope)> {
         self.active_positions
             .iter()
-            .map(|position| self.items[*position].clone())
-            .collect()
+            .map(|position| (*position, &self.items[*position]))
+    }
+
+    /// Request preparation changes output representations, never original lifetime policy or
+    /// retained authorization. Callers operate on a snapshot, not the live session history.
+    pub(crate) fn rewrite_compaction_outputs(
+        &mut self,
+        replacements: Vec<(usize, ResponseItemEnvelope)>,
+        removed_notices: &BTreeSet<usize>,
+    ) {
+        let items = Arc::make_mut(&mut self.items);
+        for (position, replacement) in replacements {
+            debug_assert_eq!(
+                ContextIndex::source_id(&items[position].item),
+                ContextIndex::source_id(&replacement.item)
+            );
+            if let Some(id) = ContextIndex::source_id(&replacement.item) {
+                Arc::make_mut(&mut self.context_index).note_prepared(&id, &replacement.item);
+            }
+            items[position] = replacement;
+        }
+        let mut position = 0;
+        items.retain(|_| {
+            let keep = !removed_notices.contains(&position);
+            position += 1;
+            keep
+        });
+        self.rebuild_projection_positions();
+        self.reset_last_usage_boundary();
+        self.history_version = self.history_version.saturating_add(1);
     }
 
     /// Summaries cannot replace authorization or unclassified evidence. Once task filtering is
@@ -973,28 +1011,30 @@ impl ContextManager {
     }
 
     pub(crate) fn estimate_projected_token_count(&self, turn_context: &TurnContext) -> Option<i64> {
-        let mut projected = self.clone();
-        projected.items = Arc::new(self.projected_items());
-        let navigation = self
-            .context_index_manifest()
-            .map_or(0, |item| estimate_item_token_count(&item.item));
-        projected
-            .estimate_token_count(turn_context)
-            .map(|tokens| tokens.saturating_add(navigation))
+        let base = BaseInstructions {
+            text: render_model_instructions(&turn_context.model_info()),
+            provenance: None,
+        };
+        self.estimate_projected_token_count_with_base_instructions(&base)
     }
 
     pub(crate) fn estimate_projected_token_count_with_base_instructions(
         &self,
         base: &BaseInstructions,
     ) -> Option<i64> {
-        let mut projected = self.clone();
-        projected.items = Arc::new(self.projected_items());
+        Some(i64::try_from(self.estimate_projected_token_count_wide(base)).unwrap_or(i64::MAX))
+    }
+
+    /// Preserve the unclamped total for budget rewriting; navigation and effective base are
+    /// charged once, exactly as in the selected request. The unit remains a coarse estimate.
+    pub(crate) fn estimate_projected_token_count_wide(&self, base: &BaseInstructions) -> i128 {
+        let items = self
+            .projected_annotated_items()
+            .map(|(_, envelope)| envelope);
         let navigation = self
             .context_index_manifest()
-            .map_or(0, |item| estimate_item_token_count(&item.item));
-        projected
-            .estimate_token_count_with_base_instructions(base)
-            .map(|tokens| tokens.saturating_add(navigation))
+            .map_or(0, |item| i128::from(estimate_item_token_count(&item.item)));
+        Self::estimate_items_with_base(items, base).saturating_add(navigation)
     }
 
     pub(crate) fn mark_last_usage_context_index_revision(&mut self, revision: Option<u64>) {
@@ -1005,24 +1045,31 @@ impl ContextManager {
         &self,
         base_instructions: &BaseInstructions,
     ) -> Option<i64> {
-        // Incremental windows supply instructions through history, including an empty base.
-        let has_recorded_instructions = self.has_tool_declarations()
-            || self
-                .raw_items()
-                .any(|item| BaseInstructionsFragment::text_from_item(item).is_some());
+        Some(
+            i64::try_from(Self::estimate_items_with_base(
+                self.items.iter(),
+                base_instructions,
+            ))
+            .unwrap_or(i64::MAX),
+        )
+    }
+
+    fn estimate_items_with_base<'a>(
+        items: impl Iterator<Item = &'a ResponseItemEnvelope> + Clone,
+        base: &BaseInstructions,
+    ) -> i128 {
+        let has_recorded_instructions = items.clone().any(|envelope| {
+            matches!(envelope.item, ResponseItem::AdditionalTools { .. })
+                || BaseInstructionsFragment::text_from_item(&envelope.item).is_some()
+        });
         let base_tokens = if has_recorded_instructions {
             0
         } else {
-            i64::try_from(approx_token_count(&base_instructions.text)).unwrap_or(i64::MAX)
+            i128::try_from(approx_token_count(&base.text)).unwrap_or(i128::MAX)
         };
-
-        let items_tokens = self
-            .items
-            .iter()
-            .map(|envelope| estimate_item_token_count(&envelope.item))
-            .fold(0i64, i64::saturating_add);
-
-        Some(base_tokens.saturating_add(items_tokens))
+        items
+            .map(|envelope| i128::from(estimate_item_token_count(&envelope.item)))
+            .fold(base_tokens, i128::saturating_add)
     }
 
     pub(crate) fn remove_first_item(&mut self) {
@@ -1350,9 +1397,8 @@ impl ContextManager {
             // The old server count described a different projection. Preserve spending totals
             // and estimate only active bodies until a response covers this policy revision.
             return self
-                .projected_items()
-                .iter()
-                .map(|item| estimate_item_token_count(&item.item))
+                .projected_annotated_items()
+                .map(|(_, item)| estimate_item_token_count(&item.item))
                 .fold(
                     self.context_index_manifest()
                         .map_or(0, |item| estimate_item_token_count(&item.item)),
