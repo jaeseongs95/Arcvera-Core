@@ -551,6 +551,66 @@ async fn core110_invalid_file_reload_is_atomic() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn core110_hook_gate_reload_respects_real_trust() -> anyhow::Result<()> {
+    let (session, _) = make_session_and_context().await;
+    let home = session.codex_home().await;
+    std::fs::create_dir_all(&home)?;
+    let file = home.join(CONFIG_TOML_FILE);
+    let hook = serde_json::json!({
+        "features": {"hooks": true},
+        "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo fixture"}]}]}
+    });
+    let hook_toml: codex_config::TomlValue = serde_json::from_value(hook.clone())?;
+    let current = session.get_config().await;
+    let list = codex_hooks::list_hooks(codex_hooks::HooksConfig {
+        feature_enabled: true,
+        config_layer_stack: Some(
+            current
+                .config_layer_stack
+                .with_user_config(&file, hook_toml)?,
+        ),
+        ..codex_hooks::HooksConfig::default()
+    });
+    assert_eq!(list.hooks.len(), 1);
+    assert_eq!(
+        list.hooks[0].trust_status,
+        codex_protocol::protocol::HookTrustStatus::Untrusted
+    );
+    let request = codex_hooks::SessionStartRequest {
+        session_id: session.thread_id,
+        cwd: current.cwd.clone(),
+        transcript_path: None,
+        model: "test-model".into(),
+        permission_mode: "default".into(),
+        target: codex_hooks::StartHookTarget::SessionStart {
+            source: codex_hooks::SessionStartSource::Startup,
+        },
+    };
+    std::fs::write(
+        &file,
+        toml::to_string(&serde_json::from_value::<codex_config::TomlValue>(
+            hook.clone(),
+        )?)?,
+    )?;
+    session.reload_plugins().await?;
+    assert!(session.hooks().preview_session_start(&request).is_empty());
+    let mut trusted = hook;
+    trusted["hooks"]["state"] = serde_json::json!({
+        list.hooks[0].key.clone(): {"trusted_hash": list.hooks[0].current_hash.clone()}
+    });
+    for (enabled, expected) in [(false, 0), (true, 1), (false, 0)] {
+        trusted["features"]["hooks"] = serde_json::json!(enabled);
+        let value: codex_config::TomlValue = serde_json::from_value(trusted.clone())?;
+        std::fs::write(&file, toml::to_string(&value)?)?;
+        session.reload_plugins().await?;
+        assert_eq!(
+            session.hooks().preview_session_start(&request).len(),
+            expected
+        );
+    }
+    Ok(())
+}
 
 #[tokio::test]
 async fn core110_invalid_file_refresh_with_stale_owner_requests_retry() -> anyhow::Result<()> {

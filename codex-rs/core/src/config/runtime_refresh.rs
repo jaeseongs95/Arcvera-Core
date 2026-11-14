@@ -113,6 +113,39 @@ impl Config {
                 configured_features.set_enabled(feature, incoming.features.enabled(feature));
             }
         }
+        if matches!(scope, RuntimeConfigRefresh::UserFiles) {
+            let old_config = self.config_layer_stack.effective_config();
+            for feature in [Feature::CodexHooks, Feature::Plugins] {
+                let explicit = cfg.features.as_ref().is_some_and(|features| {
+                    features
+                        .entries()
+                        .keys()
+                        .any(|key| codex_features::feature_for_key(key) == Some(feature))
+                });
+                if !explicit {
+                    let old_explicit = old_config
+                        .get("features")
+                        .and_then(toml::Value::as_table)
+                        .is_some_and(|entries| {
+                            entries
+                                .keys()
+                                .any(|key| codex_features::feature_for_key(key) == Some(feature))
+                        });
+                    let enabled = self
+                        .runtime_feature_defaults
+                        .get(&feature)
+                        .copied()
+                        .unwrap_or_else(|| {
+                            if old_explicit {
+                                Features::with_defaults().enabled(feature)
+                            } else {
+                                self.features.enabled(feature)
+                            }
+                        });
+                    configured_features.set_enabled(feature, enabled);
+                }
+            }
+        }
         let features = ManagedFeatures::from_configured(
             configured_features,
             layers.requirements().feature_requirements.clone(),
@@ -200,6 +233,12 @@ impl Config {
             .features
             .refresh_mcp_features(&features)
             .map_err(std::io::Error::other)?;
+        if matches!(scope, RuntimeConfigRefresh::UserFiles) {
+            config
+                .features
+                .refresh_hook_features(&features)
+                .map_err(std::io::Error::other)?;
+        }
         config.mcp_servers =
             constrain_mcp_servers(servers, layers.requirements().mcp_servers.as_ref())
                 .map_err(std::io::Error::other)?;

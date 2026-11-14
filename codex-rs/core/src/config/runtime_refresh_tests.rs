@@ -74,6 +74,32 @@ async fn core110_file_reload_materializes_ordinary_mcp_transitions() {
     }
 }
 
+#[tokio::test]
+async fn core110_file_reload_honors_explicit_hook_feature_without_bypassing_policy() {
+    let (_home, base) = base_config().await;
+    let current = layered_config(&base, "[features]\nhooks = false\n", "", "", "").await;
+    let mut incoming = current.clone();
+    incoming.config_layer_stack = current
+        .config_layer_stack
+        .with_user_config(
+            &base.codex_home.join(CONFIG_TOML_FILE),
+            toml::from_str("[features]\nhooks = true\n").unwrap(),
+        )
+        .unwrap();
+    let refreshed = current
+        .resolve_runtime_refresh(&incoming, RuntimeConfigRefresh::UserFiles)
+        .unwrap();
+    assert!(
+        refreshed.features.enabled(Feature::CodexHooks),
+        "explicit hook gate change must reach runtime discovery"
+    );
+    let denied = layered_config(&base, "[features]\nhooks = true\n", "", "hooks = false", "").await;
+    let incoming = denied.clone();
+    let refreshed = denied
+        .resolve_runtime_refresh(&incoming, RuntimeConfigRefresh::UserFiles)
+        .unwrap();
+    assert!(!refreshed.features.enabled(Feature::CodexHooks));
+}
 
 #[tokio::test]
 async fn memory_refresh_preserves_active_snapshot_and_explicit_session_off() {
@@ -432,7 +458,88 @@ async fn plugin_override_refresh_preserves_session_and_restores_inheritance() {
     }
 }
 
+#[tokio::test]
+async fn core110_file_hooks_preserve_host_defaults_and_managed_denial() {
+    for feature in [Feature::CodexHooks, Feature::Plugins] {
+        for host in [false, true] {
+            let (_home, base) = base_config().await;
+            let mut current = base.clone();
+            current.runtime_feature_defaults.insert(feature, host);
+            current.features.set_enabled(feature, host).unwrap();
+            for value in [Some(!host), Some(host), None] {
+                let text = value.map_or_else(String::new, |enabled| {
+                    format!("[features]\n{} = {enabled}\n", feature.key())
+                });
+                let mut incoming = current.clone();
+                incoming.config_layer_stack = current
+                    .config_layer_stack
+                    .with_user_config(
+                        &base.codex_home.join(CONFIG_TOML_FILE),
+                        toml::from_str(&text).unwrap(),
+                    )
+                    .unwrap();
+                current = current
+                    .resolve_runtime_refresh(&incoming, RuntimeConfigRefresh::UserFiles)
+                    .unwrap();
+                assert_eq!(current.features.enabled(feature), value.unwrap_or(host));
+            }
+        }
+    }
+    let (_home, base) = base_config().await;
+    let denied = layered_config(
+        &base,
+        "[features]\nhooks = true\nplugins = true\n",
+        "",
+        "hooks = false\nplugins = false",
+        "",
+    )
+    .await;
+    let refreshed = denied
+        .resolve_runtime_refresh(&denied, RuntimeConfigRefresh::UserFiles)
+        .unwrap();
+    assert!(!refreshed.features.enabled(Feature::CodexHooks));
+    assert!(!refreshed.features.enabled(Feature::Plugins));
+}
 
+#[tokio::test]
+async fn core110_file_hook_unrecorded_default_preserves_host_until_explicit_removed() {
+    let (_home, base) = base_config().await;
+    let mut current = base.clone();
+    current
+        .features
+        .set_enabled(Feature::CodexHooks, false)
+        .unwrap();
+    let unchanged = current
+        .resolve_runtime_refresh(&current, RuntimeConfigRefresh::UserFiles)
+        .unwrap();
+    assert!(!unchanged.features.enabled(Feature::CodexHooks));
+    let mut incoming = unchanged.clone();
+    incoming.config_layer_stack = unchanged
+        .config_layer_stack
+        .with_user_config(
+            &base.codex_home.join(CONFIG_TOML_FILE),
+            toml::from_str("[features]\nhooks = false\n").unwrap(),
+        )
+        .unwrap();
+    current = unchanged
+        .resolve_runtime_refresh(&incoming, RuntimeConfigRefresh::UserFiles)
+        .unwrap();
+    incoming = current.clone();
+    incoming.config_layer_stack = current
+        .config_layer_stack
+        .with_user_config(
+            &base.codex_home.join(CONFIG_TOML_FILE),
+            toml::from_str("").unwrap(),
+        )
+        .unwrap();
+    let removed = current
+        .resolve_runtime_refresh(&incoming, RuntimeConfigRefresh::UserFiles)
+        .unwrap();
+    assert_eq!(
+        removed.features.enabled(Feature::CodexHooks),
+        Features::with_defaults().enabled(Feature::CodexHooks)
+    );
+}
 
 #[tokio::test]
 async fn core110_file_server_addition_obeys_managed_allowlist_and_ema_admission() {

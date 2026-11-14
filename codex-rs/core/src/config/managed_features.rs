@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::collections::BTreeMap;
 
 use codex_config::Constrained;
@@ -120,14 +121,29 @@ impl ManagedFeatures {
 
     /// Refresh ordinary MCP feature values and pins without changing session-static features.
     pub(crate) fn refresh_mcp_features(&mut self, next: &Self) -> ConstraintResult<()> {
+        self.refresh_selected_features(
+            next,
+            &[
+                Feature::EnableMcpApps,
+                Feature::McpConnectionSharing,
+                Feature::SecretAuthStorage,
+                Feature::McpOAuthRefreshCoordination,
+            ],
+        )
+    }
+
+    pub(crate) fn refresh_hook_features(&mut self, next: &Self) -> ConstraintResult<()> {
+        self.refresh_selected_features(next, &[Feature::CodexHooks, Feature::Plugins])
+    }
+
+    fn refresh_selected_features(
+        &mut self,
+        next: &Self,
+        selected: &[Feature],
+    ) -> ConstraintResult<()> {
         let mut refreshed = self.clone();
         let mut values = self.get().clone();
-        for feature in [
-            Feature::EnableMcpApps,
-            Feature::McpConnectionSharing,
-            Feature::SecretAuthStorage,
-            Feature::McpOAuthRefreshCoordination,
-        ] {
+        for &feature in selected {
             values.set_enabled(feature, next.enabled(feature));
             if let Some(enabled) = next.pinned_features.get(&feature) {
                 refreshed.pinned_features.insert(feature, *enabled);
