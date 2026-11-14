@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use super::*;
 use crate::McpPluginAttribution;
@@ -234,6 +235,7 @@ pub(crate) fn test_mcp_config(codex_home: PathBuf) -> McpConfig {
         environment_cwds: HashMap::new(),
         environment_use_mxc: HashMap::new(),
         server_permission_profiles: HashMap::new(),
+        runtime_registration_ids: HashMap::new(),
         codex_self_exe: None,
         codex_linux_sandbox_exe: None,
         use_legacy_landlock: false,

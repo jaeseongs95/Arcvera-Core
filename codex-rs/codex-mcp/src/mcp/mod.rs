@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 pub use auth::McpAuthStatusEntry;
 pub use auth::McpOAuthLoginConfig;
@@ -203,6 +204,8 @@ pub struct McpConfig {
     pub client_elicitation_capability: ElicitationCapability,
     /// Resolved MCP registrations keyed by logical server name.
     pub mcp_server_catalog: ResolvedMcpCatalog,
+    /// Opaque connection-owned registration IDs, attached to this immutable runtime config.
+    pub runtime_registration_ids: HashMap<String, String>,
     /// Plugin declarations used to attribute connector tools to plugin display names.
     /// MCP registrations retain their own package attribution in the catalog.
     pub connector_snapshot: ConnectorSnapshot,
@@ -253,6 +256,7 @@ impl McpConfig {
     /// Standalone discovery and resource reads must not inherit thread execution authority.
     pub fn for_threadless_operations(&self, servers: &HashMap<String, EffectiveMcpServer>) -> Self {
         let mut config = self.clone();
+        config.runtime_registration_ids.clear();
         config.permission_profile = PermissionProfile::default();
         config.server_permission_profiles = servers
             .iter()
