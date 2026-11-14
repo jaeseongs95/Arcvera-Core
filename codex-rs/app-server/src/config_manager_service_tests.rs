@@ -17,6 +17,91 @@ use codex_utils_absolute_path::AbsolutePathBuf;
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 
+#[cfg(windows)]
+#[tokio::test]
+async fn allowed_and_provided_case_aliases_share_the_user_config() -> Result<()> {
+    let dir = tempdir()?;
+    let lower = dir.path().join(CONFIG_TOML_FILE);
+    let upper = dir.path().join("CONFIG.TOML");
+    std::fs::write(&lower, "model = 'before'\n")?;
+    let service = ConfigManager::without_managed_config_for_tests(dir.path().to_path_buf());
+    service
+        .write_value(ConfigValueWriteParams {
+            file_path: Some(upper.to_string_lossy().into_owned()),
+            key_path: "model".into(),
+            value: serde_json::json!("after"),
+            merge_strategy: MergeStrategy::Replace,
+            expected_version: None,
+        })
+        .await?;
+    let saved: TomlValue = toml::from_str(&std::fs::read_to_string(&lower)?)?;
+    assert_eq!(saved["model"].as_str(), Some("after"));
+    let transaction = ConfigEditTransaction::acquire(&upper).await?;
+    let allowed = AbsolutePathBuf::from_absolute_path(lower)?;
+    let layer = create_empty_user_layer(&allowed, &transaction).await?;
+    assert_eq!(layer.config["model"].as_str(), Some("after"));
+    Ok(())
+}
+
+#[cfg(any(unix, windows))]
+fn config_cycle_test_link(source: &std::path::Path, link: &std::path::Path) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(source, link).unwrap();
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(source, link).unwrap();
+}
+
+#[cfg(any(unix, windows))]
+#[tokio::test]
+async fn empty_cycle_creation_then_checked_edit_keeps_same_guard() -> Result<()> {
+    let dir = tempdir()?;
+    let config = dir.path().join(CONFIG_TOML_FILE);
+    let other = dir.path().join("other.toml");
+    config_cycle_test_link(&other, &config);
+    config_cycle_test_link(&config, &other);
+    let path = AbsolutePathBuf::from_absolute_path(config.clone())?;
+    let transaction = ConfigEditTransaction::acquire(&config).await?;
+    let empty = create_empty_user_layer(&path, &transaction).await?;
+    assert_eq!(empty.config, TomlValue::Table(toml::map::Map::new()));
+    assert!(!std::fs::symlink_metadata(&config)?.file_type().is_symlink());
+    let persisted = ConfigEditsBuilder::for_config_path(&config)
+        .with_edits([ConfigEdit::SetPath {
+            segments: vec!["model".into()],
+            value: toml_edit::value("after"),
+        }])
+        .apply_with_transaction(transaction, Some(empty.config))
+        .await?
+        .unwrap();
+    assert_eq!(persisted["model"].as_str(), Some("after"));
+    let saved: TomlValue = toml::from_str(&std::fs::read_to_string(config)?)?;
+    assert_eq!(saved, persisted);
+    Ok(())
+}
+
+#[cfg(any(unix, windows))]
+#[tokio::test]
+async fn cycle_user_config_api_reports_load_error_without_write() -> Result<()> {
+    let dir = tempdir()?;
+    let config = dir.path().join(CONFIG_TOML_FILE);
+    let other = dir.path().join("other.toml");
+    config_cycle_test_link(&other, &config);
+    config_cycle_test_link(&config, &other);
+    let service = ConfigManager::without_managed_config_for_tests(dir.path().to_path_buf());
+    let result = service
+        .write_value(ConfigValueWriteParams {
+            file_path: None,
+            key_path: "model".into(),
+            value: serde_json::json!("not-written"),
+            merge_strategy: MergeStrategy::Replace,
+            expected_version: None,
+        })
+        .await;
+    assert!(result.is_err());
+    assert!(std::fs::symlink_metadata(&config)?.file_type().is_symlink());
+    assert!(std::fs::symlink_metadata(&other)?.file_type().is_symlink());
+    Ok(())
+}
+
 #[test]
 fn provider_batch_remapping_preserves_ordered_edits() {
     let initial = serde_json::json!({

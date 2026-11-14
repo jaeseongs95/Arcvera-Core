@@ -15,6 +15,246 @@ use std::os::unix::fs::symlink;
 use tempfile::tempdir;
 use toml::Value as TomlValue;
 
+#[cfg(windows)]
+#[tokio::test]
+async fn existing_config_case_alias_matches_locked_target() {
+    let dir = tempdir().unwrap();
+    let lower = dir.path().join("config.toml");
+    let upper = dir.path().join("CONFIG.TOML");
+    std::fs::write(&lower, "model = 'before'\n").unwrap();
+    let transaction = ConfigEditTransaction::acquire(&upper).await.unwrap();
+    let paths = transaction.checked_write_paths_for(&lower).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(paths.read_path.unwrap()).unwrap(),
+        "model = 'before'\n"
+    );
+    let expected: TomlValue = toml::from_str("model = 'before'\n").unwrap();
+    ConfigEditsBuilder::for_config_path(&upper)
+        .with_edits([ConfigEdit::SetPath {
+            segments: vec!["model".into()],
+            value: value("after"),
+        }])
+        .apply_with_transaction(transaction, Some(expected))
+        .await
+        .unwrap();
+    let saved: TomlValue = toml::from_str(&std::fs::read_to_string(lower).unwrap()).unwrap();
+    assert_eq!(saved["model"].as_str(), Some("after"));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn locked_target_replaced_by_symlink_is_not_equivalent_to_new_target() {
+    let dir = tempdir().unwrap();
+    let target = dir.path().join("target.toml");
+    let new = dir.path().join("new.toml");
+    std::fs::write(&target, "model = 'old'\n").unwrap();
+    std::fs::write(&new, "model = 'external'\n").unwrap();
+    let guard = ConfigEditTransaction::acquire(&target).await.unwrap();
+    std::fs::remove_file(&target).unwrap();
+    symlink(&new, &target).unwrap();
+    let result = ConfigEditsBuilder::for_config_path(&target)
+        .with_edits([ConfigEdit::SetPath {
+            segments: vec!["model".into()],
+            value: value("wrong"),
+        }])
+        .apply_with_transaction(guard, None)
+        .await;
+    assert!(result.is_err());
+    assert!(
+        std::fs::symlink_metadata(target)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(
+        std::fs::read_to_string(new).unwrap(),
+        "model = 'external'\n"
+    );
+}
+
+// Child-process-only synchronization for the real lock/CAS regression below.
+// Ordinary tests never set these environment variables.
+pub(super) fn config_alias_test_event(event: &str, wait_for_release: bool) {
+    let (Ok(dir), Ok(role)) = (
+        std::env::var("CODEX_CONFIG_ALIAS_TEST_DIR"),
+        std::env::var("CODEX_CONFIG_ALIAS_TEST_ROLE"),
+    ) else {
+        return;
+    };
+    let dir = PathBuf::from(dir);
+    std::fs::write(dir.join(format!("{role}_{event}")), "event").unwrap();
+    if wait_for_release {
+        wait_for_config_alias_event(&dir.join(format!("release_{role}")));
+    }
+}
+
+fn wait_for_config_alias_event(path: &Path) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while !path.exists() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "timed out waiting for {}",
+            path.display()
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+#[cfg(any(unix, windows))]
+#[tokio::test]
+#[ignore = "child process helper"]
+async fn config_alias_process_worker() {
+    let role = std::env::var("CODEX_CONFIG_ALIAS_TEST_ROLE").expect("child role is required");
+    let dir = PathBuf::from(
+        std::env::var("CODEX_CONFIG_ALIAS_TEST_DIR").expect("child fixture directory is required"),
+    );
+    let path = dir.join(format!("{role}.toml"));
+    let expected: TomlValue = toml::from_str("model = 'initial'\n").unwrap();
+    let result = ConfigEditsBuilder::for_config_path(&path)
+        .with_edits([ConfigEdit::SetPath {
+            segments: vec!["model".into()],
+            value: value(role.clone()),
+        }])
+        .apply_checked_with_user_config(expected)
+        .await;
+    let outcome = match result {
+        Ok(_) => "success",
+        Err(error) if error.is::<ConfigEditVersionConflict>() => "conflict",
+        Err(error) => panic!("unexpected writer error: {error:#}"),
+    };
+    std::fs::write(dir.join(format!("{role}_done")), outcome).unwrap();
+}
+
+#[cfg(any(unix, windows))]
+struct AliasTestFixture(Option<tempfile::TempDir>);
+
+#[cfg(any(unix, windows))]
+impl AliasTestFixture {
+    fn path(&self) -> &Path {
+        self.0.as_ref().unwrap().path()
+    }
+}
+
+#[cfg(any(unix, windows))]
+impl Drop for AliasTestFixture {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            let path = self.0.take().unwrap().keep();
+            eprintln!("config alias test fixture retained at {}", path.display());
+        }
+    }
+}
+
+#[cfg(any(unix, windows))]
+struct AliasTestChild(Option<std::process::Child>);
+
+#[cfg(any(unix, windows))]
+impl AliasTestChild {
+    fn finish(&mut self) -> std::process::ExitStatus {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        loop {
+            if let Some(status) = self.0.as_mut().unwrap().try_wait().unwrap() {
+                self.0.take();
+                return status;
+            }
+            assert!(std::time::Instant::now() < deadline, "child did not exit");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
+}
+
+#[cfg(any(unix, windows))]
+impl Drop for AliasTestChild {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.0.take() {
+            match child.try_wait() {
+                Ok(Some(_)) => return,
+                Ok(None) => {
+                    if let Err(err) = child.kill() {
+                        eprintln!("failed to kill config alias test child: {err}");
+                    }
+                }
+                Err(err) => {
+                    eprintln!("failed to inspect config alias test child: {err}");
+                    if let Err(err) = child.kill() {
+                        eprintln!("failed to kill config alias test child: {err}");
+                    }
+                }
+            }
+            if let Err(err) = child.wait() {
+                eprintln!("failed to reap config alias test child: {err}");
+            }
+        }
+    }
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn independent_alias_processes_lock_and_check_same_initial_document() {
+    use std::process::Command;
+    use std::process::Stdio;
+    let dir = AliasTestFixture(Some(tempdir().unwrap()));
+    let target = dir.path().join("target.toml");
+    std::fs::write(&target, "model = 'initial'\n").unwrap();
+    config_test_symlink(&target, &dir.path().join("a.toml"));
+    config_test_symlink(&target, &dir.path().join("b.toml"));
+    let spawn = |role: &str| {
+        let stdout = std::fs::File::create(dir.path().join(format!("{role}_stdout.txt"))).unwrap();
+        let stderr = std::fs::File::create(dir.path().join(format!("{role}_stderr.txt"))).unwrap();
+        AliasTestChild(Some(
+            Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--ignored",
+                    "--exact",
+                    "config::edit::tests::config_alias_process_worker",
+                    "--nocapture",
+                ])
+                .env("CODEX_CONFIG_ALIAS_TEST_DIR", dir.path())
+                .env("CODEX_CONFIG_ALIAS_TEST_ROLE", role)
+                .stdout(Stdio::from(stdout))
+                .stderr(Stdio::from(stderr))
+                .spawn()
+                .unwrap(),
+        ))
+    };
+    let mut a = spawn("a");
+    wait_for_config_alias_event(&dir.path().join("a_cas"));
+    let mut b = spawn("b");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while !dir.path().join("b_blocked").exists() && !dir.path().join("b_acquired").exists() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "second writer did not try the OS lock"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let blocked = dir.path().join("b_blocked").exists();
+    if !blocked {
+        // In the broken candidate both CAS checks complete before either write.
+        wait_for_config_alias_event(&dir.path().join("b_cas"));
+    }
+    std::fs::write(dir.path().join("release_a"), "release").unwrap();
+    wait_for_config_alias_event(&dir.path().join("a_done"));
+    std::fs::write(dir.path().join("release_b"), "release").unwrap();
+    wait_for_config_alias_event(&dir.path().join("b_done"));
+    assert!(a.finish().success());
+    assert!(b.finish().success());
+    assert!(
+        blocked,
+        "second process acquired a different lock before the first write"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("a_done")).unwrap(),
+        "success"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("b_done")).unwrap(),
+        "conflict"
+    );
+    let saved: TomlValue = toml::from_str(&std::fs::read_to_string(target).unwrap()).unwrap();
+    assert_eq!(saved["model"].as_str(), Some("a"));
+}
+
 #[tokio::test]
 async fn written_document_result_describes_the_exact_serialized_edit() {
     let home = tempdir().unwrap();
@@ -91,13 +331,11 @@ async fn started_blocking_edit_keeps_lock_after_waiter_cancellation() {
     let transaction = ConfigEditTransaction::acquire(&path).await.unwrap();
     let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
     let (release_tx, release_rx) = std::sync::mpsc::channel();
-    let write_path = path.clone();
     let handle = task::spawn_blocking(move || {
-        let _transaction = transaction;
         entered_tx.send(()).unwrap();
         release_rx.recv().unwrap();
         apply_blocking_to_resolved_file(
-            &write_path,
+            &transaction,
             &[ConfigEdit::SetPath {
                 segments: vec!["model".into()],
                 value: value("finished"),
@@ -1921,4 +2159,195 @@ fn replace_mcp_servers_blocking_clears_table_when_empty() {
 
     let contents = std::fs::read_to_string(codex_home.join(CONFIG_TOML_FILE)).expect("read config");
     assert!(!contents.contains("mcp_servers"));
+}
+
+#[cfg(any(unix, windows))]
+fn config_test_symlink(source: &std::path::Path, link: &std::path::Path) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(source, link).unwrap();
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(source, link).unwrap();
+}
+
+#[cfg(any(unix, windows))]
+#[tokio::test]
+async fn cycle_replaced_by_external_document_checks_current_bytes() {
+    let dir = tempdir().unwrap();
+    let config = dir.path().join("config.toml");
+    let other = dir.path().join("other.toml");
+    config_test_symlink(&other, &config);
+    config_test_symlink(&config, &other);
+    let guard = ConfigEditTransaction::acquire(&config).await.unwrap();
+    std::fs::remove_file(&config).unwrap();
+    let current = "model = 'external'\n";
+    std::fs::write(&config, current).unwrap();
+    let stale: TomlValue = toml::from_str("").unwrap();
+    let result = ConfigEditsBuilder::for_config_path(&config)
+        .with_edits([ConfigEdit::SetPath {
+            segments: vec!["model".into()],
+            value: value("wrong"),
+        }])
+        .apply_with_transaction(guard, Some(stale))
+        .await;
+    assert!(result.unwrap_err().is::<ConfigEditVersionConflict>());
+    assert_eq!(std::fs::read_to_string(config).unwrap(), current);
+}
+
+#[cfg(any(unix, windows))]
+#[tokio::test]
+async fn alias_transactions_serialize_and_reject_stale_checked_write() {
+    let dir = tempdir().unwrap();
+    let target = dir.path().join("target.toml");
+    let first = dir.path().join("first.toml");
+    let second = dir.path().join("second.toml");
+    std::fs::write(&target, "model = 'old'\n").unwrap();
+    config_test_symlink(&target, &first);
+    config_test_symlink(&target, &second);
+    let expected: TomlValue = toml::from_str("model = 'old'\n").unwrap();
+    let guard = ConfigEditTransaction::acquire(&first).await.unwrap();
+    let (attempted_tx, attempted_rx) = tokio::sync::oneshot::channel();
+    let (acquired_tx, mut acquired_rx) = tokio::sync::oneshot::channel();
+    let expected_second = expected.clone();
+    let writer = tokio::spawn(async move {
+        attempted_tx.send(()).unwrap();
+        let guard = ConfigEditTransaction::acquire(&second).await.unwrap();
+        acquired_tx.send(()).unwrap();
+        ConfigEditsBuilder::for_config_path(&second)
+            .with_edits([ConfigEdit::SetPath {
+                segments: vec!["model".into()],
+                value: value("second"),
+            }])
+            .apply_with_transaction(guard, Some(expected_second))
+            .await
+    });
+    attempted_rx.await.unwrap();
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(250), &mut acquired_rx)
+            .await
+            .is_err(),
+        "alias writer acquired while the target lock was held"
+    );
+    ConfigEditsBuilder::for_config_path(&first)
+        .with_edits([ConfigEdit::SetPath {
+            segments: vec!["model".into()],
+            value: value("first"),
+        }])
+        .apply_with_transaction(guard, Some(expected))
+        .await
+        .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(10), acquired_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        writer
+            .await
+            .unwrap()
+            .unwrap_err()
+            .is::<ConfigEditVersionConflict>()
+    );
+    let saved: TomlValue = toml::from_str(&std::fs::read_to_string(&target).unwrap()).unwrap();
+    assert_eq!(saved["model"].as_str(), Some("first"));
+    assert!(
+        std::fs::symlink_metadata(first)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+}
+
+#[cfg(any(unix, windows))]
+#[tokio::test]
+async fn retargeted_alias_is_rejected_before_write() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.toml");
+    let new = dir.path().join("new.toml");
+    let link = dir.path().join("link.toml");
+    std::fs::write(&old, "model = 'old'\n").unwrap();
+    std::fs::write(&new, "model = 'new'\n").unwrap();
+    config_test_symlink(&old, &link);
+    let guard = ConfigEditTransaction::acquire(&link).await.unwrap();
+    std::fs::remove_file(&link).unwrap();
+    config_test_symlink(&new, &link);
+    let result = ConfigEditsBuilder::for_config_path(&link)
+        .with_edits([ConfigEdit::SetPath {
+            segments: vec!["model".into()],
+            value: value("bad"),
+        }])
+        .apply_with_transaction(guard, None)
+        .await;
+    assert!(result.is_err());
+    assert_eq!(std::fs::read_to_string(old).unwrap(), "model = 'old'\n");
+    assert_eq!(std::fs::read_to_string(new).unwrap(), "model = 'new'\n");
+}
+
+#[cfg(any(unix, windows))]
+#[tokio::test]
+async fn dangling_aliases_share_lock_for_missing_target_parent() {
+    let dir = tempdir().unwrap();
+    let target = dir.path().join("missing").join("config.toml");
+    let first = dir.path().join("first.toml");
+    let second = dir.path().join("second.toml");
+    config_test_symlink(&target, &first);
+    config_test_symlink(&target, &second);
+    let guard = ConfigEditTransaction::acquire(&first).await.unwrap();
+    assert!(
+        tokio::time::timeout(
+            std::time::Duration::from_millis(250),
+            ConfigEditTransaction::acquire(&second)
+        )
+        .await
+        .is_err()
+    );
+    ConfigEditsBuilder::for_config_path(&first)
+        .with_edits([ConfigEdit::SetPath {
+            segments: vec!["model".into()],
+            value: value("created"),
+        }])
+        .apply_with_transaction(guard, None)
+        .await
+        .unwrap();
+    let read: TomlValue = toml::from_str(&std::fs::read_to_string(target).unwrap()).unwrap();
+    assert_eq!(read["model"].as_str(), Some("created"));
+    assert!(
+        std::fs::symlink_metadata(first)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert!(
+        std::fs::symlink_metadata(second)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn directory_alias_and_direct_path_share_lock() {
+    let dir = tempdir().unwrap();
+    let real = dir.path().join("real");
+    let alias = dir.path().join("alias");
+    std::fs::create_dir(&real).unwrap();
+    symlink(&real, &alias).unwrap();
+    let first = real.join("config.toml");
+    let second = alias.join("config.toml");
+    let guard = ConfigEditTransaction::acquire(&first).await.unwrap();
+    assert!(
+        tokio::time::timeout(
+            std::time::Duration::from_millis(250),
+            ConfigEditTransaction::acquire(&second)
+        )
+        .await
+        .is_err()
+    );
+    drop(guard);
+    tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        ConfigEditTransaction::acquire(&second),
+    )
+    .await
+    .unwrap()
+    .unwrap();
 }

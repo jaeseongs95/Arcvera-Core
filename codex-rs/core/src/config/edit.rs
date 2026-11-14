@@ -1,5 +1,7 @@
 // Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
+use crate::path_utils::SymlinkWritePaths;
+use crate::path_utils::paths_match_after_normalization;
 use crate::path_utils::resolve_symlink_write_paths;
 use crate::path_utils::write_atomically;
 use anyhow::Context;
@@ -748,18 +750,82 @@ pub fn apply_blocking(codex_home: &Path, edits: &[ConfigEdit]) -> anyhow::Result
     if edits.is_empty() {
         return Ok(());
     }
-    let _transaction = ConfigEditTransaction::acquire_blocking(&config_path)?;
-    apply_blocking_to_resolved_file(&config_path, edits, None).map(|_| ())
+    let transaction = ConfigEditTransaction::acquire_blocking(&config_path)?;
+    apply_blocking_to_resolved_file(&transaction, edits, None).map(|_| ())
 }
 
 /// A profile-local cooperative lock, kept alive until the last in-flight write finishes.
 #[derive(Clone)]
 pub struct ConfigEditTransaction {
     config_path: PathBuf,
+    target_path: PathBuf,
     _lock: std::sync::Arc<std::fs::File>,
 }
 
 impl ConfigEditTransaction {
+    fn is_non_link_target(path: &Path) -> bool {
+        let Ok(metadata) = std::fs::symlink_metadata(path) else {
+            return false;
+        };
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::MetadataExt;
+            if metadata.file_attributes() & 0x400 != 0 {
+                return false;
+            }
+        }
+        !metadata.file_type().is_symlink()
+    }
+
+    // The target inode is replaced by atomic rename. Lock its pathname sidecar,
+    // with a canonical parent so directory aliases share the same sidecar.
+    fn resolve_target(config_path: &Path, create_parent: bool) -> std::io::Result<(PathBuf, bool)> {
+        let paths = resolve_symlink_write_paths(config_path)?;
+        let parent = paths.write_path.parent().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "config path has no parent",
+            )
+        })?;
+        if create_parent {
+            std::fs::create_dir_all(parent)?;
+        }
+        let filename = paths.write_path.file_name().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "config path has no filename",
+            )
+        })?;
+        Ok((
+            parent.canonicalize()?.join(filename),
+            paths.read_path.is_some(),
+        ))
+    }
+
+    /// Return the locked paths only if the input still resolves to the same target.
+    /// Call on a blocking thread. Never resolve the returned paths again for writing.
+    pub fn checked_write_paths(&self) -> anyhow::Result<SymlinkWritePaths> {
+        self.checked_write_paths_for(&self.config_path)
+    }
+
+    /// Check another authorized path used to load the same user layer.
+    pub fn checked_write_paths_for(&self, path: &Path) -> anyhow::Result<SymlinkWritePaths> {
+        let (target, read_target) = Self::resolve_target(path, false)?;
+        // Canonicalization may follow a replacement symlink at the stored target.
+        // Only compare different spellings after confirming both final components
+        // are not symlinks; a missing target retains exact-path comparison.
+        let equivalent = target == self.target_path
+            || (Self::is_non_link_target(&target)
+                && Self::is_non_link_target(&self.target_path)
+                && paths_match_after_normalization(&target, &self.target_path));
+        if !equivalent {
+            anyhow::bail!("config write target changed while transaction was held");
+        }
+        Ok(SymlinkWritePaths {
+            read_path: read_target.then(|| self.target_path.clone()),
+            write_path: self.target_path.clone(),
+        })
+    }
     fn open_lock(config_path: &Path) -> std::io::Result<std::fs::File> {
         let parent = config_path.parent().ok_or_else(|| {
             std::io::Error::new(
@@ -813,30 +879,49 @@ impl ConfigEditTransaction {
     }
 
     fn acquire_blocking(config_path: &Path) -> anyhow::Result<Self> {
-        let file = Self::open_lock(config_path)?;
+        let (target_path, _) = Self::resolve_target(config_path, true)?;
+        let file = Self::open_lock(&target_path)?;
         file.lock()?;
-        Ok(Self {
+        let transaction = Self {
             config_path: config_path.to_path_buf(),
+            target_path,
             _lock: std::sync::Arc::new(file),
-        })
+        };
+        transaction.checked_write_paths()?;
+        Ok(transaction)
     }
 
     /// Lock attempts never block the async executor and waiting is cancellable.
     pub async fn acquire(config_path: &Path) -> anyhow::Result<Self> {
         let path = config_path.to_path_buf();
         let open_path = path.clone();
-        let file = task::spawn_blocking(move || Self::open_lock(&open_path))
-            .await
-            .context("config lock task panicked")??;
+        let (target_path, file) = task::spawn_blocking(move || {
+            let (target_path, _) = Self::resolve_target(&open_path, true)?;
+            let file = Self::open_lock(&target_path)?;
+            Ok::<_, std::io::Error>((target_path, file))
+        })
+        .await
+        .context("config lock task panicked")??;
         loop {
             match file.try_lock() {
                 Ok(()) => {
-                    return Ok(Self {
+                    #[cfg(test)]
+                    tests::config_alias_test_event("acquired", false);
+                    let transaction = Self {
                         config_path: path,
+                        target_path,
                         _lock: std::sync::Arc::new(file),
-                    });
+                    };
+                    return task::spawn_blocking(move || {
+                        transaction.checked_write_paths()?;
+                        Ok(transaction)
+                    })
+                    .await
+                    .context("config lock validation task panicked")?;
                 }
                 Err(std::fs::TryLockError::WouldBlock) => {
+                    #[cfg(test)]
+                    tests::config_alias_test_event("blocked", false);
                     tokio::time::sleep(std::time::Duration::from_millis(25)).await
                 }
                 Err(std::fs::TryLockError::Error(err)) => return Err(err.into()),
@@ -850,7 +935,7 @@ impl ConfigEditTransaction {
 pub struct ConfigEditVersionConflict;
 
 fn apply_blocking_to_resolved_file(
-    resolved_config_file: &Path,
+    transaction: &ConfigEditTransaction,
     edits: &[ConfigEdit],
     expected: Option<&toml::Value>,
 ) -> anyhow::Result<Option<toml::Value>> {
@@ -858,7 +943,7 @@ fn apply_blocking_to_resolved_file(
         return Ok(None);
     }
 
-    let write_paths = resolve_symlink_write_paths(resolved_config_file)?;
+    let write_paths = transaction.checked_write_paths()?;
     let serialized = match write_paths.read_path {
         Some(path) => match std::fs::read_to_string(&path) {
             Ok(contents) => contents,
@@ -874,6 +959,8 @@ fn apply_blocking_to_resolved_file(
             return Err(ConfigEditVersionConflict.into());
         }
     }
+    #[cfg(test)]
+    tests::config_alias_test_event("cas", true);
 
     let doc = if serialized.is_empty() {
         DocumentMut::new()
@@ -898,6 +985,7 @@ fn apply_blocking_to_resolved_file(
     };
     let parsed = toml::from_str(&output).context("failed to parse serialized config")?;
     if mutated {
+        transaction.checked_write_paths()?;
         write_atomically(&write_paths.write_path, &output).with_context(|| {
             format!(
                 "failed to persist config at {}",
@@ -1119,8 +1207,8 @@ impl ConfigEditsBuilder {
         if self.edits.is_empty() {
             return Ok(());
         }
-        let _transaction = ConfigEditTransaction::acquire_blocking(&self.config_path)?;
-        apply_blocking_to_resolved_file(&self.config_path, &self.edits, None).map(|_| ())
+        let transaction = ConfigEditTransaction::acquire_blocking(&self.config_path)?;
+        apply_blocking_to_resolved_file(&transaction, &self.edits, None).map(|_| ())
     }
 
     /// Apply edits asynchronously via a blocking offload.
@@ -1161,8 +1249,7 @@ impl ConfigEditsBuilder {
             anyhow::bail!("config transaction path differs from edit target");
         }
         task::spawn_blocking(move || {
-            let _transaction = transaction;
-            apply_blocking_to_resolved_file(&self.config_path, &self.edits, expected.as_ref())
+            apply_blocking_to_resolved_file(&transaction, &self.edits, expected.as_ref())
         })
         .await
         .context("config persistence task panicked")?

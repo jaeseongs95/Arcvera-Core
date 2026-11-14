@@ -37,7 +37,6 @@ use codex_core::config::edit::ConfigEditsBuilder;
 use codex_core::config::validate_feature_requirements_for_config_toml;
 use codex_core::path_utils;
 use codex_core::path_utils::SymlinkWritePaths;
-use codex_core::path_utils::resolve_symlink_write_paths;
 use codex_core::path_utils::write_atomically;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_protocol::protocol::AskForApproval;
@@ -614,15 +613,31 @@ async fn create_empty_user_layer(
     let SymlinkWritePaths {
         read_path,
         write_path,
-    } = resolve_symlink_write_paths(config_toml.as_path())
-        .map_err(|err| ConfigManagerError::io("failed to resolve user config path", err))?;
+    } = {
+        let transaction = transaction.clone();
+        let config_toml = config_toml.clone();
+        task::spawn_blocking(move || {
+            transaction.checked_write_paths()?;
+            transaction.checked_write_paths_for(config_toml.as_path())
+        })
+        .await
+        .map_err(|err| ConfigManagerError::anyhow("config path task panicked", err.into()))?
+        .map_err(|err| {
+            ConfigManagerError::anyhow("failed to resolve locked user config path", err)
+        })?
+    };
     let toml_value = match read_path {
         Some(path) => match tokio::fs::read_to_string(&path).await {
             Ok(contents) => toml::from_str(&contents).map_err(|e| {
                 ConfigManagerError::toml("failed to parse existing user config.toml", e)
             })?,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                write_empty_user_config(write_path.clone(), transaction.clone()).await?;
+                write_empty_user_config(
+                    write_path.clone(),
+                    config_toml.clone(),
+                    transaction.clone(),
+                )
+                .await?;
                 TomlValue::Table(toml::map::Map::new())
             }
             Err(err) => {
@@ -633,7 +648,7 @@ async fn create_empty_user_layer(
             }
         },
         None => {
-            write_empty_user_config(write_path, transaction.clone()).await?;
+            write_empty_user_config(write_path, config_toml.clone(), transaction.clone()).await?;
             TomlValue::Table(toml::map::Map::new())
         }
     };
@@ -648,10 +663,19 @@ async fn create_empty_user_layer(
 
 async fn write_empty_user_config(
     write_path: PathBuf,
+    config_toml: AbsolutePathBuf,
     transaction: ConfigEditTransaction,
 ) -> Result<(), ConfigManagerError> {
     task::spawn_blocking(move || {
-        let _transaction = transaction;
+        let checked = transaction
+            .checked_write_paths()
+            .map_err(|err| std::io::Error::other(err.to_string()))?;
+        transaction
+            .checked_write_paths_for(config_toml.as_path())
+            .map_err(|err| std::io::Error::other(err.to_string()))?;
+        if checked.write_path != write_path {
+            return Err(std::io::Error::other("config write target changed"));
+        }
         write_atomically(&write_path, "")
     })
     .await
