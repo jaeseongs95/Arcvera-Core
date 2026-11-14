@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Runtime-refresh regressions; pure authority resolution is tested with Config.
 
@@ -453,4 +454,124 @@ async fn critical_path_refresh_respects_managed_disable() {
             .features
             .enabled(Feature::CriticalPathTiming)
     );
+}
+
+#[tokio::test]
+async fn core110_file_reload_preserves_only_unchanged_host_augmentation() -> anyhow::Result<()> {
+    let (session, _) = make_session_and_context().await;
+    let home = session.codex_home().await;
+    std::fs::create_dir_all(&home)?;
+    let file = home.join(CONFIG_TOML_FILE);
+    let original = "[mcp_servers.ordinary]\nurl = 'https://old.invalid/mcp'\nenabled = false\n";
+    std::fs::write(&file, original)?;
+    let mut initial = load_latest_config_for_session(&session).await;
+    let mut servers = initial.mcp_servers.get().clone();
+    let server = servers.get_mut("ordinary").unwrap();
+    let McpServerTransportConfig::StreamableHttp { http_headers, .. } = &mut server.transport
+    else {
+        panic!("HTTP fixture")
+    };
+    *http_headers = Some(HashMap::from([(
+        "Authorization".into(),
+        "synthetic-host".into(),
+    )]));
+    let host_only = server.clone();
+    servers.insert("host_only".into(), host_only);
+    initial.mcp_servers.set(servers)?;
+    session
+        .state
+        .lock()
+        .await
+        .session_configuration
+        .original_config_do_not_use = Arc::new(initial);
+    let added = "[mcp_servers.added]\nurl = 'https://added.invalid/mcp'\nenabled = false\n";
+    std::fs::write(&file, format!("{original}{added}"))?;
+    session.reload_plugins().await?;
+    let config = session.get_config().await;
+    let McpServerTransportConfig::StreamableHttp { http_headers, .. } =
+        &config.mcp_servers.get()["ordinary"].transport
+    else {
+        panic!("HTTP fixture")
+    };
+    assert!(
+        http_headers
+            .as_ref()
+            .is_some_and(|headers| headers.contains_key("Authorization"))
+    );
+    assert!(config.mcp_servers.get().contains_key("host_only"));
+    assert!(config.mcp_servers.get().contains_key("added"));
+    std::fs::write(
+        &file,
+        format!(
+            "[mcp_servers.ordinary]\nurl = 'https://new.invalid/mcp'\nenabled = false\n{added}"
+        ),
+    )?;
+    session.reload_plugins().await?;
+    let config = session.get_config().await;
+    let McpServerTransportConfig::StreamableHttp {
+        url, http_headers, ..
+    } = &config.mcp_servers.get()["ordinary"].transport
+    else {
+        panic!("HTTP fixture")
+    };
+    assert_eq!(url, "https://new.invalid/mcp");
+    assert!(
+        http_headers
+            .as_ref()
+            .is_none_or(|headers| !headers.contains_key("Authorization"))
+    );
+    assert!(config.mcp_servers.get().contains_key("host_only"));
+    std::fs::write(&file, added)?;
+    session.reload_plugins().await?;
+    let config = session.get_config().await;
+    assert!(!config.mcp_servers.get().contains_key("ordinary"));
+    assert!(config.mcp_servers.get().contains_key("host_only"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn core110_invalid_file_reload_is_atomic() -> anyhow::Result<()> {
+    let (session, _) = make_session_and_context().await;
+    let home = session.codex_home().await;
+    std::fs::create_dir_all(&home)?;
+    let file = home.join(CONFIG_TOML_FILE);
+    std::fs::write(
+        &file,
+        "[mcp_servers.ordinary]\nurl = 'https://old.invalid/mcp'\nenabled = false\n",
+    )?;
+    session.reload_plugins().await?;
+    for invalid in ["[mcp_servers", "[mcp_servers.ordinary]\nurl = 17\n"] {
+        let before = session.get_config().await;
+        let hooks = session.hooks();
+        std::fs::write(&file, invalid)?;
+        assert!(session.reload_plugins().await.is_err());
+        assert!(Arc::ptr_eq(&before, &session.get_config().await));
+        assert!(Arc::ptr_eq(&hooks, &session.hooks()));
+    }
+    Ok(())
+}
+
+
+#[tokio::test]
+async fn core110_invalid_file_refresh_with_stale_owner_requests_retry() -> anyhow::Result<()> {
+    let (session, _) = make_session_and_context().await;
+    let expected = session.get_config().await;
+    let mut invalid = expected.as_ref().clone();
+    invalid.config_layer_stack = expected.config_layer_stack.with_user_config(
+        &expected.codex_home.join(CONFIG_TOML_FILE),
+        toml::from_str("[mcp_servers.bad]\nurl = 17\n")?,
+    )?;
+    let newer = Arc::new(expected.as_ref().clone());
+    session
+        .state
+        .lock()
+        .await
+        .session_configuration
+        .original_config_do_not_use = Arc::clone(&newer);
+    let result = session
+        .refresh_config(expected, invalid, RuntimeConfigRefresh::UserFiles)
+        .await;
+    assert!(matches!(result, crate::ConfigRefreshOutcome::Stale));
+    assert!(Arc::ptr_eq(&newer, &session.get_config().await));
+    Ok(())
 }

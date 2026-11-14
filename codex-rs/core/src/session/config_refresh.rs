@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Publishes resolved MCP configuration and host timing rollouts for future turns.
 
 use std::sync::Arc;
@@ -59,6 +60,19 @@ impl Session {
             match expected_config.resolve_runtime_refresh(&next_config, scope) {
                 Ok(config) => (config, ConfigRefreshOutcome::Published, None),
                 Err(error) => {
+                    if matches!(scope, RuntimeConfigRefresh::UserFiles) {
+                        // A stale reader retries; an invalid current candidate is never published.
+                        let state = self.state.lock().await;
+                        return if Arc::ptr_eq(
+                            &state.session_configuration.original_config_do_not_use,
+                            &expected_config,
+                        ) {
+                            warn!(%error, "failed to resolve user configuration refresh");
+                            ConfigRefreshOutcome::Rejected
+                        } else {
+                            ConfigRefreshOutcome::Stale
+                        };
+                    }
                     let mut config = expected_config.as_ref().clone();
                     if matches!(scope, RuntimeConfigRefresh::Mcp) {
                         // The host-resolved map already carries fresh requirements and

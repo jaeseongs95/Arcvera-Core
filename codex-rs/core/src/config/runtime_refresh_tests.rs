@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Ordinary refresh resolution and enterprise revocation without Session construction.
 
@@ -19,6 +20,60 @@ async fn base_config() -> (tempfile::TempDir, Config) {
         .unwrap();
     (home, config)
 }
+
+#[tokio::test]
+async fn core110_file_reload_materializes_ordinary_mcp_transitions() {
+    let (_home, base) = base_config().await;
+    let initial = "[mcp_servers.ordinary]\nurl = 'https://old.invalid/mcp'\nenabled = false\n";
+    let current = layered_config(&base, initial, "", "", "").await;
+    let mut stale_incoming = current.clone();
+    for (text, expected_names, expected_url) in [
+        (
+            "[mcp_servers.ordinary]\nurl = 'https://new.invalid/mcp'\nenabled = false\n[mcp_servers.added]\nurl = 'https://added.invalid/mcp'\nenabled = false\n",
+            vec!["added", "ordinary"],
+            Some("https://new.invalid/mcp"),
+        ),
+        (
+            "[mcp_servers.added]\nurl = 'https://added.invalid/mcp'\nenabled = false\n",
+            vec!["added"],
+            None,
+        ),
+        ("", vec![], None),
+    ] {
+        stale_incoming.config_layer_stack = current
+            .config_layer_stack
+            .with_user_config(
+                &base.codex_home.join(CONFIG_TOML_FILE),
+                toml::from_str(text).unwrap(),
+            )
+            .unwrap();
+        let refreshed = current
+            .resolve_runtime_refresh(&stale_incoming, RuntimeConfigRefresh::UserFiles)
+            .unwrap();
+        let mut names: Vec<_> = refreshed
+            .mcp_servers
+            .get()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        names.sort_unstable();
+        assert_eq!(
+            names, expected_names,
+            "file declarations must replace stale ordinary MCP map"
+        );
+        if let Some(url) = expected_url {
+            let codex_config::McpServerTransportConfig::StreamableHttp { url: actual, .. } =
+                &refreshed.mcp_servers.get()["ordinary"].transport
+            else {
+                panic!("HTTP fixture")
+            };
+            assert_eq!(actual, url);
+        }
+        assert_eq!(refreshed.model, current.model);
+        assert_eq!(refreshed.notify, current.notify);
+    }
+}
+
 
 #[tokio::test]
 async fn memory_refresh_preserves_active_snapshot_and_explicit_session_off() {
@@ -374,5 +429,86 @@ async fn plugin_override_refresh_preserves_session_and_restores_inheritance() {
             current.config_layer_stack.all_layers_low_to_high().count(),
             layer_count
         );
+    }
+}
+
+
+
+#[tokio::test]
+async fn core110_file_server_addition_obeys_managed_allowlist_and_ema_admission() {
+    let (_home, base) = base_config().await;
+    let denied = ConfigBuilder::without_managed_config_for_tests()
+        .codex_home(base.codex_home.to_path_buf())
+        .fallback_cwd(Some(base.cwd.to_path_buf()))
+        .cloud_config_bundle(
+            CloudConfigBundleFixture::loader_with_enterprise_requirement("[mcp_servers]"),
+        )
+        .build()
+        .await
+        .unwrap();
+    let mut incoming = denied.clone();
+    incoming.config_layer_stack = denied
+        .config_layer_stack
+        .with_user_config(
+            &base.codex_home.join(CONFIG_TOML_FILE),
+            toml::from_str("[mcp_servers.new]\nurl = 'https://new.invalid/mcp'\n").unwrap(),
+        )
+        .unwrap();
+    let refreshed = denied
+        .resolve_runtime_refresh(&incoming, RuntimeConfigRefresh::UserFiles)
+        .unwrap();
+    assert!(!refreshed.mcp_servers.get()["new"].enabled);
+
+    let mut incoming = base.clone();
+    incoming.config_layer_stack = base
+        .config_layer_stack
+        .with_user_config(
+            &base.codex_home.join(CONFIG_TOML_FILE),
+            toml::from_str(&enterprise_config("https://idp.invalid", "resource")).unwrap(),
+        )
+        .unwrap();
+    let refreshed = base
+        .resolve_runtime_refresh(&incoming, RuntimeConfigRefresh::UserFiles)
+        .unwrap();
+    assert!(!refreshed.mcp_servers.get().contains_key("enterprise"));
+    assert!(refreshed.mcp_enterprise_managed_auth.is_none());
+}
+
+#[tokio::test]
+async fn core110_file_mcp_sequential_transitions() {
+    let (_home, base) = base_config().await;
+    let mut current = base.clone();
+    let initial = "[mcp_servers.ordinary]\nurl = 'https://old.invalid/mcp'\nenabled = false\n";
+    for (text, expected_url) in [
+        (initial, Some("https://old.invalid/mcp")),
+        (
+            "[mcp_servers.ordinary]\nurl = 'https://new.invalid/mcp'\nenabled = false\n",
+            Some("https://new.invalid/mcp"),
+        ),
+        ("", None),
+        (initial, Some("https://old.invalid/mcp")),
+    ] {
+        let mut incoming = current.clone();
+        incoming.config_layer_stack = current
+            .config_layer_stack
+            .with_user_config(
+                &base.codex_home.join(CONFIG_TOML_FILE),
+                toml::from_str(text).unwrap(),
+            )
+            .unwrap();
+        current = current
+            .resolve_runtime_refresh(&incoming, RuntimeConfigRefresh::UserFiles)
+            .unwrap();
+        match expected_url {
+            Some(expected) => {
+                let codex_config::McpServerTransportConfig::StreamableHttp { url, .. } =
+                    &current.mcp_servers.get()["ordinary"].transport
+                else {
+                    panic!("HTTP fixture")
+                };
+                assert_eq!(url, expected);
+            }
+            None => assert!(!current.mcp_servers.get().contains_key("ordinary")),
+        }
     }
 }

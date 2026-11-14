@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Resolves refreshable MCP inputs without rebuilding unrelated session configuration.
 //! Existing sessions refresh ordinary MCP state without gaining enterprise authority.
@@ -26,6 +27,12 @@ pub(crate) enum RuntimeConfigRefresh {
     User,
     Mcp,
     UserFiles,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(default)]
+struct McpServersOnly {
+    mcp_servers: HashMap<String, McpServerConfig>,
 }
 
 #[derive(Default, Deserialize)]
@@ -115,9 +122,37 @@ impl Config {
         };
         // Refresh ordinary servers from the complete host-owned set. Keep EMA
         // admission pinned, while applying current tool restrictions and approvals.
-        let mut servers: HashMap<_, _> = incoming
-            .mcp_servers
-            .get()
+        let mut source_servers = incoming.mcp_servers.get().clone();
+        if matches!(scope, RuntimeConfigRefresh::UserFiles) {
+            let previous = self.config_layer_stack.effective_config();
+            let current = layers.effective_config();
+            let old_table = previous.get("mcp_servers").and_then(toml::Value::as_table);
+            let new_table = current.get("mcp_servers").and_then(toml::Value::as_table);
+            // Parse only this refreshable field. Invalid entries reject the whole
+            // candidate before any config or hook publication.
+            let parsed: McpServersOnly = current
+                .clone()
+                .try_into()
+                .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
+            if let Some(old_table) = old_table {
+                for name in old_table.keys() {
+                    if !new_table.is_some_and(|table| table.contains_key(name)) {
+                        source_servers.remove(name);
+                    }
+                }
+            }
+            if let Some(new_table) = new_table {
+                for (name, declaration) in new_table {
+                    if old_table.and_then(|table| table.get(name)) != Some(declaration) {
+                        // Never carry credentials across a changed declaration.
+                        if let Some(server) = parsed.mcp_servers.get(name) {
+                            source_servers.insert(name.clone(), server.clone());
+                        }
+                    }
+                }
+            }
+        }
+        let mut servers: HashMap<_, _> = source_servers
             .iter()
             .filter(|(name, server)| {
                 !is_enterprise(server)
