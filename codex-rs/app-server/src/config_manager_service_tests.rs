@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::*;
 use anyhow::Result;
 use axum::http::HeaderValue;
@@ -773,6 +774,19 @@ async fn clear_missing_nested_config_is_noop() -> Result<()> {
     assert_eq!(response.status, WriteStatus::Ok);
     assert_eq!(response.overridden_metadata, None);
     assert_eq!(std::fs::read_to_string(&path)?, "");
+    let read = service
+        .read(ConfigReadParams {
+            include_layers: true,
+            cwd: None,
+        })
+        .await?;
+    let user = read
+        .layers
+        .unwrap()
+        .into_iter()
+        .find(|layer| matches!(layer.name, ApiConfigLayerSource::User { .. }))
+        .unwrap();
+    assert_eq!(response.version, user.version);
     Ok(())
 }
 
@@ -1233,6 +1247,218 @@ async fn version_conflict_rejected() {
         error.write_error_code(),
         Some(ConfigWriteErrorCode::ConfigVersionConflict)
     );
+}
+
+// D49: versions describe the parsed bytes actually saved, including after the
+// last implicit table is removed; those versions must remain usable for CAS.
+#[tokio::test]
+async fn last_mcp_deletion_returns_saved_user_layer_version_and_allows_next_cas() -> Result<()> {
+    let tmp = tempdir()?;
+    let path = tmp.path().join(CONFIG_TOML_FILE);
+    std::fs::write(&path, "")?;
+    let service = ConfigManager::without_managed_config_for_tests(tmp.path().to_path_buf());
+    let write = |key: &str, value: JsonValue, expected: Option<String>| ConfigValueWriteParams {
+        file_path: None,
+        key_path: key.to_owned(),
+        value,
+        merge_strategy: MergeStrategy::Replace,
+        expected_version: expected,
+    };
+    let added = service
+        .write_value(write(
+            "mcp_servers.fixture",
+            serde_json::json!({"command":"example"}),
+            None,
+        ))
+        .await?;
+    let removed = service
+        .write_value(write(
+            "mcp_servers.fixture",
+            JsonValue::Null,
+            Some(added.version.clone()),
+        ))
+        .await?;
+    let read = service
+        .read(ConfigReadParams {
+            include_layers: true,
+            cwd: None,
+        })
+        .await?;
+    let layer = read
+        .layers
+        .unwrap()
+        .into_iter()
+        .find(|layer| matches!(layer.name, ApiConfigLayerSource::User { .. }))
+        .expect("saved user layer");
+    assert_eq!(removed.version, layer.version);
+    assert!(layer.config.get("mcp_servers").is_none());
+    assert_eq!(std::fs::read_to_string(&path)?, "");
+    let next = service
+        .write_value(write(
+            "mcp_servers.next",
+            serde_json::json!({"command":"example"}),
+            Some(removed.version.clone()),
+        ))
+        .await?;
+    let stale = service
+        .write_value(write(
+            "model",
+            serde_json::json!("stale"),
+            Some(removed.version),
+        ))
+        .await
+        .unwrap_err();
+    assert_eq!(
+        stale.write_error_code(),
+        Some(ConfigWriteErrorCode::ConfigVersionConflict)
+    );
+    let read = service
+        .read(ConfigReadParams {
+            include_layers: true,
+            cwd: None,
+        })
+        .await?;
+    let layer = read
+        .layers
+        .unwrap()
+        .into_iter()
+        .find(|layer| matches!(layer.name, ApiConfigLayerSource::User { .. }))
+        .unwrap();
+    assert_eq!(next.version, layer.version);
+    Ok(())
+}
+
+#[tokio::test]
+async fn batch_version_matches_saved_doc_and_preserves_explicit_table_and_comments() -> Result<()> {
+    let tmp = tempdir()?;
+    let path = tmp.path().join(CONFIG_TOML_FILE);
+    let original = "# 보존할 주석\nmodel = '기존'\n\n[mcp_servers]\n# 명시적 빈 테이블 보존\n\n[mcp_servers.fixture]\ncommand = 'example'\n";
+    std::fs::write(&path, original)?;
+    let service = ConfigManager::without_managed_config_for_tests(tmp.path().to_path_buf());
+    let batch = service
+        .batch_write(ConfigBatchWriteParams {
+            file_path: None,
+            expected_version: None,
+            reload_user_config: false,
+            edits: vec![
+                ApiConfigEdit {
+                    key_path: "mcp_servers.fixture".into(),
+                    value: JsonValue::Null,
+                    merge_strategy: MergeStrategy::Replace,
+                },
+                ApiConfigEdit {
+                    key_path: "model".into(),
+                    value: serde_json::json!("새 모델"),
+                    merge_strategy: MergeStrategy::Replace,
+                },
+            ],
+        })
+        .await?;
+    let saved = std::fs::read_to_string(&path)?;
+    assert!(saved.contains("# 보존할 주석"));
+    assert!(saved.contains("# 명시적 빈 테이블 보존"));
+    assert!(saved.contains("[mcp_servers]"));
+    let parsed: TomlValue = toml::from_str(&saved)?;
+    assert_eq!(parsed["model"].as_str(), Some("새 모델"));
+    assert!(parsed["mcp_servers"].get("fixture").is_none());
+    let read = service.load_thread_agnostic_config().await?;
+    assert_eq!(batch.version, read.get_active_user_layer().unwrap().version);
+    let before = saved;
+    let failure = service
+        .write_value(ConfigValueWriteParams {
+            file_path: None,
+            key_path: "model".into(),
+            value: serde_json::json!("변경 금지"),
+            merge_strategy: MergeStrategy::Replace,
+            expected_version: Some("sha256:stale".into()),
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(
+        failure.write_error_code(),
+        Some(ConfigWriteErrorCode::ConfigVersionConflict)
+    );
+    assert_eq!(std::fs::read_to_string(&path)?, before);
+    Ok(())
+}
+
+#[tokio::test]
+async fn concurrent_api_cas_writers_cannot_both_use_the_same_version() -> Result<()> {
+    let tmp = tempdir()?;
+    std::fs::write(tmp.path().join(CONFIG_TOML_FILE), "model = 'initial'\n")?;
+    let first = ConfigManager::without_managed_config_for_tests(tmp.path().to_path_buf());
+    let second = ConfigManager::without_managed_config_for_tests(tmp.path().to_path_buf());
+    let initial = first.load_thread_agnostic_config().await?;
+    let version = initial.get_active_user_layer().unwrap().version.clone();
+    let write = |value: &str| ConfigValueWriteParams {
+        file_path: None,
+        key_path: "model".into(),
+        value: serde_json::json!(value),
+        merge_strategy: MergeStrategy::Replace,
+        expected_version: Some(version.clone()),
+    };
+    let (a, b) = tokio::join!(
+        first.write_value(write("first")),
+        second.write_value(write("second"))
+    );
+    assert_eq!(usize::from(a.is_ok()) + usize::from(b.is_ok()), 1);
+    let failure = if let Err(error) = a {
+        error
+    } else {
+        b.unwrap_err()
+    };
+    assert_eq!(
+        failure.write_error_code(),
+        Some(ConfigWriteErrorCode::ConfigVersionConflict)
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn cancelled_queued_config_request_does_not_write() -> Result<()> {
+    let tmp = tempdir()?;
+    let path = tmp.path().join(CONFIG_TOML_FILE);
+    std::fs::write(&path, "model = 'initial'\n")?;
+    let service = ConfigManager::without_managed_config_for_tests(tmp.path().to_path_buf());
+    let initial = service.load_thread_agnostic_config().await?;
+    let version = initial.get_active_user_layer().unwrap().version.clone();
+    let guard = ConfigEditTransaction::acquire(&path).await?;
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let writer = service.clone();
+    let expected = version.clone();
+    let waiter = tokio::spawn(async move {
+        let write = writer.write_value(ConfigValueWriteParams {
+            file_path: None,
+            key_path: "model".into(),
+            value: serde_json::json!("completed"),
+            merge_strategy: MergeStrategy::Replace,
+            expected_version: Some(expected),
+        });
+        tokio::pin!(write);
+        // Poll the request while an independent transaction holds the file lock.
+        tokio::select! { biased;
+            result = &mut write => panic!("unexpected completed write: {result:?}"),
+            _ = tokio::task::yield_now() => {}
+        }
+        started_tx.send(()).unwrap();
+        write.await
+    });
+    started_rx.await?;
+    waiter.abort();
+    let _ = waiter.await;
+    drop(guard);
+    let successful = service
+        .write_value(ConfigValueWriteParams {
+            file_path: None,
+            key_path: "model".into(),
+            value: serde_json::json!("next"),
+            merge_strategy: MergeStrategy::Replace,
+            expected_version: Some(version),
+        })
+        .await?;
+    assert!(!successful.version.is_empty());
+    assert!(std::fs::read_to_string(&path)?.contains("next"));
+    Ok(())
 }
 
 #[tokio::test]

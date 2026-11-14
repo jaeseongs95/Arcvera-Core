@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use super::*;
 use codex_config::types::AppToolApproval;
@@ -13,6 +14,131 @@ use pretty_assertions::assert_eq;
 use std::os::unix::fs::symlink;
 use tempfile::tempdir;
 use toml::Value as TomlValue;
+
+#[tokio::test]
+async fn written_document_result_describes_the_exact_serialized_edit() {
+    let home = tempdir().unwrap();
+    let path = home.path().join(CONFIG_TOML_FILE);
+    std::fs::write(&path, "[mcp_servers.fixture]\ncommand = 'example'\n").unwrap();
+    let result = ConfigEditsBuilder::for_config_path(&path)
+        .with_edits([ConfigEdit::ClearPath {
+            segments: vec!["mcp_servers".into(), "fixture".into()],
+        }])
+        .apply_with_user_config()
+        .await
+        .unwrap()
+        .unwrap();
+    let bytes = std::fs::read_to_string(&path).unwrap();
+    assert_eq!(result, toml::from_str::<TomlValue>(&bytes).unwrap());
+    assert!(result.get("mcp_servers").is_none());
+    std::fs::write(&path, "model = 'another-writer'\n").unwrap();
+    assert!(result.get("model").is_none());
+}
+
+#[tokio::test]
+async fn checked_edit_rejects_changed_disk_document_without_writing() {
+    let home = tempdir().unwrap();
+    let path = home.path().join(CONFIG_TOML_FILE);
+    let expected: TomlValue = toml::from_str("model = 'before'\n").unwrap();
+    let current = "# concurrent writer\nmodel = 'after'\n";
+    std::fs::write(&path, current).unwrap();
+    let error = ConfigEditsBuilder::for_config_path(&path)
+        .with_edits([ConfigEdit::SetPath {
+            segments: vec!["model".into()],
+            value: value("rejected"),
+        }])
+        .apply_checked_with_user_config(expected)
+        .await
+        .unwrap_err();
+    assert!(error.is::<ConfigEditVersionConflict>());
+    assert_eq!(std::fs::read_to_string(path).unwrap(), current);
+}
+
+#[tokio::test]
+async fn cooperating_editors_serialize_and_keep_both_sibling_keys() {
+    let home = tempdir().unwrap();
+    let path = home.path().join(CONFIG_TOML_FILE);
+    std::fs::write(&path, "# 보존\n[notice]\n").unwrap();
+    let first = ConfigEditsBuilder::for_config_path(&path).with_edits([ConfigEdit::SetPath {
+        segments: vec!["notice".into(), "hide_full_access_warning".into()],
+        value: value(true),
+    }]);
+    let second = ConfigEditsBuilder::for_config_path(&path).with_edits([ConfigEdit::SetPath {
+        segments: vec!["notice".into(), "hide_rate_limit_model_nudge".into()],
+        value: value(true),
+    }]);
+    let (a, b) = tokio::join!(first.apply(), second.apply());
+    a.unwrap();
+    b.unwrap();
+    let saved = std::fs::read_to_string(&path).unwrap();
+    assert!(saved.contains("# 보존"));
+    let parsed: TomlValue = toml::from_str(&saved).unwrap();
+    assert_eq!(
+        parsed["notice"]["hide_full_access_warning"].as_bool(),
+        Some(true)
+    );
+    assert_eq!(
+        parsed["notice"]["hide_rate_limit_model_nudge"].as_bool(),
+        Some(true)
+    );
+}
+
+#[tokio::test]
+async fn started_blocking_edit_keeps_lock_after_waiter_cancellation() {
+    let home = tempdir().unwrap();
+    let path = home.path().join(CONFIG_TOML_FILE);
+    std::fs::write(&path, "model = 'old'\n").unwrap();
+    let transaction = ConfigEditTransaction::acquire(&path).await.unwrap();
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let write_path = path.clone();
+    let handle = task::spawn_blocking(move || {
+        let _transaction = transaction;
+        entered_tx.send(()).unwrap();
+        release_rx.recv().unwrap();
+        apply_blocking_to_resolved_file(
+            &write_path,
+            &[ConfigEdit::SetPath {
+                segments: vec!["model".into()],
+                value: value("finished"),
+            }],
+            None,
+        )
+        .unwrap();
+    });
+    entered_rx.await.unwrap();
+    handle.abort(); // Started blocking jobs do not stop; they must retain the guard.
+    assert!(
+        tokio::time::timeout(
+            std::time::Duration::from_millis(100),
+            ConfigEditTransaction::acquire(&path)
+        )
+        .await
+        .is_err()
+    );
+    release_tx.send(()).unwrap();
+    let _ = handle.await;
+    let _next = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        ConfigEditTransaction::acquire(&path),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(std::fs::read_to_string(&path).unwrap().contains("finished"));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn config_lock_refuses_symlink() {
+    let home = tempdir().unwrap();
+    let path = home.path().join(CONFIG_TOML_FILE);
+    let target = home.path().join("other");
+    std::fs::write(&target, "do not touch").unwrap();
+    symlink(&target, home.path().join("config.toml.lock")).unwrap();
+    assert!(ConfigEditTransaction::acquire(&path).await.is_err());
+    assert_eq!(std::fs::read_to_string(target).unwrap(), "do not touch");
+}
 
 #[test]
 fn ui_language_persists_across_fresh_reads_without_changing_other_global_settings() {

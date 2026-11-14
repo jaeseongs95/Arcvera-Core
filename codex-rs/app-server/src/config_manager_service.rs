@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use crate::config_layer::config_layer_metadata_to_api;
 use crate::config_layer::config_layer_to_api;
@@ -30,6 +31,8 @@ use codex_connectors::apps_config_from_layer_stack;
 use codex_connectors::apps_config_origins_from_layer_stack;
 use codex_core::config::deserialize_config_toml_with_base;
 use codex_core::config::edit::ConfigEdit;
+use codex_core::config::edit::ConfigEditTransaction;
+use codex_core::config::edit::ConfigEditVersionConflict;
 use codex_core::config::edit::ConfigEditsBuilder;
 use codex_core::config::validate_feature_requirements_for_config_toml;
 use codex_core::path_utils;
@@ -340,13 +343,17 @@ impl ConfigManager {
             ));
         }
 
+        let transaction = ConfigEditTransaction::acquire(provided_path.as_path())
+            .await
+            .map_err(|err| ConfigManagerError::anyhow("failed to lock user config", err))?;
+
         let layers = self
             .load_thread_agnostic_config()
             .await
             .map_err(|err| ConfigManagerError::io("failed to load configuration", err))?;
         let user_layer = match layers.get_active_user_layer() {
             Some(layer) => Cow::Borrowed(layer),
-            None => Cow::Owned(create_empty_user_layer(&allowed_path).await?),
+            None => Cow::Owned(create_empty_user_layer(&allowed_path, &transaction).await?),
         };
 
         if let Some(expected) = expected_version.as_deref()
@@ -531,13 +538,43 @@ impl ConfigManager {
                 )
             })?;
 
-        if !config_edits.is_empty() {
-            ConfigEditsBuilder::for_config_path(provided_path.as_path())
-                .with_edits(config_edits)
-                .apply()
-                .await
-                .map_err(|err| ConfigManagerError::anyhow("failed to persist config.toml", err))?;
-        }
+        let updated_layers = if !config_edits.is_empty() {
+            let builder = ConfigEditsBuilder::for_config_path(provided_path.as_path())
+                .with_edits(config_edits);
+            let result = builder
+                .apply_with_transaction(
+                    transaction,
+                    expected_version.as_ref().map(|_| user_layer.config.clone()),
+                )
+                .await;
+            let persisted = result
+                .map_err(|err| {
+                    if err.is::<ConfigEditVersionConflict>() {
+                        ConfigManagerError::write(ConfigWriteErrorCode::ConfigVersionConflict, "Configuration was modified since last read. Fetch latest version and retry.")
+                    } else {
+                        ConfigManagerError::anyhow("failed to persist config.toml", err)
+                    }
+                })?
+                .ok_or_else(|| ConfigManagerError::write(ConfigWriteErrorCode::ConfigValidationError, "missing persisted config result"))?;
+            layers
+                .with_user_config(&provided_path, persisted)
+                .map_err(|err| {
+                    ConfigManagerError::write(
+                        ConfigWriteErrorCode::ConfigValidationError,
+                        format!("Invalid persisted configuration: {err}"),
+                    )
+                })?
+        } else {
+            layers
+                .with_user_config(&provided_path, user_layer.config.clone())
+                .map_err(|err| {
+                    ConfigManagerError::write(
+                        ConfigWriteErrorCode::ConfigValidationError,
+                        format!("Invalid configuration: {err}"),
+                    )
+                })?
+        };
+        let effective = updated_layers.effective_config();
 
         let overridden = first_overridden_edit(&updated_layers, &effective, &parsed_segments);
         let status = overridden
@@ -572,6 +609,7 @@ impl ConfigManager {
 
 async fn create_empty_user_layer(
     config_toml: &AbsolutePathBuf,
+    transaction: &ConfigEditTransaction,
 ) -> Result<ConfigLayerEntry, ConfigManagerError> {
     let SymlinkWritePaths {
         read_path,
@@ -584,7 +622,7 @@ async fn create_empty_user_layer(
                 ConfigManagerError::toml("failed to parse existing user config.toml", e)
             })?,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                write_empty_user_config(write_path.clone()).await?;
+                write_empty_user_config(write_path.clone(), transaction.clone()).await?;
                 TomlValue::Table(toml::map::Map::new())
             }
             Err(err) => {
@@ -595,7 +633,7 @@ async fn create_empty_user_layer(
             }
         },
         None => {
-            write_empty_user_config(write_path).await?;
+            write_empty_user_config(write_path, transaction.clone()).await?;
             TomlValue::Table(toml::map::Map::new())
         }
     };
@@ -608,11 +646,17 @@ async fn create_empty_user_layer(
     ))
 }
 
-async fn write_empty_user_config(write_path: PathBuf) -> Result<(), ConfigManagerError> {
-    task::spawn_blocking(move || write_atomically(&write_path, ""))
-        .await
-        .map_err(|err| ConfigManagerError::anyhow("config persistence task panicked", err.into()))?
-        .map_err(|err| ConfigManagerError::io("failed to create empty user config.toml", err))
+async fn write_empty_user_config(
+    write_path: PathBuf,
+    transaction: ConfigEditTransaction,
+) -> Result<(), ConfigManagerError> {
+    task::spawn_blocking(move || {
+        let _transaction = transaction;
+        write_atomically(&write_path, "")
+    })
+    .await
+    .map_err(|err| ConfigManagerError::anyhow("config persistence task panicked", err.into()))?
+    .map_err(|err| ConfigManagerError::io("failed to create empty user config.toml", err))
 }
 
 fn parse_value(value: JsonValue) -> Result<Option<TomlValue>, ConfigManagerError> {
