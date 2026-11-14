@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Explicit browsing and user corrections for the loaded thread's memory scope.
 use super::*;
@@ -113,6 +114,8 @@ impl ThreadRequestProcessor {
             "global"
         };
         let enabled = config.features.enabled(Feature::MemoryTool);
+        let mut generation_id = None;
+        let mut publication_provenance = None;
         let (summary, status) = if root.is_none() {
             (None, "unavailable")
         } else if !enabled || !config.memories.use_memories && params.include_disabled != Some(true)
@@ -123,26 +126,38 @@ impl ThreadRequestProcessor {
         }) {
             (None, "unreadable")
         } else {
-            let path = root
-                .as_ref()
-                .expect("checked root")
-                .join("memory_summary.md");
-            tokio::task::spawn_blocking(move || {
-                let file = match std::fs::File::open(path) {
-                    Ok(file) => file,
-                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let capability = thread.thread_extension_data()
+                .get::<codex_memories_read::publication_snapshot::MemorySnapshotCapability>();
+            let snapshot = match capability {
+                Some(capability) => capability.0.capture().await.ok(),
+                None => None,
+            };
+            if let Some(snapshot) = snapshot.filter(|snapshot| root.as_ref().is_some_and(|root| root.as_path() == snapshot.original_root.as_path())) {
+                let path = snapshot.derived_root.join("memory_summary.md");
+                generation_id = snapshot.generation_id.clone();
+                publication_provenance = snapshot.provenance.clone();
+                let artifact_manifest = snapshot.artifact_manifest;
+                let derived_root = snapshot.derived_root;
+                let provenance = snapshot.provenance;
+                let current = snapshot.current_for_notes;
+                let may_be_missing = snapshot.legacy_empty || snapshot.generation_id.is_none();
+                let (summary, status) = tokio::task::spawn_blocking(move || {
+                let read_result = if let Some(manifest) = artifact_manifest {
+                    codex_memories_read::publication_snapshot::read_verified_artifact(&derived_root, &path, &manifest, MAX_SUMMARY_BYTES)
+                } else {
+                    codex_memories_read::publication_notes::open_regular_without_links(&path).and_then(|file| {
+                        let mut bytes = Vec::new();
+                        file.take(MAX_SUMMARY_BYTES + 1).read_to_end(&mut bytes)?;
+                        Ok(bytes)
+                    })
+                };
+                let bytes = match read_result {
+                    Ok(bytes) => bytes,
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound && may_be_missing => {
                         return (None, "missing");
                     }
                     Err(_) => return (None, "unreadable"),
                 };
-                let mut bytes = Vec::new();
-                if file
-                    .take(MAX_SUMMARY_BYTES + 1)
-                    .read_to_end(&mut bytes)
-                    .is_err()
-                {
-                    return (None, "unreadable");
-                }
                 if bytes.len() as u64 > MAX_SUMMARY_BYTES {
                     return (None, "oversized");
                 }
@@ -153,7 +168,15 @@ impl ThreadRequestProcessor {
                 }
             })
             .await
-            .map_err(|error| internal_error(format!("memory read failed: {error}")))?
+            .map_err(|error| internal_error(format!("memory read failed: {error}")))?;
+                let status = if status == "ready" {
+                    if provenance.as_deref() == Some("legacy_import") { "legacy_unverified" }
+                    else { match current { Some(true) => "ready", Some(false) => "pending", None => "unknown" } }
+                } else { status };
+                (summary, status)
+            } else {
+                (None, "unavailable")
+            }
         };
         let generate = if let Some(db) = thread.state_db() {
             db.get_thread_memory_mode(thread_id)
@@ -204,6 +227,8 @@ impl ThreadRequestProcessor {
                 use_memories: Some(enabled && config.memories.use_memories),
                 generate_memories: Some(enabled && generate),
                 consolidation,
+                generation_id,
+                publication_provenance,
             }
             .into(),
         ))

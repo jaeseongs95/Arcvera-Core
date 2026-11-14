@@ -1,7 +1,11 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 #[cfg(test)]
 #[path = "memory_consolidation_tests.rs"]
 mod consolidation_tests;
+#[cfg(test)]
+#[path = "memory_publication_tests.rs"]
+mod publication_tests;
 #[path = "memory_readiness.rs"]
 mod readiness;
 
@@ -45,6 +49,16 @@ pub struct MemoryConsolidationStatus {
     pub last_error: Option<String>,
     pub input_watermark: Option<i64>,
     pub last_success_watermark: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryPublicationRecord {
+    /// Digest of the host-owned inventory of published artifacts.
+    pub artifact_manifest_digest: String,
+    pub generation_id: String,
+    pub notes_digest: String,
+    pub provenance: String,
+    pub legacy_empty: bool,
 }
 
 /// Store for generated memory state and memory extraction/consolidation jobs.
@@ -1293,6 +1307,7 @@ SET
     status = 'running',
     worker_id = ?,
     ownership_token = ?,
+    publication_root_identity = NULL,
     started_at = ?,
     finished_at = NULL,
     lease_until = ?,
@@ -1347,18 +1362,31 @@ WHERE kind = ? AND job_key = ?
 UPDATE jobs
 SET lease_until = ?
 WHERE kind = ? AND job_key = ?
-  AND status = 'running' AND ownership_token = ?
+  AND status = 'running' AND ownership_token = ? AND lease_until > ?
             "#,
         )
         .bind(lease_until)
         .bind(JOB_KIND_MEMORY_CONSOLIDATE_GLOBAL)
         .bind(MEMORY_CONSOLIDATION_JOB_KEY)
         .bind(ownership_token)
+        .bind(now)
         .execute_with_busy_retry(self.pool.as_ref())
         .await?
         .rows_affected();
 
         Ok(rows_affected > 0)
+    }
+
+    /// Bind a claimed, unexpired worker to its host-resolved root. A claim can
+    /// never be rebound to another root; version/scope are fixed by this pool.
+    pub async fn bind_phase2_publication_root(&self, ownership_token: &str, root_identity: &str) -> anyhow::Result<bool> {
+        anyhow::ensure!(!root_identity.is_empty(), "empty memory root identity");
+        let now = Utc::now().timestamp();
+        let rows = sqlx::query("UPDATE jobs SET publication_root_identity = ? WHERE kind = ? AND job_key = ? AND status = 'running' AND ownership_token = ? AND lease_until > ? AND (publication_root_identity IS NULL OR publication_root_identity = ?)")
+            .bind(root_identity).bind(JOB_KIND_MEMORY_CONSOLIDATE_GLOBAL).bind(MEMORY_CONSOLIDATION_JOB_KEY)
+            .bind(ownership_token).bind(now).bind(root_identity)
+            .execute_with_busy_retry(self.pool.as_ref()).await?.rows_affected();
+        Ok(rows == 1)
     }
 
     /// Marks the owned running global phase-2 job as succeeded.
@@ -1377,9 +1405,116 @@ WHERE kind = ? AND job_key = ?
         completed_watermark: i64,
         selected_outputs: &[Stage1Output],
     ) -> anyhow::Result<bool> {
+        self.complete_phase2(ownership_token, completed_watermark, selected_outputs, None, None).await
+    }
+
+    /// Atomically commit a validated immutable generation and its owning job.
+    /// `root_identity` is supplied by the host after resolving the scoped root.
+    pub async fn publish_global_phase2_generation(
+        &self,
+        ownership_token: &str,
+        captured_input_watermark: i64,
+        completed_watermark: i64,
+        selected_outputs: &[Stage1Output],
+        root_identity: &str,
+        generation_id: &str,
+        notes_digest: &str,
+        artifact_manifest_digest: &str,
+    ) -> anyhow::Result<bool> {
+        validate_publication_identity(root_identity, generation_id)?;
+        validate_notes_digest(notes_digest)?;
+        validate_notes_digest(artifact_manifest_digest)?;
+        // Hold the state writer reservation through the memory-DB commit so a
+        // selected thread cannot lose memory authorization between the check
+        // and publication. This does not require a global input snapshot.
+        let mut authorization = self.state_pool.begin_immediate().await?;
+        for output in selected_outputs {
+            if !self.thread_is_eligible(output.thread_id) {
+                authorization.rollback().await?;
+                return Ok(false);
+            }
+            let row: Option<(String, String, Option<String>)> = sqlx::query_as(
+                "SELECT cwd, rollout_path, git_branch FROM threads WHERE id = ? AND memory_mode = 'enabled'"
+            ).bind(output.thread_id.to_string()).fetch_optional(&mut *authorization).await?;
+            if row.as_ref().is_none_or(|(cwd, rollout, branch)|
+                std::path::Path::new(cwd) != output.cwd.as_path()
+                    || std::path::Path::new(rollout) != output.rollout_path.as_path()
+                    || branch != &output.git_branch)
+            {
+                authorization.rollback().await?;
+                return Ok(false);
+            }
+        }
+        let result = self.complete_phase2(ownership_token, completed_watermark, selected_outputs,
+            Some((root_identity, generation_id, notes_digest, artifact_manifest_digest)), Some(captured_input_watermark)).await;
+        if let Err(error) = authorization.rollback().await {
+            tracing::warn!(%error, "failed releasing memory authorization transaction");
+        }
+        result
+    }
+
+    /// Capture once per read operation. An error is distinct from an absent legacy row.
+    pub async fn published_generation(&self, root_identity: &str) -> anyhow::Result<Option<MemoryPublicationRecord>> {
+        anyhow::ensure!(!root_identity.is_empty(), "empty memory root identity");
+        let value = sqlx::query(
+            "SELECT generation_id, notes_digest, artifact_manifest_digest, provenance, legacy_empty FROM memory_publication WHERE root_identity = ?"
+        ).bind(root_identity).fetch_optional(self.pool.as_ref()).await?;
+        value.map(|row| {
+            let generation_id: String = row.try_get("generation_id")?;
+            let notes_digest: String = row.try_get("notes_digest")?;
+            let artifact_manifest_digest: String = row.try_get("artifact_manifest_digest")?;
+            validate_notes_digest(&artifact_manifest_digest)?;
+            let provenance: String = row.try_get("provenance")?;
+            let legacy_empty: bool = row.try_get("legacy_empty")?;
+            validate_publication_identity(root_identity, &generation_id)?;
+            validate_notes_digest(&notes_digest)?;
+            anyhow::ensure!(matches!(provenance.as_str(), "legacy_import" | "consolidated"), "invalid publication provenance");
+            anyhow::ensure!(!legacy_empty || provenance == "legacy_import", "invalid empty baseline provenance");
+            Ok(MemoryPublicationRecord { generation_id, notes_digest, artifact_manifest_digest, provenance, legacy_empty })
+        }).transpose()
+    }
+
+    /// Registers a host-validated legacy snapshot only when no record exists.
+    /// The caller owns the root lock; this never starts or completes a worker.
+    pub async fn register_legacy_memory_baseline(&self, root_identity: &str, generation_id: &str, notes_digest: &str, artifact_manifest_digest: &str, legacy_empty: bool) -> anyhow::Result<bool> {
+        validate_publication_identity(root_identity, generation_id)?;
+        validate_notes_digest(notes_digest)?;
+        validate_notes_digest(artifact_manifest_digest)?;
+        let result = sqlx::query("INSERT INTO memory_publication (root_identity, generation_id, notes_digest, artifact_manifest_digest, provenance, legacy_empty) VALUES (?, ?, ?, ?, 'legacy_import', ?) ON CONFLICT(root_identity) DO NOTHING")
+            .bind(root_identity).bind(generation_id).bind(notes_digest).bind(artifact_manifest_digest).bind(legacy_empty)
+            .execute_with_busy_retry(self.pool.as_ref()).await?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    /// Rebind only the legacy baseline observed before a marker was installed.
+    /// Host must hold the root lock, verify marker absence and revalidate the
+    /// captured legacy bytes; competing publication fails this compare-and-swap.
+    pub async fn replace_legacy_memory_baseline(
+        &self, root_identity: &str, expected_generation_id: &str,
+        generation_id: &str, notes_digest: &str, artifact_manifest_digest: &str, legacy_empty: bool,
+    ) -> anyhow::Result<bool> {
+        validate_publication_identity(root_identity, expected_generation_id)?;
+        validate_publication_identity(root_identity, generation_id)?;
+        validate_notes_digest(notes_digest)?;
+        validate_notes_digest(artifact_manifest_digest)?;
+        let result = sqlx::query("UPDATE memory_publication SET generation_id = ?, notes_digest = ?, artifact_manifest_digest = ?, legacy_empty = ? WHERE root_identity = ? AND generation_id = ? AND provenance = 'legacy_import'")
+            .bind(generation_id).bind(notes_digest).bind(artifact_manifest_digest).bind(legacy_empty)
+            .bind(root_identity).bind(expected_generation_id)
+            .execute_with_busy_retry(self.pool.as_ref()).await?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    async fn complete_phase2(
+        &self,
+        ownership_token: &str,
+        completed_watermark: i64,
+        selected_outputs: &[Stage1Output],
+        publication: Option<(&str, &str, &str, &str)>,
+        captured_input_watermark: Option<i64>,
+    ) -> anyhow::Result<bool> {
         let mut tx = self.pool.begin_immediate().await?;
         let rows_affected =
-            mark_global_phase2_job_succeeded_row(&mut *tx, ownership_token, completed_watermark)
+            mark_global_phase2_job_succeeded_row(&mut *tx, ownership_token, completed_watermark, captured_input_watermark, publication.map(|(root, _, _, _)| root))
                 .await?;
 
         if rows_affected == 0 {
@@ -1400,20 +1535,31 @@ WHERE selected_for_phase2 != 0 OR selected_for_phase2_source_updated_at IS NOT N
         .await?;
 
         for output in selected_outputs {
-            sqlx::query(
+            let updated = sqlx::query(
                 r#"
 UPDATE stage1_outputs
 SET
     selected_for_phase2 = 1,
     selected_for_phase2_source_updated_at = ?
 WHERE thread_id = ? AND source_updated_at = ?
+  AND (? = 0 OR (raw_memory = ? AND rollout_summary = ?
+    AND rollout_slug IS ? AND generated_at = ?))
                 "#,
             )
             .bind(output.source_updated_at.timestamp())
             .bind(output.thread_id.to_string())
             .bind(output.source_updated_at.timestamp())
+            .bind(if publication.is_some() { 1_i64 } else { 0_i64 })
+            .bind(&output.raw_memory)
+            .bind(&output.rollout_summary)
+            .bind(&output.rollout_slug)
+            .bind(output.generated_at.timestamp())
             .execute(&mut *tx)
-            .await?;
+            .await?.rows_affected();
+            if publication.is_some() && updated != 1 {
+                tx.rollback().await?;
+                return Ok(false);
+            }
         }
 
         sqlx::query(
@@ -1422,6 +1568,10 @@ WHERE thread_id = ? AND source_updated_at = ?
         .bind(i64::try_from(selected_outputs.len())?)
         .execute(&mut *tx)
         .await?;
+        if let Some((root_identity, generation_id, notes_digest, artifact_manifest_digest)) = publication {
+            sqlx::query("INSERT INTO memory_publication (root_identity, generation_id, notes_digest, artifact_manifest_digest, provenance, legacy_empty) VALUES (?, ?, ?, ?, 'consolidated', 0) ON CONFLICT(root_identity) DO UPDATE SET generation_id = excluded.generation_id, notes_digest = excluded.notes_digest, artifact_manifest_digest = excluded.artifact_manifest_digest, provenance = excluded.provenance, legacy_empty = 0")
+                .bind(root_identity).bind(generation_id).bind(notes_digest).bind(artifact_manifest_digest).execute(&mut *tx).await?;
+        }
         tx.commit().await?;
         Ok(true)
     }
@@ -1515,6 +1665,8 @@ async fn mark_global_phase2_job_succeeded_row<'e, E>(
     executor: E,
     ownership_token: &str,
     completed_watermark: i64,
+    captured_input_watermark: Option<i64>,
+    publication_root: Option<&str>,
 ) -> anyhow::Result<u64>
 where
     E: Executor<'e, Database = Sqlite>,
@@ -1524,20 +1676,28 @@ where
         r#"
 UPDATE jobs
 SET
-    status = 'done',
-    finished_at = ?,
+    status = CASE WHEN ? AND COALESCE(input_watermark, 0) > ? THEN 'pending' ELSE 'done' END,
+    finished_at = CASE WHEN ? AND COALESCE(input_watermark, 0) > ? THEN NULL ELSE ? END,
     lease_until = NULL,
     last_error = NULL,
     last_success_watermark = max(COALESCE(last_success_watermark, 0), ?)
 WHERE kind = ? AND job_key = ?
-  AND status = 'running' AND ownership_token = ?
+  AND status = 'running' AND ownership_token = ? AND lease_until > ?
+  AND (? IS NULL OR publication_root_identity = ?)
             "#,
     )
+    .bind(captured_input_watermark.is_some())
+    .bind(captured_input_watermark.unwrap_or(0))
+    .bind(captured_input_watermark.is_some())
+    .bind(captured_input_watermark.unwrap_or(0))
     .bind(now)
-    .bind(completed_watermark)
+    .bind(captured_input_watermark.map_or(completed_watermark, |captured| completed_watermark.min(captured)))
     .bind(JOB_KIND_MEMORY_CONSOLIDATE_GLOBAL)
     .bind(MEMORY_CONSOLIDATION_JOB_KEY)
     .bind(ownership_token)
+    .bind(now)
+    .bind(publication_root)
+    .bind(publication_root)
     .execute(executor)
     .await?
     .rows_affected();
@@ -1545,8 +1705,25 @@ WHERE kind = ? AND job_key = ?
     Ok(rows_affected)
 }
 
+fn validate_publication_identity(root_identity: &str, generation_id: &str) -> anyhow::Result<()> {
+    anyhow::ensure!(!root_identity.is_empty(), "empty memory root identity");
+    let id = uuid::Uuid::parse_str(generation_id)?;
+    anyhow::ensure!(id.to_string() == generation_id, "non-canonical memory generation id");
+    Ok(())
+}
+
+fn validate_notes_digest(digest: &str) -> anyhow::Result<()> {
+    anyhow::ensure!(digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)), "invalid memory note digest");
+    Ok(())
+}
+
 pub(super) async fn clear_memory_data_in_pool(pool: &SqlitePool) -> anyhow::Result<()> {
     let mut tx = pool.begin_immediate().await?;
+    // Remove the current pointer with the job data. The managed marker and
+    // immutable generation files remain as recovery material, not current data.
+    sqlx::query("DELETE FROM memory_publication")
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("UPDATE consolidation_progress SET max_thread_count = 0")
         .execute(&mut *tx)
         .await?;
@@ -4422,6 +4599,32 @@ VALUES (?, ?, ?, ?, ?)
         assert_eq!(selected_for_phase2_source_updated_at, Some(101));
 
         let _ = tokio::fs::remove_dir_all(codex_home).await;
+    }
+
+    #[tokio::test]
+    async fn publication_rejects_changed_selected_bytes_at_same_timestamp() {
+        let home = unique_temp_dir();
+        let runtime = StateRuntime::init(crate::SqliteConfig::new_for_testing(home.as_path().abs()), "test-provider".into()).await.unwrap();
+        let thread_id = ThreadId::new();
+        let owner = ThreadId::new();
+        runtime.upsert_thread(&test_thread_metadata(&home, thread_id, home.join("workspace"))).await.unwrap();
+        let Stage1JobClaimOutcome::Claimed { ownership_token } = runtime.try_claim_stage1_job(thread_id, owner, 100, 3600, 64).await.unwrap() else { panic!("stage1") };
+        assert!(runtime.mark_stage1_job_succeeded(thread_id, &ownership_token, 100, "raw", "summary", None).await.unwrap());
+        let Phase2JobClaimOutcome::Claimed { ownership_token, input_watermark } = runtime.try_claim_global_phase2_job(owner, 3600).await.unwrap() else { panic!("phase2") };
+        assert!(runtime.memories().bind_phase2_publication_root(&ownership_token, "root").await.unwrap());
+        let selected = runtime.list_stage1_outputs_for_global(1).await.unwrap();
+        sqlx::query("UPDATE stage1_outputs SET raw_memory = ? WHERE thread_id = ?")
+            .bind("changed at same timestamp").bind(thread_id.to_string()).execute(memory_pool(&runtime)).await.unwrap();
+        let id = Uuid::new_v4().to_string();
+        assert!(!runtime.memories().publish_global_phase2_generation(&ownership_token, input_watermark, input_watermark, &selected, "root", &id, &"a".repeat(64), &"b".repeat(64)).await.unwrap());
+        assert!(runtime.memories().published_generation("root").await.unwrap().is_none());
+        assert_eq!(runtime.memories().consolidation_status().await.unwrap().unwrap().status, "running");
+        sqlx::query("UPDATE stage1_outputs SET raw_memory = ? WHERE thread_id = ?")
+            .bind("raw").bind(thread_id.to_string()).execute(memory_pool(&runtime)).await.unwrap();
+        runtime.set_thread_memory_mode(thread_id, "disabled").await.unwrap();
+        assert!(!runtime.memories().publish_global_phase2_generation(&ownership_token, input_watermark, input_watermark, &selected, "root", &id, &"a".repeat(64), &"b".repeat(64)).await.unwrap());
+        assert!(runtime.memories().published_generation("root").await.unwrap().is_none());
+        runtime.close().await;
     }
 
     #[tokio::test]

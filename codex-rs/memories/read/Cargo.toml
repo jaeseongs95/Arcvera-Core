@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 [package]
 edition.workspace = true
 license.workspace = true
@@ -16,6 +17,17 @@ workspace = true
 codex-protocol = { workspace = true }
 codex-shell-command = { workspace = true }
 codex-utils-absolute-path = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true, features = ["rt"] }
+uuid = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt"] }

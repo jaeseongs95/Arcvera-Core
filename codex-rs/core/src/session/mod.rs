@@ -2,6 +2,7 @@
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 pub(crate) mod context_cache;
 mod indexed_context;
+mod memory_publication;
 pub(crate) mod startup;
 
 use crate::PromptCacheKey;

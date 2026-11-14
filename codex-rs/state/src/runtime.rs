@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use crate::LogEntry;
 use crate::LogQuery;
@@ -77,6 +78,7 @@ pub use guardian_feedback::MAX_GUARDIAN_REVIEW_BYTES;
 pub use guardian_feedback::MAX_GUARDIAN_REVIEW_RECORDS;
 pub use guardian_feedback::MAX_GUARDIAN_REVIEW_RECORDS_PER_THREAD;
 pub use memories::MemoryConsolidationStatus;
+pub use memories::MemoryPublicationRecord;
 pub use memories::MemoryStore;
 pub use queued_items::SqliteQueueStore;
 pub use recovery::backup_runtime_db_for_fresh_start;

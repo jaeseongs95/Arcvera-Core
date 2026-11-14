@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Accept explicit user corrections as pending, redacted consolidation inputs.
 
@@ -16,6 +17,34 @@ const MAX_NOTE_BYTES: usize = 16 * 1024;
 
 /// Save a note for later consolidation. Returning a path confirms acceptance only.
 pub async fn add_user_memory_note(memory_root: &Path, note: &str) -> io::Result<PathBuf> {
+    add_note(memory_root, None, note).await
+}
+
+/// Save a model-requested note with the same validation, redaction and lock as
+/// explicit user notes. The filename is never interpreted as a path.
+pub async fn add_user_memory_note_named(memory_root: &Path, filename: &str, note: &str) -> io::Result<PathBuf> {
+    validate_memory_note_filename(filename).map_err(|reason| io::Error::new(io::ErrorKind::InvalidInput, reason))?;
+    add_note(memory_root, Some(filename.to_owned()), note).await
+}
+
+pub fn validate_memory_note_filename(filename: &str) -> Result<(), &'static str> {
+    const PREFIX: usize = 20;
+    if filename.len() > 128 { return Err("must be at most 128 bytes"); }
+    let stem = filename.strip_suffix(".md").ok_or("must end with .md")?;
+    let slug = stem.get(PREFIX..).ok_or("must use YYYY-MM-DDTHH-MM-SS-<slug>.md")?;
+    let bytes = stem.as_bytes();
+    if bytes.len() <= PREFIX || bytes[4] != b'-' || bytes[7] != b'-' || bytes[10] != b'T' || bytes[13] != b'-' || bytes[16] != b'-' || bytes[19] != b'-'
+        || ![&bytes[0..4], &bytes[5..7], &bytes[8..10], &bytes[11..13], &bytes[14..16], &bytes[17..19]].into_iter().all(|part| part.iter().all(u8::is_ascii_digit)) {
+        return Err("must use YYYY-MM-DDTHH-MM-SS-<slug>.md");
+    }
+    if slug.is_empty() || slug.len() > 80 { return Err("slug must be 1 to 80 bytes"); }
+    if !slug.bytes().all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-') {
+        return Err("slug must contain only lowercase ASCII letters, digits, or hyphens");
+    }
+    Ok(())
+}
+
+async fn add_note(memory_root: &Path, filename: Option<String>, note: &str) -> io::Result<PathBuf> {
     if note.trim().is_empty() || note.len() > MAX_NOTE_BYTES {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -25,12 +54,12 @@ pub async fn add_user_memory_note(memory_root: &Path, note: &str) -> io::Result<
     let memory_root = memory_root.to_path_buf();
     let note = redact_secrets(note.to_owned());
     // Keep filesystem operations and the cross-process lock on one blocking worker.
-    tokio::task::spawn_blocking(move || save_note(&memory_root, &note))
+    tokio::task::spawn_blocking(move || save_note(&memory_root, filename.as_deref(), &note))
         .await
         .map_err(io::Error::other)?
 }
 
-fn save_note(root: &Path, note: &str) -> io::Result<PathBuf> {
+fn save_note(root: &Path, filename: Option<&str>, note: &str) -> io::Result<PathBuf> {
     let mut roots = vec![root.to_path_buf()];
     // A scoped root also owns its namespace ancestors; configured home aliases are outside it.
     if let Some(namespace) = root.ancestors().find(|path| {
@@ -61,12 +90,12 @@ fn save_note(root: &Path, note: &str) -> io::Result<PathBuf> {
     for directory in &roots {
         validate_entry(directory, true, false)?;
     }
-    let filename = format!(
+    let generated = format!(
         "{}-{}.md",
         chrono::Utc::now().format(FILENAME_TS_FORMAT),
         Uuid::new_v4()
     );
-    let path = directory.join(filename);
+    let path = directory.join(filename.unwrap_or(&generated));
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -121,6 +150,22 @@ fn validate_entry(path: &Path, directory: bool, allow_missing: bool) -> io::Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn named_note_uses_same_redaction_limit_and_lock_as_explicit_note() -> anyhow::Result<()> {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path().join("memories");
+        let filename = "2026-11-14T10-20-30-fixture.md";
+        let canary = "sk-abcdefghijklmnopqrstuvwxyz123456";
+        let path = add_user_memory_note_named(&root, filename, &format!("api_key={canary}")).await?;
+        assert_eq!(path.file_name().and_then(|name| name.to_str()), Some(filename));
+        assert!(!fs::read_to_string(path)?.contains(canary));
+        assert!(add_user_memory_note_named(&root, "../escape", "note").await.is_err());
+        assert!(add_user_memory_note_named(&root, "2026-11-14T10-20-31-large.md", &"x".repeat(MAX_NOTE_BYTES + 1)).await.is_err());
+        let _lock = MemoryWorkspaceLock::try_acquire(&root)?;
+        assert_eq!(add_user_memory_note_named(&root, "2026-11-14T10-20-32-busy.md", "note").await.unwrap_err().kind(), io::ErrorKind::WouldBlock);
+        Ok(())
+    }
 
     #[tokio::test]
     async fn user_notes_preserve_utf8_use_unique_names_and_redact_before_storage()

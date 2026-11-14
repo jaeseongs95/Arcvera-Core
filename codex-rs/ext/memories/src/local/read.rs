@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use codex_utils_output_truncation::TruncationPolicy;
 use codex_utils_output_truncation::truncate_text;
 
@@ -31,7 +32,7 @@ pub(super) async fn read(
         return Err(MemoriesBackendError::NotFile { path: request.path });
     }
 
-    let original_content = tokio::fs::read_to_string(&path).await?;
+    let original_content = backend.read_artifact(&path).await?;
     let start_byte = line_start_byte_offset(&original_content, request.line_offset)?;
     let end_byte = line_end_byte_offset(&original_content, start_byte, request.max_lines);
     let content_from_offset = &original_content[start_byte..end_byte];

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Memory readiness and summary reads using a loaded thread's selected pipeline.
 
@@ -31,7 +32,17 @@ pub struct ThreadMemoryReadResponse {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub root: Option<String>,
-    /// ready, missing, disabled, unavailable, unreadable, or oversized.
+    /// Captured current generation; older active readers can hold other generations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub generation_id: Option<String>,
+    /// `legacy_import` or `consolidated`; neither certifies semantic correctness.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub publication_provenance: Option<String>,
+    /// ready, missing, disabled, unavailable, unreadable, oversized,
+    /// legacy_unverified, pending, or unknown. Pending/unknown do not assert
+    /// that recent notes were reflected in the captured summary.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub status: Option<String>,

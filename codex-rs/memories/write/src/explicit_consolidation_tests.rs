@@ -1,9 +1,60 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use super::*;
 use crate::MemoryConsolidationStartOutcome;
 use crate::MemoryWorkspaceLock;
 use crate::consolidate_memories;
 use pretty_assertions::assert_eq;
+
+#[cfg(windows)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn unsandboxed_windows_consolidation_publishes_only_host_mediated_stage() -> anyhow::Result<()> {
+    use core_test_support::responses::{ev_function_call, mount_sse_sequence};
+    use codex_protocol::MemoryVersion;
+    use codex_protocol::models::PermissionProfile;
+    let server = start_mock_server().await;
+    let home = Arc::new(TempDir::new()?);
+    let test = test_codex().with_home(Arc::clone(&home)).with_config(|config| {
+        config.memories.version = MemoryVersion::V1;
+        config.memories.dual_write = false;
+        config.features.enable(Feature::MemoryTool).expect("memory feature");
+        config.features.disable(Feature::WindowsSandbox).expect("disable test sandbox");
+        config.features.disable(Feature::WindowsSandboxElevated).expect("disable test sandbox");
+        config.permissions.windows_sandbox_mode = None;
+        config.permissions.set_permission_profile(PermissionProfile::Disabled).expect("test parent profile");
+    }).build_with_auto_env(&server).await?;
+    let root = home.path().join("memories");
+    seed_required_memory_artifacts(&root).await?;
+    let before = std::fs::read(root.join("memory_summary.md"))?;
+    let notes = root.join("extensions/ad_hoc/notes");
+    std::fs::create_dir_all(&notes)?;
+    std::fs::write(notes.join("fixture.md"), b"original note")?;
+    let args = serde_json::json!({"operation":"write","path":"memory_summary.md","content":"v1\nupdated by host tool\n"}).to_string();
+    let responses = mount_sse_sequence(&server, vec![
+        sse(vec![ev_function_call("stage-write", "memory_stage", &args), ev_completed("stage-tools")]),
+        sse(vec![ev_assistant_message("done", "complete"), ev_completed("stage-done")]),
+    ]).await;
+    let outcome = consolidate(&test, false).await?;
+    assert_eq!(outcome.status, "accepted");
+    let db = test.codex.state_db().expect("state");
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        let status = db.memories().consolidation_status().await?.expect("phase2 job");
+        if status.status == "done" { break; }
+        anyhow::ensure!(status.status != "error", "phase2 failed: {:?}", status.last_error);
+        anyhow::ensure!(Instant::now() < deadline, "phase2 did not finish");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(responses.requests().len(), 2);
+    let record = db.memories().published_generation(&codex_memories_read::publication_snapshot::root_identity(&root)?).await?.expect("publication");
+    assert_eq!(record.provenance, "consolidated");
+    let generation = codex_memories_read::publication_snapshot::generation_root(&root, &record.generation_id)?;
+    assert_eq!(std::fs::read_to_string(generation.join("memory_summary.md"))?, "v1\nupdated by host tool\n");
+    assert_eq!(std::fs::read(root.join("memory_summary.md"))?, before);
+    assert_eq!(std::fs::read(notes.join("fixture.md"))?, b"original note");
+    shutdown_test_codex(&test).await?;
+    Ok(())
+}
 
 async fn consolidate(
     test: &TestCodex,

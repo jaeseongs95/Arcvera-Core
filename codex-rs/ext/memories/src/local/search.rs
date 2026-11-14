@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::borrow::Cow;
 use std::path::Path;
 
@@ -35,18 +36,22 @@ pub(super) async fn search(
 
     let max_results = request.max_results.min(MAX_SEARCH_RESULTS);
     let start = backend.resolve_scoped_path(request.path.as_deref()).await?;
-    let start_index = match request.cursor.as_deref() {
-        Some(cursor) => cursor.parse::<usize>().map_err(|_| {
-            MemoriesBackendError::invalid_cursor(cursor, "must be a non-negative integer")
-        })?,
-        None => 0,
-    };
+    let start_index = backend.cursor_offset(request.cursor.as_deref())?;
     let Some(metadata) = LocalMemoriesBackend::metadata_or_none(&start).await? else {
         return Err(MemoriesBackendError::NotFound {
             path: request.path.unwrap_or_default(),
         });
     };
     reject_symlink(&display_relative_path(&backend.root, &start), &metadata)?;
+
+    if let Some(manifest) = &backend.artifact_manifest {
+        for name in manifest.keys().filter(|name| !name.starts_with('.')) {
+            let path = backend.root.join(name);
+            if path.starts_with(&start) && LocalMemoriesBackend::metadata_or_none(&path).await?.is_none() {
+                return Err(std::io::Error::other("published memory artifact is missing").into());
+            }
+        }
+    }
 
     let matcher = SearchMatcher::new(
         queries.clone(),
@@ -56,6 +61,7 @@ pub(super) async fn search(
     )?;
     let mut matches = Vec::new();
     search_entries(
+        backend,
         &backend.root,
         &start,
         &metadata,
@@ -64,6 +70,13 @@ pub(super) async fn search(
         &mut matches,
     )
     .await?;
+    if request.path.is_none() && backend.root != backend.original_root {
+        let source = backend.original_root.join("extensions");
+        if let Some(metadata) = LocalMemoriesBackend::metadata_or_none(&source).await? {
+            reject_symlink("extensions", &metadata)?;
+            search_entries(backend, &backend.original_root, &source, &metadata, &matcher, request.context_lines, &mut matches).await?;
+        }
+    }
     matches.sort_by(|left, right| {
         left.path
             .cmp(&right.path)
@@ -76,7 +89,7 @@ pub(super) async fn search(
         ));
     }
     let end_index = start_index.saturating_add(max_results).min(matches.len());
-    let next_cursor = (end_index < matches.len()).then(|| end_index.to_string());
+    let next_cursor = (end_index < matches.len()).then(|| backend.cursor(end_index));
     let truncated = next_cursor.is_some();
     Ok(SearchMemoriesResponse {
         queries,
@@ -89,6 +102,7 @@ pub(super) async fn search(
 }
 
 async fn search_entries(
+    backend: &LocalMemoriesBackend,
     root: &Path,
     current: &Path,
     current_metadata: &std::fs::Metadata,
@@ -97,7 +111,7 @@ async fn search_entries(
     matches: &mut Vec<MemorySearchMatch>,
 ) -> Result<(), MemoriesBackendError> {
     if current_metadata.is_file() {
-        search_file(root, current, matcher, context_lines, matches).await?;
+        search_file(backend, root, current, matcher, context_lines, matches).await?;
         return Ok(());
     }
     if !current_metadata.is_dir() {
@@ -113,13 +127,11 @@ async fn search_entries(
             let Some(metadata) = LocalMemoriesBackend::metadata_or_none(&path).await? else {
                 continue;
             };
-            if metadata.file_type().is_symlink() {
-                continue;
-            }
+            reject_symlink(&display_relative_path(root, &path), &metadata)?;
             if metadata.is_dir() {
                 pending.push(path);
             } else if metadata.is_file() {
-                search_file(root, &path, matcher, context_lines, matches).await?;
+                search_file(backend, root, &path, matcher, context_lines, matches).await?;
             }
         }
     }
@@ -128,13 +140,14 @@ async fn search_entries(
 }
 
 async fn search_file(
+    backend: &LocalMemoriesBackend,
     root: &Path,
     path: &Path,
     matcher: &SearchMatcher,
     context_lines: usize,
     matches: &mut Vec<MemorySearchMatch>,
 ) -> Result<(), MemoriesBackendError> {
-    let content = match tokio::fs::read_to_string(path).await {
+    let content = match backend.read_artifact(path).await {
         Ok(content) => content,
         Err(err) if err.kind() == std::io::ErrorKind::InvalidData => return Ok(()),
         Err(err) => return Err(err.into()),

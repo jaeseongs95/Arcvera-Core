@@ -1,6 +1,5 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
-use crate::ensure_layout;
-use crate::extensions::seed_extension_instructions;
 use crate::guard;
 use crate::metrics::MEMORY_STARTUP;
 use crate::phase1;
@@ -169,12 +168,11 @@ pub fn start_memories_startup_task(
                 warn!("project memory root is unavailable: {err}");
                 return;
             }
-            if let Err(err) = ensure_layout(&root).await {
-                warn!("failed preparing memories root: {err}");
+            if let Some(parent) = root.parent()
+                && let Err(err) = tokio::fs::create_dir_all(parent).await
+            {
+                warn!("failed preparing memory lock directory: {err}");
                 return;
-            }
-            if let Err(err) = seed_extension_instructions(&root).await {
-                warn!("failed seeding memory extension instructions: {err}");
             }
 
             // Clean memories to make preserve DB size. This does not consume tokens so can be

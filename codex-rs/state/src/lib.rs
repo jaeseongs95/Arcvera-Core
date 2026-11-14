@@ -98,6 +98,7 @@ pub use runtime::GoalAccountingOutcome;
 pub use runtime::GoalStore;
 pub use runtime::GoalUpdate;
 pub use runtime::MemoryConsolidationStatus;
+pub use runtime::MemoryPublicationRecord;
 pub use runtime::MemoryStore;
 pub use runtime::ReadStateOperation;
 pub use runtime::ReadStateUpdate;

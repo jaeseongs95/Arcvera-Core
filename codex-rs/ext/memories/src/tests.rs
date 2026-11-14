@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use std::path::Path;
 use std::sync::Arc;
@@ -60,23 +61,20 @@ fn tools_are_not_contributed_without_thread_config() {
 #[test]
 fn tools_are_not_contributed_when_disabled() {
     let extension = MemoriesExtension::default();
-    let thread_store = ExtensionData::new("thread");
-    thread_store.insert(MemoriesExtensionConfig {
-        version: codex_protocol::MemoryVersion::V1,
-        enabled: false,
-        dedicated_tools: true,
-        root: Some(test_path_buf("/tmp/codex-home").abs().join("memories")),
-    });
-
-    assert!(
-        extension
-            .tools(&ExtensionData::new("session"), &thread_store)
-            .is_empty()
-    );
+    for dedicated_tools in [false, true] {
+        let thread_store = ExtensionData::new("thread");
+        thread_store.insert(MemoriesExtensionConfig {
+            version: codex_protocol::MemoryVersion::V1,
+            enabled: false,
+            dedicated_tools,
+            root: Some(test_path_buf("/tmp/codex-home").abs().join("memories")),
+        });
+        assert!(extension.tools(&ExtensionData::new("session"), &thread_store).is_empty());
+    }
 }
 
 #[test]
-fn tools_are_not_contributed_when_dedicated_tools_disabled() {
+fn note_only_is_contributed_when_dedicated_tools_disabled() {
     let extension = MemoriesExtension::default();
     let thread_store = ExtensionData::new("thread");
     thread_store.insert(MemoriesExtensionConfig {
@@ -86,11 +84,9 @@ fn tools_are_not_contributed_when_dedicated_tools_disabled() {
         root: Some(test_path_buf("/tmp/codex-home").abs().join("memories")),
     });
 
-    assert!(
-        extension
-            .tools(&ExtensionData::new("session"), &thread_store)
-            .is_empty()
-    );
+    let names = extension.tools(&ExtensionData::new("session"), &thread_store)
+        .into_iter().map(|tool| tool.tool_name()).collect::<Vec<_>>();
+    assert_eq!(names, vec![memory_tool_name(crate::ADD_AD_HOC_NOTE_TOOL_NAME)]);
 }
 
 #[test]
@@ -188,6 +184,9 @@ async fn prompt_contribution_uses_memory_summary_when_enabled() {
 
     let extension = MemoriesExtension::default();
     let thread_store = ExtensionData::new("thread");
+    thread_store.insert(codex_memories_read::publication_snapshot::MemorySnapshotCapability(Arc::new(
+        codex_memories_read::publication_snapshot::ScopedSnapshotProvider::new(memories_dir.clone(), None)
+    )));
     thread_store.insert(MemoriesExtensionConfig {
         version: codex_protocol::MemoryVersion::V1,
         enabled: true,
@@ -206,6 +205,17 @@ async fn prompt_contribution_uses_memory_summary_when_enabled() {
         ContentItem::InputText { text }
             if text.contains("Remember repository-specific implementation preferences.")
     ));
+}
+
+#[tokio::test]
+async fn missing_snapshot_capability_returns_unavailable_warning() {
+    let thread_store = ExtensionData::new("thread");
+    thread_store.insert(MemoriesExtensionConfig {
+        version: codex_protocol::MemoryVersion::V1, enabled: true, dedicated_tools: false,
+        root: Some(test_path_buf("/tmp/codex-home").abs().join("memories")),
+    });
+    let fragments = MemoriesExtension::default().contribute_thread_context(&ExtensionData::new("session"), &thread_store).await;
+    assert!(matches!(fragments[0].content(), ContentItem::InputText { text } if text.contains("unavailable")));
 }
 
 #[tokio::test]

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::path::Path;
 
 pub async fn clear_memory_roots_contents(codex_home: &Path) -> std::io::Result<()> {
@@ -14,16 +15,20 @@ pub async fn clear_memory_roots_contents(codex_home: &Path) -> std::io::Result<(
 
 pub(crate) async fn clear_memory_root_contents(memory_root: &Path) -> std::io::Result<()> {
     match tokio::fs::symlink_metadata(memory_root).await {
-        Ok(metadata) if metadata.file_type().is_symlink() => {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                format!(
-                    "refusing to clear symlinked memory root {}",
-                    memory_root.display()
-                ),
-            ));
+        Ok(metadata) => {
+            let redirected = metadata.file_type().is_symlink();
+            #[cfg(windows)]
+            let redirected = {
+                use std::os::windows::fs::MetadataExt;
+                redirected || metadata.file_attributes() & 0x400 != 0
+            };
+            if redirected || !metadata.is_dir() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("refusing to clear redirected or invalid memory root {}", memory_root.display()),
+                ));
+            }
         }
-        Ok(_) => {}
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(err) => return Err(err),
     }
@@ -32,6 +37,11 @@ pub(crate) async fn clear_memory_root_contents(memory_root: &Path) -> std::io::R
 
     let mut entries = tokio::fs::read_dir(memory_root).await?;
     while let Some(entry) = entries.next_entry().await? {
+        // Retain the managed marker and immutable generations as recovery data.
+        // The caller clears the publication record before invoking this cleanup.
+        if matches!(entry.file_name().to_str(), Some(".codex-memory-managed" | ".codex-memory-generations")) {
+            continue;
+        }
         let path = entry.path();
         let file_type = entry.file_type().await?;
         if file_type.is_dir() {
@@ -85,6 +95,22 @@ mod tests {
                 .is_none(),
             "memory root should be empty after clearing contents"
         );
+    }
+
+    #[tokio::test]
+    async fn clear_preserves_managed_marker_and_immutable_generations_for_recovery() -> std::io::Result<()> {
+        let dir = tempdir()?;
+        let root = dir.path().join("memories");
+        let generation = root.join(".codex-memory-generations/generation");
+        tokio::fs::create_dir_all(&generation).await?;
+        tokio::fs::write(root.join(".codex-memory-managed"), b"managed-memory-v1\n").await?;
+        tokio::fs::write(generation.join("memory_summary.md"), b"recovery").await?;
+        tokio::fs::write(root.join("memory_summary.md"), b"legacy").await?;
+        clear_memory_root_contents(&root).await?;
+        assert!(tokio::fs::try_exists(root.join(".codex-memory-managed")).await?);
+        assert_eq!(tokio::fs::read(generation.join("memory_summary.md")).await?, b"recovery");
+        assert!(!tokio::fs::try_exists(root.join("memory_summary.md")).await?);
+        Ok(())
     }
 
     #[cfg(unix)]

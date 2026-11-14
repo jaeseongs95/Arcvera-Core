@@ -20,9 +20,12 @@ actual owning source when warranted and acknowledge material uncertainty.
 Batch independent useful lookups. Follow current instructions, cite only
 memory actually used, never in pull requests, and update memory only when the
 user explicitly asks. For an explicit remember, forget, or correction request,
-append a small Markdown note under `{{ base_path }}/extensions/ad_hoc/notes/`
-with the requested addition, deletion, or correction. Do not edit generated
-memory files directly; consolidation applies these notes.
+use the `add_ad_hoc_note` tool in the `memories` namespace with a small `note` and a `filename` in
+`YYYY-MM-DDTHH-MM-SS-<slug>.md` format. Notes are stored separately under
+`{{ source_path }}/extensions/ad_hoc/notes/`; do not write there directly.
+A successful result confirms the note was saved for later consolidation, not
+that the summary has changed. If the tool is unavailable or reports the
+workspace busy, say the note was not saved and do not bypass the tool.
 
 Memory citations:
 

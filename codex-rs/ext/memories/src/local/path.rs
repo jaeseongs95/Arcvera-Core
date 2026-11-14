@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::fs::FileType;
 use std::path::Component;
 use std::path::Path;
@@ -33,7 +34,13 @@ pub(super) fn reject_symlink(
     path: &str,
     metadata: &std::fs::Metadata,
 ) -> Result<(), MemoriesBackendError> {
-    if metadata.file_type().is_symlink() {
+    let redirected = metadata.file_type().is_symlink();
+    #[cfg(windows)]
+    let redirected = {
+        use std::os::windows::fs::MetadataExt;
+        redirected || metadata.file_attributes() & 0x400 != 0
+    };
+    if redirected {
         return Err(MemoriesBackendError::invalid_path(
             path,
             "must not be a symlink",

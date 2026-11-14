@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use crate::metrics::MEMORY_STORAGE_BYTES;
 use crate::workspace::memory_storage_bytes;
@@ -224,6 +225,10 @@ impl MemoryStartupContext {
 
     pub(crate) fn thread_id(&self) -> ThreadId {
         self.thread_id
+    }
+
+    pub(crate) async fn current_config(&self) -> Arc<Config> {
+        self.thread.config().await
     }
 
     pub(crate) async fn record_storage_size(&self, root: &Path) {
@@ -466,18 +471,25 @@ impl MemoryStartupContext {
         config: Config,
         prompt: Vec<UserInput>,
         workspace_lock: Arc<crate::MemoryWorkspaceLock>,
+        stage_tools: Option<crate::publication_tools::StageTools>,
     ) -> anyhow::Result<SpawnedConsolidationAgent> {
+        let mut options = StartThreadOptions {
+            session_source: Some(SessionSource::Internal(InternalSessionSource::MemoryConsolidation)),
+            thread_source: Some(ThreadSource::MemoryConsolidation),
+            ..StartThreadOptions::new(config)
+        };
+        if let Some(stage_tools) = stage_tools {
+            let mut registry = codex_extension_api::ExtensionRegistryBuilder::<Config>::new();
+            registry.tool_contributor(Arc::new(stage_tools));
+            options.thread_extension_init.insert(codex_extension_api::SessionIsolation::Isolated);
+            options.thread_extension_init.insert(crate::publication_tools::StageTools::policy());
+            options.thread_extension_init.insert(codex_extension_api::IsolatedSessionExtensions(Arc::new(registry.build())));
+        }
         let NewThread {
             thread_id, thread, ..
         } = self
             .thread_manager
-            .start_thread(StartThreadOptions {
-                session_source: Some(SessionSource::Internal(
-                    InternalSessionSource::MemoryConsolidation,
-                )),
-                thread_source: Some(ThreadSource::MemoryConsolidation),
-                ..StartThreadOptions::new(config)
-            })
+            .start_thread(options)
             .await?;
 
         // Cancellation or a shutdown timeout must not release workspace ownership

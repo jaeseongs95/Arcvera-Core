@@ -1,3 +1,5 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+use codex_extension_api::FunctionCallError;
 use codex_extension_api::JsonToolOutput;
 use codex_extension_api::ToolCall;
 use codex_extension_api::ToolExecutor;
@@ -12,6 +14,7 @@ use crate::ADD_AD_HOC_NOTE_TOOL_NAME;
 use crate::backend::AddAdHocMemoryNoteRequest;
 use crate::backend::AddAdHocMemoryNoteResponse;
 use crate::backend::MemoriesBackend;
+use crate::backend::MemoriesBackendError;
 use crate::metrics::record_tool_call;
 
 use super::backend_error_to_function_call;
@@ -88,7 +91,13 @@ where
             response.is_ok(),
             "not_applicable",
         );
-        let response = response.map_err(backend_error_to_function_call)?;
+        let response = response.map_err(|error| match error {
+            MemoriesBackendError::Io(ref cause) if cause.kind() == std::io::ErrorKind::WouldBlock =>
+                FunctionCallError::RespondToModel("Memory workspace is busy; the note was not saved.".to_string()),
+            MemoriesBackendError::Io(ref cause) if cause.kind() == std::io::ErrorKind::InvalidInput =>
+                FunctionCallError::RespondToModel(format!("Memory note was not saved: {cause}")),
+            error => backend_error_to_function_call(error),
+        })?;
         Ok(Box::new(JsonToolOutput::new(json!(response))))
     }
 }

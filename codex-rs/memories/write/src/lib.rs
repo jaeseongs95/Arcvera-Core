@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Write-path implementation for Codex memories.
 //!
@@ -13,6 +14,11 @@ mod notes;
 mod phase1;
 mod phase1_output;
 mod phase2;
+mod publication_manifest;
+mod publication_lifecycle;
+mod publication_permissions;
+mod publication_stage;
+mod publication_tools;
 mod prompts;
 mod rollout_input;
 mod runtime;
@@ -28,6 +34,8 @@ use std::path::PathBuf;
 pub use control::clear_memory_roots_contents;
 pub use extensions::prune_old_extension_resources;
 pub use notes::add_user_memory_note;
+pub use notes::add_user_memory_note_named;
+pub use notes::validate_memory_note_filename;
 pub use phase2::MemoryConsolidationStartOutcome;
 pub use prompts::build_consolidation_prompt;
 pub use prompts::build_stage_one_input_message;

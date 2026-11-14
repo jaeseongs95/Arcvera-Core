@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use crate::memory_extensions_root;
 use codex_protocol::MemoryVersion;
 use codex_protocol::openai_models::ModelInfo;
@@ -61,10 +62,19 @@ pub(crate) fn build_consolidation_prompt_for_version(
     memory_root: &Path,
     version: MemoryVersion,
 ) -> String {
+    build_consolidation_prompt_with_display_root(memory_root, version, None)
+}
+
+pub(crate) fn build_stage_tool_prompt(memory_root: &Path, version: MemoryVersion) -> String {
+    build_consolidation_prompt_with_display_root(memory_root, version, Some("."))
+}
+
+fn build_consolidation_prompt_with_display_root(memory_root: &Path, version: MemoryVersion, display_root: Option<&str>) -> String {
     let memory_extensions_root = memory_extensions_root(memory_root);
     let memory_extensions_exist = memory_extensions_root.is_dir();
-    let memory_root = memory_root.display().to_string();
-    let memory_extensions_root = memory_extensions_root.display().to_string();
+    let memory_root = display_root.map(str::to_owned).unwrap_or_else(|| memory_root.display().to_string());
+    let memory_extensions_root = display_root.map(|root| format!("{root}/extensions"))
+        .unwrap_or_else(|| memory_extensions_root.display().to_string());
     let phase2_workspace_diff_file = crate::workspace_diff::FILENAME.to_string();
     let memory_extensions_folder_structure = if memory_extensions_exist {
         render_memory_extensions_block(

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use std::sync::Arc;
 
@@ -20,7 +21,7 @@ use codex_protocol::MemoryVersion;
 use codex_utils_absolute_path::AbsolutePathBuf;
 
 use crate::local::LocalMemoriesBackend;
-use crate::prompts::build_memory_instructions_from_root;
+use crate::prompts::build_memory_instructions_from_snapshot;
 use crate::tools;
 
 /// Contributes Codex memory read-path prompt context and memory read tools.
@@ -68,13 +69,33 @@ impl ContextContributor for MemoriesExtension {
                 return Vec::new();
             }
 
-            let Some(root) = config.root.as_ref() else {
+            let Some(_root) = config.root.as_ref() else {
                 return Vec::new();
             };
-            let Some(instructions) =
-                build_memory_instructions_from_root(root, config.version).await
-            else {
-                return Vec::new();
+            let warning = || vec![PromptFragment::developer_policy(
+                "Memory snapshot is unavailable. Do not infer that memories are absent or that corrections were applied.".to_string(),
+                ContentItemKind(MemoryContextFragment::READ_INSTRUCTIONS_KIND.to_string()),
+            )];
+            let Some(capability) = thread_store.get::<codex_memories_read::publication_snapshot::MemorySnapshotCapability>() else {
+                return warning();
+            };
+            let snapshot = match capability.0.capture().await {
+                Ok(snapshot) => snapshot,
+                Err(_) => return warning(),
+            };
+            if snapshot.legacy_empty {
+                return vec![PromptFragment::developer_policy(
+                    "The captured legacy baseline has no generated summary. Original completeness and note application are unverified.".to_string(),
+                    ContentItemKind(MemoryContextFragment::READ_INSTRUCTIONS_KIND.to_string()),
+                )];
+            }
+            let Ok(derived) = AbsolutePathBuf::from_absolute_path(snapshot.derived_root) else { return warning(); };
+            let Ok(source) = AbsolutePathBuf::from_absolute_path(snapshot.original_root) else { return warning(); };
+            let instructions = match build_memory_instructions_from_snapshot(
+                &derived, &source, config.version, snapshot.current_for_notes, snapshot.provenance.as_deref(), snapshot.artifact_manifest
+            ).await {
+                Ok(Some(instructions)) => instructions,
+                Ok(None) | Err(_) => return warning(),
             };
             let instructions = match config.version {
                 MemoryVersion::V1 => vec![instructions],
@@ -155,17 +176,21 @@ impl ToolContributor for MemoriesExtension {
         let Some(config) = thread_store.get::<MemoriesExtensionConfig>() else {
             return Vec::new();
         };
-        if !config.enabled || !config.dedicated_tools {
+        if !config.enabled {
             return Vec::new();
         }
 
         let Some(root) = config.root.as_ref() else {
             return Vec::new();
         };
-        tools::memory_tools(
-            LocalMemoriesBackend::from_memory_root(root.to_path_buf()),
-            self.metrics_client.clone(),
-        )
+        let snapshot = thread_store.get::<codex_memories_read::publication_snapshot::MemorySnapshotCapability>()
+            .map(|capability| capability.as_ref().clone());
+        let backend = LocalMemoriesBackend::from_snapshot(root.to_path_buf(), snapshot);
+        if config.dedicated_tools {
+            tools::memory_tools(backend, self.metrics_client.clone())
+        } else {
+            tools::memory_note_tool(backend, self.metrics_client.clone())
+        }
     }
 }
 

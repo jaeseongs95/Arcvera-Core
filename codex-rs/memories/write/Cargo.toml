@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 [package]
 edition.workspace = true
 license.workspace = true
@@ -17,10 +18,12 @@ anyhow = { workspace = true }
 chrono = { workspace = true }
 codex-backend-client = { workspace = true }
 codex-core = { workspace = true }
+codex-extension-api = { workspace = true }
 codex-config = { workspace = true }
 codex-features = { workspace = true }
 codex-git-utils = { workspace = true }
 codex-login = { workspace = true }
+codex-memories-read = { workspace = true }
 codex-model-provider = { workspace = true }
 codex-otel = { workspace = true }
 codex-protocol = { workspace = true }
@@ -35,9 +38,13 @@ codex-utils-template = { workspace = true }
 futures = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
 tokio = { workspace = true, features = ["fs", "rt", "sync", "time"] }
 tracing = { workspace = true, features = ["log"] }
 uuid = { workspace = true, features = ["v4", "v5"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
 codex-model-provider-info = { workspace = true }

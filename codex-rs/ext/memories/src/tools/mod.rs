@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::sync::Arc;
 
 use codex_extension_api::FunctionCallError;
@@ -50,6 +51,12 @@ where
             metrics_client,
         }),
     ]
+}
+
+/// Note acceptance remains available without enabling the browsing suite.
+pub(crate) fn memory_note_tool<B>(backend: B, metrics_client: Option<MetricsClient>) -> Vec<Arc<dyn for<'call> ToolExecutor<ToolCall<'call>>>>
+where B: MemoriesBackend {
+    vec![Arc::new(ad_hoc_note::AddAdHocNoteTool { backend, metrics_client })]
 }
 
 pub(super) fn memory_tool_name(name: &str) -> ToolName {

@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 [package]
 edition.workspace = true
 license.workspace = true
@@ -15,6 +16,8 @@ workspace = true
 [dependencies]
 codex-core = { workspace = true }
 codex-extension-api = { workspace = true }
+codex-memories-read = { workspace = true }
+codex-memories-write = { workspace = true }
 codex-features = { workspace = true }
 codex-otel = { workspace = true }
 codex-protocol = { workspace = true }
