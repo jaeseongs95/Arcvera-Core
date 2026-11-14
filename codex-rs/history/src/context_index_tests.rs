@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use super::*;
 use crate::RolloutItem;
@@ -41,6 +42,65 @@ fn output(id: Option<&str>) -> ResponseItem {
         namespace: None,
         output: FunctionCallOutputPayload::from_text("exact tool result".to_owned()),
         internal_chat_message_metadata_passthrough: None,
+    }
+}
+
+#[test]
+fn conflicting_tool_identity_reactivates_every_pending_peer() {
+    for collide_call in [true, false] {
+        for checkpoint in [true, false] {
+            let mut index = ContextIndex::default();
+            let original_call = call(Some("collision-call"));
+            let original_output = output(Some("collision-output"));
+            let call_id = index.register(&original_call);
+            let output_id = index.register(&original_output);
+            apply(
+                &mut index,
+                vec![create("done"), bind("done", &call_id), completed("done")],
+            );
+            assert!(!index.is_active(&call_id));
+            assert!(!index.is_active(&output_id));
+            if checkpoint {
+                index = serde_json::from_value(serde_json::to_value(&index).unwrap()).unwrap();
+                index.rebuild().unwrap();
+            }
+            index.register(&original_call);
+            index.register(&original_output);
+            assert!(
+                !index.is_active(&call_id),
+                "identical original stays excluded"
+            );
+            let mut changed = if collide_call {
+                original_call
+            } else {
+                original_output
+            };
+            match &mut changed {
+                ResponseItem::FunctionCall { arguments, .. } => {
+                    *arguments = "{\"changed\":true}".into()
+                }
+                ResponseItem::FunctionCallOutput { output, .. } => {
+                    *output = FunctionCallOutputPayload::from_text("changed result".into())
+                }
+                _ => unreachable!(),
+            }
+            index.register(&changed);
+            for id in [&call_id, &output_id] {
+                assert_eq!(
+                    index.is_active(id),
+                    index.active_reason(id).is_some(),
+                    "cached activity differs for {id}"
+                );
+                assert!(
+                    index.is_active(id),
+                    "incomplete group must remain visible: {id}"
+                );
+            }
+            let mut restored: ContextIndex =
+                serde_json::from_value(serde_json::to_value(&index).unwrap()).unwrap();
+            restored.rebuild().unwrap();
+            assert_eq!(restored.active_source_ids(), index.active_source_ids());
+        }
     }
 }
 
@@ -613,21 +673,47 @@ fn context_index_reused_identity_distinct_body_stays_conservative() {
     let ResponseItem::Message { content, .. } = &mut new else {
         unreachable!()
     };
-    *content = vec![ContentItem::InputText { text: "later distinct original".into() }];
+    *content = vec![ContentItem::InputText {
+        text: "later distinct original".into(),
+    }];
     index.register(&old);
-    apply(&mut index, vec![create("a"), create("b"), bind("a", "reused"), completed("a"), ContextIndexOperation::SetFocus { task_id: "b".into() }]);
+    apply(
+        &mut index,
+        vec![
+            create("a"),
+            create("b"),
+            bind("a", "reused"),
+            completed("a"),
+            ContextIndexOperation::SetFocus {
+                task_id: "b".into(),
+            },
+        ],
+    );
     index.register(&old);
-    assert!(!index.is_active("reused"), "identical original retains its binding");
-    let mut restored: ContextIndex = serde_json::from_value(serde_json::to_value(&index).unwrap()).unwrap();
+    assert!(
+        !index.is_active("reused"),
+        "identical original retains its binding"
+    );
+    let mut restored: ContextIndex =
+        serde_json::from_value(serde_json::to_value(&index).unwrap()).unwrap();
     restored.rebuild().unwrap();
     restored.register(&old);
-    assert!(!restored.is_active("reused"), "snapshot retains known equal identity");
+    assert!(
+        !restored.is_active("reused"),
+        "snapshot retains known equal identity"
+    );
     index.register(&new);
-    assert!(index.is_active("reused"), "a later distinct original cannot inherit exclusion");
+    assert!(
+        index.is_active("reused"),
+        "a later distinct original cannot inherit exclusion"
+    );
     assert_eq!(index.sources()["reused"].kind, ContextSourceKind::Unknown);
     assert_eq!(index.sources()["reused"].task_id, None);
     apply(&mut index, vec![bind("a", "reused")]);
-    assert!(index.is_active("reused"), "ambiguous identity remains conservative after bind");
+    assert!(
+        index.is_active("reused"),
+        "ambiguous identity remains conservative after bind"
+    );
     let json = serde_json::to_value(&index).unwrap();
     assert!(!json.to_string().contains("original body"));
     assert!(!json.to_string().contains("later distinct original"));
@@ -635,7 +721,10 @@ fn context_index_reused_identity_distinct_body_stays_conservative() {
     restored.rebuild().unwrap();
     restored.register(&new);
     assert!(restored.is_active("reused"));
-    assert_eq!(restored.sources()["reused"].kind, ContextSourceKind::Unknown);
+    assert_eq!(
+        restored.sources()["reused"].kind,
+        ContextSourceKind::Unknown
+    );
 }
 
 #[test]
@@ -643,14 +732,26 @@ fn context_index_legacy_missing_body_identity_does_not_prove_equivalence() {
     let mut index = ContextIndex::default();
     let item = message("legacy", "assistant");
     index.register(&item);
-    apply(&mut index, vec![create("a"), bind("a", "legacy"), completed("a")]);
+    apply(
+        &mut index,
+        vec![create("a"), bind("a", "legacy"), completed("a")],
+    );
     let mut json = serde_json::to_value(&index).unwrap();
-    json["sources"]["legacy"].as_object_mut().unwrap().remove("body_sha256");
+    json["sources"]["legacy"]
+        .as_object_mut()
+        .unwrap()
+        .remove("body_sha256");
     let mut restored: ContextIndex = serde_json::from_value(json).unwrap();
     restored.rebuild().unwrap();
     assert!(!restored.is_active("legacy"));
     restored.register(&item);
-    assert!(restored.is_active("legacy"), "missing digest cannot prove original equality");
-    assert_eq!(restored.sources()["legacy"].kind, ContextSourceKind::Unknown);
+    assert!(
+        restored.is_active("legacy"),
+        "missing digest cannot prove original equality"
+    );
+    assert_eq!(
+        restored.sources()["legacy"].kind,
+        ContextSourceKind::Unknown
+    );
     assert_eq!(restored.sources()["legacy"].task_id, None);
 }

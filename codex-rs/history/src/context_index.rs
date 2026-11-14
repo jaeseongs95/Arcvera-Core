@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 //! Host-owned, vendor-independent context lifetimes. This index contains no conversation bodies.
 //!
@@ -422,7 +423,16 @@ impl ContextIndex {
                 existing.policy_committed_revision = None;
                 existing.body_sha256 = None;
                 existing.projection_sha256 = None;
+                // A collision changes group completeness/classification too. Refresh every
+                // peer before returning so cached projection agrees with active_reason.
+                let affected_call = existing.call_id.clone();
                 self.active_sources.insert(id.clone());
+                if let Some(call) = affected_call {
+                    let members = self.call_groups.get(&call).cloned().unwrap_or_default();
+                    for member in members {
+                        self.refresh_source(&member);
+                    }
+                }
             } else if descriptor.projection_sha256.is_some() {
                 existing.projection_sha256 = descriptor.projection_sha256.clone();
             }
