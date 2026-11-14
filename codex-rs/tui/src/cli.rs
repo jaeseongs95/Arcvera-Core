@@ -15,9 +15,26 @@ pub enum DesktopCronControl {
     PipeV1,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
+pub enum TerminalLinkOwner {
+    #[default]
+    Tui,
+    Host,
+}
+
+impl TerminalLinkOwner {
+    pub(crate) fn tui_opens(self, destination: &str) -> bool {
+        self == Self::Tui || crate::terminal_hyperlinks::web_destination(destination).is_none()
+    }
+}
+
 #[derive(Parser, Clone, Debug)]
 #[command(version)]
 pub struct Cli {
+    /// Owner of mouse-activated terminal links for this session.
+    #[arg(long, global = true, value_enum)]
+    pub terminal_link_owner: Option<TerminalLinkOwner>,
+
     /// 인증된 로컬 통로로 Desktop이 소유한 예약 제어를 켭니다.
     #[arg(long, global = true, value_enum)]
     pub desktop_cron_control: Option<DesktopCronControl>,
@@ -155,6 +172,31 @@ impl FromArgMatches for TuiSharedCliOptions {
 
     fn update_from_arg_matches(&mut self, matches: &clap::ArgMatches) -> Result<(), clap::Error> {
         self.0.update_from_arg_matches(matches)
+    }
+}
+
+#[cfg(test)]
+mod terminal_link_owner_tests {
+    use super::TerminalLinkOwner;
+
+    #[test]
+    fn owner_delegates_only_existing_web_destinations() {
+        let tui = TerminalLinkOwner::default();
+        assert_eq!(tui, TerminalLinkOwner::Tui);
+        for url in ["http://example.com/path", "https://example.com/path"] {
+            assert!(tui.tui_opens(url));
+            assert!(!TerminalLinkOwner::Host.tui_opens(url));
+        }
+        let file_url = url::Url::from_file_path(std::env::temp_dir().join("link-owner.html"))
+            .expect("absolute temporary path");
+        let mut link =
+            crate::terminal_hyperlinks::TerminalHyperlink::web(0..4, "https://example.com".into());
+        link.retarget_to_trusted_file(&file_url);
+        let file = link
+            .terminal_destination()
+            .expect("trusted file destination");
+        assert!(TerminalLinkOwner::Host.tui_opens(&file));
+        assert!(tui.tui_opens(&file));
     }
 }
 

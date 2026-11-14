@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Standalone transcript chrome around the same viewport used by the main conversation.
 //!
@@ -551,6 +552,7 @@ impl TranscriptOverlay {
                 Err(error) => error,
             });
         } else if let ViewAction::OpenLink(url) = action
+            && tui.terminal_link_owner.tui_opens(&url)
             && let Err(error) = webbrowser::open(&url)
         {
             self.notice = Some(format!("Could not open link: {error}"));

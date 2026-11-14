@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use std::fmt;
 use std::future::Future;
@@ -747,6 +748,7 @@ impl MouseCapture {
 }
 
 pub struct Tui {
+    pub(crate) terminal_link_owner: crate::cli::TerminalLinkOwner,
     pub(crate) link_hover: link_pointer::LinkHover,
     frame_requester: FrameRequester,
     draw_tx: broadcast::Sender<()>,
@@ -826,6 +828,7 @@ impl Tui {
         );
 
         Self {
+            terminal_link_owner: crate::cli::TerminalLinkOwner::default(),
             link_hover: link_pointer::LinkHover::default(),
             frame_requester,
             draw_tx,

@@ -2853,6 +2853,7 @@ fn merge_interactive_cli_flags(interactive: &mut TuiCli, subcommand_cli: TuiCli)
         no_alt_screen,
         no_daemon,
         desktop_cron_control,
+        terminal_link_owner,
         prompt,
         mut config_overrides,
         ..
@@ -2876,6 +2877,9 @@ fn merge_interactive_cli_flags(interactive: &mut TuiCli, subcommand_cli: TuiCli)
     interactive.no_daemon |= no_daemon;
     if desktop_cron_control.is_some() {
         interactive.desktop_cron_control = desktop_cron_control;
+    }
+    if terminal_link_owner.is_some() {
+        interactive.terminal_link_owner = terminal_link_owner;
     }
     if strict_config {
         interactive.strict_config = true;
@@ -2904,6 +2908,44 @@ mod tests {
     use codex_protocol::ThreadId;
     use codex_tui::TokenUsage;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn terminal_link_owner_parses_and_survives_session_commands() {
+        use codex_tui::TerminalLinkOwner::{Host, Tui};
+
+        let cli = MultitoolCli::try_parse_from(["arcvera"]).expect("parse");
+        assert_eq!(cli.interactive.terminal_link_owner.unwrap_or_default(), Tui);
+        for value in ["host", "tui"] {
+            let expected = if value == "host" { Host } else { Tui };
+            let flag = format!("--terminal-link-owner={value}");
+            let root = MultitoolCli::try_parse_from(["arcvera", &flag]).expect("parse");
+            assert_eq!(root.interactive.terminal_link_owner, Some(expected));
+            for command in ["resume", "fork"] {
+                for args in [
+                    vec!["arcvera", flag.as_str(), command, "--last"],
+                    vec!["arcvera", command, "--last", flag.as_str()],
+                ] {
+                    let parsed = if command == "resume" {
+                        finalize_resume_from_args(&args)
+                    } else {
+                        finalize_fork_from_args(&args)
+                    };
+                    assert_eq!(parsed.terminal_link_owner, Some(expected));
+                }
+            }
+        }
+        assert!(MultitoolCli::try_parse_from(["arcvera", "--terminal-link-owner=other"]).is_err());
+
+        // An absent subcommand value must not overwrite a root value; an explicit value wins.
+        let mut root =
+            TuiCli::try_parse_from(["arcvera", "--terminal-link-owner=host"]).expect("parse root");
+        merge_interactive_cli_flags(&mut root, TuiCli::try_parse_from(["arcvera"]).unwrap());
+        assert_eq!(root.terminal_link_owner, Some(Host));
+        let explicit = TuiCli::try_parse_from(["arcvera", "--terminal-link-owner=tui"])
+            .expect("parse explicit");
+        merge_interactive_cli_flags(&mut root, explicit);
+        assert_eq!(root.terminal_link_owner, Some(Tui));
+    }
 
     #[test]
     fn desktop_cron_control_is_explicit_and_global_for_resume() {

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Route registered read-only selections before copy, interrupt, clicks, and paste shortcuts.
 //! A stationary click is replayed to the existing widget handler after selection releases it.
 
@@ -73,7 +74,9 @@ impl App {
                 };
                 if let Some((characters, result)) = copied {
                     self.transcript_view.show_copy_feedback(&result, characters);
-                } else if let ViewAction::OpenLink(url) = action {
+                } else if let ViewAction::OpenLink(url) = action
+                    && tui.terminal_link_owner.tui_opens(&url)
+                {
                     self.open_url_in_browser(url);
                 }
             }

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Compose the owned transcript above the composer and route their selection gestures.
 //! Painting records the screen regions used by selection and pointer input.
@@ -907,7 +908,9 @@ impl App {
                         | Err(_) => {}
                     }
                 }
-            } else if let ViewAction::OpenLink(url) = action {
+            } else if let ViewAction::OpenLink(url) = action
+                && tui.terminal_link_owner.tui_opens(&url)
+            {
                 self.open_url_in_browser(url);
             }
         }

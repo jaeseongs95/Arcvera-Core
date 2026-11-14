@@ -144,6 +144,7 @@ mod cron;
 mod cron_tools;
 mod desktop_cron;
 pub use cli::DesktopCronControl;
+pub use cli::TerminalLinkOwner;
 pub use desktop_cron::{DesktopCronBootstrap, take_desktop_cron_bootstrap_from_env};
 pub(crate) mod custom_terminal;
 mod daybreak;
@@ -1296,6 +1297,7 @@ async fn run_ratatui_app(
     tooltips::announcement::prewarm(initial_config.http_client_factory());
 
     let (mut tui, mut terminal_restore_guard, mut startup_draft) = startup_draft.into_parts();
+    tui.terminal_link_owner = cli.terminal_link_owner.unwrap_or_default();
 
     #[cfg(not(debug_assertions))]
     {
