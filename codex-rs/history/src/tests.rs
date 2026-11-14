@@ -913,6 +913,14 @@ fn rollout_item_variants_preserve_existing_payload_shapes() -> Result<()> {
                 "text": "hello",
             },
         }),
+        json!({
+            "type": "context_index",
+            "payload": {
+                "expected_revision": 0,
+                "revision": 1,
+                "operations": [{"op":"create_task", "task_id":"schema-task", "label":"Schema task"}],
+            },
+        }),
     ];
 
     for expected in fixtures {
@@ -927,7 +935,17 @@ fn rollout_item_variants_preserve_existing_payload_shapes() -> Result<()> {
 fn rollout_item_schema_matches_tagged_payload_and_sibling_metadata() -> Result<()> {
     let schema = serde_json::to_value(schemars::schema_for!(RolloutItem))?;
     let variants = schema["oneOf"].as_array().expect("rollout variants");
-    assert_eq!(variants.len(), 13);
+    let expected_tags = std::collections::BTreeSet::from([
+        "session_meta", "dynamic_tools_updated", "response_item", "inter_agent_communication",
+        "inter_agent_communication_metadata", "compacted", "turn_context", "token_usage_record",
+        "world_state", "security_risk_score", "retained_context", "context_index", "event_msg",
+        "realtime_item",
+    ]);
+    let tags = variants.iter().map(|variant| {
+        variant["properties"]["type"]["enum"][0].as_str().expect("persisted tag")
+    }).collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(tags,expected_tags,"every persisted tag must have its exact schema variant");
+    assert_eq!(variants.len(), tags.len(), "duplicate schema variants are not allowed");
 
     for variant in variants {
         let required = variant["required"].as_array().expect("required fields");
@@ -944,6 +962,17 @@ fn rollout_item_schema_matches_tagged_payload_and_sibling_metadata() -> Result<(
         response_item["properties"]["payload"]["$ref"],
         json!("#/definitions/ResponseItem")
     );
+
+    let index = variants.iter().find(|variant|
+        variant["properties"]["type"]["enum"] == json!(["context_index"]))
+        .expect("persisted context-index event schema");
+    assert_eq!(index["properties"]["payload"]["$ref"],json!("#/definitions/ContextIndexEvent"));
+    let index_required = schema["definitions"]["ContextIndexEvent"]["required"]
+        .as_array().expect("context-index event required fields");
+    for field in ["expected_revision","revision","operations"] {
+        assert!(index_required.contains(&json!(field)));
+    }
+    assert!(!index_required.contains(&json!("snapshot")), "legacy delta events do not require a checkpoint");
 
     let compacted = &schema["definitions"]["CompactedItem"];
     assert_eq!(
