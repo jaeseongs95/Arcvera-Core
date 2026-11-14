@@ -14,6 +14,7 @@ use std::task::Waker;
 
 fn request(thread_id: ThreadId) -> ServerRequestPayload {
     ServerRequestPayload::McpServerElicitationRequest(McpServerElicitationRequestParams {
+        origin: Some(codex_protocol::approvals::ElicitationOrigin::McpServer),
         thread_id: thread_id.to_string(),
         turn_id: Some("turn-1".into()),
         server_name: "plugin-service".into(),

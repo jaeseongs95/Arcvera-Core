@@ -179,7 +179,7 @@ async fn abandonment_close_joins_elected_actions_and_rejects_retained_router_adm
     let retained_router = router.clone();
     let (tx, events) = async_channel::unbounded();
     let request = ElicitationRequest::Form {
-        meta: None,
+        meta: Some(json!({"origin":"core","codex_approval_kind":"mcp_tool_call"})),
         message: "Continue".into(),
         requested_schema: json!({"type": "object"}),
     };
@@ -193,6 +193,8 @@ async fn abandonment_close_joins_elected_actions_and_rejects_retained_router_adm
     let EventMsg::ElicitationRequest(published) = events.recv().await.unwrap().msg else {
         panic!("expected published request");
     };
+    assert_eq!(published.origin, Some(codex_protocol::approvals::ElicitationOrigin::McpServer));
+    assert_eq!(published.request, request);
     let ProtocolRequestId::String(id) = &published.id else {
         panic!("expected generated token");
     };

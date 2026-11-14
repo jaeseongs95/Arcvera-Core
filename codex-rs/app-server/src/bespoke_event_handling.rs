@@ -898,7 +898,9 @@ pub(crate) async fn apply_bespoke_event_handling(
             });
         }
         EventMsg::ElicitationRequest(request) => {
-            let mcp_tool_approval = matches!(
+            let mcp_tool_approval = request.origin
+                == Some(codex_protocol::approvals::ElicitationOrigin::Core)
+                && matches!(
                 &request.request,
                 codex_protocol::approvals::ElicitationRequest::Form { meta: Some(meta), .. }
                     if meta.get(APPROVAL_KIND_KEY).and_then(serde_json::Value::as_str) == Some(APPROVAL_KIND_MCP_TOOL_CALL)
@@ -943,6 +945,7 @@ pub(crate) async fn apply_bespoke_event_handling(
                 }
             };
             let params = McpServerElicitationRequestParams {
+                origin: request.origin,
                 thread_id: conversation_id.to_string(),
                 turn_id,
                 server_name: request.server_name.clone(),

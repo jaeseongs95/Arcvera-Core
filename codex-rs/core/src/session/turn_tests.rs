@@ -97,6 +97,7 @@ async fn plan_mode_uses_contributed_turn_item_for_last_agent_message() {
 #[test]
 fn realtime_user_verification_notice_excludes_request_payload() {
     let event = EventMsg::ElicitationRequest(codex_protocol::approvals::ElicitationRequestEvent {
+        origin: Some(codex_protocol::approvals::ElicitationOrigin::McpServer),
         turn_id: None,
         server_name: "private-server-name".to_string(),
         id: codex_protocol::mcp::RequestId::String("private-request-id".to_string()),

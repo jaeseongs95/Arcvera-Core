@@ -1016,6 +1016,7 @@ async fn auto_declined_mcp_elicitations_do_not_leave_startup_quarantine_armed() 
             let request = ServerRequest::McpServerElicitationRequest {
                 request_id: AppServerRequestId::Integer(10),
                 params: McpServerElicitationRequestParams {
+                    origin: Some(codex_protocol::approvals::ElicitationOrigin::McpServer),
                     thread_id: thread_id.to_string(),
                     turn_id: Some("turn-auth".to_string()),
                     server_name: "payments".to_string(),

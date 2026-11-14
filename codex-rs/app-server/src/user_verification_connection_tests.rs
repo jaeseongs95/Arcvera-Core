@@ -21,6 +21,7 @@ use tokio::time::timeout;
 
 fn request() -> rpc::ServerRequestPayload {
     rpc::ServerRequestPayload::McpServerElicitationRequest(rpc::McpServerElicitationRequestParams {
+        origin: Some(codex_protocol::approvals::ElicitationOrigin::McpServer),
         thread_id: ThreadId::new().to_string(),
         turn_id: None,
         server_name: "codex_apps".into(),

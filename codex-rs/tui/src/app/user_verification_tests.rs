@@ -12,6 +12,7 @@ fn verification_request() -> ServerRequest {
     ServerRequest::McpServerElicitationRequest {
         request_id: RequestId::Integer(7),
         params: McpServerElicitationRequestParams {
+            origin: Some(codex_protocol::approvals::ElicitationOrigin::McpServer),
             thread_id: ThreadId::new().to_string(),
             turn_id: None,
             server_name: "deployments".to_string(),

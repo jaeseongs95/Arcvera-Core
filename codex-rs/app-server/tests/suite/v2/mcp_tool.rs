@@ -730,6 +730,7 @@ async fn mcp_server_tool_call_round_trips_elicitation_for_thread(
     assert_eq!(
         params,
         McpServerElicitationRequestParams {
+            origin: Some(codex_protocol::approvals::ElicitationOrigin::McpServer),
             thread_id: thread.id,
             turn_id: None,
             server_name: TEST_SERVER_NAME.to_string(),
@@ -963,6 +964,7 @@ async fn mcp_server_tool_call_forwards_url_elicitation() -> Result<()> {
     assert_eq!(
         params,
         McpServerElicitationRequestParams {
+            origin: Some(codex_protocol::approvals::ElicitationOrigin::McpServer),
             thread_id: thread.id,
             turn_id: None,
             server_name: TEST_SERVER_NAME.to_string(),

@@ -790,6 +790,7 @@ async fn request_mcp_server_elicitation_waits_for_user_response(
     assert_eq!(
         event,
         codex_protocol::approvals::ElicitationRequestEvent {
+            origin: Some(codex_protocol::approvals::ElicitationOrigin::Core),
             turn_id: Some(turn_context.sub_id.clone()),
             server_name: "codex_apps".to_string(),
             id: codex_protocol::mcp::RequestId::String("request-1".to_string()),

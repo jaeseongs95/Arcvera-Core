@@ -322,6 +322,7 @@ impl ElicitationRequestRouter {
         let event = Event {
             id: "mcp_elicitation_request".to_string(),
             msg: EventMsg::ElicitationRequest(ElicitationRequestEvent {
+                origin: Some(codex_protocol::approvals::ElicitationOrigin::McpServer),
                 turn_id: None,
                 server_name,
                 id: ProtocolRequestId::String(public_request_id),

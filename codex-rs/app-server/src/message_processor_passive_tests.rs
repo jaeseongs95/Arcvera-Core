@@ -506,6 +506,7 @@ async fn passive_listener_replays_general_pending_but_emits_no_idle_lifecycle() 
         .send_request_to_connections(
             Some(&[owner]),
             ServerRequestPayload::McpServerElicitationRequest(McpServerElicitationRequestParams {
+                origin: Some(codex_protocol::approvals::ElicitationOrigin::McpServer),
                 thread_id: created.thread_id.to_string(),
                 turn_id: Some("turn-1".into()),
                 server_name: "service".into(),

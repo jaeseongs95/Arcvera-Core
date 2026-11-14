@@ -439,6 +439,10 @@ impl From<rmcp::model::ElicitationAction> for McpServerElicitationAction {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct McpServerElicitationRequestParams {
+    /// Host-supplied publisher identity, not an approval grant.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "\"core\" | \"mcpServer\"")]
+    pub origin: Option<codex_protocol::approvals::ElicitationOrigin>,
     pub thread_id: String,
     /// Active Codex turn when this elicitation was observed, if app-server could correlate one.
     ///

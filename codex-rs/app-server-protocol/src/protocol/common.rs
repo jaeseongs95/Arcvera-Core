@@ -3335,6 +3335,7 @@ mod tests {
             "required": ["confirmed"]
         }))?;
         let params = v2::McpServerElicitationRequestParams {
+            origin: Some(codex_protocol::approvals::ElicitationOrigin::Core),
             thread_id: "thr_123".to_string(),
             turn_id: Some("turn_123".to_string()),
             server_name: "codex_apps".to_string(),
@@ -3346,6 +3347,22 @@ mod tests {
                 requested_schema,
             },
         };
+        let mut wire = serde_json::to_value(&params)?;
+        assert_eq!(wire["origin"], "core");
+        wire["origin"] = serde_json::Value::Null;
+        assert_eq!(
+            serde_json::from_value::<v2::McpServerElicitationRequestParams>(wire.clone())?.origin,
+            None
+        );
+        wire.as_object_mut().expect("request object").remove("origin");
+        assert_eq!(
+            serde_json::from_value::<v2::McpServerElicitationRequestParams>(wire.clone())?.origin,
+            None
+        );
+        for invalid in [json!("unknown"), json!(42), json!({}), json!([])] {
+            wire["origin"] = invalid;
+            assert!(serde_json::from_value::<v2::McpServerElicitationRequestParams>(wire.clone()).is_err());
+        }
         let request = ServerRequest::McpServerElicitationRequest {
             request_id: RequestId::Integer(9),
             params: params.clone(),
@@ -3356,6 +3373,7 @@ mod tests {
                 "method": "mcpServer/elicitation/request",
                 "id": 9,
                 "params": {
+                    "origin": "core",
                     "threadId": "thr_123",
                     "turnId": "turn_123",
                     "serverName": "codex_apps",

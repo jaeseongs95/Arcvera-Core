@@ -754,6 +754,7 @@ impl Session {
             }
         };
         let event = EventMsg::ElicitationRequest(ElicitationRequestEvent {
+            origin: Some(codex_protocol::approvals::ElicitationOrigin::Core),
             turn_id: Some(turn_context.sub_id.clone()),
             server_name,
             id,

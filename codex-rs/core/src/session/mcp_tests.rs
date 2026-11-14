@@ -5,6 +5,7 @@ use serde_json::json;
 #[test]
 fn plugin_install_elicitation_telemetry_metadata_requires_install_tool_suggestion() {
     let event = EventMsg::ElicitationRequest(ElicitationRequestEvent {
+        origin: Some(codex_protocol::approvals::ElicitationOrigin::Core),
         turn_id: Some("turn-1".to_string()),
         server_name: "codex_apps".to_string(),
         id: codex_protocol::mcp::RequestId::String("request-1".to_string()),
@@ -34,6 +35,7 @@ fn plugin_install_elicitation_telemetry_metadata_requires_install_tool_suggestio
     );
 
     let enable_event = EventMsg::ElicitationRequest(ElicitationRequestEvent {
+        origin: Some(codex_protocol::approvals::ElicitationOrigin::Core),
         turn_id: Some("turn-1".to_string()),
         server_name: "codex_apps".to_string(),
         id: codex_protocol::mcp::RequestId::String("request-2".to_string()),

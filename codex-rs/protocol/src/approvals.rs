@@ -469,8 +469,20 @@ pub struct ElicitationAbandonedEvent {
     pub id: RequestId,
 }
 
+/// The publisher of an elicitation; this does not grant approval authority.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum ElicitationOrigin {
+    Core,
+    McpServer,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, JsonSchema, TS)]
 pub struct ElicitationRequestEvent {
+    /// Publisher supplied by the host, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub origin: Option<ElicitationOrigin>,
     /// Turn ID that this elicitation belongs to, when known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
