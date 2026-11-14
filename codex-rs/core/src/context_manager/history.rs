@@ -894,7 +894,9 @@ impl ContextManager {
             .for_prompt_annotated(input_modalities, image_store)
             .await;
         if let Some(manifest) = manifest {
-            items.insert(0, manifest);
+            // Navigation changes as the index grows. Keep it after selected evidence so an
+            // ordinary append preserves the reusable model-input prefix.
+            items.push(manifest);
         }
         items
     }
@@ -1984,6 +1986,49 @@ mod indexed_projection_tests {
         let clone = history.clone();
         assert_eq!(clone.projected_items(), history.projected_items());
         assert_eq!(clone.annotated_items(), raw);
+    }
+
+    #[tokio::test]
+    async fn core110_navigation_updates_preserve_selected_history_prefix() {
+        let mut history = completed_history();
+        let before = history
+            .clone()
+            .projected_for_prompt_annotated(
+                &[InputModality::Text],
+                &codex_attachment_store::InlineAttachmentStore,
+            )
+            .await;
+        history.record_items(
+            [message("new-active-detail", "assistant")].iter(),
+            TruncationPolicy::Tokens(10_000),
+        );
+        let after = history
+            .clone()
+            .projected_for_prompt_annotated(
+                &[InputModality::Text],
+                &codex_attachment_store::InlineAttachmentStore,
+            )
+            .await;
+        let navigation = |item: &ResponseItemEnvelope| {
+            matches!(&item.item, ResponseItem::Message { role, content, .. }
+                if role == "developer" && matches!(content.first(),
+                    Some(ContentItem::InputText { text }) if text.starts_with("Context index navigation metadata")))
+        };
+        assert!(navigation(before.last().unwrap()));
+        assert!(navigation(after.last().unwrap()));
+        let stable_len = before.len() - 1;
+        let prefix = |items: &[ResponseItemEnvelope]| {
+            serde_json::to_vec(&items.iter().map(|item| &item.item).collect::<Vec<_>>()).unwrap()
+        };
+        assert_eq!(prefix(&before[..stable_len]), prefix(&after[..stable_len]));
+        assert_ne!(before.last().unwrap().item, after.last().unwrap().item);
+        assert_eq!(history.context_index_revision(), 1);
+        assert!(!history.context_index().is_active("detail"));
+        assert_eq!(
+            history.annotated_items().len(),
+            3,
+            "navigation remains request-only"
+        );
     }
 
     #[test]
