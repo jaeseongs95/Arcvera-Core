@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! AppEvent dispatch for the TUI app.
 //!
@@ -192,6 +193,7 @@ impl App {
             AppEvent::DesktopCronRequest(_) | AppEvent::DesktopCronCancelReply(_) => unreachable!("예약 제어는 화면 필터 전에 처리합니다."),
             AppEvent::MemoryCommand { thread_id, args } => self.handle_memory_command(app_server, thread_id, args).await,
             AppEvent::ContextCommand { thread_id, args } => self.handle_context_command(app_server, thread_id, args).await,
+            AppEvent::ContextCompositionLoaded { key, outcome } => self.finish_context_inspection(app_server, key, outcome),
             AppEvent::CronToolCall(request) => {
                 if request.params.tool == crate::session_control::NAME {
                     self.handle_session_control_tool_call(app_server, *request).await;
@@ -401,6 +403,7 @@ impl App {
             AppEvent::DynamicToolThreadStarted {
                 thread,
                 task_tools_available,
+                runtime_mcp_registration_id,
                 registered,
             } => {
                 let Ok(thread_id) = ThreadId::from_string(&thread.id) else {
@@ -412,6 +415,9 @@ impl App {
                     .or_default();
                 if task_tools_available {
                     app_server.remember_task_tool_thread(thread_id);
+                } else if let Some(id) = runtime_mcp_registration_id {
+                    // The runtime registration ACK is not a connected MCP catalog.
+                    app_server.watch_runtime_mcp_ready(thread_id, id);
                 }
                 // Fallback metadata must not replay after fresh reads or newer notifications.
                 if !thread.ephemeral

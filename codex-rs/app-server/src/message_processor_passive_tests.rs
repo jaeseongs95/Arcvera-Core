@@ -165,6 +165,82 @@ fn assert_passive_unavailable(error: codex_app_server_protocol::JSONRPCErrorErro
     );
 }
 
+#[tokio::test]
+async fn context_read_requires_loaded_runtime_and_binds_page_snapshot() -> Result<()> {
+    use codex_app_server_protocol::ThreadContextReadResponse;
+    let server = create_mock_responses_server_sequence_unchecked(Vec::new()).await;
+    let (_home, _, processor, mut rx) = setup(&server.uri()).await?;
+    let connection = ConnectionId(1);
+    let session = initialize(&processor, &mut rx, connection).await;
+    let thread = start(&processor, &mut rx, connection, &session)
+        .await
+        .thread;
+    send(
+        &processor,
+        connection,
+        &session,
+        json!({"id":51,"method":"thread/context/read","params":{"threadId":thread.id,"limit":1}}),
+    )
+    .await;
+    let first: ThreadContextReadResponse = read_response_from(&mut rx, connection, 51).await;
+    assert_eq!(first.thread_id, thread.id);
+    assert_eq!(first.cache.ttl_support, "unknown");
+    assert!(first.cache.server_confirmed_expiry.is_none());
+    let encoded = serde_json::to_vec(&first)?;
+    assert!(encoded.len() <= 65_536);
+    // Loaded runtimes are shared by initialized connections; no subscription is required.
+    let observer = ConnectionId(2);
+    let observer_session = initialize(&processor, &mut rx, observer).await;
+    send(
+        &processor,
+        observer,
+        &observer_session,
+        json!({"id":56,"method":"thread/context/read","params":{"threadId":thread.id,"limit":1}}),
+    )
+    .await;
+    let observed: ThreadContextReadResponse = read_response_from(&mut rx, observer, 56).await;
+    assert_eq!(observed.thread_id, thread.id);
+    let uninitialized = ConnectionId(3);
+    let uninitialized_session = Arc::new(ConnectionSessionState::new(ConnectionOrigin::WebSocket));
+    send(
+        &processor,
+        uninitialized,
+        &uninitialized_session,
+        json!({"id":57,"method":"thread/context/read","params":{"threadId":thread.id}}),
+    )
+    .await;
+    assert!(
+        error(&mut rx, uninitialized, 57)
+            .await
+            .contains("Not initialized")
+    );
+    send(&processor, connection, &session,
+        json!({"id":52,"method":"thread/context/read","params":{"threadId":thread.id,"snapshotId":"stale","limit":1}})).await;
+    assert_eq!(
+        error_details(&mut rx, connection, 52).await.data,
+        Some(json!({"reason":"staleContextSnapshot"}))
+    );
+    send(
+        &processor,
+        connection,
+        &session,
+        json!({"id":53,"method":"thread/context/read","params":{"threadId":thread.id,"limit":0}}),
+    )
+    .await;
+    assert!(error(&mut rx, connection, 53).await.contains("limit"));
+    send(
+        &processor,
+        connection,
+        &session,
+        json!({"id":54,"method":"thread/context/read","params":{"threadId":thread.id,"cursor":1}}),
+    )
+    .await;
+    assert!(error(&mut rx, connection, 54).await.contains("snapshotId"));
+    send(&processor, connection, &session,
+        json!({"id":55,"method":"thread/context/read","params":{"threadId":ThreadId::new().to_string()}})).await;
+    assert!(error(&mut rx, connection, 55).await.contains("loaded"));
+    Ok(())
+}
 
 #[tokio::test]
 async fn hooks_list_distinguishes_runtime_gate_from_configuration_and_old_servers() -> Result<()> {

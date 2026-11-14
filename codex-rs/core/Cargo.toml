@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 # Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 [package]
 edition.workspace = true
@@ -118,6 +119,7 @@ rmcp = { workspace = true, default-features = false, features = [
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha1 = { workspace = true }
+sha2 = { workspace = true }
 shlex = { workspace = true }
 similar = { workspace = true }
 tempfile = { workspace = true }

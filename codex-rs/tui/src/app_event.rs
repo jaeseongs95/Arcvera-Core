@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Application-level events used to coordinate UI actions.
 //!
@@ -304,6 +305,10 @@ pub(crate) enum AppEvent {
     ContextCommand {
         thread_id: Option<ThreadId>,
         args: String,
+    },
+    ContextCompositionLoaded {
+        key: crate::app_server_session::ContextInspectionKey,
+        outcome: crate::app_server_session::ContextInspectionOutcome,
     },
     CronCommand {
         thread_id: Option<ThreadId>,
@@ -635,6 +640,7 @@ pub(crate) enum AppEvent {
     DynamicToolThreadStarted {
         thread: Thread,
         task_tools_available: bool,
+        runtime_mcp_registration_id: Option<String>,
         registered: tokio::sync::oneshot::Sender<()>,
     },
 
@@ -647,7 +653,8 @@ pub(crate) enum AppEvent {
     /// Run a caller-bound scheduler command on the owning app event loop.
     CronToolCall(Box<crate::cron_tools::Request>),
 
-    /// Register task tools inherited by a dynamically created thread.
+    /// Record task-reference capability after native registration or a verified MCP binding.
+    /// This persists a UI capability hint; it is not a live readiness receipt.
     TaskToolsAvailable {
         thread_id: ThreadId,
     },

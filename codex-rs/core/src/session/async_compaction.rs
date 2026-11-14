@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Holds the current speculative request, polled at checkpoints or awaited when compaction is due.
 //! Discarded requests still charge completed usage; session shutdown cancels remaining network work.
 //! Snapshot capture and launch registration hold session state; prompt preparation does not.
@@ -94,6 +95,7 @@ pub(super) async fn maybe_start(
         // Stop blocks new launches; already-running compaction remains session-owned.
         if turn_cancellation.is_cancelled()
             || state.shutting_down
+            || state.history.context_index().focus_task_id().is_some()
             || state.async_compaction.last_attempt.as_ref() == Some(&attempt)
             || state.history.annotated_items().is_empty()
             || sess.services.model_client.auth_owner_generation() != auth_owner_generation
@@ -159,6 +161,12 @@ pub(super) async fn take_ready(
         return None;
     }
     let mut state = sess.state.lock().await;
+    if state.history.context_index().focus_task_id().is_some() {
+        // Already-running work stays session-owned for usage accounting, but its summary
+        // cannot replace the evidence of a newly selected task.
+        state.async_compaction.result = None;
+        return None;
+    }
     let mut result = state.async_compaction.result.take()?;
     let candidate = match result.try_recv() {
         Ok(candidate) => candidate,

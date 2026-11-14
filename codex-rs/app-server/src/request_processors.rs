@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use crate::bespoke_event_handling::apply_bespoke_event_handling;
 use crate::command_exec::CommandExecManager;
@@ -567,6 +568,7 @@ mod remote_control_processor;
 mod rollout;
 mod search;
 mod thread_attachments;
+mod thread_context_read;
 mod thread_enrichment;
 mod thread_fork_goal;
 mod thread_input;

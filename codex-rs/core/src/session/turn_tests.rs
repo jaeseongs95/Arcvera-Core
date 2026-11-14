@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::*;
 use codex_extension_api::ExtensionData;
 use codex_extension_api::TurnItemContributor;
@@ -6,6 +7,103 @@ use codex_protocol::items::AgentMessageContent;
 use pretty_assertions::assert_eq;
 use std::sync::Arc;
 use tracing_subscriber::prelude::*;
+
+#[tokio::test]
+async fn indexed_context_keeps_selected_originals_instead_of_running_auto_compaction() {
+    use codex_history::context_index::ContextIndexOperation;
+    let (session, turn) = crate::session::tests::make_session_and_context().await;
+    let session = Arc::new(session);
+    let turn = Arc::new(turn);
+    session
+        .state
+        .lock()
+        .await
+        .history
+        .apply_context_index(
+            0,
+            vec![
+                ContextIndexOperation::CreateTask {
+                    task_id: "work".into(),
+                    label: "Current work".into(),
+                },
+                ContextIndexOperation::SetFocus {
+                    task_id: "work".into(),
+                },
+            ],
+        )
+        .expect("focused task");
+    let original = assistant_output_text("SELECTED_ORIGINAL_kept_without_summary");
+    session
+        .record_conversation_items(&turn, turn.model_info(), &[original])
+        .await;
+    let before = session.clone_history().await;
+    let step = StepContext::for_test(Arc::clone(&turn));
+    let mut client = session.services.model_client.new_session();
+    let result = run_auto_compact(
+        &session,
+        Arc::clone(&step),
+        step,
+        &mut client,
+        CompactionReason::ContextLimit,
+        CompactionPhase::MidTurn,
+        None,
+    )
+    .await
+    .expect("selection owns the budget");
+    assert!(
+        !result,
+        "automatic summary must not replace indexed evidence"
+    );
+    let after = session.clone_history().await;
+    assert_eq!(before.annotated_items(), after.annotated_items());
+    assert_eq!(before.context_index(), after.context_index());
+}
+
+#[tokio::test]
+async fn indexed_context_hard_limit_fails_with_reclamation_guidance_and_keeps_originals() {
+    use codex_history::context_index::ContextIndexOperation;
+    use codex_protocol::protocol::TokenUsage;
+    let (session, turn) = crate::session::tests::make_session_and_context().await;
+    session
+        .state
+        .lock()
+        .await
+        .history
+        .apply_context_index(
+            0,
+            vec![
+                ContextIndexOperation::CreateTask {
+                    task_id: "required".into(),
+                    label: "Required".into(),
+                },
+                ContextIndexOperation::SetFocus {
+                    task_id: "required".into(),
+                },
+            ],
+        )
+        .expect("focus");
+    session
+        .update_token_usage_info(
+            &turn,
+            Some(&TokenUsage {
+                input_tokens: i64::MAX / 2,
+                total_tokens: i64::MAX / 2,
+                ..Default::default()
+            }),
+            false,
+        )
+        .await
+        .expect("test session has no rollout spending limit; usage setup must succeed");
+    let before = session.clone_history().await;
+    let error = indexed_context_owns_budget(&session, &turn)
+        .await
+        .expect_err("selected input exceeds the test model hard limit");
+    assert!(error.to_string().contains("context_index"));
+    assert!(error.to_string().contains("preserved"));
+    let after = session.clone_history().await;
+    assert_eq!(before.annotated_items(), after.annotated_items());
+    assert_eq!(before.context_index(), after.context_index());
+}
 
 struct RewriteAgentMessageContributor;
 

@@ -13,6 +13,8 @@
 //! sources recovered from legacy Guardian checkpoints before their raw history is dropped.
 //! Prompt projections replace unavailable file images without changing retained history.
 
+#[path = "history_composition.rs"]
+pub(super) mod composition;
 #[path = "history_user_authorization.rs"]
 mod user_authorization;
 

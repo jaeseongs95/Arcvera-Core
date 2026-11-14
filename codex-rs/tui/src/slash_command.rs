@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use strum::IntoEnumIterator;
@@ -105,7 +106,7 @@ impl SlashCommand {
         }
         crate::i18n::text(match self {
             SlashCommand::Context => {
-                "show or set this chat's context window: /context [tokens|reset]"
+                "show or set this chat's context window: /context [inspect|inspect next|inspect small|cancel|tokens|reset]"
             }
             SlashCommand::Cron => "schedule per-chat prompts while this CLI is running",
             SlashCommand::Config => "configure Codex preferences",

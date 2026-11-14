@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Background app-server requests launched by the TUI app.
@@ -1618,6 +1619,7 @@ mod tests {
     fn mcp_inventory_maps_prefix_tool_names_by_server() {
         let statuses = vec![
             McpServerStatus {
+                runtime_registration_id: None,
                 server_capabilities: None,
                 tool_list_meta: None,
                 tools_error: None,
@@ -1644,6 +1646,7 @@ mod tests {
                 auth_status: codex_app_server_protocol::McpAuthStatus::Unsupported,
             },
             McpServerStatus {
+                runtime_registration_id: None,
                 server_capabilities: None,
                 tool_list_meta: None,
                 tools_error: None,

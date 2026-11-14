@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -1677,6 +1678,9 @@ impl MessageProcessor {
             }
             ClientRequest::ThreadPluginReload { params, .. } => {
                 self.mcp_processor.thread_plugin_reload(params).await
+            }
+            ClientRequest::ThreadContextRead { params, .. } => {
+                self.thread_processor.thread_context_read(params).await
             }
             ClientRequest::ThreadRead { params, .. } => {
                 self.thread_processor.thread_read(&request_id, params).await

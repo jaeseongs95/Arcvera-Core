@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use std::collections::HashMap;
@@ -1464,6 +1465,9 @@ async fn run_pre_sampling_compact(
     client_session: &mut ModelClientSession,
     cancellation_token: &CancellationToken,
 ) -> CodexResult<()> {
+    if indexed_context_owns_budget(sess, turn_context).await? {
+        return Ok(());
+    }
     maybe_run_previous_model_inline_compact(sess, turn_context, client_session, cancellation_token)
         .await?;
     let token_status =
@@ -1603,6 +1607,9 @@ async fn run_auto_compact(
     candidate: Option<Box<BackgroundCompactionCandidate>>,
 ) -> CodexResult<bool> {
     let turn_context = &step_context.turn;
+    if indexed_context_owns_budget(sess, turn_context).await? {
+        return Ok(false);
+    }
     if matches!(phase, CompactionPhase::PreTurn)
         && crate::guardian::is_basic_session_source(&turn_context.session_source)
         && !crate::guardian::should_compact_guardian_input(sess)?
@@ -1854,6 +1861,7 @@ async fn run_sampling_request(
         };
         let input_item_count = history.raw_items().len();
         let context_index_revision = history.context_index_revision();
+        let request_history_version = history.history_version();
         let mut prompt_input = history
             .projected_for_prompt(
                 &step_context.settings.model_info.input_modalities,
@@ -1893,6 +1901,9 @@ async fn run_sampling_request(
             continue;
         }
         client_session.bind_context_index_revision(context_index_revision);
+        sess.record_context_request_sizes(&prompt, request_history_version, context_index_revision)
+            .await
+            .map_err(CodexErr::Fatal)?;
         let err = match try_run_sampling_request(
             tool_runtime.clone(),
             Arc::clone(&sess),
@@ -3736,6 +3747,30 @@ pub(crate) fn get_last_assistant_message_from_turn<'a>(
         }
     }
     None
+}
+
+/// Selected context owns its budget; never silently replace required evidence with a summary.
+async fn indexed_context_owns_budget(
+    sess: &Session,
+    turn_context: &TurnContext,
+) -> CodexResult<bool> {
+    let indexed = sess
+        .state
+        .lock()
+        .await
+        .history
+        .context_index()
+        .focus_task_id()
+        .is_some();
+    if indexed {
+        let status = super::context_window::context_window_token_status(sess, turn_context).await;
+        if status.full_context_window_limit_reached {
+            return Err(CodexErr::InvalidRequest(
+                "Selected context exceeds the model input limit. Use context_index to release unrelated task details or read smaller original fragments; required instructions and originals are preserved. Automatic compaction will not discard selected evidence.".to_string()
+            ));
+        }
+    }
+    Ok(indexed)
 }
 
 #[cfg(test)]

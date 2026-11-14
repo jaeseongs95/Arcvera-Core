@@ -5,7 +5,11 @@
 //! This module owns the typed JSON-RPC calls needed by the TUI and keeps
 //! request/response plumbing out of `App` and `ChatWidget`.
 
+mod context_inspection;
 mod daybreak_api_key_compat;
+pub(crate) use context_inspection::{
+    ContextInspectionFailure, ContextInspectionKey, ContextInspectionOutcome,
+};
 mod events;
 mod external_agent_config;
 pub(crate) mod fs;
@@ -365,6 +369,8 @@ pub(crate) struct AppServerSession {
     runtime_tool_retry_inflight: Arc<std::sync::atomic::AtomicBool>,
     pending_runtime_tool_resume:
         Arc<Mutex<Option<(u64, uuid::Uuid, ThreadResumeParams, Option<String>)>>>,
+    pending_context_inspection: Option<context_inspection::PendingContextInspection>,
+    context_inspection_cursor: Option<context_inspection::ContextInspectionCursor>,
     pending_compact: Option<(
         ThreadId,
         String,
@@ -555,6 +561,8 @@ impl AppServerSession {
             runtime_tool_registration_lifetime: tokio_util::sync::CancellationToken::new(),
             runtime_tool_retry_inflight: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             pending_runtime_tool_resume: Arc::new(Mutex::new(None)),
+            pending_context_inspection: None,
+            context_inspection_cursor: None,
             pending_compact: None,
             connection_owner,
             request_handle,
@@ -1072,6 +1080,8 @@ impl AppServerSession {
             self.connection_live
                 .store(false, std::sync::atomic::Ordering::Release);
             self.pending_compact = None;
+            self.pending_context_inspection = None;
+            self.context_inspection_cursor = None;
         }
         if let Some(codex_app_server_client::AppServerEvent::ServerNotification(notification)) =
             &event
@@ -2314,7 +2324,8 @@ impl AppServerSession {
         client.resolve_server_request(request_id, result).await
     }
 
-    pub(crate) async fn shutdown(self) -> std::io::Result<()> {
+    pub(crate) async fn shutdown(mut self) -> std::io::Result<()> {
+        self.pending_context_inspection = None;
         self.connection_live
             .store(false, std::sync::atomic::Ordering::Release);
         match self.connection_owner {

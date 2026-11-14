@@ -1,6 +1,8 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 pub(crate) mod context_cache;
+pub(crate) mod context_composition;
 mod indexed_context;
 mod memory_publication;
 pub(crate) mod startup;

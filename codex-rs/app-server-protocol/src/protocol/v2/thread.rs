@@ -1961,6 +1961,152 @@ pub struct ThreadReadParams {
     pub include_turns: bool,
 }
 
+/// Body-free metadata for an already loaded runtime. Cursor is bound to snapshotId.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadContextReadParams {
+    pub thread_id: String,
+    pub snapshot_id: Option<String>,
+    #[serde(default)]
+    pub cursor: usize,
+    pub limit: Option<usize>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadContextSizes {
+    pub resident_serialized_bytes: u64,
+    pub selected_resident_serialized_bytes: u64,
+    pub excluded_resident_serialized_bytes: u64,
+    pub archive_serialized_bytes: Option<u64>,
+    pub selected_body_estimated_tokens: u64,
+    pub estimate_provenance: String,
+    pub navigation_estimated_tokens: u64,
+    pub base_estimated_tokens: Option<u64>,
+    pub tool_estimated_tokens: Option<u64>,
+    pub total_estimated_tokens: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadContextLimits {
+    pub requested_context_window_override: Option<i64>,
+    pub effective_context_window: Option<i64>,
+    pub provenance: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export_to = "v2/")]
+pub enum ThreadContextSourceKind {
+    User,
+    Assistant,
+    Control,
+    Opaque,
+    ToolCall,
+    ToolResult,
+    Unknown,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadContextResidency {
+    Resident,
+    NotResident,
+    Unknown,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadContextFragment {
+    pub source_id: Option<String>,
+    pub source_ordinal: Option<u64>,
+    pub resident_occurrence: Option<u64>,
+    pub task_id: Option<String>,
+    pub kind: Option<ThreadContextSourceKind>,
+    pub selected: bool,
+    pub required: Option<bool>,
+    pub selection_reason: Option<String>,
+    pub residency: ThreadContextResidency,
+    pub resident_serialized_bytes: Option<u64>,
+    pub estimated_tokens: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadContextCache {
+    pub scope: String,
+    pub provenance: String,
+    pub status: String,
+    pub cached_input_tokens: Option<u64>,
+    pub write_input_tokens: Option<u64>,
+    pub uncached_input_tokens: Option<u64>,
+    pub total_input_tokens: Option<u64>,
+    pub observed_at: Option<String>,
+    pub observation_id: Option<String>,
+    pub request_context_index_revision: Option<u64>,
+    pub revision_status: String,
+    pub requested_ttl_seconds: Option<u64>,
+    pub effective_ttl_seconds: Option<u64>,
+    pub ttl_support: String,
+    pub ttl_application: String,
+    pub request_started_at: Option<String>,
+    /// Unknown unless supported by confirmed retention evidence; currently null.
+    pub minimum_valid_until: Option<String>,
+    pub minimum_valid_until_provenance: String,
+    /// Unknown without confirmed retention evidence; individual fragment TTLs remain unknown.
+    pub minimum_valid_until_scope: String,
+    pub estimated_expiry: Option<String>,
+    pub server_confirmed_expiry: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadContextReadResponse {
+    pub thread_id: String,
+    pub snapshot_id: String,
+    pub context_index_revision: u64,
+    pub history_version: u64,
+    /// Page observation time; snapshot identity excludes this timestamp.
+    pub as_of: String,
+    pub sizes: ThreadContextSizes,
+    pub limits: ThreadContextLimits,
+    pub fragments: Vec<ThreadContextFragment>,
+    pub cache: ThreadContextCache,
+    /// Latest prepared prompt components, before provider normalization and transport.
+    /// Null means unobserved. History can advance after this particular preparation.
+    #[serde(default)]
+    pub request_sizes: Option<ThreadContextRequestSizes>,
+    pub next_cursor: Option<usize>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadContextRequestSizes {
+    pub observation_id: String,
+    pub recorded_at: String,
+    pub scope: String,
+    pub provenance: String,
+    pub history_version: u64,
+    pub context_index_revision: u64,
+    pub input_serialized_bytes: u64,
+    pub base_instructions_serialized_bytes: u64,
+    /// Standalone tools field only; incremental definitions in input are counted in input.
+    pub tool_definitions_serialized_bytes: u64,
+    pub output_schema_serialized_bytes: u64,
+    /// Sum of the four JSON component payloads; excludes transport keys/envelopes.
+    /// This value is not a provider token count or the bytes sent by a delta request.
+    pub component_payload_bytes: u64,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS, ExperimentalApi)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]

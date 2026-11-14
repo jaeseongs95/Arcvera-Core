@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use super::helpers::drain_insert_history_transcript;
@@ -8,7 +9,15 @@ use serial_test::serial;
 
 #[tokio::test]
 async fn context_command_routes_arguments_without_starting_a_model_turn() {
-    for argument in ["", "120000", "reset"] {
+    for argument in [
+        "",
+        "120000",
+        "reset",
+        "inspect",
+        "inspect next",
+        "inspect small",
+        "cancel",
+    ] {
         let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(None).await;
         chat.dispatch_command_with_args(SlashCommand::Context, argument.to_string(), Vec::new());
         match rx.try_recv().expect("context event") {

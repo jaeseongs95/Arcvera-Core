@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use crate::WithTurnExtensionData;
 use crate::agent::AgentStatus;
@@ -5,10 +6,13 @@ use crate::agent::api::AgentControl;
 use crate::config::ConstraintResult;
 use crate::context::ContextualUserFragment;
 use crate::context::GuardianReviewEvidence;
+pub use crate::context_manager::{CompositionFragment, CompositionSizes};
 use crate::elicitation::ElicitationRegistration;
 use crate::session::SessionIo;
 use crate::session::SessionSettingsUpdate;
 use crate::session::Submission;
+pub use crate::session::context_composition::ContextCompositionPage;
+pub use crate::session::context_composition::{ContextCacheView, ContextLimits};
 use crate::session::emit_subagent_session_started;
 use crate::session::inject::validate_injected_response_item;
 use crate::session::new_submission_id;
@@ -197,6 +201,7 @@ pub use codex_guardian_reviewer::GuardianRootSnapshot;
 
 pub struct CodexThread {
     runtime_id: uuid::Uuid,
+    composition_cache: Mutex<Option<crate::session::context_composition::CompositionCache>>,
     pub(crate) session: Arc<Session>,
     pub(crate) io: SessionIo,
     // Queued agent mail owns a read guard until handled or dropped; eviction needs a write guard.
@@ -249,6 +254,24 @@ impl CodexThread {
         self.runtime_id
     }
 
+    /// Body-free context metadata for this loaded runtime; no history bodies are returned.
+    pub async fn context_composition_read(
+        &self,
+        snapshot_id: Option<&str>,
+        cursor: usize,
+        limit: usize,
+    ) -> Result<ContextCompositionPage, String> {
+        self.session
+            .context_composition_page(
+                &self.composition_cache,
+                self.runtime_id,
+                snapshot_id,
+                cursor,
+                limit,
+            )
+            .await
+    }
+
     pub(crate) async fn cleanup_is_idle(&self) -> bool {
         self.session.active_turn.lock().await.is_none()
             && !self.session.has_outstanding_durable_sleep()
@@ -266,6 +289,7 @@ impl CodexThread {
     ) -> Self {
         Self {
             runtime_id: uuid::Uuid::new_v4(),
+            composition_cache: Mutex::new(None),
             session,
             residency_gate: Arc::clone(&io.admission.gate),
             io,

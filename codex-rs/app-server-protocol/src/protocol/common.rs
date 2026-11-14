@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 #[cfg(test)]
 use std::path::Path;
@@ -1054,6 +1055,13 @@ client_request_definitions! {
         params: v2::ThreadPluginReloadParams,
         serialization: thread_id(params.thread_id),
         response: v2::ThreadPluginReloadResponse,
+    },
+    #[experimental("thread/context/read")]
+    ThreadContextRead => "thread/context/read" {
+        params: v2::ThreadContextReadParams,
+        // The snapshot is captured under the session lock; pagination must not block turns.
+        serialization: None,
+        response: v2::ThreadContextReadResponse,
     },
     ThreadRead => "thread/read" {
         params: v2::ThreadReadParams,
@@ -3509,6 +3517,8 @@ mod tests {
         let response = ClientResponse::ThreadStart {
             request_id: RequestId::Integer(7),
             response: v2::ThreadStartResponse {
+                runtime_mcp_servers_applied: None,
+                runtime_mcp_registration_id: None,
                 disabled_plugin_ids: Vec::new(),
                 thread: v2::Thread {
                     originator: None,
