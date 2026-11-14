@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use crate::RESPONSES_PATH;
 use crate::auth::SharedAuthProvider;
 use crate::common::ResponseEvent;
@@ -1117,6 +1118,7 @@ mod tests {
             include: vec!["reasoning.encrypted_content".to_string()],
             service_tier: Some("priority".to_string()),
             prompt_cache_key: Some("cache-key".to_string()),
+            prompt_cache_policy: None,
             text: None,
             access_programs: Some(
                 codex_protocol::turn_input::CyberAccessProgram::DaybreakBlue.into(),

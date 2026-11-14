@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 #![allow(clippy::expect_used)]
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -355,6 +356,7 @@ async fn responses_client_stream_request_preserves_item_ids() -> Result<()> {
         include: Vec::new(),
         service_tier: None,
         prompt_cache_key: None,
+        prompt_cache_policy: None,
         text: None,
         client_metadata: None,
         access_programs: None,
@@ -411,6 +413,7 @@ async fn responses_client_stream_request_sends_routing_fields_ahead_of_large_inp
         include: Vec::new(),
         service_tier: Some("priority".into()),
         prompt_cache_key: None,
+        prompt_cache_policy: None,
         text: None,
         client_metadata: None,
         access_programs: None,
@@ -501,6 +504,7 @@ async fn streaming_client_retries_on_transport_error() -> Result<()> {
         include: Vec::new(),
         service_tier: None,
         prompt_cache_key: None,
+        prompt_cache_policy: None,
         text: None,
         client_metadata: None,
         access_programs: None,
@@ -626,6 +630,7 @@ async fn azure_store_sends_ids_and_headers() -> Result<()> {
         include: Vec::new(),
         service_tier: None,
         prompt_cache_key: None,
+        prompt_cache_policy: None,
         text: None,
         client_metadata: None,
         access_programs: None,

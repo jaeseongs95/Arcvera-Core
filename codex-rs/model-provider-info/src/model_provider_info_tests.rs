@@ -1,9 +1,45 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::*;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_absolute_path::AbsolutePathBufGuard;
 use pretty_assertions::assert_eq;
 use std::num::NonZeroU64;
 use tempfile::tempdir;
+
+#[test]
+fn prompt_cache_policy_is_explicit_typed_and_rejects_invalid_combinations() {
+    for (policy, expected_secs) in [
+        ("kind = 'implicit'\nttl = '30m'", Some(1800)),
+        ("kind = 'implicit'\nttl = '12h'", Some(43200)),
+        ("kind = 'legacy'\nretention = 'in_memory'", None),
+        ("kind = 'legacy'\nretention = '24h'", None),
+    ] {
+        let text = format!("[capabilities.prompt_cache]\n{policy}\n");
+        let info: ModelProviderInfo = toml::from_str(&text).unwrap();
+        let parsed = info.capabilities.unwrap().prompt_cache.unwrap();
+        assert_eq!(
+            parsed.requested_ttl().map(|duration| duration.as_secs()),
+            expected_secs
+        );
+        let roundtrip: ModelProviderInfo =
+            toml::from_str(&toml::to_string(&info).unwrap()).unwrap();
+        assert_eq!(roundtrip, info);
+    }
+    for policy in [
+        "kind = 'implicit'\nttl = '24h'",
+        "kind = 'legacy'\nretention = '30m'",
+        "kind = 'implicit'\nttl = '30m'\nretention = '24h'",
+        "kind = 'explicit'\nttl = '30m'",
+    ] {
+        assert!(
+            toml::from_str::<ModelProviderInfo>(&format!(
+                "[capabilities.prompt_cache]\n{policy}\n"
+            ))
+            .is_err()
+        );
+    }
+    assert!(ModelProviderInfo::default().capabilities.is_none());
+}
 
 #[test]
 fn runtime_internal_metadata_opt_in_is_not_serialized_or_configurable() {
@@ -1015,6 +1051,20 @@ fn builtin_openai_catalog_override_preserves_inference_and_identity() {
             );
         }
     }
+}
+
+#[test]
+fn builtin_openai_cache_policy_preserves_other_provider_settings() {
+    let configured: ModelProviderInfo =
+        toml::from_str("[capabilities.prompt_cache]\nkind='implicit'\nttl='12h'\n").unwrap();
+    let builtins = built_in_model_providers(None);
+    let mut expected = builtins.clone();
+    expected.get_mut("openai").unwrap().capabilities = configured.capabilities;
+    assert_eq!(
+        merge_configured_model_providers(builtins, HashMap::from([("openai".into(), configured)]))
+            .unwrap(),
+        expected
+    );
 }
 
 #[test]

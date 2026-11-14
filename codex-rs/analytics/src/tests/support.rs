@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Shared analytics test facts, fixtures, and reducer setup.
 
@@ -146,6 +147,8 @@ pub(super) fn sample_thread_start_response(
     model: &str,
 ) -> ClientResponsePayload {
     ClientResponsePayload::ThreadStart(ThreadStartResponse {
+        runtime_mcp_servers_applied: None,
+        runtime_mcp_registration_id: None,
         disabled_plugin_ids: Vec::new(),
         thread: sample_thread_with_metadata(
             thread_id,
@@ -212,6 +215,9 @@ pub(super) fn sample_thread_resume_response_with_source(
     parent_thread_id: Option<String>,
 ) -> ClientResponsePayload {
     ClientResponsePayload::ThreadResume(ThreadResumeResponse {
+        runtime_mcp_servers_applied: None,
+        runtime_mcp_registration_id: None,
+        runtime_mcp_generation: None,
         runtime_dynamic_tools_applied: None,
         runtime_dynamic_tools_runtime_id: None,
         supports_compact_if_idle: None,

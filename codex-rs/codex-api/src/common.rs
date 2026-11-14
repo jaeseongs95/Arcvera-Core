@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use crate::error::ApiError;
 use codex_protocol::ResponseUsageMetadata;
 use codex_protocol::config_types::ReasoningSummary as ReasoningSummaryConfig;
@@ -277,6 +278,40 @@ impl Serialize for ResponsesApiTools {
     }
 }
 
+/// One of the two mutually exclusive Responses cache policy formats.
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum PromptCacheRequestPolicy {
+    Implicit {
+        prompt_cache_options: PromptCacheOptions,
+    },
+    Legacy {
+        prompt_cache_retention: codex_model_provider_info::PromptCacheRetention,
+    },
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+pub struct PromptCacheOptions {
+    mode: &'static str,
+    ttl: codex_model_provider_info::PromptCacheTtl,
+}
+
+impl From<codex_model_provider_info::PromptCachePolicy> for PromptCacheRequestPolicy {
+    fn from(value: codex_model_provider_info::PromptCachePolicy) -> Self {
+        match value {
+            codex_model_provider_info::PromptCachePolicy::Implicit { ttl } => Self::Implicit {
+                prompt_cache_options: PromptCacheOptions {
+                    mode: "implicit",
+                    ttl,
+                },
+            },
+            codex_model_provider_info::PromptCachePolicy::Legacy { retention } => Self::Legacy {
+                prompt_cache_retention: retention,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct ResponsesApiRequest {
     // Keep routing fields first: serde serializes struct fields in declaration order, and
@@ -297,6 +332,8 @@ pub struct ResponsesApiRequest {
     pub include: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_cache_key: Option<String>,
+    #[serde(flatten)]
+    pub prompt_cache_policy: Option<PromptCacheRequestPolicy>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<TextControls>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -321,6 +358,7 @@ impl<'a> From<&'a ResponsesApiRequest> for ResponseCreateWsRequest<'a> {
             include: &request.include,
             service_tier: request.service_tier.as_deref(),
             prompt_cache_key: request.prompt_cache_key.as_deref(),
+            prompt_cache_policy: request.prompt_cache_policy.as_ref(),
             text: request.text.as_ref(),
             generate: None,
             client_metadata: request.client_metadata.clone(),
@@ -351,6 +389,8 @@ pub struct ResponseCreateWsRequest<'a> {
     pub include: &'a [String],
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_cache_key: Option<&'a str>,
+    #[serde(flatten)]
+    pub prompt_cache_policy: Option<&'a PromptCacheRequestPolicy>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<&'a TextControls>,
     #[serde(skip_serializing_if = "Option::is_none")]

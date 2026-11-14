@@ -58,6 +58,8 @@ message ModelProvider {
 
 message ModelProviderCapabilities {
   optional bool cyber_access_programs = 1;
+  // Explicit policy token: implicit_30m, implicit_12h, legacy_in_memory, legacy_24h.
+  optional string prompt_cache = 2;
 }
 
 message StringMap {

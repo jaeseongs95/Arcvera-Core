@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Registry of model providers supported by Codex.
@@ -40,6 +41,9 @@ mod capabilities;
 mod gateway_oauth;
 mod oauth_session;
 pub use capabilities::ModelProviderCapabilities;
+pub use capabilities::PromptCachePolicy;
+pub use capabilities::PromptCacheRetention;
+pub use capabilities::PromptCacheTtl;
 pub use capabilities::RemoteCompactionSupport;
 pub use gateway_oauth::GatewayOAuthConfig;
 pub use gateway_oauth::GatewayOAuthDelivery;
@@ -800,7 +804,17 @@ pub fn merge_configured_model_providers(
     for (key, mut provider) in configured_model_providers {
         if key == "openai" {
             // Keep the built-in identity, inference routing, and authentication.
-            // Only catalog routing is configurable through this provider entry.
+            // Only catalog routing and the explicit cache request policy are configurable.
+            if let Some(policy) = provider
+                .capabilities
+                .and_then(|capabilities| capabilities.prompt_cache)
+                && let Some(built_in_provider) = model_providers.get_mut(&key)
+            {
+                built_in_provider
+                    .capabilities
+                    .get_or_insert_default()
+                    .prompt_cache = Some(policy);
+            }
             if let Some(catalog_url) = provider.model_catalog_url.take()
                 && let Some(built_in_provider) = model_providers.get_mut(&key)
             {

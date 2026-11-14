@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Session- and turn-scoped helpers for talking to model provider APIs.
@@ -443,6 +444,7 @@ fn responses_request_properties_mismatch(
         include: previous_include,
         service_tier: previous_service_tier,
         prompt_cache_key: previous_prompt_cache_key,
+        prompt_cache_policy: previous_prompt_cache_policy,
         text: previous_text,
         client_metadata: _,
         access_programs: _,
@@ -460,6 +462,7 @@ fn responses_request_properties_mismatch(
         include: current_include,
         service_tier: current_service_tier,
         prompt_cache_key: current_prompt_cache_key,
+        prompt_cache_policy: current_prompt_cache_policy,
         text: current_text,
         client_metadata: _,
         access_programs: _,
@@ -487,6 +490,8 @@ fn responses_request_properties_mismatch(
         "service_tier_changed"
     } else if previous_prompt_cache_key != current_prompt_cache_key {
         "prompt_cache_key_changed"
+    } else if previous_prompt_cache_policy != current_prompt_cache_policy {
+        "prompt_cache_policy_changed"
     } else if previous_text != current_text {
         "text_changed"
     } else {
@@ -575,6 +580,13 @@ fn sideband_websocket_auth_headers(
 }
 
 impl ModelClient {
+    fn prompt_cache_policy(&self) -> Option<codex_model_provider_info::PromptCachePolicy> {
+        self.state
+            .provider
+            .info()
+            .capabilities
+            .and_then(|capabilities| capabilities.prompt_cache)
+    }
     #[allow(clippy::too_many_arguments)]
     /// Creates a new session-scoped `ModelClient`.
     ///
@@ -1173,6 +1185,7 @@ impl ModelClient {
             include,
             service_tier,
             prompt_cache_key: self.prompt_cache_key(responses_metadata),
+            prompt_cache_policy: self.prompt_cache_policy().map(Into::into),
             text,
             client_metadata: Some(client_metadata),
             access_programs: None,
@@ -1562,6 +1575,12 @@ impl Drop for ModelClientSession {
 }
 
 impl ModelClientSession {
+    /// The policy used for this session's actual Responses requests.
+    pub(crate) fn prompt_cache_policy(
+        &self,
+    ) -> Option<codex_model_provider_info::PromptCachePolicy> {
+        self.client.prompt_cache_policy()
+    }
     pub(crate) fn bound_context_index_revision(&self) -> Option<u64> {
         self.websocket_session.context_index_revision
     }
@@ -2489,7 +2508,14 @@ impl ModelClientSession {
     /// Whether a previous request prepared a connection that is not known to be closed.
     /// The next request still validates provider, auth, and headers before reuse.
     pub(crate) async fn is_websocket_prewarmed(&self) -> bool {
-        if self.websocket_session.last_request.is_some()
+        let policy = self
+            .prompt_cache_policy()
+            .map(codex_api::PromptCacheRequestPolicy::from);
+        if self
+            .websocket_session
+            .last_request
+            .as_ref()
+            .is_some_and(|request| request.prompt_cache_policy == policy)
             && let Some(connection) = self.websocket_session.connection.as_ref()
         {
             !connection.is_closed().await

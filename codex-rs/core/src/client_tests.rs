@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 #[path = "client_runtime_auth_tests.rs"]
@@ -1289,6 +1290,94 @@ fn websocket_incremental_reuse_tracks_raw_result_metadata() -> anyhow::Result<()
         );
     }
     Ok(())
+}
+
+#[test]
+fn explicit_provider_cache_policy_reaches_http_and_websocket_and_invalidates_delta() {
+    use codex_model_provider_info::{
+        ModelProviderCapabilities, PromptCachePolicy, PromptCacheRetention, PromptCacheTtl,
+    };
+    for (policy, key, value) in [
+        (
+            PromptCachePolicy::Implicit {
+                ttl: PromptCacheTtl::ThirtyMinutes,
+            },
+            "prompt_cache_options",
+            json!({"mode":"implicit", "ttl":"30m"}),
+        ),
+        (
+            PromptCachePolicy::Implicit {
+                ttl: PromptCacheTtl::TwelveHours,
+            },
+            "prompt_cache_options",
+            json!({"mode":"implicit", "ttl":"12h"}),
+        ),
+        (
+            PromptCachePolicy::Legacy {
+                retention: PromptCacheRetention::InMemory,
+            },
+            "prompt_cache_retention",
+            json!("in_memory"),
+        ),
+        (
+            PromptCachePolicy::Legacy {
+                retention: PromptCacheRetention::TwentyFourHours,
+            },
+            "prompt_cache_retention",
+            json!("24h"),
+        ),
+    ] {
+        let mut client = test_model_client(SessionSource::Cli);
+        let mut provider = client.state.provider.info().clone();
+        provider.capabilities = Some(ModelProviderCapabilities {
+            prompt_cache: Some(policy),
+            ..Default::default()
+        });
+        Arc::get_mut(&mut client.state).unwrap().provider = create_model_provider(provider, None);
+        let request = client
+            .build_responses_request(
+                &Prompt::default(),
+                &test_model_info(),
+                None,
+                codex_protocol::config_types::ReasoningSummary::None,
+                None,
+                &test_responses_metadata_for_client(
+                    &client,
+                    None,
+                    format!("{}:0", client.state.thread_id),
+                    None,
+                    TestCodexResponsesRequestKind::Turn,
+                ),
+                true,
+            )
+            .unwrap();
+        let http = serde_json::to_value(&request).unwrap();
+        let ws = serde_json::to_value(codex_api::ResponseCreateWsRequest::from(&request)).unwrap();
+        assert_eq!(http.get(key), Some(&value));
+        assert_eq!(ws.get(key), Some(&value));
+        let other = if key == "prompt_cache_options" {
+            "prompt_cache_retention"
+        } else {
+            "prompt_cache_options"
+        };
+        assert!(http.get(other).is_none());
+        assert!(ws.get(other).is_none());
+        let mut no_policy = request.clone();
+        no_policy.prompt_cache_policy = None;
+        assert_eq!(
+            super::responses_request_properties_mismatch(&no_policy, &request),
+            Some("prompt_cache_policy_changed")
+        );
+        assert_eq!(
+            super::responses_request_properties_mismatch(&request, &request),
+            None
+        );
+        let absent_http = serde_json::to_value(&no_policy).unwrap();
+        let absent_ws =
+            serde_json::to_value(codex_api::ResponseCreateWsRequest::from(&no_policy)).unwrap();
+        assert!(absent_http.get(key).is_none());
+        assert!(absent_ws.get(key).is_none());
+    }
 }
 
 #[test]

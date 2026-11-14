@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 pub(crate) mod api_bridge;
@@ -39,6 +40,7 @@ pub use crate::common::AccessPrograms;
 pub use crate::common::MemorySummarizeInput;
 pub use crate::common::MemorySummarizeOutput;
 pub use crate::common::OpenAiVerbosity;
+pub use crate::common::PromptCacheRequestPolicy;
 pub use crate::common::RawMemory;
 pub use crate::common::RawMemoryMetadata;
 pub use crate::common::Reasoning;

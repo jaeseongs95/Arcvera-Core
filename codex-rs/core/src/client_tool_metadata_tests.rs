@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::*;
 use codex_api::ResponseCreateWsRequest;
 use codex_api::ResponsesApiRequest;
@@ -55,6 +56,7 @@ fn request_with_metadata_and_source(
         include: Vec::new(),
         service_tier: None,
         prompt_cache_key: None,
+        prompt_cache_policy: None,
         text: None,
         client_metadata: Some(HashMap::from([("padding".to_string(), "x".to_string())])),
         access_programs: None,

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Builds tool-less risk requests and publishes the first classifier output.
 //! Both transports share request identity, retry, cancellation, and output handling.
 
@@ -244,6 +245,7 @@ impl LunaSampler {
             include: Vec::new(),
             service_tier: None,
             prompt_cache_key: Some(format!("guardian-v2:{}", self.config.thread_id)),
+            prompt_cache_policy: None,
             text: None,
             client_metadata: None,
             access_programs: None,

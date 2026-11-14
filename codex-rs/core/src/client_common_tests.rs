@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use codex_api::OpenAiVerbosity;
 use codex_api::ResponsesApiRequest;
 use codex_api::TextControls;
@@ -124,6 +125,7 @@ fn serializes_text_verbosity_when_set() {
         stream_options: None,
         include: vec![],
         prompt_cache_key: None,
+        prompt_cache_policy: None,
         service_tier: None,
         text: Some(TextControls {
             verbosity: Some(OpenAiVerbosity::Low),
@@ -173,6 +175,7 @@ fn serializes_text_schema_with_strict_format() {
         prompt_cache_key: None,
         service_tier: None,
         text: Some(text_controls),
+        prompt_cache_policy: None,
         client_metadata: None,
         access_programs: None,
     };
@@ -234,6 +237,7 @@ fn omits_text_when_not_set() {
         prompt_cache_key: None,
         service_tier: None,
         text: None,
+        prompt_cache_policy: None,
         client_metadata: None,
         access_programs: None,
     };
@@ -257,6 +261,7 @@ fn serializes_flex_service_tier_when_set() {
         include: vec![],
         prompt_cache_key: None,
         service_tier: Some(ServiceTier::Flex.to_string()),
+        prompt_cache_policy: None,
         text: None,
         client_metadata: None,
         access_programs: None,

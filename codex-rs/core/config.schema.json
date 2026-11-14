@@ -3080,6 +3080,14 @@
           "description": "Whether hosted web search may access the live web.",
           "type": "boolean"
         },
+        "prompt_cache": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/PromptCachePolicy"
+            }
+          ],
+          "description": "Explicit request policy; unset sends no cache retention fields."
+        },
         "remote_compaction": {
           "allOf": [
             {
@@ -4191,6 +4199,63 @@
         }
       },
       "type": "object"
+    },
+    "PromptCachePolicy": {
+      "description": "A provider's explicitly selected Responses request cache policy.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "implicit"
+              ],
+              "type": "string"
+            },
+            "ttl": {
+              "$ref": "#/definitions/PromptCacheTtl"
+            }
+          },
+          "required": [
+            "kind",
+            "ttl"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "legacy"
+              ],
+              "type": "string"
+            },
+            "retention": {
+              "$ref": "#/definitions/PromptCacheRetention"
+            }
+          },
+          "required": [
+            "kind",
+            "retention"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PromptCacheRetention": {
+      "enum": [
+        "in_memory",
+        "24h"
+      ],
+      "type": "string"
+    },
+    "PromptCacheTtl": {
+      "enum": [
+        "30m",
+        "12h"
+      ],
+      "type": "string"
     },
     "ProxySecretSource": {
       "description": "A credential source in the trusted proxy process, never in the executor environment.",

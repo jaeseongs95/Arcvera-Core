@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
@@ -963,6 +964,12 @@ pub fn validate_reserved_model_provider_ids(
                 return provider
                     != &ModelProviderInfo {
                         model_catalog_url: provider.model_catalog_url.clone(),
+                        capabilities: provider.capabilities.map(|capabilities| {
+                            codex_model_provider_info::ModelProviderCapabilities {
+                                prompt_cache: capabilities.prompt_cache,
+                                ..Default::default()
+                            }
+                        }),
                         ..Default::default()
                     };
             }
@@ -1190,6 +1197,44 @@ command = "print-token"
             ),
             (Some("https://vertex.example.com/v1"), Some("print-token"))
         );
+    }
+
+    #[test]
+    fn builtin_openai_cache_policy_is_the_only_new_override() {
+        let provider: ModelProviderInfo =
+            toml::from_str("[capabilities.prompt_cache]\nkind='implicit'\nttl='12h'\n").unwrap();
+        assert!(
+            validate_reserved_model_provider_ids(&HashMap::from([(
+                "openai".to_string(),
+                provider.clone()
+            )]))
+            .is_ok()
+        );
+        for modified in [
+            ModelProviderInfo {
+                base_url: Some("https://other.invalid".into()),
+                ..provider.clone()
+            },
+            ModelProviderInfo {
+                env_key: Some("SECRET".into()),
+                ..provider.clone()
+            },
+            ModelProviderInfo {
+                capabilities: Some(codex_model_provider_info::ModelProviderCapabilities {
+                    cyber_access_programs: Some(true),
+                    ..provider.capabilities.unwrap()
+                }),
+                ..provider.clone()
+            },
+        ] {
+            assert!(
+                validate_reserved_model_provider_ids(&HashMap::from([(
+                    "openai".to_string(),
+                    modified
+                )]))
+                .is_err()
+            );
+        }
     }
 
     #[test]

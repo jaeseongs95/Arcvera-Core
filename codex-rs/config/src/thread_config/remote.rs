@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::num::NonZeroU64;
@@ -5,6 +6,9 @@ use std::time::Duration;
 
 use codex_model_provider_info::ModelProviderCapabilities;
 use codex_model_provider_info::ModelProviderInfo;
+use codex_model_provider_info::PromptCachePolicy;
+use codex_model_provider_info::PromptCacheRetention;
+use codex_model_provider_info::PromptCacheTtl;
 use codex_model_provider_info::WireApi;
 use codex_protocol::config_types::ModelProviderAuthInfo;
 use codex_utils_absolute_path::AbsolutePathBuf;
@@ -197,10 +201,18 @@ fn model_provider_from_proto(
         supports_standalone_web_search: provider.supports_standalone_web_search,
         capabilities: provider
             .capabilities
-            .map(|capabilities| ModelProviderCapabilities {
-                cyber_access_programs: capabilities.cyber_access_programs,
-                ..Default::default()
-            }),
+            .map(|capabilities| {
+                Ok::<_, ThreadConfigLoadError>(ModelProviderCapabilities {
+                    cyber_access_programs: capabilities.cyber_access_programs,
+                    prompt_cache: capabilities
+                        .prompt_cache
+                        .as_deref()
+                        .map(prompt_cache_from_proto)
+                        .transpose()?,
+                    ..Default::default()
+                })
+            })
+            .transpose()?,
         project_id: provider.project_id,
         location: provider.location,
         credential_file: provider.credential_file.map(Into::into),
@@ -254,6 +266,10 @@ fn model_provider_to_proto(
         auth: auth.map(model_provider_auth_to_proto),
         capabilities: capabilities.map(|capabilities| proto::ModelProviderCapabilities {
             cyber_access_programs: capabilities.cyber_access_programs,
+            prompt_cache: capabilities
+                .prompt_cache
+                .map(prompt_cache_to_proto)
+                .map(str::to_owned),
         }),
         wire_api: proto_wire_api(wire_api).into(),
         query_params: query_params.map(proto_string_map),
@@ -268,6 +284,44 @@ fn model_provider_to_proto(
         supports_standalone_web_search,
         project_id,
         location,
+    }
+}
+
+fn prompt_cache_from_proto(value: &str) -> Result<PromptCachePolicy, ThreadConfigLoadError> {
+    match value {
+        "implicit_30m" => Ok(PromptCachePolicy::Implicit {
+            ttl: PromptCacheTtl::ThirtyMinutes,
+        }),
+        "implicit_12h" => Ok(PromptCachePolicy::Implicit {
+            ttl: PromptCacheTtl::TwelveHours,
+        }),
+        "legacy_in_memory" => Ok(PromptCachePolicy::Legacy {
+            retention: PromptCacheRetention::InMemory,
+        }),
+        "legacy_24h" => Ok(PromptCachePolicy::Legacy {
+            retention: PromptCacheRetention::TwentyFourHours,
+        }),
+        _ => Err(parse_error(format!(
+            "remote thread config returned unknown prompt cache policy: {value}"
+        ))),
+    }
+}
+
+#[cfg(test)]
+fn prompt_cache_to_proto(value: PromptCachePolicy) -> &'static str {
+    match value {
+        PromptCachePolicy::Implicit {
+            ttl: PromptCacheTtl::ThirtyMinutes,
+        } => "implicit_30m",
+        PromptCachePolicy::Implicit {
+            ttl: PromptCacheTtl::TwelveHours,
+        } => "implicit_12h",
+        PromptCachePolicy::Legacy {
+            retention: PromptCacheRetention::InMemory,
+        } => "legacy_in_memory",
+        PromptCachePolicy::Legacy {
+            retention: PromptCacheRetention::TwentyFourHours,
+        } => "legacy_24h",
     }
 }
 
@@ -480,6 +534,30 @@ mod tests {
                 cyber_access_programs: Some(true),
                 ..Default::default()
             }),
+            Some(ModelProviderCapabilities {
+                prompt_cache: Some(PromptCachePolicy::Implicit {
+                    ttl: PromptCacheTtl::ThirtyMinutes,
+                }),
+                ..Default::default()
+            }),
+            Some(ModelProviderCapabilities {
+                prompt_cache: Some(PromptCachePolicy::Implicit {
+                    ttl: PromptCacheTtl::TwelveHours,
+                }),
+                ..Default::default()
+            }),
+            Some(ModelProviderCapabilities {
+                prompt_cache: Some(PromptCachePolicy::Legacy {
+                    retention: PromptCacheRetention::InMemory,
+                }),
+                ..Default::default()
+            }),
+            Some(ModelProviderCapabilities {
+                prompt_cache: Some(PromptCachePolicy::Legacy {
+                    retention: PromptCacheRetention::TwentyFourHours,
+                }),
+                ..Default::default()
+            }),
         ] {
             expected.capabilities = capabilities;
             let proto = model_provider_to_proto("local", expected.clone());
@@ -488,6 +566,13 @@ mod tests {
             assert_eq!(id, "local");
             assert_eq!(actual, expected);
         }
+    }
+
+    #[test]
+    fn remote_prompt_cache_unknown_value_rejected() {
+        let mut provider = model_provider_to_proto("local", expected_provider());
+        provider.capabilities.as_mut().unwrap().prompt_cache = Some("unsupported".into());
+        assert!(model_provider_from_proto(provider).is_err());
     }
 
     #[test]
@@ -520,6 +605,7 @@ mod tests {
                             ),
                             capabilities: Some(proto::ModelProviderCapabilities {
                                 cyber_access_programs: Some(true),
+                                prompt_cache: None,
                             }),
                             credential_file: None,
                             env_key: None,

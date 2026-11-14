@@ -2886,6 +2886,8 @@ async fn try_run_sampling_request(
     // Bind cache evidence to the context sent with this request, never the index revision at
     // completion time: tools or other work may have changed the policy while streaming.
     let request_context_index_revision = client_session.bound_context_index_revision();
+    let cache_request_started_at = chrono::Utc::now();
+    let cache_request_policy = client_session.prompt_cache_policy();
     let stream_result = {
         let request = client_session
             .stream(
@@ -3433,9 +3435,11 @@ async fn try_run_sampling_request(
             } => {
                 response_completed = true;
                 request_token_usage = token_usage.clone();
-                sess.record_context_cache_metadata(
+                sess.record_context_cache_response(
                     usage_metadata.as_ref(),
                     request_context_index_revision,
+                    cache_request_policy,
+                    cache_request_started_at,
                 )
                 .await;
                 sess.services
