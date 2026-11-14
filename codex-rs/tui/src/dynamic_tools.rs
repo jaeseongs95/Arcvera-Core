@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Task-management tools hosted by a TUI connected to an external app server.
 
@@ -65,7 +66,6 @@ use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use serde_json::json;
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::time::Duration;
 use tokio::sync::broadcast;
@@ -339,12 +339,7 @@ async fn execute_inner(
     mut status_updates: broadcast::Receiver<ThreadStatusChangedNotification>,
     app_event_tx: Option<&AppEventSender>,
 ) -> Result<Value, String> {
-    let mcp_config = thread_start_params.config.as_ref().and_then(|overrides| {
-        let key = format!("mcp_servers.{NAMESPACE}");
-        overrides
-            .get(&key)
-            .map(|server| HashMap::from([(key, server.clone())]))
-    });
+    let mcp_config = thread_start_params.runtime_mcp_servers.clone();
     match params.tool.as_str() {
         "list_threads" | "list_archived_threads" => {
             let arguments: ListArguments = parse_arguments(params.arguments)?;
@@ -574,7 +569,13 @@ async fn execute_inner(
                 .map_err(|error| error.to_string())?;
             let thread_id = started.thread.id.clone();
             let daybreak_enabled = started.thread.daybreak_enabled.unwrap_or(false);
-            register_background_thread(app_event_tx, started.thread, task_tools_available).await?;
+            register_background_thread(
+                app_event_tx,
+                started.thread,
+                task_tools_available,
+                started.runtime_mcp_registration_id,
+            )
+            .await?;
             let cyber_access_program = background_turn_program(
                 &features,
                 &handle,
@@ -621,6 +622,7 @@ async fn execute_inner(
                 app_event_tx,
                 thread.clone(),
                 /*task_tools_available*/ false,
+                /*runtime_mcp_registration_id*/ None,
             )
             .await?;
             let before_turn_id = if same_thread_id(&thread_id, &params.thread_id) {
@@ -676,17 +678,23 @@ async fn execute_inner(
                         before_turn_id: before_turn_id.clone(),
                         ephemeral: thread.ephemeral,
                         exclude_turns,
-                        config: mcp_config.clone(),
+                        runtime_mcp_servers: mcp_config.clone(),
                         ..ThreadForkParams::default()
                     },
                 },
             )
             .await?;
             let forked_thread_id = response.thread.id.clone();
+            if mcp_config.is_some() && response.runtime_mcp_servers_applied != Some(true) {
+                return Err(format!(
+                    "대화 {forked_thread_id}는 분기됐지만 연결 한정 MCP 등록을 확인하지 못했습니다. 자동으로 다시 분기하거나 입력을 보내지 않습니다."
+                ));
+            }
             register_background_thread(
                 app_event_tx,
                 response.thread,
                 /*task_tools_available*/ false,
+                response.runtime_mcp_registration_id,
             )
             .await?;
             Ok(json!({
@@ -714,17 +722,24 @@ async fn execute_inner(
                     params: ThreadResumeParams {
                         thread_id: arguments.thread_id.clone(),
                         exclude_turns,
-                        config: mcp_config.clone(),
+                        runtime_mcp_servers: mcp_config.clone(),
                         ..ThreadResumeParams::default()
                     },
                 },
             )
             .await?;
             let daybreak_enabled = thread.daybreak_enabled.unwrap_or(false);
+            if mcp_config.is_some() && resumed.runtime_mcp_servers_applied != Some(true) {
+                return Err(format!(
+                    "대화 {}에 연결됐지만 연결 한정 MCP 등록을 확인하지 못했습니다. 입력을 보내지 않았습니다.",
+                    arguments.thread_id
+                ));
+            }
             register_background_thread(
                 app_event_tx,
                 resumed.thread,
                 /*task_tools_available*/ false,
+                resumed.runtime_mcp_registration_id,
             )
             .await?;
             let cyber_access_program = background_turn_program(
@@ -1178,6 +1193,7 @@ async fn register_background_thread(
     app_event_tx: Option<&AppEventSender>,
     mut thread: Thread,
     task_tools_available: bool,
+    runtime_mcp_registration_id: Option<String>,
 ) -> Result<(), String> {
     if let Some(app_event_tx) = app_event_tx {
         thread.turns.clear();
@@ -1185,6 +1201,7 @@ async fn register_background_thread(
         app_event_tx.send(AppEvent::DynamicToolThreadStarted {
             thread,
             task_tools_available,
+            runtime_mcp_registration_id,
             registered,
         });
         registration

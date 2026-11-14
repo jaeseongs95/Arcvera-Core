@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::mcp_refresh::McpRefreshInvalidationGuard;
 use super::*;
 use crate::environment_selection::TurnEnvironmentSnapshot;
@@ -187,6 +188,14 @@ impl Session {
     /// Publishes changed MCP state, waiting for any refresh already in progress.
     #[tracing::instrument(name = "mcp.runtime.refresh_if_dirty", skip_all)]
     pub(crate) async fn refresh_mcp_if_dirty(self: &Arc<Self>) {
+        if self
+            .services
+            .thread_extension_data
+            .get::<crate::mcp::RuntimeMcpServers>()
+            .is_some_and(|overlay| overlay.observe_disconnect())
+        {
+            self.mark_mcp_runtime_dirty();
+        }
         let Ok(_refresh) = self.mcp_refresh.acquire().await else {
             error!("MCP runtime refresh semaphore closed");
             return;

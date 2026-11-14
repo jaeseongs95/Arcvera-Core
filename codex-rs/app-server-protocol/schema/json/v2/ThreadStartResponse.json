@@ -3200,6 +3200,20 @@
         }
       ]
     },
+    "runtimeMcpRegistrationId": {
+      "description": "Opaque, non-secret registration identity; an ACK alone does not mean ready.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "runtimeMcpServersApplied": {
+      "description": "Explicit registration ACK; missing on servers without runtime MCP support.",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "sandbox": {
       "allOf": [
         {

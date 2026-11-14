@@ -11,6 +11,10 @@ import type { McpServerConnectionStatus } from "./McpServerConnectionStatus";
 
 export type McpServerStatus = { name: string,
 /**
+ * Non-secret identity of the matching live connection-owned published registration.
+ */
+runtimeRegistrationId?: string,
+/**
  * Current thread-runtime connection state; null when unavailable or the configuration changed.
  */
 runtimeStatus: McpServerConnectionStatus | null, pluginId: string | null,

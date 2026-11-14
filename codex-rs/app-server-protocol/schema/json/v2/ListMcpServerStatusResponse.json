@@ -97,6 +97,13 @@
           },
           "type": "array"
         },
+        "runtimeRegistrationId": {
+          "description": "Non-secret identity of the matching live connection-owned published registration.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "runtimeStatus": {
           "anyOf": [
             {

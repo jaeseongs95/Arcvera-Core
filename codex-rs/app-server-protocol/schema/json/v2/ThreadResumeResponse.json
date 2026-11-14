@@ -3312,6 +3312,29 @@
         "null"
       ]
     },
+    "runtimeMcpGeneration": {
+      "description": "Server-issued pending identity; false applied means queued, not ready.",
+      "format": "uint64",
+      "minimum": 0.0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "runtimeMcpRegistrationId": {
+      "description": "Stable across retries of one registration; compare with connected status identity.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "runtimeMcpServersApplied": {
+      "description": "Explicit MCP registration ACK, independent of native runtime-tool support.",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "sandbox": {
       "allOf": [
         {

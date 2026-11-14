@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Approval-gated MCP transport for task tools owned by a local TUI.
 
@@ -68,7 +69,7 @@ impl ThreadToolTransport {
     ) {
         params.runtime_dynamic_tools = Some(crate::cron_tools::specs());
         params.previous_runtime_dynamic_tools = crate::cron_tools::previous_specs();
-        self.configure_mcp(&mut params.config);
+        self.configure_runtime_mcp(&mut params.runtime_mcp_servers);
     }
 
     pub(crate) fn validate_config(
@@ -96,11 +97,20 @@ impl ThreadToolTransport {
             }
             Self::Mcp(_) => {
                 params.dynamic_tools = None;
-                self.configure_mcp(&mut params.config);
+                self.configure_runtime_mcp(&mut params.runtime_mcp_servers);
             }
         }
     }
 
+    pub(crate) fn configure_runtime_mcp(&self, config: &mut Option<HashMap<String, Value>>) {
+        if let Self::Mcp(server) = self {
+            config
+                .get_or_insert_default()
+                .insert(dynamic_tools::NAMESPACE.to_string(), server.config.clone());
+        }
+    }
+
+    #[cfg(test)]
     pub(crate) fn configure_mcp(&self, config: &mut Option<HashMap<String, Value>>) {
         if let Self::Mcp(server) = self {
             config.get_or_insert_default().insert(
@@ -128,6 +138,87 @@ pub(crate) struct DynamicToolMcpServer {
 }
 
 impl DynamicToolMcpServer {
+    /// Registration only schedules the MCP binding; mark it available only after
+    /// the current thread reports a connected matching endpoint and tool catalog.
+    pub(crate) fn watch_task_tools_ready(
+        self: &Arc<Self>,
+        handle: AppServerRequestHandle,
+        thread_id: codex_protocol::ThreadId,
+        registration_id: String,
+        registration: tokio_util::sync::CancellationToken,
+    ) {
+        let Some(origin) = self
+            .config
+            .get("url")
+            .and_then(Value::as_str)
+            .and_then(|value| url::Url::parse(value).ok())
+            .map(|url| url.origin().ascii_serialization())
+        else {
+            return;
+        };
+        let server = Arc::clone(self);
+        tokio::spawn(async move {
+            let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+            loop {
+                let request = handle
+                    .request_typed::<codex_app_server_protocol::ListMcpServerStatusResponse>(
+                    codex_app_server_protocol::ClientRequest::McpServerStatusList {
+                        request_id: codex_app_server_protocol::RequestId::String(
+                            Uuid::new_v4().to_string(),
+                        ),
+                        params: codex_app_server_protocol::ListMcpServerStatusParams {
+                            cursor: None,
+                            limit: Some(1),
+                            detail: Some(
+                                codex_app_server_protocol::McpServerStatusDetail::ToolsAndAuthOnly,
+                            ),
+                            thread_id: Some(thread_id.to_string()),
+                            server_name: Some(dynamic_tools::NAMESPACE.to_string()),
+                        },
+                    },
+                );
+                let result = tokio::select! {
+                    _ = registration.cancelled() => return,
+                    result = tokio::time::timeout_at(deadline, request) => result,
+                };
+                if let Ok(Ok(response)) = result
+                    && response.data.iter().any(|entry| {
+                        entry.name == dynamic_tools::NAMESPACE
+                            && entry.runtime_status
+                                == Some(
+                                    codex_app_server_protocol::McpServerConnectionStatus::Connected,
+                                )
+                            && entry.runtime_registration_id.as_deref()
+                                == Some(registration_id.as_str())
+                            && entry.http_origin.as_deref() == Some(origin.as_str())
+                            && entry.tools_error.is_none()
+                            && entry.tools.contains_key("list_threads")
+                    })
+                    && !registration.is_cancelled()
+                {
+                    server.notify_task_tools_available(thread_id);
+                    return;
+                }
+                if tokio::time::Instant::now() >= deadline {
+                    return;
+                }
+                tokio::select! {
+                    _ = registration.cancelled() => return,
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(200)) => {}
+                }
+            }
+        });
+    }
+    pub(crate) fn notify_task_tools_available(&self, thread_id: codex_protocol::ThreadId) {
+        if let Some((_, events, _)) = self
+            .connection
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_ref()
+        {
+            events.send(crate::app_event::AppEvent::TaskToolsAvailable { thread_id });
+        }
+    }
     pub(crate) fn suspend(&self) {
         let mut connection = self
             .connection
@@ -386,10 +477,13 @@ impl ServerHandler for DynamicToolMcpHandler {
             arguments: Value::Object(request.arguments.unwrap_or_default()),
         };
         let mut thread_start_params = self.thread_start_params.clone();
-        thread_start_params.config.get_or_insert_default().insert(
-            format!("mcp_servers.{}", dynamic_tools::NAMESPACE),
-            self.server_config.clone(),
-        );
+        thread_start_params
+            .runtime_mcp_servers
+            .get_or_insert_default()
+            .insert(
+                dynamic_tools::NAMESPACE.to_string(),
+                self.server_config.clone(),
+            );
         // Snapshot once: an in-flight call must never switch connections or replay a mutation.
         let (request_handle, app_event_tx, cron) = self
             .connection

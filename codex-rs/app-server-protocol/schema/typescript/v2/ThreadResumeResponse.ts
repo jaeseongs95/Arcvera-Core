@@ -11,6 +11,15 @@ import type { SandboxPolicy } from "./SandboxPolicy";
 import type { Thread } from "./Thread";
 
 export type ThreadResumeResponse = {/**
+ * Explicit MCP registration ACK, independent of native runtime-tool support.
+ */
+runtimeMcpServersApplied?: boolean, /**
+ * Stable across retries of one registration; compare with connected status identity.
+ */
+runtimeMcpRegistrationId?: string, /**
+ * Server-issued pending identity; false applied means queued, not ready.
+ */
+runtimeMcpGeneration?: bigint, /**
  * True only after runtime publication; false means busy with no change.
  * Null when no supplement was requested; missing fields from older servers are accepted.
  */

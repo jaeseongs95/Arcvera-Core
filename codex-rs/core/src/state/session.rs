@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Session-wide mutable state.
@@ -77,12 +78,25 @@ pub(crate) struct RuntimeDynamicTools {
     pub(crate) keys: Vec<(Option<String>, String)>,
 }
 
+/// One queued connection-owned registration; payload is never persisted.
+pub(crate) struct PendingRuntimeTools {
+    pub(crate) generation: u64,
+    pub(crate) registration_id: String,
+    pub(crate) owner: u64,
+    pub(crate) disconnected: CancellationToken,
+    pub(crate) tools: Option<Vec<DynamicToolSpec>>,
+    pub(crate) previous: Vec<DynamicToolSpec>,
+    pub(crate) servers: std::collections::HashMap<String, codex_config::McpServerConfig>,
+}
+
 /// Persistent, session-scoped state previously stored directly on `Session`.
 pub(crate) struct SessionState {
     pub(crate) session_configuration: SessionConfiguration,
     /// Catalog to carry across compaction, independent of an explicit resume override.
     pub(crate) persisted_dynamic_tools: Arc<[DynamicToolSpec]>,
     pub(crate) runtime_dynamic_tools: Option<RuntimeDynamicTools>,
+    pub(crate) pending_runtime_tools: Option<PendingRuntimeTools>,
+    pub(crate) runtime_registration_generation: u64,
     /// Plugin selection of the last admitted task; settings updates take effect on the next task.
     pub(crate) active_disabled_plugin_ids: Vec<String>,
     /// Persisted origin of the session base instructions, when known.
@@ -92,6 +106,8 @@ pub(crate) struct SessionState {
     pub(crate) context_index_error: Option<String>,
     /// Latest completed sampling response only; never persisted or used to evict context.
     pub(crate) latest_context_cache: Option<crate::session::context_cache::ContextCacheObservation>,
+    pub(crate) latest_context_request_sizes:
+        Option<crate::session::context_composition::ContextRequestSizes>,
     /// Cancels work bound to discarded history or a superseded Guardian evidence policy.
     pub(crate) history_reset: CancellationToken,
     pub(crate) latest_rate_limits: Option<RateLimitSnapshot>,
@@ -160,6 +176,8 @@ impl SessionState {
             active_disabled_plugin_ids: Vec::new(),
             persisted_dynamic_tools: Arc::clone(&session_configuration.dynamic_tools),
             runtime_dynamic_tools: None,
+            pending_runtime_tools: None,
+            runtime_registration_generation: 0,
             session_configuration,
             base_instructions_provenance: None,
             history,
@@ -177,6 +195,7 @@ impl SessionState {
             shutting_down: false,
             context_index_error: None,
             latest_context_cache: None,
+            latest_context_request_sizes: None,
             startup_prewarm: None,
             shell_snapshot_prewarm: None,
             current_time_reminder: CurrentTimeReminderState::default(),

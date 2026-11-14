@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::*;
 use base64::Engine;
 use codex_protocol::mcp::CallToolResult;
@@ -24,6 +25,7 @@ fn mcp_inventory_connection_states() {
     ]
     .into_iter()
     .map(|(name, runtime_status)| McpServerStatus {
+        runtime_registration_id: None,
         server_capabilities: None,
         tool_list_meta: None,
         name: name.to_string(),

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! App-server session facade used by the TUI event loop.
 //!
@@ -252,7 +253,7 @@ pub(crate) async fn request_thread_start_with_history_fallback(
     let mut history_support = ThreadHistorySupport::Paginated;
     loop {
         match request_handle
-            .request_typed(ClientRequest::ThreadStart {
+            .request_typed::<ThreadStartResponse>(ClientRequest::ThreadStart {
                 request_id,
                 params: params.clone(),
             })
@@ -272,10 +273,25 @@ pub(crate) async fn request_thread_start_with_history_fallback(
                             !crate::cron_tools::is_owned_tool(&function.name)
                         }
                     })
-                }) || params
-                    .config
-                    .as_ref()
-                    .is_some_and(|config| config.contains_key("mcp_servers.codex_tui"));
+                });
+                if params.runtime_mcp_servers.is_some()
+                    && (response.runtime_mcp_servers_applied != Some(true)
+                        || response
+                            .runtime_mcp_registration_id
+                            .as_deref()
+                            .is_none_or(str::is_empty))
+                {
+                    return Err(TypedRequestError::Transport {
+                        method: "thread/start".into(),
+                        source: std::io::Error::new(
+                            std::io::ErrorKind::Unsupported,
+                            format!(
+                                "대화 {}는 생성됐지만 서버가 연결 한정 MCP 등록을 확인하지 않았습니다. 자동으로 다시 생성하지 않습니다.",
+                                response.thread.id
+                            ),
+                        ),
+                    });
+                }
                 return Ok((response, history_support, task_tools_available));
             }
             Err(TypedRequestError::Server { source, .. })
@@ -346,7 +362,9 @@ pub(crate) struct AppServerSession {
     connection_live: Arc<std::sync::atomic::AtomicBool>,
     runtime_tool_registration_generation: u64,
     runtime_tool_registration_lifetime: tokio_util::sync::CancellationToken,
-    pending_runtime_tool_resume: Mutex<Option<(u64, uuid::Uuid, ThreadResumeParams)>>,
+    runtime_tool_retry_inflight: Arc<std::sync::atomic::AtomicBool>,
+    pending_runtime_tool_resume:
+        Arc<Mutex<Option<(u64, uuid::Uuid, ThreadResumeParams, Option<String>)>>>,
     pending_compact: Option<(
         ThreadId,
         String,
@@ -535,7 +553,8 @@ impl AppServerSession {
             connection_live: Arc::new(std::sync::atomic::AtomicBool::new(true)),
             runtime_tool_registration_generation: 0,
             runtime_tool_registration_lifetime: tokio_util::sync::CancellationToken::new(),
-            pending_runtime_tool_resume: Mutex::new(None),
+            runtime_tool_retry_inflight: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            pending_runtime_tool_resume: Arc::new(Mutex::new(None)),
             pending_compact: None,
             connection_owner,
             request_handle,
@@ -757,6 +776,8 @@ impl AppServerSession {
         self.task_tool_threads.extend(&previous.task_tool_threads);
     }
 
+    /// Historical task-reference capability used by mention UI; not a live MCP
+    /// binding, connection status, authorization decision, or readiness receipt.
     pub(crate) fn task_tools_available(&self, thread_id: ThreadId) -> bool {
         self.task_tool_threads.contains(&thread_id)
             || self
@@ -1179,6 +1200,7 @@ impl AppServerSession {
             self.thread_tool_transport().configure(&mut params);
         }
         let request_handle = self.request_handle();
+        let runtime_mcp_requested = params.runtime_mcp_servers.is_some();
         let (response, history_support, task_tools_available) =
             request_thread_start_with_history_fallback(&request_handle, request_id, params)
                 .await
@@ -1188,6 +1210,7 @@ impl AppServerSession {
         if history_support == ThreadHistorySupport::LegacyOnly {
             self.history_support = ThreadHistorySupport::LegacyOnly;
         }
+        let runtime_mcp_registration_id = response.runtime_mcp_registration_id.clone();
         // An explicit server selection must not reuse the client's local display policy.
         let selected_permissions = selected_profile.map(|_| {
             PermissionProfile::from_legacy_sandbox_policy_for_cwd(
@@ -1208,6 +1231,11 @@ impl AppServerSession {
         started.task_tools_available = task_tools_available;
         if task_tools_available {
             self.remember_task_tool_thread(started.session.thread_id);
+        }
+        if runtime_mcp_requested {
+            if let Some(id) = runtime_mcp_registration_id {
+                self.watch_runtime_mcp_ready(started.session.thread_id, id);
+            }
         }
         Ok(started)
     }
@@ -1383,7 +1411,8 @@ impl AppServerSession {
             remove_permission_config_overrides(&mut params.config);
         }
         self.thread_tool_transport()
-            .configure_mcp(&mut params.config);
+            .configure_runtime_mcp(&mut params.runtime_mcp_servers);
+        let runtime_mcp_requested = params.runtime_mcp_servers.is_some();
         let response: ThreadForkResponse = match self
             .request_handle
             .request_typed(ClientRequest::ThreadFork {
@@ -1413,6 +1442,19 @@ impl AppServerSession {
                 ));
             }
         };
+        if runtime_mcp_requested
+            && (response.runtime_mcp_servers_applied != Some(true)
+                || response
+                    .runtime_mcp_registration_id
+                    .as_deref()
+                    .is_none_or(str::is_empty))
+        {
+            color_eyre::eyre::bail!(
+                "대화 {}는 분기됐지만 서버가 연결 한정 MCP 등록을 확인하지 않았습니다. 자동으로 다시 분기하지 않습니다.",
+                response.thread.id
+            );
+        }
+        let runtime_mcp_registration_id = response.runtime_mcp_registration_id.clone();
         let mut response = response;
         if presentation == ForkPresentation::Regular
             && !response.thread.ephemeral
@@ -1454,9 +1496,14 @@ impl AppServerSession {
             started.session.daybreak_enabled = false;
         }
         started.session.fork_parent_title = fork_parent.and_then(|thread| thread.name);
-        if self.task_tools_available(thread_id) {
+        if !runtime_mcp_requested && self.task_tools_available(thread_id) {
             started.task_tools_available = true;
             self.remember_task_tool_thread(started.session.thread_id);
+        }
+        if runtime_mcp_requested {
+            if let Some(id) = runtime_mcp_registration_id {
+                self.watch_runtime_mcp_ready(started.session.thread_id, id);
+            }
         }
         Ok(started)
     }
@@ -2280,6 +2327,17 @@ impl AppServerSession {
         self.request_handle.clone()
     }
 
+    pub(crate) fn watch_runtime_mcp_ready(&self, thread_id: ThreadId, registration_id: String) {
+        if let Some(server) = &self.dynamic_tool_mcp {
+            server.watch_task_tools_ready(
+                self.request_handle(),
+                thread_id,
+                registration_id,
+                self.runtime_tool_registration_lifetime.clone(),
+            );
+        }
+    }
+
     pub(crate) fn next_request_id(&mut self) -> RequestId {
         let request_id = self.next_request_id;
         self.next_request_id += 1;
@@ -2314,16 +2372,29 @@ pub(crate) async fn start_thread_with_request_handle(
         params.daybreak_enabled = (config.daybreak_enabled && !config.ephemeral).then_some(true);
         thread_tool_transport.configure(&mut params);
     }
+    let runtime_mcp_requested = params.runtime_mcp_servers.is_some();
     let (response, _history_support, task_tools_available) =
         request_thread_start_with_history_fallback(&request_handle, request_id, params)
             .await
             .map_err(|err| {
                 bootstrap_request_error("thread/start failed during TUI bootstrap", err)
             })?;
+    let runtime_mcp_registration_id = response.runtime_mcp_registration_id.clone();
     let mut started =
         started_thread_from_start_response(response, local_settings, &config, thread_params_mode)
             .await?;
     started.task_tools_available = task_tools_available;
+    if runtime_mcp_requested
+        && let ThreadToolTransport::Mcp(server) = &thread_tool_transport
+        && let Some(id) = runtime_mcp_registration_id
+    {
+        server.watch_task_tools_ready(
+            request_handle,
+            started.session.thread_id,
+            id,
+            tokio_util::sync::CancellationToken::new(),
+        );
+    }
     Ok(started)
 }
 
@@ -2702,6 +2773,7 @@ fn thread_start_params_with_reviewer(
         })
         .flatten();
     ThreadStartParams {
+        runtime_mcp_servers: None,
         model: config.model.clone(),
         model_provider: provider_selection::explicit_provider(config),
         service_tier: service_tier_override_from_config(config),
@@ -3440,6 +3512,7 @@ mod tests {
                 previous_runtime_dynamic_tools: crate::cron_tools::previous_specs(),
                 ..Default::default()
             },
+            None,
         ));
         let thread_text = thread.to_string();
         let (_, params) = tokio::join!(
@@ -3481,6 +3554,21 @@ mod tests {
             params, expected,
             "no model, permissions, history, MCP config, or user input overrides"
         );
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if session
+                    .pending_runtime_tool_resume
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .is_none()
+                {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("rejected retry clears pending state");
         session
             .retry_runtime_tools_on_idle(
                 &thread.to_string(),
@@ -3496,6 +3584,53 @@ mod tests {
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .is_none()
         );
+    }
+
+    #[tokio::test]
+    async fn invalidating_queued_mcp_sends_exact_runtime_and_generation_cancel() {
+        let (client, mut commands, _events) = codex_app_server_client::CloudClient::channel(1);
+        let mut session = AppServerSession::new(
+            crate::backend_id::BackendId::new(),
+            AppServerClient::Cloud(client),
+            ThreadParamsMode::Remote,
+        );
+        let thread = ThreadId::new();
+        let runtime = uuid::Uuid::new_v4().to_string();
+        *session
+            .pending_runtime_tool_resume
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((
+            session.runtime_tool_registration_generation,
+            session.connection_id,
+            ThreadResumeParams {
+                thread_id: thread.to_string(),
+                exclude_turns: true,
+                runtime_tools_only: true,
+                expected_runtime_id: Some(runtime.clone()),
+                runtime_mcp_generation: Some(19),
+                ..Default::default()
+            },
+            Some("synthetic-registration".into()),
+        ));
+        session.invalidate_runtime_tool_registration().await;
+        let command = tokio::time::timeout(std::time::Duration::from_secs(3), commands.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let codex_app_server_client::CloudOperation::Request(request) = command.operation else {
+            panic!("expected cancel request")
+        };
+        let ClientRequest::ThreadResume { params, .. } = *request else {
+            panic!("unexpected request")
+        };
+        assert_eq!(params.thread_id, thread.to_string());
+        assert_eq!(
+            params.expected_runtime_id.as_deref(),
+            Some(runtime.as_str())
+        );
+        assert_eq!(params.runtime_mcp_generation, Some(19));
+        assert!(params.runtime_mcp_cancel && params.runtime_tools_only && params.exclude_turns);
+        assert!(params.runtime_mcp_servers.is_none() && params.runtime_dynamic_tools.is_none());
     }
 
     #[tokio::test]
@@ -3560,6 +3695,7 @@ mod tests {
                     exclude_turns: true,
                     ..Default::default()
                 },
+                None,
             ));
             if case == "disconnected" {
                 session
@@ -5343,6 +5479,9 @@ mod tests {
         let forked_from_id = ThreadId::new();
         let read_only_profile = PermissionProfile::read_only();
         let response = ThreadResumeResponse {
+            runtime_mcp_servers_applied: None,
+            runtime_mcp_registration_id: None,
+            runtime_mcp_generation: None,
             runtime_dynamic_tools_applied: None,
             runtime_dynamic_tools_runtime_id: None,
             supports_compact_if_idle: None,

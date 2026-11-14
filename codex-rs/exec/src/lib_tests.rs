@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::*;
 use codex_app_server_protocol::AuthRecoveryNotification;
 use codex_app_server_protocol::ThreadItem;
@@ -861,6 +862,8 @@ async fn session_configured_from_thread_response_preserves_parent_thread_id() {
 
 fn sample_thread_start_response() -> ThreadStartResponse {
     ThreadStartResponse {
+        runtime_mcp_servers_applied: None,
+        runtime_mcp_registration_id: None,
         disabled_plugin_ids: Vec::new(),
         thread: codex_app_server_protocol::Thread {
             originator: None,

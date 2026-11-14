@@ -1,6 +1,10 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
+
+mod runtime_tools;
+pub use runtime_tools::RuntimeMcpServers;
 
 use crate::config::Config;
 use crate::mcp_tool_exposure::SharedMcpDefinitions;
@@ -190,6 +194,18 @@ impl McpManager {
         executor_capability_discovery: Option<&ExecutorCapabilityDiscoverySnapshot>,
         executor_capability_discovery_v2: Option<&[ExecutorCapabilityDiscoveryV2Snapshot]>,
     ) -> McpRuntimeProjection {
+        let overlay = thread_store.get::<RuntimeMcpServers>();
+        let projected = overlay.as_ref().and_then(|overlay| {
+            if overlay.disconnected.is_cancelled() { return None; }
+            match overlay.project(config) {
+                Ok(projected) => Some(projected),
+                Err(reason) => {
+                    tracing::warn!(%reason, "runtime MCP registration excluded after configuration change");
+                    None
+                }
+            }
+        });
+        let config = projected.as_ref().unwrap_or(config);
         let mut context = McpServerContributionContext::for_step(
             config,
             thread_init,
@@ -204,13 +220,36 @@ impl McpManager {
         if let McpEnvironmentScope::Selected(environments) = &identity.environments {
             context = context.with_selected_environments(environments);
         }
-        self.runtime_config_with_context(
-            context,
-            Some(identity.originator),
-            identity.environments,
-            identity.disabled_plugin_ids,
-        )
-        .await
+        let mut result = self
+            .runtime_config_with_context(
+                context,
+                Some(identity.originator),
+                identity.environments,
+                identity.disabled_plugin_ids,
+            )
+            .await;
+        if projected.is_some()
+            && let Some(overlay) = overlay.as_ref()
+            && !overlay.disconnected.is_cancelled()
+        {
+            for (name, expected) in overlay.servers() {
+                if result
+                    .config
+                    .mcp_server_catalog
+                    .server(name)
+                    .is_some_and(|actual| {
+                        matches!(actual.source(), codex_mcp::McpServerSource::Config)
+                            && actual.config() == expected
+                    })
+                {
+                    result
+                        .config
+                        .runtime_registration_ids
+                        .insert(name.clone(), overlay.registration_id().to_owned());
+                }
+            }
+        }
+        result
     }
 
     /// Resolves only plugins from this step's ready roots, independent of shared MCP refresh.

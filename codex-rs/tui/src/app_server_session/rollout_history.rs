@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Resume and read-only history loading across rollout formats.
 
@@ -29,16 +30,50 @@ use color_eyre::eyre::Result;
 // Bound recovery to recent messages when item paging is unavailable.
 const READ_ONLY_HISTORY_TURN_LIMIT: u32 = 100;
 
+fn cancel_queued_mcp(
+    client: codex_app_server_client::AppServerRequestHandle,
+    params: codex_app_server_protocol::ThreadResumeParams,
+) {
+    if let (Some(generation), Some(runtime_id)) =
+        (params.runtime_mcp_generation, params.expected_runtime_id)
+    {
+        tokio::spawn(async move {
+            let _ = tokio::time::timeout(
+                std::time::Duration::from_secs(3),
+                client.request_typed::<ThreadResumeResponse>(ClientRequest::ThreadResume {
+                    request_id: codex_app_server_protocol::RequestId::String(
+                        uuid::Uuid::new_v4().to_string(),
+                    ),
+                    params: codex_app_server_protocol::ThreadResumeParams {
+                        thread_id: params.thread_id,
+                        exclude_turns: true,
+                        runtime_tools_only: true,
+                        expected_runtime_id: Some(runtime_id),
+                        runtime_mcp_generation: Some(generation),
+                        runtime_mcp_cancel: true,
+                        ..Default::default()
+                    },
+                }),
+            )
+            .await;
+        });
+    }
+}
+
 impl AppServerSession {
     pub(crate) async fn invalidate_runtime_tool_registration(&mut self) {
         self.runtime_tool_registration_generation =
             self.runtime_tool_registration_generation.wrapping_add(1);
         self.runtime_tool_registration_lifetime.cancel();
         self.runtime_tool_registration_lifetime = tokio_util::sync::CancellationToken::new();
-        *self
+        let pending = self
             .pending_runtime_tool_resume
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        if let Some((_, _, params, _)) = pending {
+            cancel_queued_mcp(self.request_handle(), params);
+        }
     }
     #[cfg(test)]
     pub(crate) async fn remember_runtime_tools_busy_for_test(&self, thread: ThreadId) {
@@ -57,6 +92,7 @@ impl AppServerSession {
                 previous_runtime_dynamic_tools: crate::cron_tools::previous_specs(),
                 ..Default::default()
             },
+            None,
         ));
     }
 
@@ -72,7 +108,7 @@ impl AppServerSession {
             .pending_runtime_tool_resume
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let Some((generation, connection, params)) = pending.as_ref() else {
+        let Some((generation, connection, params, _)) = pending.as_ref() else {
             return;
         };
         if params.thread_id != idle_thread {
@@ -85,25 +121,87 @@ impl AppServerSession {
                 .connection_live
                 .load(std::sync::atomic::Ordering::Acquire)
         {
-            *pending = None;
+            let stale = pending.take().map(|(_, _, params, _)| params);
+            drop(pending);
+            if let Some(params) = stale {
+                cancel_queued_mcp(self.request_handle(), params);
+            }
             return;
         }
-        let (_, _, params) = pending.take().expect("checked pending runtime supplement");
+        let (generation, connection, params, expected_registration_id) = pending
+            .as_ref()
+            .expect("checked pending runtime supplement")
+            .clone();
         drop(pending);
         let Some(selection) = selection else {
+            let mut pending = self
+                .pending_runtime_tool_resume
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if pending
+                .as_ref()
+                .is_some_and(|(g, c, _, _)| *g == generation && *c == connection)
+            {
+                *pending = None;
+            }
+            drop(pending);
+            cancel_queued_mcp(self.request_handle(), params);
             return;
         };
+        if self
+            .runtime_tool_retry_inflight
+            .compare_exchange(
+                false,
+                true,
+                std::sync::atomic::Ordering::AcqRel,
+                std::sync::atomic::Ordering::Acquire,
+            )
+            .is_err()
+        {
+            return;
+        }
         let client = self.request_handle();
         let connection_live = self.connection_live.clone();
         let registration = self.runtime_tool_registration_lifetime.clone();
+        let mcp = self.dynamic_tool_mcp.clone();
+        let pending_slot = self.pending_runtime_tool_resume.clone();
+        let inflight = self.runtime_tool_retry_inflight.clone();
         tokio::spawn(async move {
+            struct Reset(std::sync::Arc<std::sync::atomic::AtomicBool>);
+            impl Drop for Reset {
+                fn drop(&mut self) {
+                    self.0.store(false, std::sync::atomic::Ordering::Release);
+                }
+            }
+            let _reset = Reset(inflight);
             if registration.is_cancelled()
                 || selection.is_cancelled()
                 || !connection_live.load(std::sync::atomic::Ordering::Acquire)
             {
+                let mut pending = pending_slot
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let stale = if pending
+                    .as_ref()
+                    .is_some_and(|(g, c, _, _)| *g == generation && *c == connection)
+                {
+                    pending.take().map(|(_, _, params, _)| params)
+                } else {
+                    None
+                };
+                drop(pending);
+                if let Some(params) = stale {
+                    cancel_queued_mcp(client.clone(), params);
+                }
                 return;
             }
-            // No retry on timeout, response loss, unsupported server, or a second busy result.
+            // Only a fresh idle notification retries an explicit queued result;
+            // timeout, response loss, and unsupported servers are not retried.
+            let expected_runtime_id = params.expected_runtime_id.clone();
+            let expected_mcp_generation = params.runtime_mcp_generation;
+            let cancellation_params = params.clone();
+            let registration_thread_id = ThreadId::from_string(&params.thread_id).ok();
+            let require_mcp = params.runtime_mcp_servers.is_some();
             let request = tokio::time::timeout(
                 std::time::Duration::from_secs(3),
                 client.request_typed::<ThreadResumeResponse>(ClientRequest::ThreadResume {
@@ -116,11 +214,51 @@ impl AppServerSession {
             let result = tokio::select! {
                 biased;
                 _ = registration.cancelled() => return,
-                _ = selection.cancelled() => return,
+                _ = selection.cancelled() => {
+                    let mut pending = pending_slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                    if pending.as_ref().is_some_and(|(g, c, p, _)| *g == generation && *c == connection && p.runtime_mcp_generation == expected_mcp_generation) { *pending = None; }
+                    drop(pending);
+                    cancel_queued_mcp(client.clone(), cancellation_params);
+                    return;
+                },
                 result = request => result,
             };
-            if !matches!(result, Ok(Ok(ref response)) if response.runtime_dynamic_tools_applied == Some(true))
+            let confirmed = matches!(&result, Ok(Ok(response))
+                if response.runtime_dynamic_tools_applied == Some(true)
+                && (!require_mcp || response.runtime_mcp_servers_applied == Some(true))
+                && (!require_mcp || response.runtime_mcp_generation == expected_mcp_generation)
+                && (!require_mcp || response.runtime_mcp_registration_id == expected_registration_id)
+                && response.runtime_dynamic_tools_runtime_id == expected_runtime_id);
+            let still_queued = matches!(&result, Ok(Ok(response))
+                if response.runtime_dynamic_tools_applied == Some(false)
+                && (!require_mcp || response.runtime_mcp_servers_applied == Some(false))
+                && (!require_mcp || response.runtime_mcp_generation == expected_mcp_generation)
+                && (!require_mcp || response.runtime_mcp_registration_id == expected_registration_id)
+                && response.runtime_dynamic_tools_runtime_id == expected_runtime_id);
+            if !still_queued {
+                let mut pending = pending_slot
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if pending.as_ref().is_some_and(|(g, c, p, _)| {
+                    *g == generation
+                        && *c == connection
+                        && p.runtime_mcp_generation == expected_mcp_generation
+                }) {
+                    *pending = None;
+                }
+            }
+            if confirmed
+                && !registration.is_cancelled()
+                && !selection.is_cancelled()
+                && connection_live.load(std::sync::atomic::Ordering::Acquire)
             {
+                if let (Some(mcp), Some(thread_id), Some(id)) =
+                    (mcp, registration_thread_id, expected_registration_id)
+                {
+                    mcp.watch_task_tools_ready(client.clone(), thread_id, id, registration.clone());
+                }
+            }
+            if !confirmed && !still_queued {
                 tracing::warn!(
                     "연결 한정 도구의 유휴 보강을 확인하지 못했습니다. 자동 재전송하지 않습니다."
                 );
@@ -348,6 +486,26 @@ impl AppServerSession {
             }
         };
         if params.runtime_dynamic_tools.is_some() {
+            if params.runtime_mcp_servers.is_some()
+                && (response.runtime_mcp_servers_applied.is_none()
+                    || response.runtime_mcp_servers_applied
+                        != response.runtime_dynamic_tools_applied
+                    || response
+                        .runtime_dynamic_tools_runtime_id
+                        .as_deref()
+                        .is_none_or(str::is_empty)
+                    || (response.runtime_mcp_servers_applied == Some(false)
+                        && response.runtime_mcp_generation.is_none())
+                    || response
+                        .runtime_mcp_registration_id
+                        .as_deref()
+                        .is_none_or(str::is_empty))
+            {
+                color_eyre::eyre::bail!(
+                    "대화 {}에 연결됐지만 서버가 연결 한정 MCP 등록을 확인하지 않았습니다. 서버를 업데이트한 뒤 다시 연결하세요. 자동 재전송하지 않습니다.",
+                    thread_id
+                );
+            }
             match (
                 response.runtime_dynamic_tools_applied,
                 response.runtime_dynamic_tools_runtime_id.as_deref(),
@@ -365,11 +523,14 @@ impl AppServerSession {
                             runtime_tools_only: true,
                             expected_runtime_id: Some(runtime_id.to_string()),
                             runtime_dynamic_tools: params.runtime_dynamic_tools.clone(),
+                            runtime_mcp_servers: params.runtime_mcp_servers.clone(),
+                            runtime_mcp_generation: response.runtime_mcp_generation,
                             previous_runtime_dynamic_tools: params
                                 .previous_runtime_dynamic_tools
                                 .clone(),
                             ..Default::default()
                         },
+                        response.runtime_mcp_registration_id.clone(),
                     ));
                 }
                 (Some(true), Some(_)) => {}
@@ -396,6 +557,9 @@ impl AppServerSession {
             // explicitly retaining that history has not been queried successfully.
             self.mark_initial_history_unavailable(thread_id, response.thread.history_mode, &error);
         }
+        let runtime_mcp_registration_id = response.runtime_mcp_registration_id.clone();
+        let runtime_mcp_confirmed = params.runtime_mcp_servers.is_none()
+            || response.runtime_mcp_servers_applied == Some(true);
         let fork_parent_title = self
             .fork_parent_title_from_app_server(response.thread.forked_from_id.as_deref())
             .await;
@@ -406,9 +570,15 @@ impl AppServerSession {
         )
         .await?;
         started.session.fork_parent_title = fork_parent_title;
-        if self.task_tools_available(thread_id) {
+        if params.runtime_mcp_servers.is_none() && self.task_tools_available(thread_id) {
             self.remember_task_tool_thread(thread_id);
             started.task_tools_available = true;
+        }
+        if runtime_mcp_confirmed
+            && params.runtime_mcp_servers.is_some()
+            && let Some(id) = runtime_mcp_registration_id
+        {
+            self.watch_runtime_mcp_ready(thread_id, id);
         }
         Ok(started)
     }

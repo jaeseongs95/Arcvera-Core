@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Root of the `codex-core` library.
 
@@ -116,6 +117,7 @@ mod mcp_tool_exposure;
 mod network_policy_decision;
 pub use mcp::McpManager;
 pub use mcp::McpServersDisabled;
+pub use mcp::RuntimeMcpServers;
 mod original_image_detail;
 pub use codex_mcp::CodexAppsToolsCache;
 pub use codex_mcp::SandboxState;

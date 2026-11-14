@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
@@ -1678,8 +1679,11 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
         );
         assert!(!app.dynamic_tool_tasks.contains_key(&request_id));
     }
-    assert!(started.task_tools_available);
-    assert!(app_server.task_tools_available(thread_id));
+    assert!(
+        !started.task_tools_available,
+        "registration is not MCP readiness"
+    );
+    assert!(!app_server.task_tools_available(thread_id));
     let startup = crate::app_server_session::start_thread_with_request_handle(
         app_server.request_handle(),
         &app.local_settings,
@@ -1690,7 +1694,10 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
         crate::app_server_session::StartupLaunchChoices::default(),
     )
     .await?;
-    assert!(startup.task_tools_available);
+    assert!(
+        !startup.task_tools_available,
+        "registration is not MCP readiness"
+    );
 
     let inventory: codex_app_server_protocol::ListMcpServerStatusResponse = app_server
         .request_handle()
@@ -1730,7 +1737,8 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
     for params in &starts {
         assert_eq!(params["dynamicTools"], serde_json::Value::Null);
         assert_eq!(params["config"].get("web_search"), None);
-        let server = &params["config"]["mcp_servers.codex_tui"];
+        let server = &params["runtimeMcpServers"]["codex_tui"];
+        assert!(params["config"]["mcp_servers.codex_tui"].is_null());
         assert!(
             server["url"]
                 .as_str()
@@ -1747,7 +1755,7 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
         }
     }
 
-    let mcp_url = starts[0]["config"]["mcp_servers.codex_tui"]["url"]
+    let mcp_url = starts[0]["runtimeMcpServers"]["codex_tui"]["url"]
         .as_str()
         .expect("MCP server URL");
     let unauthorized = codex_http_client::HttpClientBuilder::new()
@@ -1776,8 +1784,8 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
         .pop()
         .expect("resumed task request");
     assert_eq!(
-        resumed["config"]["mcp_servers.codex_tui"],
-        starts[0]["config"]["mcp_servers.codex_tui"]
+        resumed["runtimeMcpServers"]["codex_tui"],
+        starts[0]["runtimeMcpServers"]["codex_tui"]
     );
     Box::pin(app_server.resume_thread(
         &app.local_settings,
@@ -1790,8 +1798,8 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
         .pop()
         .expect("reattached task request");
     assert_eq!(
-        reattached["config"]["mcp_servers.codex_tui"],
-        starts[0]["config"]["mcp_servers.codex_tui"]
+        reattached["runtimeMcpServers"]["codex_tui"],
+        starts[0]["runtimeMcpServers"]["codex_tui"]
     );
     Box::pin(app_server.fork_thread(&app.local_settings, app.config.clone(), delegation_source))
         .await?;
@@ -1799,11 +1807,11 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
         .pop()
         .expect("forked task request");
     assert_eq!(
-        forked["config"]["mcp_servers.codex_tui"],
-        starts[0]["config"]["mcp_servers.codex_tui"]
+        forked["runtimeMcpServers"]["codex_tui"],
+        starts[0]["runtimeMcpServers"]["codex_tui"]
     );
     let authorization =
-        starts[0]["config"]["mcp_servers.codex_tui"]["http_headers"]["Authorization"]
+        starts[0]["runtimeMcpServers"]["codex_tui"]["http_headers"]["Authorization"]
             .as_str()
             .expect("MCP bearer token");
     let client = codex_http_client::HttpClientBuilder::new().build_direct()?;
@@ -1861,6 +1869,15 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
         new_sender,
         Some(replacement.cron_tool_connection()),
     );
+    let mut reoffered = None;
+    transport.configure_runtime_mcp(&mut reoffered);
+    assert_eq!(
+        reoffered
+            .as_ref()
+            .and_then(|servers| servers.get("codex_tui")),
+        starts[0]["runtimeMcpServers"].get("codex_tui"),
+        "reconnect must explicitly offer the same complete bridge definition"
+    );
     let previous = std::mem::replace(
         &mut app_server,
         replacement.with_thread_tool_transport(transport),
@@ -1899,13 +1916,14 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
     let AppEvent::DynamicToolThreadStarted {
         thread,
         task_tools_available,
+        runtime_mcp_registration_id: _,
         registered,
     } = registration
     else {
         panic!("expected the MCP-created task to register")
     };
     let child_thread_id = ThreadId::from_string(&thread.id)?;
-    assert!(task_tools_available);
+    assert!(!task_tools_available, "registration is not MCP readiness");
     assert!(registered.send(()).is_ok());
     let created = creation.await??;
     assert!(created.status().is_success());
@@ -1916,8 +1934,8 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
     assert_eq!(child["dynamicTools"], serde_json::Value::Null);
     assert!(child["config"]["web_search"].is_null());
     assert_eq!(
-        child["config"]["mcp_servers.codex_tui"],
-        starts[0]["config"]["mcp_servers.codex_tui"]
+        child["runtimeMcpServers"]["codex_tui"],
+        starts[0]["runtimeMcpServers"]["codex_tui"]
     );
     // Fork another task: this synthetic MCP call has no active turn to cut before.
     let fork_source =
@@ -1960,8 +1978,8 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
         .pop()
         .expect("MCP-created fork request");
     assert_eq!(
-        forked["config"]["mcp_servers.codex_tui"],
-        starts[0]["config"]["mcp_servers.codex_tui"]
+        forked["runtimeMcpServers"]["codex_tui"],
+        starts[0]["runtimeMcpServers"]["codex_tui"]
     );
 
     app_server.shutdown().await?;
@@ -2047,13 +2065,14 @@ async fn local_mcp_respects_configured_servers_and_managed_requirements() -> Res
             .expect("fallback task start");
         if scenario == "allowed" {
             assert!(start["dynamicTools"].is_null());
-            assert!(start["config"]["mcp_servers.codex_tui"].is_object());
+            assert!(start["runtimeMcpServers"]["codex_tui"].is_object());
+            assert!(start["config"]["mcp_servers.codex_tui"].is_null());
         } else {
             assert_eq!(
                 start["dynamicTools"][0]["tools"].as_array().map(Vec::len),
                 Some(8)
             );
-            assert!(start["config"]["mcp_servers.codex_tui"].is_null());
+            assert!(start["runtimeMcpServers"]["codex_tui"].is_null());
         }
         app_server.shutdown().await?;
         proxy.await??;
@@ -2469,6 +2488,7 @@ async fn check_dynamic_tool_requests(
     let AppEvent::DynamicToolThreadStarted {
         thread,
         task_tools_available,
+        runtime_mcp_registration_id,
         registered,
     } = registration
     else {
@@ -2483,6 +2503,7 @@ async fn check_dynamic_tool_requests(
         AppEvent::DynamicToolThreadStarted {
             thread,
             task_tools_available,
+            runtime_mcp_registration_id,
             registered,
         },
     ))
@@ -2588,6 +2609,7 @@ async fn check_dynamic_tool_requests(
     let AppEvent::DynamicToolThreadStarted {
         thread,
         task_tools_available,
+        runtime_mcp_registration_id,
         registered,
     } = tokio::time::timeout(std::time::Duration::from_secs(/*secs*/ 5), events.recv())
         .await?
@@ -2603,6 +2625,7 @@ async fn check_dynamic_tool_requests(
         AppEvent::DynamicToolThreadStarted {
             thread,
             task_tools_available,
+            runtime_mcp_registration_id,
             registered,
         },
     ))

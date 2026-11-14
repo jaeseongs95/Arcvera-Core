@@ -1127,7 +1127,8 @@ impl Session {
                     Arc::default()
                 }
             });
-        let mcp_thread_init = thread_extension_init.clone();
+        let mut mcp_thread_init = thread_extension_init.clone();
+        mcp_thread_init.remove::<crate::mcp::RuntimeMcpServers>();
         let thread_extension_data = codex_extension_api::ExtensionData::new_with_init(
             thread_id.to_string(),
             thread_extension_init,

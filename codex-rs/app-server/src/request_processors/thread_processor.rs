@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 #[path = "daemon_continuation.rs"]
 mod daemon_continuation;
@@ -6,6 +7,41 @@ mod daemon_continuation;
 mod daemon_snapshot;
 
 mod workspace_switching;
+
+fn parse_runtime_mcp_servers(
+    servers: Option<&HashMap<String, serde_json::Value>>,
+) -> Result<Option<HashMap<String, codex_config::McpServerConfig>>, JSONRPCErrorError> {
+    let Some(servers) = servers else {
+        return Ok(None);
+    };
+    if servers.len() > 16
+        || serde_json::to_vec(servers)
+            .map_err(|_| invalid_request("invalid runtime MCP configuration"))?
+            .len()
+            > 65536
+        || servers.keys().any(|name| {
+            name.is_empty()
+                || name.len() > 64
+                || !name
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-')
+        })
+    {
+        return Err(invalid_request(
+            "runtime MCP configuration exceeds supported limits",
+        ));
+    }
+    servers
+        .iter()
+        .map(|(name, config)| {
+            serde_json::from_value(config.clone())
+                .map(|config| (name.clone(), config))
+                // Do not echo client-supplied credential values from deserialization errors.
+                .map_err(|_| invalid_request("invalid runtime MCP server configuration"))
+        })
+        .collect::<Result<HashMap<_, _>, _>>()
+        .map(Some)
+}
 
 use super::persisted_resume_settings::PersistedResumeSettings;
 use super::persisted_resume_settings::latest_owned_thread_settings;
@@ -677,6 +713,9 @@ impl ThreadRequestProcessor {
                     request_id,
                     passive: true,
                     runtime_dynamic_tools_applied: None,
+                    runtime_mcp_servers_applied: None,
+                    runtime_mcp_generation: None,
+                    runtime_mcp_registration_id: None,
                     _activity_guard: Some(activity_guard),
                     history_items: Vec::new(),
                     cold_resume_token_usage_turn_id: None,
@@ -712,19 +751,38 @@ impl ThreadRequestProcessor {
         client_mcp_extensions: ClientMcpExtensions,
     ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
         let mut prepared_config = None;
+        if ((params.runtime_mcp_cancel || params.runtime_mcp_generation.is_some())
+            && !params.runtime_tools_only)
+            || (params.runtime_mcp_generation.is_some()
+                && params.runtime_mcp_servers.is_none()
+                && !params.runtime_mcp_cancel)
+        {
+            return Err(invalid_request(
+                "MCP 등록 세대는 동일 등록의 재시도 또는 취소에만 사용할 수 있습니다.",
+            ));
+        }
         if params.runtime_tools_only {
             let expected = ThreadResumeParams {
                 thread_id: params.thread_id.clone(),
                 exclude_turns: true,
                 runtime_tools_only: true,
                 runtime_dynamic_tools: params.runtime_dynamic_tools.clone(),
+                runtime_mcp_servers: params.runtime_mcp_servers.clone(),
+                runtime_mcp_generation: params.runtime_mcp_generation,
+                runtime_mcp_cancel: params.runtime_mcp_cancel,
                 previous_runtime_dynamic_tools: params.previous_runtime_dynamic_tools.clone(),
                 expected_runtime_id: params.expected_runtime_id.clone(),
                 ..Default::default()
             };
             if params != expected
-                || params.runtime_dynamic_tools.is_none()
+                || (params.runtime_dynamic_tools.is_none()
+                    && params.runtime_mcp_servers.is_none()
+                    && !params.runtime_mcp_cancel)
                 || params.expected_runtime_id.is_none()
+                || (params.runtime_mcp_cancel
+                    && (params.runtime_mcp_generation.is_none()
+                        || params.runtime_mcp_servers.is_some()
+                        || params.runtime_dynamic_tools.is_some()))
             {
                 return Err(invalid_request(
                     "보강 전용 재개에는 예상 실행 세대와 도구 목록만 지정할 수 있습니다.",
@@ -754,11 +812,19 @@ impl ThreadRequestProcessor {
             let applied = self
                 .supplement_resume_tools(request_id, &params, &thread)
                 .await?;
+            let mcp_generation = applied.as_ref().and_then(|(_, generation, _)| *generation);
+            let registration_id = applied.as_ref().and_then(|(_, _, id)| id.clone());
+            let applied = applied.map(|(value, _, _)| value);
             let (config, _) = thread.resume_config_snapshot().await;
             let mut summary = build_thread_from_loaded_snapshot(id, &config, &thread);
             apply_live_thread_settings(&mut summary, &config);
             let response = ThreadResumeResponse {
-                runtime_dynamic_tools_applied: applied,
+                runtime_dynamic_tools_applied: applied
+                    .filter(|_| params.runtime_dynamic_tools.is_some()),
+                runtime_mcp_servers_applied: applied
+                    .filter(|_| params.runtime_mcp_servers.is_some()),
+                runtime_mcp_generation: mcp_generation,
+                runtime_mcp_registration_id: registration_id,
                 runtime_dynamic_tools_runtime_id: Some(thread.runtime_id().to_string()),
                 supports_compact_if_idle: None,
                 supports_expected_turn_interrupt: None,
@@ -1573,6 +1639,7 @@ impl ThreadRequestProcessor {
         request_context: RequestContext,
     ) -> Result<(), JSONRPCErrorError> {
         let ThreadStartParams {
+            runtime_mcp_servers,
             model,
             model_provider,
             allow_provider_model_fallback,
@@ -1679,6 +1746,7 @@ impl ThreadRequestProcessor {
                 config,
                 typesafe_overrides,
                 dynamic_tools,
+                runtime_mcp_servers,
                 selected_capability_roots.unwrap_or_default(),
                 history_mode.map(Into::into),
                 session_start_source,
@@ -1761,6 +1829,7 @@ impl ThreadRequestProcessor {
         config_overrides: Option<HashMap<String, serde_json::Value>>,
         typesafe_overrides: ConfigOverrides,
         dynamic_tools: Option<Vec<DynamicToolSpec>>,
+        runtime_mcp_servers: Option<HashMap<String, serde_json::Value>>,
         selected_capability_roots: Vec<SelectedCapabilityRoot>,
         history_mode: Option<ThreadHistoryMode>,
         session_start_source: Option<codex_app_server_protocol::ThreadStartSource>,
@@ -1902,6 +1971,28 @@ impl ThreadRequestProcessor {
                 .then_some(ThreadHistoryMode::Paginated)
         });
         let mut thread_extension_init = ExtensionDataInit::new();
+        let mut runtime_mcp_lifetime = None;
+        let mut runtime_mcp_registration_id = None;
+        let runtime_mcp_servers_applied = if let Some(servers) =
+            parse_runtime_mcp_servers(runtime_mcp_servers.as_ref())?
+        {
+            let lifetime = listener_task_context
+                .thread_state_manager
+                .runtime_connection_lifetime(request_id.connection_id)
+                .await
+                .filter(|token| !token.is_cancelled())
+                .ok_or_else(|| invalid_request("MCP provider connection has closed"))?;
+            let lifetime = lifetime.child_token();
+            runtime_mcp_lifetime = Some(lifetime.clone());
+            let overlay =
+                codex_core::RuntimeMcpServers::new(request_id.connection_id.0, lifetime, servers);
+            overlay.validate(&config).map_err(invalid_request)?;
+            runtime_mcp_registration_id = Some(overlay.registration_id().to_owned());
+            thread_extension_init.insert(overlay);
+            Some(true)
+        } else {
+            None
+        };
         if !selected_capability_roots.is_empty() {
             thread_extension_init.insert(selected_capability_roots);
         }
@@ -1923,6 +2014,15 @@ impl ThreadRequestProcessor {
         };
         let thread_id = reserved_thread_id
             .unwrap_or_else(|| listener_task_context.thread_manager.reserve_thread_id());
+        if let Some(lifetime) = runtime_mcp_lifetime
+            && !listener_task_context
+                .thread_state_manager
+                .bind_runtime_thread_lifetime(thread_id, request_id.connection_id, lifetime)
+                .await
+        {
+            remove_pending_thread_metadata(thread_store.as_ref(), reserved_thread_id).await;
+            return Err(invalid_request("MCP provider connection has closed"));
+        }
         start_options.reserved_thread_id = Some(thread_id);
         // Startup can prewarm the Responses socket before start_thread returns.
         // Register the creating client first so that handshake can request attestation.
@@ -2058,6 +2158,8 @@ impl ThreadRequestProcessor {
         let thread_originator = config_snapshot.originator.clone();
 
         let response = ThreadStartResponse {
+            runtime_mcp_servers_applied,
+            runtime_mcp_registration_id,
             thread: thread.clone(),
             disabled_plugin_ids: config_snapshot.disabled_plugin_ids,
             model: config_snapshot.model,
@@ -4326,6 +4428,9 @@ impl ThreadRequestProcessor {
         let ThreadResumeParams {
             thread_id,
             runtime_dynamic_tools: _,
+            runtime_mcp_servers: _,
+            runtime_mcp_generation: _,
+            runtime_mcp_cancel: _,
             previous_runtime_dynamic_tools: _,
             runtime_tools_only: _,
             expected_runtime_id: _,
@@ -4871,12 +4976,25 @@ impl ThreadRequestProcessor {
                     }
                 }
 
-                let runtime_dynamic_tools_applied = self
+                let runtime_tools_result = self
                     .supplement_resume_tools(&request_id, params, &codex_thread)
                     .await?;
+                let runtime_mcp_generation = runtime_tools_result
+                    .as_ref()
+                    .and_then(|(_, generation, _)| *generation);
+                let runtime_mcp_registration_id = runtime_tools_result
+                    .as_ref()
+                    .and_then(|(_, _, id)| id.clone());
+                let runtime_dynamic_tools_applied =
+                    runtime_tools_result.map(|(applied, _, _)| applied);
                 let thread_originator = config_snapshot.originator.clone();
                 let response = ThreadResumeResponse {
-                    runtime_dynamic_tools_applied,
+                    runtime_mcp_generation,
+                    runtime_mcp_registration_id,
+                    runtime_dynamic_tools_applied: runtime_dynamic_tools_applied
+                        .filter(|_| params.runtime_dynamic_tools.is_some()),
+                    runtime_mcp_servers_applied: runtime_dynamic_tools_applied
+                        .filter(|_| params.runtime_mcp_servers.is_some()),
                     runtime_dynamic_tools_runtime_id: runtime_dynamic_tools_applied
                         .map(|_| codex_thread.runtime_id().to_string()),
                     supports_compact_if_idle: None,
@@ -4980,10 +5098,13 @@ impl ThreadRequestProcessor {
         request_id: &ConnectionRequestId,
         params: &ThreadResumeParams,
         thread: &Arc<CodexThread>,
-    ) -> Result<Option<bool>, JSONRPCErrorError> {
-        let Some(tools) = params.runtime_dynamic_tools.as_ref() else {
+    ) -> Result<Option<(bool, Option<u64>, Option<String>)>, JSONRPCErrorError> {
+        if params.runtime_dynamic_tools.is_none()
+            && params.runtime_mcp_servers.is_none()
+            && !params.runtime_mcp_cancel
+        {
             return Ok(None);
-        };
+        }
         let _runtime_guard = self
             .thread_manager
             .lock_loaded_thread(thread.startup_metadata().thread_id, thread)
@@ -5000,25 +5121,47 @@ impl ThreadRequestProcessor {
                 "도구 보강의 예상 실행 세대가 바뀌었습니다.",
             ));
         }
+        if params.runtime_mcp_cancel {
+            let generation = params
+                .runtime_mcp_generation
+                .ok_or_else(|| invalid_request("취소할 MCP 등록 세대가 필요합니다."))?;
+            if !thread
+                .cancel_pending_runtime_tools(request_id.connection_id.0, generation)
+                .await
+            {
+                return Err(invalid_request(
+                    "대기 중인 MCP 등록이 변경되었거나 종료됐습니다.",
+                ));
+            }
+            return Ok(Some((false, None, None)));
+        }
         let config = thread.config_snapshot().await;
         if !can_accept_direct_input(thread.multi_agent_version(), &config.session_source) {
             return Err(invalid_request(
                 "이 대화에는 연결 한정 도구를 보강할 수 없습니다.",
             ));
         }
-        validate_dynamic_tools(tools).map_err(invalid_request)?;
+        if let Some(tools) = &params.runtime_dynamic_tools {
+            validate_dynamic_tools(tools).map_err(invalid_request)?;
+        }
+        let servers = parse_runtime_mcp_servers(params.runtime_mcp_servers.as_ref())?;
         validate_dynamic_tools(&params.previous_runtime_dynamic_tools).map_err(invalid_request)?;
         let lifetime = self
             .thread_state_manager
-            .runtime_connection_lifetime(request_id.connection_id)
+            .runtime_thread_lifetime(
+                thread.startup_metadata().thread_id,
+                request_id.connection_id,
+            )
             .await
             .ok_or_else(|| invalid_request("도구를 제공한 연결이 종료됐습니다."))?;
         let applied = thread
-            .supplement_runtime_dynamic_tools(
+            .register_runtime_tools(
                 request_id.connection_id.0,
                 lifetime,
-                tools.clone(),
+                params.runtime_dynamic_tools.clone(),
                 &params.previous_runtime_dynamic_tools,
+                servers,
+                params.runtime_mcp_generation,
             )
             .await
             .map_err(|error| invalid_request(error.to_string()))?;
@@ -5345,14 +5488,26 @@ impl ThreadRequestProcessor {
             };
 
             let (completion_tx, completion_rx) = tokio::sync::oneshot::channel();
-            let runtime_dynamic_tools_applied = self
+            let runtime_tools_result = self
                 .supplement_resume_tools(request_id, params, &existing_thread)
                 .await?;
+            let runtime_mcp_generation = runtime_tools_result
+                .as_ref()
+                .and_then(|(_, generation, _)| *generation);
+            let runtime_mcp_registration_id = runtime_tools_result
+                .as_ref()
+                .and_then(|(_, _, id)| id.clone());
+            let runtime_dynamic_tools_applied = runtime_tools_result.map(|(applied, _, _)| applied);
             let command = crate::thread_state::ThreadListenerCommand::SendThreadResumeResponse {
                 request: Box::new(crate::thread_state::PendingThreadResumeRequest {
                     request_id: request_id.clone(),
                     passive: false,
-                    runtime_dynamic_tools_applied,
+                    runtime_dynamic_tools_applied: runtime_dynamic_tools_applied
+                        .filter(|_| params.runtime_dynamic_tools.is_some()),
+                    runtime_mcp_servers_applied: runtime_dynamic_tools_applied
+                        .filter(|_| params.runtime_mcp_servers.is_some()),
+                    runtime_mcp_generation,
+                    runtime_mcp_registration_id,
                     _activity_guard: None,
                     history_items,
                     cold_resume_token_usage_turn_id,
@@ -5736,6 +5891,7 @@ impl ThreadRequestProcessor {
             ));
         }
         let ThreadForkParams {
+            runtime_mcp_servers,
             thread_id,
             experimental_prediction_mode,
             experimental_disable_prediction_mcp,
@@ -6053,7 +6209,7 @@ impl ThreadRequestProcessor {
             );
         }
         let (inherited_options, inherited_settings) = inherited_fork.unzip();
-        let options = if let Some(options) = inherited_options {
+        let mut options = if let Some(options) = inherited_options {
             *options
         } else {
             // Derive a Config using the same logic as new conversation, honoring overrides if provided.
@@ -6066,6 +6222,35 @@ impl ThreadRequestProcessor {
                 client_mcp_extensions,
                 ..StartThreadOptions::new(config)
             }
+        };
+        let mut runtime_mcp_lifetime = None;
+        let mut runtime_mcp_registration_id = None;
+        let runtime_mcp_servers_applied = if let Some(servers) =
+            parse_runtime_mcp_servers(runtime_mcp_servers.as_ref())?
+        {
+            if options
+                .thread_extension_init
+                .get::<codex_core::McpServersDisabled>()
+                .is_some()
+            {
+                return Err(invalid_request("MCP servers are disabled for this fork"));
+            }
+            let lifetime = self
+                .thread_state_manager
+                .runtime_connection_lifetime(request_id.connection_id)
+                .await
+                .filter(|token| !token.is_cancelled())
+                .ok_or_else(|| invalid_request("MCP provider connection has closed"))?;
+            let lifetime = lifetime.child_token();
+            runtime_mcp_lifetime = Some(lifetime.clone());
+            let overlay =
+                codex_core::RuntimeMcpServers::new(request_id.connection_id.0, lifetime, servers);
+            overlay.validate(&options.config).map_err(invalid_request)?;
+            runtime_mcp_registration_id = Some(overlay.registration_id().to_owned());
+            options.thread_extension_init.insert(overlay);
+            Some(true)
+        } else {
+            None
         };
         let goals_enabled = options.config.features.enabled(Feature::Goals);
 
@@ -6185,6 +6370,16 @@ impl ThreadRequestProcessor {
                 });
             }
         };
+        if let Some(lifetime) = runtime_mcp_lifetime
+            && !self
+                .thread_state_manager
+                .bind_runtime_thread_lifetime(thread_id, request_id.connection_id, lifetime)
+                .await
+        {
+            return Err(invalid_request(format!(
+                "fork {thread_id} was created but its MCP provider connection closed; do not retry automatically"
+            )));
+        }
 
         if let Some(settings) = inherited_settings {
             // Construct the restore future off the fork handler's stack
@@ -6341,6 +6536,8 @@ impl ThreadRequestProcessor {
             thread_response_active_permission_profile(config_snapshot.active_permission_profile);
         let thread_originator = config_snapshot.originator.clone();
         let response = ThreadForkResponse {
+            runtime_mcp_servers_applied,
+            runtime_mcp_registration_id,
             thread: thread.clone(),
             disabled_plugin_ids: config_snapshot.disabled_plugin_ids,
             model: config_snapshot.model.clone(),

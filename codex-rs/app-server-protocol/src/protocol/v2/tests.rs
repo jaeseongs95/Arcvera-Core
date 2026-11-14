@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 use super::*;
 use crate::ServerNotification;
@@ -291,6 +292,9 @@ fn thread_resume_params_accept_turns_page_bootstrap() {
 #[test]
 fn thread_resume_response_round_trips_initial_turns_page() {
     let response = ThreadResumeResponse {
+        runtime_mcp_servers_applied: None,
+        runtime_mcp_registration_id: None,
+        runtime_mcp_generation: None,
         runtime_dynamic_tools_applied: None,
         runtime_dynamic_tools_runtime_id: None,
         supports_compact_if_idle: None,
@@ -2836,6 +2840,7 @@ fn mcp_server_elicitation_response_serializes_nullable_content() {
 fn mcp_server_status_serializes_absent_server_info_as_null() {
     let response = ListMcpServerStatusResponse {
         data: vec![McpServerStatus {
+            runtime_registration_id: None,
             tool_list_meta: None,
             server_capabilities: None,
             tools_error: None,
@@ -2889,6 +2894,7 @@ fn mcp_server_status_accepts_older_inventory_without_runtime_status() {
     assert_eq!(
         status,
         McpServerStatus {
+            runtime_registration_id: None,
             tool_list_meta: None,
             server_capabilities: None,
             tools_error: None,
@@ -2964,6 +2970,7 @@ fn mcp_server_status_updated_serializes_failure_reason() {
 fn mcp_server_status_serializes_absent_server_info_metadata_as_null() {
     let response = ListMcpServerStatusResponse {
         data: vec![McpServerStatus {
+            runtime_registration_id: None,
             tool_list_meta: None,
             server_capabilities: None,
             tools_error: None,

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use crate::outgoing_message::ConnectionId;
 use crate::outgoing_message::ConnectionRequestId;
@@ -48,6 +49,9 @@ pub(crate) struct PendingThreadResumeRequest {
     pub(crate) passive: bool,
     /// Set only after the runtime catalog has been published.
     pub(crate) runtime_dynamic_tools_applied: Option<bool>,
+    pub(crate) runtime_mcp_servers_applied: Option<bool>,
+    pub(crate) runtime_mcp_generation: Option<u64>,
+    pub(crate) runtime_mcp_registration_id: Option<String>,
     /// Protects only this command from cleanup, never the resulting membership.
     pub(crate) _activity_guard: Option<codex_core::ThreadActivityGuard>,
     pub(crate) history_items: Vec<RolloutItem>,
@@ -318,6 +322,44 @@ mod tests {
     use codex_utils_absolute_path::AbsolutePathBuf;
     use pretty_assertions::assert_eq;
 
+    #[tokio::test]
+    async fn runtime_lifetime_is_scoped_to_thread_subscription() {
+        let manager = ThreadStateManager::new();
+        let connection = ConnectionId(71);
+        let first = ThreadId::new();
+        let second = ThreadId::new();
+        manager
+            .connection_initialized(connection, ConnectionCapabilities::default())
+            .await;
+        assert!(
+            manager
+                .try_add_connection_to_thread(first, connection)
+                .await
+        );
+        assert!(
+            manager
+                .try_add_connection_to_thread(second, connection)
+                .await
+        );
+        let a = manager
+            .runtime_thread_lifetime(first, connection)
+            .await
+            .unwrap();
+        let b = manager
+            .runtime_thread_lifetime(second, connection)
+            .await
+            .unwrap();
+        assert!(
+            manager
+                .unsubscribe_connection_from_thread(first, connection)
+                .await
+        );
+        assert!(a.is_cancelled());
+        assert!(!b.is_cancelled());
+        manager.remove_connection(connection).await;
+        assert!(b.is_cancelled());
+    }
+
     #[test]
     fn note_thread_settings_reports_only_effective_changes() {
         let mut state = ThreadState::default();
@@ -399,6 +441,8 @@ impl ThreadEntry {
 struct ThreadStateManagerInner {
     live_connections: HashMap<ConnectionId, ConnectionCapabilities>,
     runtime_connection_lifetimes: HashMap<ConnectionId, tokio_util::sync::CancellationToken>,
+    runtime_thread_lifetimes:
+        HashMap<(ThreadId, ConnectionId), tokio_util::sync::CancellationToken>,
     threads: HashMap<ThreadId, ThreadEntry>,
     thread_ids_by_connection: HashMap<ConnectionId, HashSet<ThreadId>>,
 }
@@ -550,6 +594,48 @@ impl ThreadStateManager {
             .cloned()
     }
 
+    pub(crate) async fn runtime_thread_lifetime(
+        &self,
+        thread_id: ThreadId,
+        connection_id: ConnectionId,
+    ) -> Option<tokio_util::sync::CancellationToken> {
+        let mut state = self.state.lock().await;
+        let parent = state
+            .runtime_connection_lifetimes
+            .get(&connection_id)?
+            .clone();
+        if parent.is_cancelled() {
+            return None;
+        }
+        Some(
+            state
+                .runtime_thread_lifetimes
+                .entry((thread_id, connection_id))
+                .or_insert_with(|| parent.child_token())
+                .clone(),
+        )
+    }
+
+    pub(crate) async fn bind_runtime_thread_lifetime(
+        &self,
+        thread_id: ThreadId,
+        connection_id: ConnectionId,
+        lifetime: tokio_util::sync::CancellationToken,
+    ) -> bool {
+        let mut state = self.state.lock().await;
+        if !state.live_connections.contains_key(&connection_id) || lifetime.is_cancelled() {
+            lifetime.cancel();
+            return false;
+        }
+        if let Some(old) = state
+            .runtime_thread_lifetimes
+            .insert((thread_id, connection_id), lifetime)
+        {
+            old.cancel();
+        }
+        true
+    }
+
     pub(crate) async fn subscribed_connection_ids(&self, thread_id: ThreadId) -> Vec<ConnectionId> {
         let state = self.state.lock().await;
         state
@@ -620,6 +706,14 @@ impl ThreadStateManager {
     pub(crate) async fn remove_thread_state(&self, thread_id: ThreadId) {
         let thread_state = {
             let mut state = self.state.lock().await;
+            state.runtime_thread_lifetimes.retain(|(id, _), token| {
+                if *id == thread_id {
+                    token.cancel();
+                    false
+                } else {
+                    true
+                }
+            });
             self.unregister_listener_command_tx(thread_id);
             let thread_state = state
                 .threads
@@ -666,6 +760,14 @@ impl ThreadStateManager {
             return false;
         }
         state.threads.remove(&thread_id);
+        state.runtime_thread_lifetimes.retain(|(id, _), token| {
+            if *id == thread_id {
+                token.cancel();
+                false
+            } else {
+                true
+            }
+        });
         self.unregister_listener_command_tx(thread_id);
         thread_state.clear_listener();
         true
@@ -673,7 +775,11 @@ impl ThreadStateManager {
 
     pub(crate) async fn clear_all_listeners(&self) {
         let thread_states = {
-            let state = self.state.lock().await;
+            let mut state = self.state.lock().await;
+            for token in state.runtime_thread_lifetimes.values() {
+                token.cancel();
+            }
+            state.runtime_thread_lifetimes.clear();
             state
                 .threads
                 .iter()
@@ -719,6 +825,12 @@ impl ThreadStateManager {
             if let Some(thread_entry) = state.threads.get_mut(&thread_id) {
                 thread_entry.connection_ids.remove(&connection_id);
                 thread_entry.update_has_connections();
+            }
+            if let Some(lifetime) = state
+                .runtime_thread_lifetimes
+                .remove(&(thread_id, connection_id))
+            {
+                lifetime.cancel();
             }
         };
 
@@ -805,6 +917,14 @@ impl ThreadStateManager {
             if let Some(lifetime) = state.runtime_connection_lifetimes.remove(&connection_id) {
                 lifetime.cancel();
             }
+            state.runtime_thread_lifetimes.retain(|(_, id), token| {
+                if *id == connection_id {
+                    token.cancel();
+                    false
+                } else {
+                    true
+                }
+            });
             let thread_ids = state
                 .thread_ids_by_connection
                 .remove(&connection_id)

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
@@ -169,6 +170,195 @@ mod network_tests;
 const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(25);
 #[cfg(not(windows))]
 const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn active_mcp_rebind_generation_rejects_stale_retry_and_unsubscribed_owner() -> Result<()> {
+    use super::connection_handling_websocket as websocket;
+    use codex_app_server_protocol::JSONRPCMessage;
+    use futures::SinkExt;
+
+    async fn response(socket: &mut websocket::WsClient, id: i64) -> Result<JSONRPCResponse> {
+        timeout(websocket::DEFAULT_READ_TIMEOUT, async {
+            loop {
+                match websocket::read_jsonrpc_message(socket).await? {
+                    JSONRPCMessage::Response(response) if response.id == RequestId::Integer(id) => {
+                        return Ok(response);
+                    }
+                    JSONRPCMessage::Error(error) if error.id == RequestId::Integer(id) => {
+                        anyhow::bail!("RPC {id}: {:?}", error.error)
+                    }
+                    _ => {}
+                }
+            }
+        })
+        .await?
+    }
+    let (release, gate) = oneshot::channel();
+    let (model, _) = start_streaming_sse_server(vec![vec![
+        StreamingSseChunk {
+            gate: None,
+            body: responses::sse(vec![responses::ev_response_created("d31-active")]),
+        },
+        StreamingSseChunk {
+            gate: Some(gate),
+            body: responses::sse_completed("d31-active"),
+        },
+    ]])
+    .await;
+    let home = TempDir::new()?;
+    websocket::create_config_toml(home.path(), model.uri(), "on-request")?;
+    let (mut process, address) = websocket::spawn_websocket_server(home.path()).await?;
+    let (a_url, a_task) = super::mcp_tool::start_mcp_server(None).await?;
+    let (b_url, b_task) = super::mcp_tool::start_mcp_server(None).await?;
+    let (c_url, c_task) = super::mcp_tool::start_mcp_server(None).await?;
+    let (d_url, d_task) = super::mcp_tool::start_mcp_server(None).await?;
+    let mut a = websocket::connect_websocket(address).await?;
+    let mut b = websocket::connect_websocket(address).await?;
+    let mut c = websocket::connect_websocket(address).await?;
+    let mut d = websocket::connect_websocket(address).await?;
+    for (socket, id) in [(&mut a, 1), (&mut b, 2), (&mut c, 3), (&mut d, 4)] {
+        websocket::send_request(socket, "initialize", id, Some(json!({
+            "clientInfo":{"name":"d31-active-test","version":"0"},
+            "capabilities":{"extensions":{"arcvera/core":{"version":env!("CARGO_PKG_VERSION")}},"experimentalApi":true}
+        }))).await?;
+        response(socket, id).await?;
+    }
+    let server = |url: &str| json!({"codex_tui":{"url":format!("{url}/mcp")}});
+    websocket::send_request(
+        &mut a,
+        "thread/start",
+        5,
+        Some(json!({"runtimeMcpServers":server(&a_url)})),
+    )
+    .await?;
+    let start: ThreadStartResponse = to_response(response(&mut a, 5).await?)?;
+    let thread = start.thread.id;
+    websocket::send_request(
+        &mut c,
+        "thread/resume",
+        6,
+        Some(json!({"threadId":thread,"excludeTurns":true})),
+    )
+    .await?;
+    response(&mut c, 6).await?;
+    websocket::send_request(&mut a, "turn/start", 7, Some(json!({"threadId":thread,"input":[{"type":"text","text":"active fixture","text_elements":[]}]}))).await?;
+    response(&mut a, 7).await?;
+    timeout(
+        websocket::DEFAULT_READ_TIMEOUT,
+        model.wait_for_request_count(1),
+    )
+    .await?;
+    websocket::send_request(
+        &mut a,
+        "thread/unsubscribe",
+        8,
+        Some(json!({"threadId":thread})),
+    )
+    .await?;
+    response(&mut a, 8).await?;
+    a.close(None).await?;
+    a_task.abort();
+    let _ = a_task.await;
+    websocket::send_request(
+        &mut b,
+        "thread/resume",
+        9,
+        Some(json!({"threadId":thread,"excludeTurns":true,"runtimeMcpServers":server(&b_url)})),
+    )
+    .await?;
+    let queued_b: ThreadResumeResponse = to_response(response(&mut b, 9).await?)?;
+    assert_eq!(queued_b.runtime_mcp_servers_applied, Some(false));
+    let g_b = queued_b
+        .runtime_mcp_generation
+        .expect("queued B generation");
+    let runtime = queued_b
+        .runtime_dynamic_tools_runtime_id
+        .expect("loaded runtime identity");
+    websocket::send_request(
+        &mut d,
+        "thread/resume",
+        10,
+        Some(json!({"threadId":thread,"excludeTurns":true,"runtimeMcpServers":server(&d_url)})),
+    )
+    .await?;
+    let queued_d: ThreadResumeResponse = to_response(response(&mut d, 10).await?)?;
+    assert_eq!(queued_d.runtime_mcp_servers_applied, Some(false));
+    let g_d = queued_d
+        .runtime_mcp_generation
+        .expect("queued D generation");
+    assert!(g_d > g_b);
+    websocket::send_request(&mut b, "thread/resume", 11, Some(json!({"threadId":thread,"excludeTurns":true,"runtimeToolsOnly":true,"expectedRuntimeId":runtime,"runtimeMcpGeneration":g_b,"runtimeMcpServers":server(&b_url)}))).await?;
+    let stale = timeout(
+        websocket::DEFAULT_READ_TIMEOUT,
+        websocket::read_error_for_id(&mut b, 11),
+    )
+    .await??;
+    assert!(stale.error.message.contains("등록"));
+    websocket::send_request(
+        &mut d,
+        "thread/unsubscribe",
+        12,
+        Some(json!({"threadId":thread})),
+    )
+    .await?;
+    response(&mut d, 12).await?;
+    websocket::send_request(&mut d, "thread/resume", 17, Some(json!({"threadId":thread,"excludeTurns":true,"runtimeToolsOnly":true,"expectedRuntimeId":runtime,"runtimeMcpGeneration":g_d,"runtimeMcpServers":server(&d_url)}))).await?;
+    let revoked = timeout(
+        websocket::DEFAULT_READ_TIMEOUT,
+        websocket::read_error_for_id(&mut d, 17),
+    )
+    .await??;
+    assert!(revoked.error.message.contains("연결"));
+    websocket::send_request(
+        &mut c,
+        "thread/resume",
+        13,
+        Some(json!({"threadId":thread,"excludeTurns":true,"runtimeMcpServers":server(&c_url)})),
+    )
+    .await?;
+    let queued_c: ThreadResumeResponse = to_response(response(&mut c, 13).await?)?;
+    assert_eq!(queued_c.runtime_mcp_servers_applied, Some(false));
+    let g_c = queued_c.runtime_mcp_generation.unwrap();
+    let registration_c = queued_c
+        .runtime_mcp_registration_id
+        .clone()
+        .expect("queued registration identity");
+    assert!(g_c > g_d);
+    websocket::send_request(&mut b, "thread/resume", 16, Some(json!({"threadId":thread,"excludeTurns":true,"runtimeToolsOnly":true,"expectedRuntimeId":runtime,"runtimeMcpGeneration":g_b,"runtimeMcpCancel":true}))).await?;
+    let stale_cancel = timeout(
+        websocket::DEFAULT_READ_TIMEOUT,
+        websocket::read_error_for_id(&mut b, 16),
+    )
+    .await??;
+    assert!(stale_cancel.error.message.contains("등록"));
+    release.send(()).unwrap();
+    timeout(
+        websocket::DEFAULT_READ_TIMEOUT,
+        websocket::read_notification_for_method(&mut c, "turn/completed"),
+    )
+    .await??;
+    websocket::send_request(&mut c, "thread/resume", 14, Some(json!({"threadId":thread,"excludeTurns":true,"runtimeToolsOnly":true,"expectedRuntimeId":runtime,"runtimeMcpGeneration":g_c,"runtimeMcpServers":server(&c_url)}))).await?;
+    let applied: ThreadResumeResponse = to_response(response(&mut c, 14).await?)?;
+    assert_eq!(applied.runtime_mcp_servers_applied, Some(true));
+    assert_eq!(applied.runtime_mcp_generation, Some(g_c));
+    assert_eq!(
+        applied.runtime_mcp_registration_id.as_deref(),
+        Some(registration_c.as_str())
+    );
+    websocket::send_request(&mut c, "mcpServer/tool/call", 15, Some(json!({"threadId":thread,"server":"codex_tui","tool":"echo_tool","arguments":{"message":"latest-C"}}))).await?;
+    let result: codex_app_server_protocol::McpServerToolCallResponse =
+        to_response(response(&mut c, 15).await?)?;
+    assert_eq!(result.is_error, Some(false));
+    assert_eq!(result.content[0]["text"], "echo: latest-C");
+    for task in [b_task, c_task, d_task] {
+        task.abort();
+        let _ = task.await;
+    }
+    process.kill().await?;
+    let _ = process.wait().await?;
+    model.shutdown().await;
+    Ok(())
+}
 
 #[tokio::test]
 async fn runtime_tools_acknowledge_cold_and_loaded_resume_without_changing_saved_catalog()

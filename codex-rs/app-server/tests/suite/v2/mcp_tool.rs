@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
@@ -100,6 +101,285 @@ const URL_ELICITATION_TRIGGER_MESSAGE: &str = "auth";
 const URL_ELICITATION_MESSAGE: &str = "Sign in to GitHub to continue.";
 const URL_ELICITATION_URL: &str = "https://github.example/login/device";
 const LATE_ENVIRONMENT_ID: &str = "late-environment";
+
+#[test_case(false; "changed_endpoint_and_header")]
+#[test_case(true; "explicit_same_bridge")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn subscribed_loaded_thread_rebinds_runtime_mcp_after_owner_disconnect(
+    same_bridge: bool,
+) -> Result<()> {
+    use super::connection_handling_websocket as websocket;
+    use axum::body::Body;
+    use axum::extract::State;
+    use axum::http::{Request, StatusCode, header::AUTHORIZATION};
+    use axum::middleware::{self, Next};
+    use axum::response::Response;
+    use codex_app_server_protocol::JSONRPCMessage;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    async fn auth(
+        State((secret, hits)): State<(String, Arc<AtomicUsize>)>,
+        request: Request<Body>,
+        next: Next,
+    ) -> Result<Response, StatusCode> {
+        if request
+            .headers()
+            .get(AUTHORIZATION)
+            .is_none_or(|value| value.as_bytes() != secret.as_bytes())
+        {
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+        let (parts, body) = request.into_parts();
+        let bytes = axum::body::to_bytes(body, 1_048_576)
+            .await
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
+        if serde_json::from_slice::<serde_json::Value>(&bytes)
+            .ok()
+            .and_then(|value| {
+                value
+                    .get("method")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+            })
+            .as_deref()
+            == Some("tools/call")
+        {
+            hits.fetch_add(1, Ordering::SeqCst);
+        }
+        Ok(next
+            .run(Request::from_parts(parts, Body::from(bytes)))
+            .await)
+    }
+    async fn listener(secret: &str) -> Result<(String, Arc<AtomicUsize>, JoinHandle<()>)> {
+        let socket = TcpListener::bind("127.0.0.1:0").await?;
+        let address = socket.local_addr()?;
+        let hits = Arc::new(AtomicUsize::new(0));
+        let service = StreamableHttpService::new(
+            || {
+                Ok(ToolAppsMcpServer {
+                    sensitive_action: None,
+                    tool_names: &[TEST_TOOL_NAME],
+                })
+            },
+            Arc::new(LocalSessionManager::default()),
+            StreamableHttpServerConfig::default(),
+        );
+        let router =
+            Router::new()
+                .nest_service("/mcp", service)
+                .layer(middleware::from_fn_with_state(
+                    (secret.to_owned(), Arc::clone(&hits)),
+                    auth,
+                ));
+        let task = tokio::spawn(async move {
+            let _ = axum::serve(socket, router).await;
+        });
+        Ok((format!("http://{address}/mcp"), hits, task))
+    }
+    async fn response(
+        socket: &mut websocket::WsClient,
+        id: i64,
+    ) -> Result<codex_app_server_protocol::JSONRPCResponse> {
+        timeout(websocket::DEFAULT_READ_TIMEOUT, async {
+            loop {
+                match websocket::read_jsonrpc_message(socket).await? {
+                    JSONRPCMessage::Response(response) if response.id == RequestId::Integer(id) => {
+                        return Ok(response);
+                    }
+                    JSONRPCMessage::Error(error) if error.id == RequestId::Integer(id) => {
+                        anyhow::bail!("RPC {id}: {:?}", error.error)
+                    }
+                    _ => {}
+                }
+            }
+        })
+        .await?
+    }
+    let model = responses::start_mock_server().await;
+    let home = TempDir::new()?;
+    websocket::create_config_toml(home.path(), &model.uri(), "on-request")?;
+    let (mut process, address) = websocket::spawn_websocket_server(home.path()).await?;
+    let (a_url, a_hits, a_task) = listener("Bearer synthetic-A").await?;
+    let mut a_task = Some(a_task);
+    let (b_url, b_hits, b_task) = listener("Bearer synthetic-B").await?;
+    assert_ne!(a_url, b_url);
+    let mut owner = websocket::connect_websocket(address).await?;
+    let mut observer = websocket::connect_websocket(address).await?;
+    let mut joining = websocket::connect_websocket(address).await?;
+    for (socket, id, name) in [
+        (&mut owner, 1, "d31-a"),
+        (&mut observer, 2, "d31-observer"),
+        (&mut joining, 3, "d31-b"),
+    ] {
+        websocket::send_request(socket, "initialize", id, Some(json!({
+            "clientInfo":{"name":name,"version":"0"},
+            "capabilities":{"extensions":{"arcvera/core":{"version":env!("CARGO_PKG_VERSION")}},"experimentalApi":true}
+        }))).await?;
+        response(socket, id).await?;
+    }
+    websocket::send_request(&mut owner, "thread/start", 4, Some(json!({
+        "runtimeMcpServers":{"codex_tui":{"url":a_url,"http_headers":{"Authorization":"Bearer synthetic-A"}}}
+    }))).await?;
+    let started: ThreadStartResponse =
+        app_test_support::to_response(response(&mut owner, 4).await?)?;
+    assert_eq!(started.runtime_mcp_servers_applied, Some(true));
+    let id = started.thread.id.clone();
+    websocket::send_request(
+        &mut observer,
+        "thread/resume",
+        5,
+        Some(json!({"threadId":id,"excludeTurns":true})),
+    )
+    .await?;
+    let observed: ThreadResumeResponse =
+        app_test_support::to_response(response(&mut observer, 5).await?)?;
+    assert_eq!(observed.thread.session_id, started.thread.session_id);
+    websocket::send_request(&mut observer, "mcpServer/tool/call", 6, Some(json!({
+        "threadId":id,"server":"codex_tui","tool":TEST_TOOL_NAME,"arguments":{"message":"listener-A"}
+    }))).await?;
+    let first: McpServerToolCallResponse =
+        app_test_support::to_response(response(&mut observer, 6).await?)?;
+    assert_eq!(first.is_error, Some(false));
+    assert!(a_hits.load(Ordering::SeqCst) > 0);
+    let registration_a = started
+        .runtime_mcp_registration_id
+        .clone()
+        .expect("A registration identity");
+    websocket::send_request(
+        &mut observer,
+        "mcpServerStatus/list",
+        20,
+        Some(json!({"threadId":id,"serverName":"codex_tui"})),
+    )
+    .await?;
+    let status_a: codex_app_server_protocol::ListMcpServerStatusResponse =
+        app_test_support::to_response(response(&mut observer, 20).await?)?;
+    assert_eq!(
+        status_a
+            .data
+            .iter()
+            .find(|server| server.name == "codex_tui")
+            .and_then(|server| server.runtime_registration_id.as_deref()),
+        Some(registration_a.as_str())
+    );
+    let next_url = if same_bridge { &a_url } else { &b_url };
+    let next_auth = if same_bridge {
+        "Bearer synthetic-A"
+    } else {
+        "Bearer synthetic-B"
+    };
+    websocket::send_request(&mut joining, "thread/resume", 30, Some(json!({
+        "threadId":id,"excludeTurns":true,
+        "runtimeMcpServers":{"codex_tui":{"url":next_url,"http_headers":{"Authorization":next_auth}}}
+    }))).await?;
+    let conflict = timeout(
+        websocket::DEFAULT_READ_TIMEOUT,
+        websocket::read_error_for_id(&mut joining, 30),
+    )
+    .await??;
+    assert_eq!(
+        conflict.error.code, -32600,
+        "a connected owner must not be replaced"
+    );
+    // Unsubscribe deterministically revokes only A's thread lifetime; C stays attached.
+    websocket::send_request(
+        &mut owner,
+        "thread/unsubscribe",
+        7,
+        Some(json!({"threadId":id})),
+    )
+    .await?;
+    response(&mut owner, 7).await?;
+    owner.close(None).await?;
+    if !same_bridge {
+        let task = a_task.take().unwrap();
+        task.abort();
+        let _ = task.await;
+    }
+    let before = if same_bridge {
+        a_hits.load(Ordering::SeqCst)
+    } else {
+        b_hits.load(Ordering::SeqCst)
+    };
+    websocket::send_request(&mut joining, "thread/resume", 8, Some(json!({
+        "threadId":id,"excludeTurns":true,
+        "runtimeMcpServers":{"codex_tui":{"url":next_url,"http_headers":{"Authorization":next_auth}}}
+    }))).await?;
+    let resumed: ThreadResumeResponse =
+        app_test_support::to_response(response(&mut joining, 8).await?)?;
+    assert_eq!(resumed.thread.session_id, started.thread.session_id);
+    assert_eq!(resumed.runtime_mcp_servers_applied, Some(true));
+    let registration_b = resumed
+        .runtime_mcp_registration_id
+        .clone()
+        .expect("B registration identity");
+    assert_ne!(registration_a, registration_b);
+    websocket::send_request(&mut joining, "mcpServer/tool/call", 9, Some(json!({
+        "threadId":id,"server":"codex_tui","tool":TEST_TOOL_NAME,"arguments":{"message":"listener-B"}
+    }))).await?;
+    let second: McpServerToolCallResponse =
+        app_test_support::to_response(response(&mut joining, 9).await?)?;
+    assert_eq!(second.is_error, Some(false));
+    assert_eq!(second.content[0]["text"], "echo: listener-B");
+    let after = if same_bridge {
+        a_hits.load(Ordering::SeqCst)
+    } else {
+        b_hits.load(Ordering::SeqCst)
+    };
+    assert!(
+        after > before,
+        "the explicitly offered bridge must receive the authenticated tools/call"
+    );
+    websocket::send_request(
+        &mut joining,
+        "mcpServerStatus/list",
+        21,
+        Some(json!({"threadId":id,"serverName":"codex_tui"})),
+    )
+    .await?;
+    let status_b: codex_app_server_protocol::ListMcpServerStatusResponse =
+        app_test_support::to_response(response(&mut joining, 21).await?)?;
+    assert_eq!(
+        status_b
+            .data
+            .iter()
+            .find(|server| server.name == "codex_tui")
+            .and_then(|server| server.runtime_registration_id.as_deref()),
+        Some(registration_b.as_str())
+    );
+    websocket::send_request(
+        &mut joining,
+        "thread/unsubscribe",
+        22,
+        Some(json!({"threadId":id})),
+    )
+    .await?;
+    response(&mut joining, 22).await?;
+    websocket::send_request(
+        &mut observer,
+        "mcpServerStatus/list",
+        23,
+        Some(json!({"threadId":id,"serverName":"codex_tui"})),
+    )
+    .await?;
+    let revoked: codex_app_server_protocol::ListMcpServerStatusResponse =
+        app_test_support::to_response(response(&mut observer, 23).await?)?;
+    assert!(
+        revoked
+            .data
+            .iter()
+            .all(|server| server.runtime_registration_id.is_none())
+    );
+    b_task.abort();
+    let _ = b_task.await;
+    if let Some(task) = a_task {
+        task.abort();
+        let _ = task.await;
+    }
+    process.kill().await?;
+    let _ = process.wait().await?;
+    Ok(())
+}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn mcp_server_tool_call_returns_tool_result() -> Result<()> {

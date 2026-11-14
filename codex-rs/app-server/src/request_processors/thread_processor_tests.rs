@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use codex_app_server_protocol::JSONRPCErrorError;
 use codex_thread_store::ThreadStoreError;
@@ -711,6 +712,9 @@ mod thread_processor_behavior_tests {
     fn collect_resume_override_mismatches_includes_service_tier() {
         let cwd = test_path_buf("/tmp").abs();
         let request = ThreadResumeParams {
+            runtime_mcp_servers: None,
+            runtime_mcp_generation: None,
+            runtime_mcp_cancel: false,
             thread_id: "thread-1".to_string(),
             runtime_dynamic_tools: None,
             previous_runtime_dynamic_tools: Vec::new(),

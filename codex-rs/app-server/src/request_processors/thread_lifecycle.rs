@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use super::thread_input::can_accept_direct_input;
 use super::thread_processor::THREAD_ITEMS_MAX_LIMIT;
@@ -1309,8 +1310,12 @@ pub(super) async fn handle_pending_thread_resume_request(
 
     let response = ThreadResumeResponse {
         runtime_dynamic_tools_applied: pending.runtime_dynamic_tools_applied,
+        runtime_mcp_servers_applied: pending.runtime_mcp_servers_applied,
+        runtime_mcp_generation: pending.runtime_mcp_generation,
+        runtime_mcp_registration_id: pending.runtime_mcp_registration_id,
         runtime_dynamic_tools_runtime_id: pending
             .runtime_dynamic_tools_applied
+            .or(pending.runtime_mcp_servers_applied)
             .map(|_| conversation.runtime_id().to_string()),
         supports_compact_if_idle: pending.passive.then_some(true),
         supports_expected_turn_interrupt: Some(true),

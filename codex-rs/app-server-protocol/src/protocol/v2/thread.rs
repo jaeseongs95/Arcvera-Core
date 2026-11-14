@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R36 (2026-11-03); see MODIFICATIONS.md.
 use super::ActivePermissionProfile;
 use super::ApprovalsReviewer;
@@ -61,6 +62,11 @@ pub enum ThreadStartSource {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ThreadStartParams {
+    /// Connection-owned MCP servers. Subject to normal MCP policy; never persisted.
+    #[experimental("thread/start.runtimeMcpServers")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_servers: Option<HashMap<String, serde_json::Value>>,
     #[ts(optional = nullable)]
     pub model: Option<String>,
     #[ts(optional = nullable)]
@@ -187,6 +193,14 @@ pub struct MockExperimentalMethodResponse {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ThreadStartResponse {
+    /// Explicit registration ACK; missing on servers without runtime MCP support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_servers_applied: Option<bool>,
+    /// Opaque, non-secret registration identity; an ACK alone does not mean ready.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_registration_id: Option<String>,
     pub thread: Thread,
     pub model: String,
     pub model_provider: String,
@@ -387,6 +401,20 @@ pub struct ThreadSettingsUpdatedNotification {
 ///
 /// Prefer using thread_id whenever possible.
 pub struct ThreadResumeParams {
+    /// Connection-owned MCP servers, atomically registered with runtime tools while idle.
+    #[experimental("thread/resume.runtimeMcpServers")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_servers: Option<HashMap<String, serde_json::Value>>,
+    /// Retry/cancel only this queued MCP registration in the expected runtime.
+    #[experimental("thread/resume.runtimeMcpServers")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_generation: Option<u64>,
+    /// Cancel this connection's matching queued registration without applying it.
+    #[experimental("thread/resume.runtimeMcpServers")]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub runtime_mcp_cancel: bool,
     pub thread_id: String,
     /// Connection-lifetime tools, merged only while idle. Never persisted.
     #[experimental("thread/resume.runtimeDynamicTools")]
@@ -486,6 +514,18 @@ pub struct ThreadResumeParams {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ThreadResumeResponse {
+    /// Explicit MCP registration ACK, independent of native runtime-tool support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_servers_applied: Option<bool>,
+    /// Stable across retries of one registration; compare with connected status identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_registration_id: Option<String>,
+    /// Server-issued pending identity; false applied means queued, not ready.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_generation: Option<u64>,
     /// True only after runtime publication; false means busy with no change.
     /// Null when no supplement was requested; missing fields from older servers are accepted.
     #[serde(default)]
@@ -618,6 +658,11 @@ impl From<ThreadTurnsListResponse> for TurnsPage {
 ///
 /// Prefer using thread_id whenever possible.
 pub struct ThreadForkParams {
+    /// Connection-owned MCP servers for this fork, not inherited from its parent.
+    #[experimental("thread/fork.runtimeMcpServers")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_servers: Option<HashMap<String, serde_json::Value>>,
     pub thread_id: String,
 
     /// Start from the loaded parent's effective config, tools, environments, and
@@ -727,6 +772,14 @@ pub struct ThreadForkParams {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ThreadForkResponse {
+    /// Explicit registration ACK; missing on servers without runtime MCP support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_servers_applied: Option<bool>,
+    /// Opaque, non-secret registration identity; an ACK alone does not mean ready.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub runtime_mcp_registration_id: Option<String>,
     pub thread: Thread,
     pub model: String,
     pub model_provider: String,

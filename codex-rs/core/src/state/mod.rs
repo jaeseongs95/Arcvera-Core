@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 mod additional_context;
 mod auto_compact_window;
 mod service;
@@ -11,6 +12,7 @@ pub(crate) use additional_context::AdditionalContextStore;
 pub(crate) use auto_compact_window::AutoCompactWindowIds;
 pub(crate) use auto_compact_window::AutoCompactWindowSnapshot;
 pub(crate) use service::SessionServices;
+pub(crate) use session::PendingRuntimeTools;
 pub(crate) use session::ReasoningEffortPin;
 pub(crate) use session::SessionState;
 pub(crate) use turn::AcceptedUserInputResponse;

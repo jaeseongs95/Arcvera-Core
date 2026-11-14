@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Coverage for history-cell rendering, wrapping, and transcript behavior.
 
@@ -1166,6 +1167,7 @@ async fn mcp_tools_output_lists_tools_for_hyphenated_server_names() {
 #[test]
 fn mcp_tools_output_from_statuses_renders_status_only_servers() {
     let statuses = vec![McpServerStatus {
+        runtime_registration_id: None,
         server_capabilities: None,
         tool_list_meta: None,
         tools_error: None,
@@ -1202,6 +1204,7 @@ fn mcp_tools_output_from_statuses_renders_status_only_servers() {
 #[test]
 fn mcp_tools_output_from_statuses_renders_verbose_inventory() {
     let statuses = vec![McpServerStatus {
+        runtime_registration_id: None,
         server_capabilities: None,
         tool_list_meta: None,
         tools_error: None,

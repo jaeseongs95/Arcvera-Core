@@ -9,7 +9,13 @@ import type { AskForApproval } from "./AskForApproval";
 import type { SandboxPolicy } from "./SandboxPolicy";
 import type { Thread } from "./Thread";
 
-export type ThreadStartResponse = {thread: Thread, model: string, modelProvider: string, serviceTier: string | null, /**
+export type ThreadStartResponse = {/**
+ * Explicit registration ACK; missing on servers without runtime MCP support.
+ */
+runtimeMcpServersApplied?: boolean, /**
+ * Opaque, non-secret registration identity; an ACK alone does not mean ready.
+ */
+runtimeMcpRegistrationId?: string, thread: Thread, model: string, modelProvider: string, serviceTier: string | null, /**
  * Saved list of disabled plugin IDs. Does not yet filter plugin capabilities.
  */
 disabledPluginIds: Array<string>, cwd: AbsolutePathBuf, /**

@@ -892,6 +892,49 @@ impl CodexThread {
             .await
     }
 
+    /// Atomically registers connection-owned native and MCP catalogs while idle.
+    pub async fn supplement_runtime_tools(
+        &self,
+        owner: u64,
+        disconnected: tokio_util::sync::CancellationToken,
+        tools: Option<Vec<codex_protocol::dynamic_tools::DynamicToolSpec>>,
+        previous: &[codex_protocol::dynamic_tools::DynamicToolSpec],
+        servers: Option<std::collections::HashMap<String, codex_config::McpServerConfig>>,
+    ) -> CodexResult<bool> {
+        self.register_runtime_tools(owner, disconnected, tools, previous, servers, None)
+            .await
+            .map(|(applied, _, _)| applied)
+    }
+
+    /// Register or retry the exact connection-owned queued MCP generation.
+    pub async fn register_runtime_tools(
+        &self,
+        owner: u64,
+        disconnected: tokio_util::sync::CancellationToken,
+        tools: Option<Vec<codex_protocol::dynamic_tools::DynamicToolSpec>>,
+        previous: &[codex_protocol::dynamic_tools::DynamicToolSpec],
+        servers: Option<std::collections::HashMap<String, codex_config::McpServerConfig>>,
+        generation: Option<u64>,
+    ) -> CodexResult<(bool, Option<u64>, Option<String>)> {
+        let (applied, queued, lifetime, registration_id) = self
+            .session
+            .register_runtime_tools(owner, disconnected, tools, previous, servers, generation)
+            .await?;
+        if generation.is_none()
+            && let (false, Some(id), Some(lifetime)) = (applied, queued, lifetime)
+        {
+            self.session
+                .watch_pending_runtime_tools(owner, id, lifetime);
+        }
+        Ok((applied, queued, registration_id))
+    }
+
+    pub async fn cancel_pending_runtime_tools(&self, owner: u64, generation: u64) -> bool {
+        self.session
+            .cancel_pending_runtime_tools(owner, generation)
+            .await
+    }
+
     /// Only supplemented keys receive connection-specific routing.
     pub async fn runtime_dynamic_tool_owner(
         &self,
@@ -1266,6 +1309,50 @@ impl CodexThread {
             .mcp_runtime
             .connection_statuses(config)
             .await
+    }
+
+    /// IDs are returned only for the currently live overlay and matching published connection.
+    pub async fn mcp_connection_statuses_with_registration(
+        &self,
+        config: &codex_mcp::McpConfig,
+    ) -> (
+        std::collections::HashMap<String, codex_protocol::mcp::McpServerConnectionStatus>,
+        std::collections::HashMap<String, String>,
+    ) {
+        let (statuses, mut ids) = self
+            .session
+            .services
+            .mcp_runtime
+            .connection_statuses_with_registration(config)
+            .await;
+        let overlay = self
+            .session
+            .services
+            .thread_extension_data
+            .get::<crate::mcp::RuntimeMcpServers>();
+        let live_config = self.session.get_config().await;
+        let current_overlay = self
+            .session
+            .services
+            .thread_extension_data
+            .get::<crate::mcp::RuntimeMcpServers>();
+        ids.retain(|name, id| {
+            overlay.as_ref().is_some_and(|overlay| {
+                !overlay.disconnected.is_cancelled()
+                    && current_overlay
+                        .as_ref()
+                        .is_some_and(|current| Arc::ptr_eq(overlay, current))
+                    && overlay.validate(&live_config).is_ok()
+                    && overlay.registration_id() == id.as_str()
+                    && overlay.servers().get(name).is_some_and(|expected| {
+                        config
+                            .mcp_server_catalog
+                            .server(name)
+                            .is_some_and(|server| server.config() == expected)
+                    })
+            })
+        });
+        (statuses, ids)
     }
 
     /// Resolves MCP configuration and environment bindings from the same config snapshot.

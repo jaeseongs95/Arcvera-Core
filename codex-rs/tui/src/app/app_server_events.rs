@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! App-server event stream handling for the TUI app.
 //! Hidden structured threads reject requests instead of entering interactive routing.
@@ -758,7 +759,10 @@ impl App {
             let request_id = request_id.clone();
             let task_request_id = request_id.clone();
             let source_thread_id = params.thread_id.clone();
-            let inherits_task_tools = params.tool == "fork_thread"
+            let inherits_task_tools = matches!(
+                app_server_client.thread_tool_transport(),
+                crate::dynamic_tools_mcp::ThreadToolTransport::Dynamic
+            ) && params.tool == "fork_thread"
                 && params
                     .arguments
                     .get("threadId")

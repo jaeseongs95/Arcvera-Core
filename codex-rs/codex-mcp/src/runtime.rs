@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Runtime support for Model Context Protocol (MCP) servers.
 //!
@@ -877,9 +878,20 @@ impl McpRuntime {
         &self,
         config: &McpConfig,
     ) -> std::collections::HashMap<String, codex_protocol::mcp::McpServerConnectionStatus> {
+        self.connection_statuses_with_registration(config).await.0
+    }
+
+    /// Read connection state and matching registration IDs from one published runtime snapshot.
+    pub async fn connection_statuses_with_registration(
+        &self,
+        config: &McpConfig,
+    ) -> (
+        HashMap<String, codex_protocol::mcp::McpServerConnectionStatus>,
+        HashMap<String, String>,
+    ) {
         let current = self.current.load_full();
         let Some(published_config) = current.config.as_ref() else {
-            return HashMap::new();
+            return (HashMap::new(), HashMap::new());
         };
         let mut statuses = current.connections.connection_statuses().await;
         statuses.retain(|name, _| {
@@ -888,7 +900,21 @@ impl McpRuntime {
                 .server(name)
                 .is_some_and(|server| config.mcp_server_catalog.server(name) == Some(server))
         });
-        statuses
+        if !Arc::ptr_eq(&current, &self.current.load_full()) {
+            return (statuses, HashMap::new());
+        }
+        let ids = statuses
+            .iter()
+            .filter_map(|(name, status)| {
+                matching_runtime_registration(
+                    *status,
+                    published_config.runtime_registration_ids.get(name),
+                    config.runtime_registration_ids.get(name),
+                )
+                .map(|id| (name.clone(), id.to_owned()))
+            })
+            .collect();
+        (statuses, ids)
     }
 
     pub(crate) fn latest_connections(&self) -> Arc<McpConnectionSet> {
@@ -999,6 +1025,17 @@ impl McpRuntime {
             .await
             .map_err(|error| anyhow::anyhow!(error.to_string()))
     }
+}
+
+fn matching_runtime_registration<'a>(
+    status: codex_protocol::mcp::McpServerConnectionStatus,
+    published: Option<&'a String>,
+    requested: Option<&String>,
+) -> Option<&'a str> {
+    (status == codex_protocol::mcp::McpServerConnectionStatus::Connected)
+        .then_some(published?)
+        .filter(|id| requested == Some(*id))
+        .map(String::as_str)
 }
 
 /// Runtime context used when resolving per-server MCP environments.
@@ -1180,6 +1217,33 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn registration_identity_requires_matching_connected_publication() {
+        use codex_protocol::mcp::McpServerConnectionStatus as S;
+        let a = "registration-a".to_owned();
+        let b = "registration-b".to_owned();
+        assert_eq!(
+            matching_runtime_registration(S::Connected, Some(&a), Some(&a)),
+            Some("registration-a")
+        );
+        assert_eq!(
+            matching_runtime_registration(S::Connected, Some(&a), Some(&b)),
+            None
+        );
+        assert_eq!(
+            matching_runtime_registration(S::Connected, Some(&a), None),
+            None
+        );
+        assert_eq!(
+            matching_runtime_registration(S::Failed, Some(&a), Some(&a)),
+            None
+        );
+        assert_eq!(
+            matching_runtime_registration(S::Starting, Some(&a), Some(&a)),
+            None
+        );
+    }
 
     fn stdio_server(environment_id: &str) -> McpServerConfig {
         McpServerConfig {

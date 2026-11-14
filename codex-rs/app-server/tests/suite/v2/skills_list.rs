@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::collections::BTreeMap;
 use std::time::Duration;
 
@@ -414,6 +415,7 @@ enabled = true
         .await?;
     let thread_start_request_id = mcp
         .send_thread_start_request_with_auto_env(ThreadStartParams {
+            runtime_mcp_servers: None,
             cwd: Some(cwd.path().to_string_lossy().into_owned()),
             ..Default::default()
         })
@@ -1375,6 +1377,7 @@ async fn skills_changed_notification_is_emitted_after_skill_change() -> Result<(
 
     let thread_start_request_id = mcp
         .send_thread_start_request_with_auto_env(ThreadStartParams {
+            runtime_mcp_servers: None,
             model: None,
             model_provider: None,
             allow_provider_model_fallback: false,

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 //! Handles persistent thread-settings updates and serializes their persistence
 //! with checkpoints written directly to storage.
@@ -31,12 +32,42 @@ impl Session {
         tools: Vec<codex_protocol::dynamic_tools::DynamicToolSpec>,
         previous: &[codex_protocol::dynamic_tools::DynamicToolSpec],
     ) -> CodexResult<bool> {
+        self.supplement_runtime_tools(owner, disconnected, Some(tools), previous, None)
+            .await
+    }
+
+    /// Atomically admit native and MCP overlays; neither changes if validation fails.
+    pub(crate) async fn supplement_runtime_tools(
+        &self,
+        owner: u64,
+        disconnected: tokio_util::sync::CancellationToken,
+        tools: Option<Vec<codex_protocol::dynamic_tools::DynamicToolSpec>>,
+        previous: &[codex_protocol::dynamic_tools::DynamicToolSpec],
+        servers: Option<std::collections::HashMap<String, codex_config::McpServerConfig>>,
+    ) -> CodexResult<bool> {
+        self.register_runtime_tools(owner, disconnected, tools, previous, servers, None)
+            .await
+            .map(|(applied, _, _, _)| applied)
+    }
+
+    /// A retry with an identity can only apply the exact still-current queued request.
+    pub(crate) async fn register_runtime_tools(
+        &self,
+        owner: u64,
+        disconnected: tokio_util::sync::CancellationToken,
+        tools: Option<Vec<codex_protocol::dynamic_tools::DynamicToolSpec>>,
+        previous: &[codex_protocol::dynamic_tools::DynamicToolSpec],
+        servers: Option<std::collections::HashMap<String, codex_config::McpServerConfig>>,
+        generation: Option<u64>,
+    ) -> CodexResult<(
+        bool,
+        Option<u64>,
+        Option<tokio_util::sync::CancellationToken>,
+        Option<String>,
+    )> {
         // No persistence is touched here. Holding its permit while waiting for an
         // active turn can deadlock a user reply behind a delivered-message record.
         let active = self.active_turn.lock().await;
-        if active.is_some() {
-            return Ok(false);
-        }
         let mut state = self.state.lock().await;
         if state.shutting_down || self.cleanup_admission.is_closing() || disconnected.is_cancelled()
         {
@@ -44,20 +75,191 @@ impl Session {
                 "도구를 제공한 연결이 종료됐습니다.".into(),
             ));
         }
-        if state
-            .runtime_dynamic_tools
-            .as_ref()
-            .is_some_and(|overlay| !overlay.disconnected.is_cancelled() && overlay.owner != owner)
+        if let Some(generation) = generation {
+            let pending = state
+                .pending_runtime_tools
+                .as_ref()
+                .ok_or_else(|| CodexErr::InvalidRequest("대기 중인 MCP 등록이 없습니다.".into()))?;
+            if pending.generation != generation
+                || pending.owner != owner
+                || pending.disconnected.is_cancelled()
+                || pending.tools != tools
+                || pending.previous != previous
+                || Some(&pending.servers) != servers.as_ref()
+            {
+                return Err(CodexErr::InvalidRequest(
+                    "대기 중인 MCP 등록이 변경되었거나 종료됐습니다.".into(),
+                ));
+            }
+        }
+        if tools.is_some()
+            && state.runtime_dynamic_tools.as_ref().is_some_and(|overlay| {
+                !overlay.disconnected.is_cancelled() && overlay.owner != owner
+            })
         {
             return Err(CodexErr::InvalidRequest(
                 "다른 연결이 이 대화의 도구 보강을 소유하고 있습니다.".into(),
             ));
         }
-        let (merged, keys) =
-            merge_runtime_tools(&state.session_configuration.dynamic_tools, &tools, previous)
+        let merged = tools
+            .as_ref()
+            .map(|tools| {
+                merge_runtime_tools(&state.session_configuration.dynamic_tools, tools, previous)
+                    .map_err(CodexErr::InvalidRequest)
+            })
+            .transpose()?;
+        let pending_servers = servers.clone();
+        let overlay = if let Some(servers) = servers {
+            let store = &self.services.thread_extension_data;
+            if let Some(old) = store.get::<crate::mcp::RuntimeMcpServers>()
+                && old.owner != owner
+            {
+                if !old.disconnected.is_cancelled() {
+                    return Err(CodexErr::InvalidRequest(
+                        "다른 연결이 이 대화의 MCP 도구를 소유하고 있습니다.".into(),
+                    ));
+                }
+                // A new owner may explicitly register the same live bridge after
+                // the old connection ends. The offered definitions are validated
+                // as complete values below; nothing is inherited from `old`.
+            }
+            if self
+                .services
+                .mcp_thread_init
+                .get::<crate::mcp::McpServersDisabled>()
+                .is_some()
+            {
+                return Err(CodexErr::InvalidRequest(
+                    "MCP servers are disabled for this thread".into(),
+                ));
+            }
+            let mut overlay =
+                crate::mcp::RuntimeMcpServers::new(owner, disconnected.clone(), servers);
+            if generation.is_some() {
+                let id = state
+                    .pending_runtime_tools
+                    .as_ref()
+                    .expect("generation validated")
+                    .registration_id
+                    .clone();
+                overlay = overlay.with_registration_id(id);
+            }
+            overlay
+                .validate(&state.session_configuration.original_config_do_not_use)
                 .map_err(CodexErr::InvalidRequest)?;
-        state.set_runtime_dynamic_tools(owner, disconnected, Arc::from(merged), keys);
-        Ok(true)
+            Some(overlay)
+        } else {
+            None
+        };
+        if active.is_some() {
+            // An exact same-owner MCP registration is already installed. All
+            // other validated changes remain queued at the caller until idle.
+            if tools.is_none()
+                && let Some(ref candidate) = overlay
+                && let Some(current) = self
+                    .services
+                    .thread_extension_data
+                    .get::<crate::mcp::RuntimeMcpServers>()
+                && current.matches(owner, candidate.servers())
+            {
+                return Ok((
+                    true,
+                    generation,
+                    None,
+                    Some(current.registration_id().to_owned()),
+                ));
+            }
+            if let Some(servers) = pending_servers {
+                let id = match generation {
+                    Some(id) => id,
+                    None => {
+                        let id = state
+                            .runtime_registration_generation
+                            .checked_add(1)
+                            .ok_or_else(|| {
+                                CodexErr::InvalidRequest("MCP 등록 세대가 소진됐습니다.".into())
+                            })?;
+                        state.runtime_registration_generation = id;
+                        let pending = crate::state::PendingRuntimeTools {
+                            generation: id,
+                            registration_id: overlay
+                                .as_ref()
+                                .expect("MCP overlay validated")
+                                .registration_id()
+                                .to_owned(),
+                            owner,
+                            disconnected: disconnected.child_token(),
+                            tools,
+                            previous: previous.to_vec(),
+                            servers,
+                        };
+                        if let Some(previous) = state.pending_runtime_tools.replace(pending) {
+                            previous.disconnected.cancel();
+                        }
+                        id
+                    }
+                };
+                let lifetime = state
+                    .pending_runtime_tools
+                    .as_ref()
+                    .map(|pending| pending.disconnected.clone());
+                let registration_id = state
+                    .pending_runtime_tools
+                    .as_ref()
+                    .map(|pending| pending.registration_id.clone());
+                return Ok((false, Some(id), lifetime, registration_id));
+            }
+            return Ok((false, None, None, None));
+        }
+        if let Some((merged, keys)) = merged {
+            state.set_runtime_dynamic_tools(owner, disconnected, Arc::from(merged), keys);
+        }
+        let registration_id = overlay
+            .as_ref()
+            .map(|overlay| overlay.registration_id().to_owned());
+        if let Some(overlay) = overlay {
+            self.services.thread_extension_data.insert(overlay);
+            self.mark_mcp_runtime_dirty();
+        }
+        if pending_servers.is_some() || generation.is_some() {
+            if let Some(pending) = state.pending_runtime_tools.take() {
+                pending.disconnected.cancel();
+            }
+        }
+        Ok((true, generation, None, registration_id))
+    }
+
+    pub(crate) async fn cancel_pending_runtime_tools(&self, owner: u64, generation: u64) -> bool {
+        let mut state = self.state.lock().await;
+        if state
+            .pending_runtime_tools
+            .as_ref()
+            .is_some_and(|pending| pending.owner == owner && pending.generation == generation)
+        {
+            if let Some(pending) = state.pending_runtime_tools.take() {
+                pending.disconnected.cancel();
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn watch_pending_runtime_tools(
+        self: &Arc<Self>,
+        owner: u64,
+        generation: u64,
+        lifetime: tokio_util::sync::CancellationToken,
+    ) {
+        let session = Arc::downgrade(self);
+        tokio::spawn(async move {
+            lifetime.cancelled().await;
+            if let Some(session) = session.upgrade() {
+                session
+                    .cancel_pending_runtime_tools(owner, generation)
+                    .await;
+            }
+        });
     }
 
     pub(crate) async fn runtime_dynamic_tool_owner(
@@ -116,6 +318,9 @@ impl Session {
         state.session_configuration.dynamic_tools = tools;
         // An explicit official replacement supersedes the connection's old catalog snapshot.
         state.runtime_dynamic_tools = None;
+        if let Some(pending) = state.pending_runtime_tools.take() {
+            pending.disconnected.cancel();
+        }
         Ok(())
     }
 

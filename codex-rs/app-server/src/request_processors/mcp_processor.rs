@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use super::account_processor::EnterpriseLoginCompletion;
 use super::account_processor::EnterpriseLoginTarget;
@@ -491,6 +492,7 @@ impl McpRequestProcessor {
         if cancellation.is_cancelled() {
             return Err(crate::mcp_read_lifetime::cancelled_error());
         }
+        let targeted_thread_binding = thread.is_some() && params.server_name.is_some();
         let detail = match params.detail.unwrap_or(McpServerStatusDetail::Full) {
             McpServerStatusDetail::Full => McpSnapshotDetail::Full,
             McpServerStatusDetail::ToolsAndAuthOnly => McpSnapshotDetail::ToolsAndAuthOnly,
@@ -601,10 +603,19 @@ impl McpRequestProcessor {
             (Arc::new(mcp_config), snapshot)
         };
 
-        let runtime_statuses = match thread {
-            Some(thread) => thread.mcp_connection_statuses(&mcp_config).await,
-            None => HashMap::new(),
+        let (runtime_statuses, mut runtime_registration_ids) = match thread {
+            Some(thread) => {
+                thread
+                    .mcp_connection_statuses_with_registration(&mcp_config)
+                    .await
+            }
+            None => (HashMap::new(), HashMap::new()),
         };
+        // Unfiltered inventory may come from independent discovery rather than
+        // the selected thread binding; never attach a binding identity to it.
+        if !targeted_thread_binding {
+            runtime_registration_ids.clear();
+        }
         let McpServerStatusSnapshot {
             mut server_infos,
             mut server_capabilities,
@@ -656,6 +667,7 @@ impl McpRequestProcessor {
             .iter()
             .map(|name| McpServerStatus {
                 name: name.clone(),
+                runtime_registration_id: runtime_registration_ids.get(name).cloned(),
                 runtime_status: runtime_statuses.get(name).copied().map(Into::into),
                 plugin_id: mcp_config.mcp_server_catalog.server(name).and_then(
                     |server| match server.source() {
