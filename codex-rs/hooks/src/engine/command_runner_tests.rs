@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::ffi::OsString;
 #[cfg(windows)]
@@ -31,6 +32,7 @@ use super::CommandHookRuntime;
 use super::CommandShell;
 use super::ConfiguredHandler;
 use super::MAX_CONCURRENT_ASYNC_HOOKS;
+use super::MAX_HOOK_OUTPUT_BYTES;
 use super::build_command;
 use super::default_shell_program;
 use super::run_command;
@@ -340,6 +342,69 @@ time.sleep(30)
     assert!(temp.path().join("output-drained").exists());
     assert_eq!(result.exit_code, None);
     assert_eq!(result.error, Some("hook timed out after 2s".to_string()));
+}
+
+#[tokio::test]
+async fn hook_preserves_output_at_each_stream_limit() {
+    let temp = tempdir().expect("create temp dir");
+    let handler = write_handler(
+        &temp,
+        &format!(
+            "import sys\nsys.stdout.buffer.write(b'x' * {MAX_HOOK_OUTPUT_BYTES})\n\
+             sys.stderr.buffer.write(b'y' * {MAX_HOOK_OUTPUT_BYTES})\n"
+        ),
+    );
+    let ConfiguredHandlerKind::Command { command, env, .. } = &handler.kind else {
+        panic!("expected command hook");
+    };
+    let (runtime, _result_receiver) = runtime();
+
+    let result = run_command(&runtime, &handler, command, env, "{}", temp.path()).await;
+
+    assert_eq!(result.exit_code, Some(0));
+    assert_eq!(result.error, None);
+    assert_eq!(result.stdout, "x".repeat(MAX_HOOK_OUTPUT_BYTES));
+    assert_eq!(result.stderr, "y".repeat(MAX_HOOK_OUTPUT_BYTES));
+}
+
+#[tokio::test]
+async fn hook_rejects_output_over_limit_without_returning_partial_json() {
+    for stream in ["stdout", "stderr"] {
+        let temp = tempdir().expect("create temp dir");
+        let handler = write_handler(
+            &temp,
+            &format!(
+                "import sys\nimport time\n\
+                 sys.stdout.buffer.write(b'{{\"continue\":true}}\\n')\n\
+                 sys.stdout.buffer.flush()\n\
+                 sys.{stream}.buffer.write(b'x' * {})\n\
+                 sys.{stream}.buffer.flush()\n\
+                 time.sleep(30)\n",
+                MAX_HOOK_OUTPUT_BYTES + 1,
+            ),
+        );
+        let ConfiguredHandlerKind::Command { command, env, .. } = &handler.kind else {
+            panic!("expected command hook");
+        };
+        let (runtime, _result_receiver) = runtime();
+
+        let result = timeout(
+            Duration::from_secs(5),
+            run_command(&runtime, &handler, command, env, "{}", temp.path()),
+        )
+        .await
+        .expect("output overflow must fail before the hook timeout");
+
+        assert_eq!(result.exit_code, None);
+        assert_eq!(
+            result.error,
+            Some(format!(
+                "hook {stream} exceeded the {MAX_HOOK_OUTPUT_BYTES}-byte output limit"
+            )),
+        );
+        assert!(result.stdout.is_empty());
+        assert!(result.stderr.is_empty());
+    }
 }
 
 #[tokio::test]
@@ -956,4 +1021,110 @@ async fn hook_rejects_nul_in_configured_and_default_shell_program() {
         assert_eq!(result.exit_code, None);
         assert!(!root.path().join("ran").exists());
     }
+}
+
+#[tokio::test]
+async fn hook_drains_both_output_pipes_while_sending_large_stdin() {
+    let temp = tempdir().expect("create temp dir");
+    let handler = write_handler(
+        &temp,
+        r#"import sys
+sys.stdout.buffer.write(b'x' * (128 * 1024))
+sys.stdout.buffer.flush()
+sys.stderr.buffer.write(b'y' * (128 * 1024))
+sys.stderr.buffer.flush()
+data = sys.stdin.buffer.read()
+sys.stdout.buffer.write(str(len(data)).encode('ascii'))
+"#,
+    );
+    let ConfiguredHandlerKind::Command { command, env, .. } = &handler.kind else {
+        panic!("expected command hook")
+    };
+    let (runtime, _) = runtime();
+    let input = "z".repeat(1024 * 1024);
+    let result = timeout(
+        Duration::from_secs(10),
+        run_command(&runtime, &handler, command, env, &input, temp.path()),
+    )
+    .await
+    .expect("concurrent IO must finish");
+    assert_eq!(result.error, None);
+    assert_eq!(result.exit_code, Some(0));
+    assert_eq!(
+        result.stdout,
+        format!("{}{}", "x".repeat(128 * 1024), input.len())
+    );
+    assert_eq!(result.stderr, "y".repeat(128 * 1024));
+}
+
+#[tokio::test]
+async fn async_hook_rejects_output_over_limit_without_delivering_partial_json() {
+    let temp = tempdir().expect("create temp dir");
+    let (runtime, results) = runtime();
+    let handler = write_handler(
+        &temp,
+        &format!(
+            "import sys\nsys.stdout.write('{{\"systemMessage\":\"partial\"}}')\nsys.stdout.write(' ' * {})\nsys.stdout.flush()\n",
+            MAX_HOOK_OUTPUT_BYTES + 1,
+        ),
+    );
+    schedule(&runtime, handler, temp.path()).await;
+    let result = timeout(ASYNC_HOOK_TEST_TIMEOUT, results.recv())
+        .await
+        .expect("overflow must finish")
+        .expect("receiver open");
+    assert_eq!(result.run.status, HookRunStatus::Failed);
+    assert!(result.run.entries.iter().any(
+        |entry| entry.kind == HookOutputEntryKind::Error && entry.text.contains("output limit")
+    ));
+    assert!(!result.run.entries.iter().any(|entry| matches!(
+        entry.kind,
+        HookOutputEntryKind::Context | HookOutputEntryKind::Warning
+    )));
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn hook_output_overflow_terminates_owned_descendant() {
+    let temp = tempdir().expect("create temp dir");
+    let handler = write_handler(
+        &temp,
+        &format!(
+            r#"from pathlib import Path
+import subprocess
+import sys
+import time
+
+subprocess.Popen([sys.executable, '-c', "from pathlib import Path; import time; Path('child-started').touch(); time.sleep(2); Path('child-survived').touch()"])
+while not Path('child-started').exists():
+    time.sleep(0.01)
+sys.stdout.buffer.write(b'x' * {})
+sys.stdout.buffer.flush()
+time.sleep(30)
+"#,
+            MAX_HOOK_OUTPUT_BYTES + 1
+        ),
+    );
+    let ConfiguredHandlerKind::Command { command, env, .. } = &handler.kind else {
+        panic!("expected command hook")
+    };
+    let (runtime, _) = runtime();
+    let result = timeout(
+        Duration::from_secs(10),
+        run_command(&runtime, &handler, command, env, "{}", temp.path()),
+    )
+    .await
+    .expect("overflow must finish");
+    assert!(
+        result
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("output limit"))
+    );
+    sleep(Duration::from_secs(3)).await;
+    assert!(temp.path().join("child-started").exists());
+    assert!(
+        !temp.path().join("child-survived").exists(),
+        "overflow must terminate the owned child"
+    );
 }
