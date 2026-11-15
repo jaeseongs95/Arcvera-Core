@@ -2159,7 +2159,7 @@ async fn migration_rolls_back_archive_only_inherited_checkpoint() {
             ("second-turn", second_id, "Never publish the second source."),
         ] {
             let mut item = input_response_message("user", text);
-            item.set_id(Some(ResponseItemId::from_server(id)));
+            item.set_id(Some(ResponseItemId::from_server(id.into())));
             item.set_turn_id_if_missing(turn_id);
             let mut envelope = codex_rollout::ResponseItemEnvelope::new(item);
             envelope

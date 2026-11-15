@@ -1081,7 +1081,7 @@ async fn standalone_fork_from_migrated_inherited_checkpoint() -> Result<()> {
     let mut records = Vec::new();
     for (turn_id, text) in [("first-turn", FIRST), ("second-turn", REVOKED)] {
         let mut item = ResponseItem::Message {
-            id: Some(ResponseItemId::from_server("reused-id")),
+            id: Some(ResponseItemId::from_server("reused-id".into())),
             role: "user".into(),
             content: vec![ContentItem::InputText { text: text.into() }],
             phase: None,

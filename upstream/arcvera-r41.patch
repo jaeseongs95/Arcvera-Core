@@ -46580,7 +46580,7 @@ index 0000000000000000000000000000000000000000..501e751e867ba35f2fff8d9b539bff81
 +    Ok(())
 +}
 diff --git a/codex-rs/core/tests/suite/guardian_retained_context.rs b/codex-rs/core/tests/suite/guardian_retained_context.rs
-index 47d5339046db13303ad6d94c32094df749e60480..e4366993105aafc534761b36da5601120a98ed3c 100644
+index 47d5339046db13303ad6d94c32094df749e60480..8fd7f653a37cd76c0ff1fe5d90450b87f3209844 100644
 --- a/codex-rs/core/tests/suite/guardian_retained_context.rs
 +++ b/codex-rs/core/tests/suite/guardian_retained_context.rs
 @@ -1,3 +1,4 @@
@@ -46909,7 +46909,7 @@ index 47d5339046db13303ad6d94c32094df749e60480..e4366993105aafc534761b36da560112
 +    let mut records = Vec::new();
 +    for (turn_id, text) in [("first-turn", FIRST), ("second-turn", REVOKED)] {
 +        let mut item = ResponseItem::Message {
-+            id: Some(ResponseItemId::from_server("reused-id")),
++            id: Some(ResponseItemId::from_server("reused-id".into())),
 +            role: "user".into(),
 +            content: vec![ContentItem::InputText { text: text.into() }],
 +            phase: None,
@@ -61781,7 +61781,7 @@ index 92a0c6c0b248e5314aa24b939d2a3b2fc431d9b4..bec9af56863894ff7c19019425ba0e99
              | RolloutItem::WorldState(_) => return,
          };
 diff --git a/codex-rs/thread-store/src/local/rollout_migration_tests.rs b/codex-rs/thread-store/src/local/rollout_migration_tests.rs
-index dea0da6a5974e521380b4ceb3fd6076f5ff0c036..96f5754d147da55ee79e1a58f60932cdcf6926f1 100644
+index dea0da6a5974e521380b4ceb3fd6076f5ff0c036..1a4a4aa3ac8616b5fc70a70b16d5e0186236e4c3 100644
 --- a/codex-rs/thread-store/src/local/rollout_migration_tests.rs
 +++ b/codex-rs/thread-store/src/local/rollout_migration_tests.rs
 @@ -1,3 +1,4 @@
@@ -62458,7 +62458,7 @@ index dea0da6a5974e521380b4ceb3fd6076f5ff0c036..96f5754d147da55ee79e1a58f60932cd
 +            ("second-turn", second_id, "Never publish the second source."),
 +        ] {
 +            let mut item = input_response_message("user", text);
-+            item.set_id(Some(ResponseItemId::from_server(id)));
++            item.set_id(Some(ResponseItemId::from_server(id.into())));
 +            item.set_turn_id_if_missing(turn_id);
 +            let mut envelope = codex_rollout::ResponseItemEnvelope::new(item);
 +            envelope
