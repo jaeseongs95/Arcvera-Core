@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "a38bac19b36d39818ed6f62d82563e0a9aa29f57d910fad8dc2768287a7ab0f7",
+  "sourceTreeSha256": "051dc0283e94d253bc7077ce24f7a0f99b5c62e197944d7ef3dab54f1a6be0cd",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "e1d9a092b4dd2767572de4dcdafcbd27042eb1344939fb806aef08c63a46f878"
+    "sha256": "b6b6da3641e1ff1fd0000f6db1ec2e765980bb0eb543617883eb2ed30b842eff"
   },
   "files": [
     {
@@ -67303,6 +67303,13 @@
       "gitBlob": "0b327464913d41d6ab00363834116a76bf42cc55"
     },
     {
+      "path": "tools/windows-cli/runtime_context_benchmark.py",
+      "gitMode": "100644",
+      "bytes": 18183,
+      "sha256": "25437f5ac7b95eb613f06115aafb51f22eabecf4e10641207ce7ed573536f7ce",
+      "gitBlob": "1f4bf8333937f1cd3ac9b8e11cab81dd96c4bb65"
+    },
+    {
       "path": "tools/windows-cli/test_external_runtime.py",
       "gitMode": "100644",
       "bytes": 10552,
@@ -70843,6 +70850,11 @@
       "path": "tools/windows-cli/package_cli.py",
       "status": "modified",
       "notice": "inline-r41"
+    },
+    {
+      "path": "tools/windows-cli/runtime_context_benchmark.py",
+      "status": "added",
+      "notice": "inline-1.1.0"
     },
     {
       "path": "tools/windows-cli/test_external_runtime.py",
