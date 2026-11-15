@@ -441,9 +441,7 @@ mod tests {
             assert!(!encoded.contains(sentinel));
         }
         let mut empty_prompt = crate::client_common::Prompt::default();
-        empty_prompt.base_instructions = codex_protocol::models::BaseInstructions {
-            text: String::new(),
-        };
+        empty_prompt.base_instructions.text.clear();
         let empty = ContextRequestSizes::measure(&empty_prompt, 0, 0).unwrap();
         assert_eq!(
             empty.output_schema_serialized_bytes, 0,

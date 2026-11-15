@@ -40860,10 +40860,10 @@ index 0000000000000000000000000000000000000000..104f49faca048cad5fed37a1392ef0e9
 +}
 diff --git a/codex-rs/core/src/session/context_composition.rs b/codex-rs/core/src/session/context_composition.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..bc909c64307b982e7c8032c93b4ec4db72f0d270
+index 0000000000000000000000000000000000000000..f59cff2a402244cc956b9f4dd1ea8a2c9c37fbf3
 --- /dev/null
 +++ b/codex-rs/core/src/session/context_composition.rs
-@@ -0,0 +1,765 @@
+@@ -0,0 +1,763 @@
 +// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 +use super::session::Session;
 +use crate::context_manager::{
@@ -41307,9 +41307,7 @@ index 0000000000000000000000000000000000000000..bc909c64307b982e7c8032c93b4ec4db
 +            assert!(!encoded.contains(sentinel));
 +        }
 +        let mut empty_prompt = crate::client_common::Prompt::default();
-+        empty_prompt.base_instructions = codex_protocol::models::BaseInstructions {
-+            text: String::new(),
-+        };
++        empty_prompt.base_instructions.text.clear();
 +        let empty = ContextRequestSizes::measure(&empty_prompt, 0, 0).unwrap();
 +        assert_eq!(
 +            empty.output_schema_serialized_bytes, 0,
