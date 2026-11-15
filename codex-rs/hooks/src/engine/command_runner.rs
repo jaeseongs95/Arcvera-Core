@@ -55,6 +55,38 @@ use codex_protocol::protocol::HookOutputEntry;
 use codex_protocol::protocol::HookOutputEntryKind;
 
 const MAX_CONCURRENT_ASYNC_HOOKS: usize = 8;
+// ceiling: 72 unfinished command/coordinator jobs total, with up to eight
+// commands executing. Coordinators share admission but not command slots.
+const MAX_PENDING_ASYNC_HOOKS: usize = MAX_CONCURRENT_ASYNC_HOOKS + 64;
+const MAX_ASYNC_HOOK_INPUT_BYTES: usize = 16 * 1024 * 1024;
+pub(super) const ASYNC_HOOK_CAPACITY_ERROR: &str = "async hook capacity exceeded";
+
+// Count without allocating a second serialized payload. serde_json stops at the limit.
+pub(super) fn async_hook_input_bytes(
+    input: &Value,
+    metadata: Option<&serde_json::Map<String, Value>>,
+) -> Result<usize, &'static str> {
+    struct Counter(usize);
+    impl std::io::Write for Counter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0 = self
+                .0
+                .checked_add(bytes.len())
+                .filter(|size| *size <= MAX_ASYNC_HOOK_INPUT_BYTES)
+                .ok_or_else(|| std::io::Error::other(ASYNC_HOOK_CAPACITY_ERROR))?;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut counter = Counter(0);
+    serde_json::to_writer(&mut counter, input).map_err(|_| ASYNC_HOOK_CAPACITY_ERROR)?;
+    if let Some(metadata) = metadata {
+        serde_json::to_writer(&mut counter, metadata).map_err(|_| ASYNC_HOOK_CAPACITY_ERROR)?;
+    }
+    Ok(counter.0.max(1))
+}
 // Match the per-stream capture budget of environment command hooks.
 const MAX_HOOK_OUTPUT_BYTES: usize = 1024 * 1024;
 
@@ -71,6 +103,8 @@ pub(crate) struct CommandHookRuntime {
 
 struct CommandHookRuntimeState {
     concurrency_limit: Arc<Semaphore>,
+    admission_limit: Arc<Semaphore>,
+    input_bytes_limit: Arc<Semaphore>,
     tasks: JoinSet<()>,
 }
 
@@ -78,6 +112,8 @@ impl Default for CommandHookRuntimeState {
     fn default() -> Self {
         Self {
             concurrency_limit: Arc::new(Semaphore::new(MAX_CONCURRENT_ASYNC_HOOKS)),
+            admission_limit: Arc::new(Semaphore::new(MAX_PENDING_ASYNC_HOOKS)),
+            input_bytes_limit: Arc::new(Semaphore::new(MAX_ASYNC_HOOK_INPUT_BYTES)),
             tasks: JoinSet::new(),
         }
     }
@@ -123,79 +159,136 @@ impl CommandHookRuntime {
 
     pub(crate) fn schedule_async_hook<T: 'static>(
         &self,
-        engine: ClaudeHooksEngine,
-        handler: ConfiguredHandler,
-        event_input: Value,
-        cwd: std::path::PathBuf,
+        engine: &ClaudeHooksEngine,
+        handler: &ConfiguredHandler,
+        event_input: &Value,
+        cwd: &Path,
         turn_id: Option<String>,
         parse: fn(&ConfiguredHandler, HandlerRunResult, Option<String>) -> ParsedHandler<T>,
-    ) {
+    ) -> Result<(), &'static str> {
         if self.result_sender.is_closed() {
-            return;
+            return Err("async hook runtime is closed");
         }
+        let input_bytes = async_hook_input_bytes(event_input, None)?;
+        self.schedule_async_task(input_bytes, || {
+            // Retain cloned inputs only after both admission budgets are acquired.
+            let engine = engine.clone();
+            let handler = handler.clone();
+            let event_input = event_input.clone();
+            let cwd = cwd.to_path_buf();
+            let result_sender = self.result_sender.clone();
+            let runtime = self.clone();
+            async move {
+                let result = super::dispatcher::execute_handler(
+                    &engine,
+                    &handler,
+                    &event_input,
+                    &cwd,
+                    /*metadata*/ None,
+                )
+                .await;
+                let mut hook_result = parse(&handler, result, turn_id).completed;
+                let mut entries = Vec::new();
+                let mut warnings = Vec::new();
 
-        let result_sender = self.result_sender.clone();
-        let runtime = self.clone();
-        self.schedule_async_task(async move {
-            let result = super::dispatcher::execute_handler(
-                &engine,
-                &handler,
-                &event_input,
-                &cwd,
-                /*metadata*/ None,
-            )
-            .await;
-            let mut hook_result = parse(&handler, result, turn_id).completed;
-            let mut entries = Vec::new();
-            let mut warnings = Vec::new();
-
-            for entry in std::mem::take(&mut hook_result.run.entries) {
-                match entry.kind {
-                    HookOutputEntryKind::Context => {
-                        let text = runtime
-                            .output_spiller
-                            .maybe_spill_text_with_limit(
-                                entry.text,
-                                handler.additional_context_limit,
-                            )
-                            .await;
-                        entries.push(HookOutputEntry {
-                            kind: HookOutputEntryKind::Context,
-                            text,
-                        });
+                for entry in std::mem::take(&mut hook_result.run.entries) {
+                    match entry.kind {
+                        HookOutputEntryKind::Context => {
+                            let text = runtime
+                                .output_spiller
+                                .maybe_spill_text_with_limit(
+                                    entry.text,
+                                    handler.additional_context_limit,
+                                )
+                                .await;
+                            entries.push(HookOutputEntry {
+                                kind: HookOutputEntryKind::Context,
+                                text,
+                            });
+                        }
+                        HookOutputEntryKind::Warning => warnings.push(entry),
+                        HookOutputEntryKind::Error => entries.push(entry),
+                        HookOutputEntryKind::Stop | HookOutputEntryKind::Feedback => {}
                     }
-                    HookOutputEntryKind::Warning => warnings.push(entry),
-                    HookOutputEntryKind::Error => entries.push(entry),
-                    HookOutputEntryKind::Stop | HookOutputEntryKind::Feedback => {}
                 }
-            }
 
-            entries.extend(warnings);
-            hook_result.run.entries = entries;
-            let _ = result_sender.try_send(hook_result);
-        });
+                entries.extend(warnings);
+                hook_result.run.entries = entries;
+                let _ = result_sender.try_send(hook_result);
+            }
+        })
     }
 
-    pub(crate) fn schedule_async_task(&self, task: impl Future<Output = ()> + Send + 'static) {
+    pub(crate) fn schedule_async_task<F>(
+        &self,
+        input_bytes: usize,
+        make_task: impl FnOnce() -> F,
+    ) -> Result<(), &'static str>
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        self.schedule_task(input_bytes, true, make_task)
+    }
+
+    // Lifecycle coordinators may dispatch command hooks themselves. They share the
+    // admission ceiling, but must not occupy a command execution slot while waiting.
+    pub(crate) fn schedule_coordinator<F>(
+        &self,
+        make_task: impl FnOnce() -> F,
+    ) -> Result<(), &'static str>
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        self.schedule_task(1, false, make_task)
+    }
+
+    fn schedule_task<F>(
+        &self,
+        input_bytes: usize,
+        command_slot: bool,
+        make_task: impl FnOnce() -> F,
+    ) -> Result<(), &'static str>
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
         let mut state = self.lock_state();
         if state.concurrency_limit.is_closed() {
-            return;
+            return Err("async hook runtime is closed");
         }
-
+        if input_bytes > MAX_ASYNC_HOOK_INPUT_BYTES {
+            return Err(ASYNC_HOOK_CAPACITY_ERROR);
+        }
         while state.tasks.try_join_next().is_some() {}
+        let admission = Arc::clone(&state.admission_limit)
+            .try_acquire_owned()
+            .map_err(|_| ASYNC_HOOK_CAPACITY_ERROR)?;
+        let input_budget = Arc::clone(&state.input_bytes_limit)
+            .try_acquire_many_owned(input_bytes.max(1) as u32)
+            .map_err(|_| ASYNC_HOOK_CAPACITY_ERROR)?;
+        let task = make_task();
         let concurrency_limit = Arc::clone(&state.concurrency_limit);
         state.tasks.spawn(async move {
-            let Ok(_permit) = concurrency_limit.acquire_owned().await else {
-                return;
+            let _admission = admission;
+            let _input_budget = input_budget;
+            let _permit = if command_slot {
+                let Ok(permit) = concurrency_limit.acquire_owned().await else {
+                    return;
+                };
+                Some(permit)
+            } else {
+                None
             };
             task.await;
         });
+        Ok(())
     }
 
     pub(crate) async fn shutdown(&self) {
         let mut tasks = {
             let mut state = self.lock_state();
             state.concurrency_limit.close();
+            state.admission_limit.close();
+            state.input_bytes_limit.close();
             std::mem::take(&mut state.tasks)
         };
         tasks.abort_all();

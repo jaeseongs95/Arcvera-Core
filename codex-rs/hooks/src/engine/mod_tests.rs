@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -2624,6 +2625,23 @@ async fn executor_stop_hooks_run_unless_regular_hooks_block_without_stopping() {
             expected_executor_call,
         ]
     );
+}
+
+#[tokio::test]
+async fn executor_scoped_hooks_do_not_execute_when_admission_is_full() {
+    let (engine, calls, request, _, _) = executor_stop_hook_fixture();
+    // The shared ceiling includes lifecycle coordinators and executor work.
+    for _ in 0..72 {
+        engine
+            .command_runtime
+            .schedule_coordinator(std::future::pending::<()>)
+            .unwrap();
+    }
+    let outcome = engine.run_stop(request).await;
+    assert!(outcome.hook_events.is_empty());
+    assert!(calls.lock().unwrap().is_empty());
+    engine.command_runtime.shutdown().await;
+    assert!(calls.lock().unwrap().is_empty());
 }
 
 #[test]

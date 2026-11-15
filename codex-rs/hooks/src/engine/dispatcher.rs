@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use std::path::Path;
 
 use futures::StreamExt;
@@ -18,6 +19,7 @@ use super::ConfiguredHandler;
 use super::ConfiguredHandlerKind;
 use super::HandlerRunResult;
 use super::HandlerSourcePath;
+use super::command_runner::async_hook_input_bytes;
 use super::command_runner::run_command;
 use super::mcp_runner::run_mcp_tool;
 use crate::events::common::matches_matcher;
@@ -129,6 +131,7 @@ pub(crate) async fn execute_handlers_with_metadata<T: 'static>(
     metadata: Option<&Map<String, Value>>,
     parse: fn(&ConfiguredHandler, HandlerRunResult, Option<String>) -> ParsedHandler<T>,
 ) -> Vec<ParsedHandler<T>> {
+    let mut completed = Vec::new();
     let mut executor_handlers = Vec::new();
     let mut pending = FuturesUnordered::new();
     for (configured_order, handler) in handlers.into_iter().enumerate() {
@@ -141,14 +144,29 @@ pub(crate) async fn execute_handlers_with_metadata<T: 'static>(
         }
         let event_input = handler.source_path.event_input(input);
         if handler.execution_mode() == HookExecutionMode::Async {
-            engine.command_runtime.schedule_async_hook(
-                engine.clone(),
-                handler,
-                event_input.into_owned(),
-                cwd.to_path_buf(),
+            if let Err(error) = engine.command_runtime.schedule_async_hook(
+                engine,
+                &handler,
+                &event_input,
+                cwd,
                 turn_id.clone(),
                 parse,
-            );
+            ) {
+                let now = chrono::Utc::now().timestamp();
+                let result = HandlerRunResult {
+                    context_metadata: codex_protocol::models::ContentItemMetadata::command_hook(),
+                    started_at: now,
+                    completed_at: now,
+                    duration_ms: 0,
+                    exit_code: None,
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    error: Some(error.to_string()),
+                };
+                let mut parsed = parse(&handler, result, turn_id.clone());
+                parsed.completion_order = completed.len();
+                completed.push((configured_order, parsed));
+            }
             continue;
         }
         let turn_id = turn_id.clone();
@@ -160,10 +178,13 @@ pub(crate) async fn execute_handlers_with_metadata<T: 'static>(
         });
     }
 
-    let mut completed = Vec::new();
-    let mut completion_order = 0;
-    let mut should_stop = false;
-    let mut should_block = false;
+    let mut completion_order = completed.len();
+    let mut should_stop = completed
+        .iter()
+        .any(|(_, parsed)| parsed.completed.run.status == HookRunStatus::Stopped);
+    let mut should_block = completed
+        .iter()
+        .any(|(_, parsed)| parsed.completed.run.status == HookRunStatus::Blocked);
     while let Some((configured_order, mut parsed)) = pending.next().await {
         should_stop |= parsed.completed.run.status == HookRunStatus::Stopped;
         should_block |= parsed.completed.run.status == HookRunStatus::Blocked;
@@ -175,27 +196,26 @@ pub(crate) async fn execute_handlers_with_metadata<T: 'static>(
 
     if should_stop || !should_block {
         for handler in executor_handlers {
-            let task_engine = engine.clone();
-            let event_input = input.clone();
-            let cwd = cwd.to_path_buf();
-            let metadata = metadata.cloned();
-            engine.command_runtime.schedule_async_task(async move {
-                let result = execute_handler(
-                    &task_engine,
-                    &handler,
-                    &event_input,
-                    &cwd,
-                    metadata.as_ref(),
-                )
-                .await;
-                if let Some(error) = result.error {
-                    tracing::warn!(
-                        source_path = %handler.source_path,
-                        %error,
-                        "executor-scoped hook failed"
-                    );
-                }
+            let scheduled = async_hook_input_bytes(input, metadata).and_then(|input_bytes| {
+                engine.command_runtime.schedule_async_task(input_bytes, || {
+                    let task_engine = engine.clone();
+                    let task_handler = handler.clone();
+                    let event_input = input.clone();
+                    let cwd = cwd.to_path_buf();
+                    let metadata = metadata.cloned();
+                    async move {
+                        let result = execute_handler(
+                            &task_engine, &task_handler, &event_input, &cwd, metadata.as_ref(),
+                        ).await;
+                        if let Some(error) = result.error {
+                            tracing::warn!(source_path = %task_handler.source_path, %error, "executor-scoped hook failed");
+                        }
+                    }
+                })
             });
+            if let Err(error) = scheduled {
+                tracing::warn!(source_path = %handler.source_path, %error, "executor-scoped hook admission failed");
+            }
         }
     }
 

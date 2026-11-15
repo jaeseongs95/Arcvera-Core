@@ -8,6 +8,95 @@ use pretty_assertions::assert_eq;
 use std::sync::Arc;
 use tracing_subscriber::prelude::*;
 
+#[test_case::test_case(false; "async post hook")]
+#[test_case::test_case(true; "sync post hook")]
+#[tokio::test]
+async fn saturated_post_hook_fails_before_provider_request(synchronous: bool) {
+    let home = tempfile::tempdir().unwrap();
+    let server = wiremock::MockServer::start().await;
+    let (session, turn, rx) =
+        crate::session::tests::make_session_and_context_with_auth_config_home_and_rx(
+            CodexAuth::from_api_key("Test API Key"),
+            Vec::new(),
+            home.path(),
+            |config| {
+                config.model_provider.base_url = Some(format!("{}/v1", server.uri()));
+                config.features.disable(Feature::TokenBudget).unwrap();
+            },
+        )
+        .await;
+    let user_config = serde_json::from_value(serde_json::json!({
+        "hooks": {"PostModelRequest": [{"hooks": [{
+            "type": "command", "command": "echo must-not-run", "async": !synchronous
+        }]}]}
+    }))
+    .unwrap();
+    let config = session.get_config().await;
+    let layers = config
+        .config_layer_stack
+        .with_user_config(&home.path().join("config.toml"), user_config)
+        .unwrap();
+    let hooks = session.hooks().reconfigured(codex_hooks::HooksConfig {
+        feature_enabled: true,
+        bypass_hook_trust: true,
+        config_layer_stack: Some(layers),
+        ..Default::default()
+    });
+    assert_eq!(
+        hooks.execution_mode_for_event(HookEventName::PostModelRequest),
+        Some(if synchronous {
+            HookExecutionMode::Sync
+        } else {
+            HookExecutionMode::Async
+        })
+    );
+    for _ in 0..72 {
+        hooks
+            .schedule_async_task(std::future::pending::<()>)
+            .unwrap();
+    }
+    session.services.hooks.store(Arc::new(hooks));
+    session
+        .services
+        .thread_extension_data
+        .insert(AutoCompactionDisabled);
+    let result = tokio::time::timeout(
+        Duration::from_secs(15),
+        run_turn(
+            Arc::clone(&session),
+            turn,
+            vec![TurnInput::UserInput {
+                content: vec![codex_protocol::user_input::UserInput::Text {
+                    text: "Synthetic saturation probe".into(),
+                    text_elements: Vec::new(),
+                }],
+                client_id: None,
+                metadata: Default::default(),
+            }],
+            &mut McpStartupRequirements::default(),
+            None,
+            CancellationToken::new(),
+        ),
+    )
+    .await
+    .expect("saturated admission must not wait for a provider");
+    result.expect("the turn reports its sampling failure through the existing error event");
+    let mut reported = false;
+    while let Ok(event) = rx.try_recv() {
+        if let EventMsg::Error(error) = event.msg {
+            reported |= error
+                .message
+                .contains("cannot schedule post-model-request hooks: async hook capacity exceeded");
+        }
+    }
+    assert!(
+        reported,
+        "saturated post hooks must report the actual admission failure"
+    );
+    assert!(server.received_requests().await.unwrap().is_empty());
+    session.hooks().shutdown().await;
+}
+
 #[tokio::test]
 async fn indexed_context_keeps_selected_originals_instead_of_running_auto_compaction() {
     use codex_history::context_index::ContextIndexOperation;

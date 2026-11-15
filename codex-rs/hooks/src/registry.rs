@@ -375,9 +375,13 @@ impl Hooks {
             .min_by_key(|mode| matches!(mode, HookExecutionMode::Async))
     }
 
-    /// Run a hook task independently of the turn, but abort and join it at session shutdown.
-    pub fn schedule_async_task(&self, task: impl Future<Output = ()> + Send + 'static) {
-        self.engine.command_runtime.schedule_async_task(task);
+    /// Admit a lifecycle coordinator before retaining its captured state.
+    /// Saturation is explicit; all admitted work is aborted and joined at shutdown.
+    pub fn schedule_async_task<F>(&self, make_task: impl FnOnce() -> F) -> Result<(), &'static str>
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        self.engine.command_runtime.schedule_coordinator(make_task)
     }
 
     pub fn preview_model_request(

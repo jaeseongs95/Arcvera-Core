@@ -1128,3 +1128,210 @@ time.sleep(30)
         "overflow must terminate the owned child"
     );
 }
+
+#[tokio::test]
+async fn async_admission_bounds_tasks_and_releases_after_completion() {
+    let (runtime, _results) = runtime();
+    let gate = Arc::new(tokio::sync::Semaphore::new(0));
+    for _ in 0..super::MAX_PENDING_ASYNC_HOOKS {
+        runtime
+            .schedule_async_task(1, || {
+                let gate = Arc::clone(&gate);
+                async move {
+                    let _permit = gate.acquire().await.unwrap();
+                }
+            })
+            .unwrap();
+    }
+    let mut constructed = false;
+    assert_eq!(
+        runtime.schedule_async_task(1, || {
+            constructed = true;
+            async {}
+        }),
+        Err(super::ASYNC_HOOK_CAPACITY_ERROR)
+    );
+    assert!(!constructed, "rejected work must not retain cloned inputs");
+    assert_eq!(
+        runtime.lock_state().tasks.len(),
+        super::MAX_PENDING_ASYNC_HOOKS
+    );
+    gate.add_permits(super::MAX_PENDING_ASYNC_HOOKS);
+    timeout(ASYNC_HOOK_TEST_TIMEOUT, async {
+        loop {
+            let available = runtime.lock_state().admission_limit.available_permits();
+            if available == super::MAX_PENDING_ASYNC_HOOKS {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("all completed work returns its admission permit");
+    runtime.schedule_async_task(1, || async {}).unwrap();
+    runtime.shutdown().await;
+    assert_eq!(runtime.lock_state().tasks.len(), 0);
+}
+
+#[tokio::test]
+async fn async_admission_bounds_input_and_shutdown_releases_reservations() {
+    let (runtime, _results) = runtime();
+    runtime
+        .schedule_async_task(super::MAX_ASYNC_HOOK_INPUT_BYTES, || std::future::pending())
+        .unwrap();
+    assert_eq!(
+        runtime.schedule_async_task(1, || async {}),
+        Err(super::ASYNC_HOOK_CAPACITY_ERROR)
+    );
+    assert_eq!(
+        runtime.schedule_async_task(super::MAX_ASYNC_HOOK_INPUT_BYTES + 1, || async {}),
+        Err(super::ASYNC_HOOK_CAPACITY_ERROR)
+    );
+    assert_eq!(runtime.lock_state().tasks.len(), 1);
+    runtime.shutdown().await;
+    let state = runtime.lock_state();
+    assert_eq!(state.tasks.len(), 0);
+    assert_eq!(
+        state.admission_limit.available_permits(),
+        super::MAX_PENDING_ASYNC_HOOKS
+    );
+    assert_eq!(
+        state.input_bytes_limit.available_permits(),
+        super::MAX_ASYNC_HOOK_INPUT_BYTES
+    );
+    drop(state);
+    assert_eq!(
+        runtime.schedule_async_task(1, || async {}),
+        Err("async hook runtime is closed")
+    );
+}
+
+#[test]
+fn async_input_size_counts_escaping_and_metadata_without_allocating_serialized_copy() {
+    let input = serde_json::json!({"escaped": "\n\""});
+    let metadata = serde_json::Map::from_iter([("key".into(), serde_json::json!("value"))]);
+    assert_eq!(
+        super::async_hook_input_bytes(&input, Some(&metadata)),
+        Ok(serde_json::to_vec(&input).unwrap().len()
+            + serde_json::to_vec(&metadata).unwrap().len())
+    );
+    let large = serde_json::Value::String("x".repeat(super::MAX_ASYNC_HOOK_INPUT_BYTES));
+    assert_eq!(
+        super::async_hook_input_bytes(&large, None),
+        Err(super::ASYNC_HOOK_CAPACITY_ERROR)
+    );
+}
+
+#[tokio::test]
+async fn async_saturation_returns_failed_event_instead_of_silently_dropping() {
+    let temp = TempDir::new().unwrap();
+    let (runtime, _results) = runtime();
+    for _ in 0..super::MAX_PENDING_ASYNC_HOOKS {
+        runtime
+            .schedule_async_task(1, || std::future::pending())
+            .unwrap();
+    }
+    let handler = write_handler(&temp, "raise RuntimeError('must not execute')");
+    let engine = ClaudeHooksEngine {
+        enabled: true,
+        handlers: Arc::new(vec![handler]),
+        hook_entries: Default::default(),
+        warnings: Arc::default(),
+        required_load_errors: Arc::default(),
+        command_runtime: runtime.clone(),
+        mcp_executor: mcp_executor(),
+    };
+    let outcome = engine
+        .run_user_prompt_submit(UserPromptSubmitRequest {
+            session_id: ThreadId::new(),
+            turn_id: "saturated-turn".into(),
+            subagent: None,
+            cwd: AbsolutePathBuf::try_from(temp.path().to_path_buf()).unwrap(),
+            transcript_path: None,
+            model: "test-model".into(),
+            permission_mode: "default".into(),
+            prompt: "test prompt".into(),
+        })
+        .await;
+    assert_eq!(outcome.hook_events.len(), 1);
+    let event = &outcome.hook_events[0];
+    assert_eq!(event.run.status, HookRunStatus::Failed);
+    assert!(
+        event
+            .run
+            .entries
+            .iter()
+            .any(|entry| entry.kind == HookOutputEntryKind::Error
+                && entry.text.contains(super::ASYNC_HOOK_CAPACITY_ERROR))
+    );
+    assert_eq!(
+        runtime.lock_state().tasks.len(),
+        super::MAX_PENDING_ASYNC_HOOKS
+    );
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn public_coordinator_rejects_before_constructing_and_shutdown_drains() {
+    let (hooks, _results) = crate::Hooks::new(
+        crate::HooksConfig::default(),
+        ThreadId::new(),
+        mcp_executor(),
+    )
+    .unwrap();
+    for _ in 0..super::MAX_PENDING_ASYNC_HOOKS {
+        hooks
+            .schedule_async_task(std::future::pending::<()>)
+            .unwrap();
+    }
+    let mut constructed = false;
+    assert_eq!(
+        hooks.schedule_async_task(|| {
+            constructed = true;
+            async {}
+        }),
+        Err(super::ASYNC_HOOK_CAPACITY_ERROR)
+    );
+    assert!(!constructed);
+    hooks.shutdown().await;
+    assert_eq!(
+        hooks.schedule_async_task(|| async {}),
+        Err("async hook runtime is closed")
+    );
+}
+
+#[tokio::test]
+async fn coordinators_do_not_starve_nested_command_dispatch() {
+    let (runtime, _results) = runtime();
+    let gate = Arc::new(tokio::sync::Semaphore::new(0));
+    let (started, mut started_rx) = tokio::sync::mpsc::unbounded_channel();
+    for _ in 0..MAX_CONCURRENT_ASYNC_HOOKS {
+        runtime
+            .schedule_coordinator(|| {
+                let runtime = runtime.clone();
+                let gate = Arc::clone(&gate);
+                let started = started.clone();
+                async move {
+                    let _permit = gate.acquire().await.unwrap();
+                    let (done, completed) = tokio::sync::oneshot::channel();
+                    runtime
+                        .schedule_async_task(1, || async move {
+                            let _ = done.send(());
+                        })
+                        .unwrap();
+                    completed.await.unwrap();
+                    let _ = started.send(());
+                }
+            })
+            .unwrap();
+    }
+    gate.add_permits(MAX_CONCURRENT_ASYNC_HOOKS);
+    timeout(ASYNC_HOOK_TEST_TIMEOUT, async {
+        for _ in 0..MAX_CONCURRENT_ASYNC_HOOKS {
+            started_rx.recv().await.unwrap();
+        }
+    })
+    .await
+    .expect("coordinators must leave command slots available");
+    runtime.shutdown().await;
+}

@@ -2826,41 +2826,47 @@ async fn try_run_sampling_request(
     let hooks = hooks_for_model_request(&sess, &step_context);
     let post_mode = hooks.execution_mode_for_event(HookEventName::PostModelRequest);
     let defer_tool_dispatch = post_mode == Some(HookExecutionMode::Sync);
-    let finish_post_request = post_mode.map(|_| {
-        let (post_request, completed) = tokio::sync::oneshot::channel();
-        let (hook_done, wait_for_hook) = tokio::sync::oneshot::channel();
-        hooks.schedule_async_task({
-            let hooks = Arc::clone(&hooks);
-            let session = Arc::clone(&sess);
-            let step = Arc::clone(&step_context);
-            async move {
-                let event = completed.await.unwrap_or(PostModelRequest {
-                    status: ModelRequestStatus::Cancelled,
-                    error: None,
-                    token_usage: None,
-                });
-                run_model_request_hooks(&session, &step, &hooks, event).await;
-                let _ = hook_done.send(());
-            }
-        });
-        let cancellation_token = cancellation_token.clone();
-        let owner_session = Arc::clone(&sess);
-        async move |event| {
-            let _ = post_request.send(event);
-            if defer_tool_dispatch {
-                // Completion ends the stream, not ownership of its queued tool calls.
-                // Interrupt this wait, preserving the session-owned hook and usage event.
-                tokio::select! {
-                    biased;
-                    _ = cancellation_token.cancelled() => {}
-                    _ = capacity_auth_owner_changed(&owner_session, capacity_owner) => {
-                        cancellation_token.cancel();
+    let finish_post_request = post_mode
+        .map(|_| {
+            let (post_request, completed) = tokio::sync::oneshot::channel();
+            let (hook_done, wait_for_hook) = tokio::sync::oneshot::channel();
+            hooks
+                .schedule_async_task(|| {
+                    let hooks = Arc::clone(&hooks);
+                    let session = Arc::clone(&sess);
+                    let step = Arc::clone(&step_context);
+                    async move {
+                        let event = completed.await.unwrap_or(PostModelRequest {
+                            status: ModelRequestStatus::Cancelled,
+                            error: None,
+                            token_usage: None,
+                        });
+                        run_model_request_hooks(&session, &step, &hooks, event).await;
+                        let _ = hook_done.send(());
                     }
-                    _ = wait_for_hook => {}
+                })
+                .map_err(|error| {
+                    CodexErr::Fatal(format!("cannot schedule post-model-request hooks: {error}"))
+                })?;
+            let cancellation_token = cancellation_token.clone();
+            let owner_session = Arc::clone(&sess);
+            Ok::<_, CodexErr>(async move |event| {
+                let _ = post_request.send(event);
+                if defer_tool_dispatch {
+                    // Completion ends the stream, not ownership of its queued tool calls.
+                    // Interrupt this wait, preserving the session-owned hook and usage event.
+                    tokio::select! {
+                        biased;
+                        _ = cancellation_token.cancelled() => {}
+                        _ = capacity_auth_owner_changed(&owner_session, capacity_owner) => {
+                            cancellation_token.cancel();
+                        }
+                        _ = wait_for_hook => {}
+                    }
                 }
-            }
-        }
-    });
+            })
+        })
+        .transpose()?;
     if hooks
         .execution_mode_for_event(HookEventName::PreModelRequest)
         .is_some()
