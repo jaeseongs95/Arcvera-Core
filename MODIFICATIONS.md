@@ -791,6 +791,17 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미�
 Core 1.0.0 and every subsequent version use AGPL-3.0-or-later. The original Apache license and NOTICE remain preserved; see [LICENSING.md](LICENSING.md) for third-party rights and corresponding-source obligations.
 
 Core 1.0.0과 이후 모든 버전은 AGPL-3.0-or-later를 적용합니다. 원 Apache 라이선스·NOTICE를 보존하며, 제삼자 권리와 대응소스 제공 의무는 [LICENSING.md](LICENSING.md)에 기록합니다.
+## Memory worker feature isolation / 메모리 작업자 기능 격리 — 2026-11-15
+
+Memory worker admission now verifies the effective state after disabling hooks,
+plugins, delegation, memory, apps and dependency installation. A managed policy
+that keeps any required feature enabled blocks both sandboxed and host-mediated
+admission before worker dispatch. Parent managed policies remain unchanged.
+
+메모리 작업자 진입은 hook·플러그인·위임·메모리·앱·의존성 설치 기능을 끈 뒤
+실제 상태를 확인합니다. 관리 정책이 해당 기능을 켜진 상태로 유지하면 sandbox와
+호스트 중개 경로 모두 작업자 실행 전에 차단하며 부모의 관리 정책은 보존합니다.
+
 # Packaging policy modification / 패키징 정책 수정 — 2026-11-13
 
 Arcvera excludes Microsoft CRT DLLs/installers, rejects their reinsertion at

@@ -13,7 +13,6 @@ use crate::runtime::SpawnedConsolidationAgent;
 use crate::sync_rollout_summaries_from_memories;
 use codex_config::Constrained;
 use codex_core::config::Config;
-use codex_features::Feature;
 use codex_model_provider::ModelProvider;
 use codex_protocol::MemoryVersion;
 use codex_protocol::ThreadId;
@@ -384,10 +383,8 @@ mod agent {
         agent_config.mcp_servers = Constrained::allow_only(HashMap::new());
         // Approval policy
         agent_config.permissions.approval_policy = Constrained::allow_only(AskForApproval::Never);
-        // Consolidation runs as an internal worker and must not recursively delegate.
-        for feature in [Feature::Collab, Feature::MemoryTool, Feature::Apps, Feature::Plugins, Feature::CodexHooks, Feature::SkillMcpDependencyInstall] {
-            agent_config.features.disable(feature).ok()?;
-        }
+        // Stage admission disables worker features and checks their effective
+        // values; managed pins can make a successful disable request a no-op.
 
         // Preserve the parent's explicit choice to skip Codex-managed sandboxing.
         match parent_permission_profile {

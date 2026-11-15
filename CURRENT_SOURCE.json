@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "7a36ccb5ae412d8b1f68aa5011457a4abd303d19c6a1a8495024ec9dfcbbfbb7",
+  "sourceTreeSha256": "349dab9a1aea119eab4aea21e956ee87d1c84b3d2744944d239386293e05ede1",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "95306307a8e142584f1d69ea71293a028e90ce2ebb1195de2fd16ee84e744a79"
+    "sha256": "1b72db188094fc11cf86598a6eb7c53d26797bb3bf07518ca67ad92d24ce56c0"
   },
   "files": [
     {
@@ -77,9 +77,9 @@
     {
       "path": "MODIFICATIONS.md",
       "gitMode": "100644",
-      "bytes": 92290,
-      "sha256": "0842f447788b7f2773064271727e98a1ef7d768aeb74d083d9d862fb82ad3c2b",
-      "gitBlob": "bd04924461d5dddd8ccd7d7135f86da95c5929a4"
+      "bytes": 93025,
+      "sha256": "105ffb4479874e31b4139d1b3f7d60d86fba170a1c925969746ad84d1e206fad",
+      "gitBlob": "e50be7e4270f4455ca0d155974455ce56233aaa4"
     },
     {
       "path": "NOTICE",
@@ -35350,9 +35350,9 @@
     {
       "path": "codex-rs/memories/write/src/phase2.rs",
       "gitMode": "100644",
-      "bytes": 26261,
-      "sha256": "28e327077ed0a56377e60d8bb029d7cf1e205da1af379feef56fbfa0e887eefd",
-      "gitBlob": "51149f2d1be66f01d314ef1dae91cf732065332a"
+      "bytes": 26081,
+      "sha256": "9ef74493abe472baec6d2772e5baa98133c3e8b8231fde198e2893fb1e676294",
+      "gitBlob": "93a316a59b3e38c2e712d20e011216aa7dc43888"
     },
     {
       "path": "codex-rs/memories/write/src/phase2_sandbox_tests.rs",
@@ -35399,9 +35399,9 @@
     {
       "path": "codex-rs/memories/write/src/publication_permissions.rs",
       "gitMode": "100644",
-      "bytes": 4767,
-      "sha256": "c676a36ac60e412a42dfbedf90e39015c619858ef3d2e17e7266999d6856c8d2",
-      "gitBlob": "1fcac3256adba05742f4712cfc2f433292f5cd54"
+      "bytes": 5322,
+      "sha256": "33b66280c9a5ae568edbe55321dabcda0da6cd74050497ff0e889d40e5df7af7",
+      "gitBlob": "ef6b3209a9e26ba09ad7770274cfc0f8e0f93bed"
     },
     {
       "path": "codex-rs/memories/write/src/publication_stage.rs",
@@ -35455,9 +35455,9 @@
     {
       "path": "codex-rs/memories/write/src/startup_tests.rs",
       "gitMode": "100644",
-      "bytes": 75770,
-      "sha256": "7378746d0c7f0b36fe25bd59a5a40520824f37cee8f069939efbaeada1d9a323",
-      "gitBlob": "7a5f3909bb058b8042b0bc8b348be9517ab29edd"
+      "bytes": 77877,
+      "sha256": "2fb122533d78c162b4bc29a373479c9cc295986284be1c19e40cbf153d9b0535",
+      "gitBlob": "af9209b293d111848850c402c42fb010b8d31447"
     },
     {
       "path": "codex-rs/memories/write/src/storage.rs",

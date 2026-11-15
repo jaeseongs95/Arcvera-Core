@@ -399,8 +399,15 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
         )
         .await;
 
+        eprintln!(
+            "stop hook scope: pin_hooks={pin_hooks}, managed_response={managed_response:?}"
+        );
+        let parent_features = test.config.features.clone();
+        let mut pin_probe = parent_features.clone();
+        pin_probe.disable(Feature::CodexHooks)?;
+        assert_eq!(pin_probe.enabled(Feature::CodexHooks), pin_hooks);
         trigger_memories_startup(&test).await;
-        if cfg!(windows) && pin_hooks {
+        if pin_hooks {
             let status = wait_for_phase2_error(db.memories()).await?;
             assert_eq!(
                 status.last_error.as_deref(),
@@ -408,24 +415,15 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
             );
             assert!(
                 phase2.requests().is_empty(),
-                "required hooks forbid host-mediated child isolation"
+                "required hooks forbid memory child isolation"
             );
             assert!(!managed_log.exists());
-        } else if managed_response.is_some() {
-            wait_for_single_request(&phase2).await;
-            assert_eq!(
-                wait_for_phase2_job_to_finish(db.memories()).await?,
-                Phase2JobClaimOutcome::SkippedRetryUnavailable
-            );
-            assert_eq!(
-                tokio::fs::read_to_string(managed_log).await?,
-                "hook invoked\n"
-            );
         } else {
             wait_for_single_request(&phase2).await;
             wait_for_phase2_publication(db.memories(), &root).await?;
         }
-        if !(cfg!(windows) && pin_hooks) {
+        assert_eq!(test.config.features, parent_features);
+        if !pin_hooks {
             phase2.single_request();
         }
         assert!(
@@ -452,6 +450,57 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
             assert_eq!(tokio::fs::read_to_string(hook_log).await?, "hook invoked\n");
             fs_wait::wait_for_path_exists(notify_log, Duration::from_secs(10)).await?;
         }
+        shutdown_test_codex(&test).await?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn memory_worker_feature_pins_reject_stage_admission() -> anyhow::Result<()> {
+    // These are the externally required isolation boundaries, not a list read
+    // back from the implementation under test.
+    for feature in [
+        Feature::Collab,
+        Feature::MemoryTool,
+        Feature::Apps,
+        Feature::Plugins,
+        Feature::CodexHooks,
+        Feature::SkillMcpDependencyInstall,
+    ] {
+        let server = start_mock_server().await;
+        let home = Arc::new(TempDir::new()?);
+        let stage = home.path().join("stage");
+        tokio::fs::create_dir(&stage).await?;
+        let stage = stage.as_path().abs();
+        let test = test_codex()
+            .with_home(home)
+            .with_cloud_config_bundle(
+                CloudConfigBundleFixture::loader_with_enterprise_requirement(format!(
+                    "[features]\n{} = true\n",
+                    feature.key()
+                )),
+            )
+            .with_config(configure_startup_fixture)
+            .build(&server)
+            .await?;
+        let parent = test.config.clone();
+        let mut pin_probe = parent.features.clone();
+        pin_probe.disable(feature)?;
+        assert!(pin_probe.enabled(feature), "managed pin: {}", feature.key());
+        let profile = parent.permissions.effective_permission_profile();
+        let error = crate::publication_permissions::bind_child_stage(
+            parent.clone(), &profile, &stage,
+        ).expect_err("required feature must prevent sandboxed admission");
+        let expected = format!("required worker feature `{}`", feature.key());
+        assert!(error.to_string().contains(&expected), "{error:#}");
+        #[cfg(windows)]
+        {
+            let error = crate::publication_permissions::bind_host_mediated_child(
+                parent.clone(), &profile, &stage,
+            ).expect_err("required feature must prevent host-mediated admission");
+            assert!(error.to_string().contains(&expected), "{error:#}");
+        }
+        assert_eq!(test.config.features, parent.features);
         shutdown_test_codex(&test).await?;
     }
     Ok(())

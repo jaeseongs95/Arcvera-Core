@@ -1162,7 +1162,7 @@ index 0000000000000000000000000000000000000000..6c2e29d22f88ea45e9e6e2efad667437
 +없으면 해당 의존성을 제외하고 공식 제공자의 직접 설치 방법을 안내합니다.
 +동봉하는 오픈소스의 소스 제공·고지 등 의무는 계속 유지합니다.
 diff --git a/MODIFICATIONS.md b/MODIFICATIONS.md
-index c3febe7112813d655a8b6c2367e9057cca8d1705..bd04924461d5dddd8ccd7d7135f86da95c5929a4 100644
+index c3febe7112813d655a8b6c2367e9057cca8d1705..e50be7e4270f4455ca0d155974455ce56233aaa4 100644
 --- a/MODIFICATIONS.md
 +++ b/MODIFICATIONS.md
 @@ -1,3 +1,87 @@
@@ -1253,7 +1253,7 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..bd04924461d5dddd8ccd7d7135f86da9
  # R39 compact 개발 후보 (2026-11-07)
  
  정식 발행·동결된 R38과 같은 공식 0.167.0 기반에서 압축 동작만 변경합니다. 버전은 `0.167.0+native-r39.20261107`이며, 고정 소스는 `c4399dce957bb63fe1fdc276aa4306c06f6cf47f`입니다. 메모리 리팩토링·후크·캐싱·스크롤 감도·한글화·컨텍스트 조회의 미완 작업은 R40으로 이관하며 이번 변경에 포함하지 않습니다. 현재 소스·시험 후보이며 최종 빌드·발행은 미완료입니다.
-@@ -701,3 +785,19 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
+@@ -701,3 +785,30 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
  고정 소스 `8e9b7eff953e750e8f071d101233920108e5ca26`는 R37 이후의 별도 개발 후보다. 플러그인 payload 비교에서 정확한 `.git`만 제외하고, 암시적 daemon의 전체 버전 확인과 실제 시작·재연결 화면 안내를 보강했다. Stop 속성의 명시적 교정 도구와 재로드 경고의 한국어/영어 안내, 에이전트 목록의 메인 마우스 복귀 및 작은 밑줄만 사용하는 hover를 포함한다.
  
  요구별 실행 결과·원래 실패·미검증 경계는 [R38 범위](docs/native-cli-r38.ko.md)와 연결된 사례 문서를 따른다. 운영 설정 자동 교정·R38 최종 릴리스 빌드·공개·설치는 수행하지 않았다. R37 동결 실행 파일은 변경하지 않았다.
@@ -1263,6 +1263,17 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..bd04924461d5dddd8ccd7d7135f86da9
 +Core 1.0.0 and every subsequent version use AGPL-3.0-or-later. The original Apache license and NOTICE remain preserved; see [LICENSING.md](LICENSING.md) for third-party rights and corresponding-source obligations.
 +
 +Core 1.0.0과 이후 모든 버전은 AGPL-3.0-or-later를 적용합니다. 원 Apache 라이선스·NOTICE를 보존하며, 제삼자 권리와 대응소스 제공 의무는 [LICENSING.md](LICENSING.md)에 기록합니다.
++## Memory worker feature isolation / 메모리 작업자 기능 격리 — 2026-11-15
++
++Memory worker admission now verifies the effective state after disabling hooks,
++plugins, delegation, memory, apps and dependency installation. A managed policy
++that keeps any required feature enabled blocks both sandboxed and host-mediated
++admission before worker dispatch. Parent managed policies remain unchanged.
++
++메모리 작업자 진입은 hook·플러그인·위임·메모리·앱·의존성 설치 기능을 끈 뒤
++실제 상태를 확인합니다. 관리 정책이 해당 기능을 켜진 상태로 유지하면 sandbox와
++호스트 중개 경로 모두 작업자 실행 전에 차단하며 부모의 관리 정책은 보존합니다.
++
 +# Packaging policy modification / 패키징 정책 수정 — 2026-11-13
 +
 +Arcvera excludes Microsoft CRT DLLs/installers, rejects their reinsertion at
@@ -56924,7 +56935,7 @@ index 6d9da1bfe47702de6177948ce7b97ed32977f054..0f52abd05d43474a77aa4260ce5e3f43
                  | RolloutItem::EventMsg(_) => None,
              })
 diff --git a/codex-rs/memories/write/src/phase2.rs b/codex-rs/memories/write/src/phase2.rs
-index 9e2ac3145ef77b1691ec4941b8c96a110706db6f..51149f2d1be66f01d314ef1dae91cf732065332a 100644
+index 9e2ac3145ef77b1691ec4941b8c96a110706db6f..93a316a59b3e38c2e712d20e011216aa7dc43888 100644
 --- a/codex-rs/memories/write/src/phase2.rs
 +++ b/codex-rs/memories/write/src/phase2.rs
 @@ -1,3 +1,4 @@
@@ -56932,7 +56943,7 @@ index 9e2ac3145ef77b1691ec4941b8c96a110706db6f..51149f2d1be66f01d314ef1dae91cf73
  // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
  use crate::MemoryWorkspaceLock;
  use crate::metrics::MEMORY_PHASE_TWO_E2E_MS;
-@@ -10,12 +11,6 @@ use crate::rebuild_raw_memories_file_from_memories;
+@@ -10,15 +11,8 @@ use crate::rebuild_raw_memories_file_from_memories;
  use crate::runtime::MemoryStartupContext;
  use crate::runtime::SpawnedConsolidationAgent;
  use crate::sync_rollout_summaries_from_memories;
@@ -56944,8 +56955,11 @@ index 9e2ac3145ef77b1691ec4941b8c96a110706db6f..51149f2d1be66f01d314ef1dae91cf73
 -use crate::workspace::write_workspace_diff;
  use codex_config::Constrained;
  use codex_core::config::Config;
- use codex_features::Feature;
-@@ -116,108 +111,120 @@ pub(crate) async fn run_with_retry(
+-use codex_features::Feature;
+ use codex_model_provider::ModelProvider;
+ use codex_protocol::MemoryVersion;
+ use codex_protocol::ThreadId;
+@@ -116,108 +110,120 @@ pub(crate) async fn run_with_retry(
          }
      };
  
@@ -57156,7 +57170,7 @@ index 9e2ac3145ef77b1691ec4941b8c96a110706db6f..51149f2d1be66f01d314ef1dae91cf73
          .await
      {
          Ok(agent) => agent,
-@@ -233,9 +240,10 @@ pub(crate) async fn run_with_retry(
+@@ -233,9 +239,10 @@ pub(crate) async fn run_with_retry(
          Arc::clone(&context),
          claim,
          new_watermark,
@@ -57168,7 +57182,7 @@ index 9e2ac3145ef77b1691ec4941b8c96a110706db6f..51149f2d1be66f01d314ef1dae91cf73
          agent,
          workspace_lock,
          phase_two_e2e_timer,
-@@ -249,7 +257,7 @@ pub(crate) async fn run_with_retry(
+@@ -249,7 +256,7 @@ pub(crate) async fn run_with_retry(
      MemoryConsolidationStartOutcome::new("accepted", None)
  }
  
@@ -57177,7 +57191,7 @@ index 9e2ac3145ef77b1691ec4941b8c96a110706db6f..51149f2d1be66f01d314ef1dae91cf73
      root: &Path,
      raw_memories: &[Stage1Output],
      config: &Config,
-@@ -320,12 +328,22 @@ mod job {
+@@ -320,12 +327,22 @@ mod job {
          db: &MemoryStore,
          claim: &Claim,
          reason: &'static str,
@@ -57201,7 +57215,7 @@ index 9e2ac3145ef77b1691ec4941b8c96a110706db6f..51149f2d1be66f01d314ef1dae91cf73
                  crate::stage_two::JOB_RETRY_DELAY_SECONDS,
              )
              .await,
-@@ -334,26 +352,13 @@ mod job {
+@@ -334,26 +351,13 @@ mod job {
              let _ = db
                  .mark_global_phase2_job_failed_if_unowned(
                      &claim.token,
@@ -57229,10 +57243,11 @@ index 9e2ac3145ef77b1691ec4941b8c96a110706db6f..51149f2d1be66f01d314ef1dae91cf73
  }
  
  mod agent {
-@@ -380,13 +385,9 @@ mod agent {
+@@ -379,14 +383,8 @@ mod agent {
+         agent_config.mcp_servers = Constrained::allow_only(HashMap::new());
          // Approval policy
          agent_config.permissions.approval_policy = Constrained::allow_only(AskForApproval::Never);
-         // Consolidation runs as an internal worker and must not recursively delegate.
+-        // Consolidation runs as an internal worker and must not recursively delegate.
 -        let _ = agent_config.features.disable(Feature::Collab);
 -        let _ = agent_config.features.disable(Feature::MemoryTool);
 -        let _ = agent_config.features.disable(Feature::Apps);
@@ -57240,13 +57255,12 @@ index 9e2ac3145ef77b1691ec4941b8c96a110706db6f..51149f2d1be66f01d314ef1dae91cf73
 -        let _ = agent_config
 -            .features
 -            .disable(Feature::SkillMcpDependencyInstall);
-+        for feature in [Feature::Collab, Feature::MemoryTool, Feature::Apps, Feature::Plugins, Feature::CodexHooks, Feature::SkillMcpDependencyInstall] {
-+            agent_config.features.disable(feature).ok()?;
-+        }
++        // Stage admission disables worker features and checks their effective
++        // values; managed pins can make a successful disable request a no-op.
  
          // Preserve the parent's explicit choice to skip Codex-managed sandboxing.
          match parent_permission_profile {
-@@ -421,8 +422,8 @@ mod agent {
+@@ -421,8 +419,8 @@ mod agent {
          Some(agent_config)
      }
  
@@ -57257,7 +57271,7 @@ index 9e2ac3145ef77b1691ec4941b8c96a110706db6f..51149f2d1be66f01d314ef1dae91cf73
          vec![UserInput::Text {
              text: prompt,
              text_elements: vec![],
-@@ -435,9 +436,10 @@ mod agent {
+@@ -435,9 +433,10 @@ mod agent {
          context: Arc<MemoryStartupContext>,
          claim: Claim,
          new_watermark: i64,
@@ -57269,7 +57283,7 @@ index 9e2ac3145ef77b1691ec4941b8c96a110706db6f..51149f2d1be66f01d314ef1dae91cf73
          agent: SpawnedConsolidationAgent,
          workspace_lock: Arc<MemoryWorkspaceLock>,
          phase_two_e2e_timer: Option<codex_otel::Timer>,
-@@ -473,73 +475,27 @@ mod agent {
+@@ -473,73 +472,27 @@ mod agent {
                  return;
              }
  
@@ -57971,17 +57985,42 @@ index 0000000000000000000000000000000000000000..dcbea62f44f3d91f8f2fde42fc7ef07d
 +}
 diff --git a/codex-rs/memories/write/src/publication_permissions.rs b/codex-rs/memories/write/src/publication_permissions.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..1fcac3256adba05742f4712cfc2f433292f5cd54
+index 0000000000000000000000000000000000000000..ef6b3209a9e26ba09ad7770274cfc0f8e0f93bed
 --- /dev/null
 +++ b/codex-rs/memories/write/src/publication_permissions.rs
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,107 @@
 +// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 +//! Restrict consolidation worker permissions without changing the parent.
 +use codex_core::config::Config;
++use codex_features::Feature;
 +use codex_protocol::intersect_effective_permission_profiles;
 +use codex_protocol::models::PermissionProfile;
 +use codex_protocol::protocol::SandboxPolicy;
 +use codex_utils_absolute_path::AbsolutePathBuf;
++
++/// Managed pins can normalize a successful disable request back to enabled.
++/// Check the resulting policy before either worker isolation path is admitted.
++fn restrict_worker_features(config: &mut Config) -> anyhow::Result<()> {
++    let forbidden = [
++        Feature::Collab,
++        Feature::MemoryTool,
++        Feature::Apps,
++        Feature::Plugins,
++        Feature::CodexHooks,
++        Feature::SkillMcpDependencyInstall,
++    ];
++    for feature in forbidden {
++        config.features.disable(feature)?;
++    }
++    for feature in forbidden {
++        anyhow::ensure!(
++            !config.features.enabled(feature),
++            "required worker feature `{}` prevents memory isolation",
++            feature.key()
++        );
++    }
++    Ok(())
++}
 +
 +/// Intersect, never replace, the parent's already-materialized authority.
 +/// External, unsupported path/policy shapes and constraint rejection are errors.
@@ -57990,6 +58029,7 @@ index 0000000000000000000000000000000000000000..1fcac3256adba05742f4712cfc2f4332
 +    parent: &PermissionProfile,
 +    stage: &AbsolutePathBuf,
 +) -> anyhow::Result<Config> {
++    restrict_worker_features(&mut config)?;
 +    #[cfg(windows)]
 +    {
 +        use codex_core::windows_sandbox::WindowsSandboxLevelExt;
@@ -58030,6 +58070,7 @@ index 0000000000000000000000000000000000000000..1fcac3256adba05742f4712cfc2f4332
 +    parent: &PermissionProfile,
 +    stage: &AbsolutePathBuf,
 +) -> anyhow::Result<Config> {
++    restrict_worker_features(&mut config)?;
 +    #[cfg(not(windows))]
 +    { let _ = (config, parent, stage); anyhow::bail!("host-mediated memory stage is unavailable on this platform"); }
 +    #[cfg(windows)]
@@ -58048,9 +58089,6 @@ index 0000000000000000000000000000000000000000..1fcac3256adba05742f4712cfc2f4332
 +                let fs = parent.file_system_sandbox_policy();
 +                anyhow::ensure!(fs.can_read_local_path_with_cwd(stage.as_path(), stage.as_path()) && fs.can_write_local_path_with_cwd(stage.as_path(), stage.as_path()), "parent does not grant stage access");
 +            }
-+        }
-+        for feature in [codex_features::Feature::CodexHooks, codex_features::Feature::Plugins, codex_features::Feature::Collab, codex_features::Feature::MemoryTool, codex_features::Feature::Apps, codex_features::Feature::SkillMcpDependencyInstall] {
-+            config.features.disable(feature)?;
 +        }
 +        config.cwd = stage.clone();
 +        config.permissions.set_workspace_roots(vec![stage.clone()]);
@@ -59122,7 +59160,7 @@ index ffb3582aa3e881bfbc8def479fcfd42c84d01890..306af6b51655232e6f96de3935234e57
          let requests = server.received_requests().await.expect("recorded requests");
          let bodies = requests
 diff --git a/codex-rs/memories/write/src/startup_tests.rs b/codex-rs/memories/write/src/startup_tests.rs
-index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be9517ab29edd 100644
+index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010b8d31447 100644
 --- a/codex-rs/memories/write/src/startup_tests.rs
 +++ b/codex-rs/memories/write/src/startup_tests.rs
 @@ -1,3 +1,4 @@
@@ -59325,44 +59363,108 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be951
                  config.memories = startup_test_memories_config();
                  config.notify = Some(vec![
                      python.to_string(),
-@@ -318,8 +400,19 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
+@@ -317,21 +399,33 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
+         )
          .await;
  
++        eprintln!(
++            "stop hook scope: pin_hooks={pin_hooks}, managed_response={managed_response:?}"
++        );
++        let parent_features = test.config.features.clone();
++        let mut pin_probe = parent_features.clone();
++        pin_probe.disable(Feature::CodexHooks)?;
++        assert_eq!(pin_probe.enabled(Feature::CodexHooks), pin_hooks);
          trigger_memories_startup(&test).await;
 -        wait_for_single_request(&phase2).await;
 -        if managed_response.is_some() {
-+        if cfg!(windows) && pin_hooks {
++        if pin_hooks {
 +            let status = wait_for_phase2_error(db.memories()).await?;
-+            assert_eq!(
+             assert_eq!(
+-                wait_for_phase2_job_to_finish(db.memories()).await?,
+-                Phase2JobClaimOutcome::SkippedRetryUnavailable
 +                status.last_error.as_deref(),
 +                Some("unsupported_stage_permissions")
-+            );
+             );
+-            assert_eq!(
+-                tokio::fs::read_to_string(managed_log).await?,
+-                "hook invoked\n"
 +            assert!(
 +                phase2.requests().is_empty(),
-+                "required hooks forbid host-mediated child isolation"
-+            );
-+            assert!(!managed_log.exists());
-+        } else if managed_response.is_some() {
-+            wait_for_single_request(&phase2).await;
-             assert_eq!(
-                 wait_for_phase2_job_to_finish(db.memories()).await?,
-                 Phase2JobClaimOutcome::SkippedRetryUnavailable
-@@ -329,9 +422,12 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
-                 "hook invoked\n"
++                "required hooks forbid memory child isolation"
              );
++            assert!(!managed_log.exists());
          } else {
 -            wait_for_phase2_workspace_reset(db.memories(), &root).await?;
 +            wait_for_single_request(&phase2).await;
 +            wait_for_phase2_publication(db.memories(), &root).await?;
 +        }
-+        if !(cfg!(windows) && pin_hooks) {
++        assert_eq!(test.config.features, parent_features);
++        if !pin_hooks {
 +            phase2.single_request();
          }
 -        phase2.single_request();
          assert!(
              !hook_log.exists(),
              "memory worker must not run the user Stop hook"
-@@ -424,11 +520,11 @@ async fn memories_startup_phase2_tracks_workspace_diff_across_runs() -> anyhow::
+@@ -361,6 +455,57 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
+     Ok(())
+ }
+ 
++#[tokio::test]
++async fn memory_worker_feature_pins_reject_stage_admission() -> anyhow::Result<()> {
++    // These are the externally required isolation boundaries, not a list read
++    // back from the implementation under test.
++    for feature in [
++        Feature::Collab,
++        Feature::MemoryTool,
++        Feature::Apps,
++        Feature::Plugins,
++        Feature::CodexHooks,
++        Feature::SkillMcpDependencyInstall,
++    ] {
++        let server = start_mock_server().await;
++        let home = Arc::new(TempDir::new()?);
++        let stage = home.path().join("stage");
++        tokio::fs::create_dir(&stage).await?;
++        let stage = stage.as_path().abs();
++        let test = test_codex()
++            .with_home(home)
++            .with_cloud_config_bundle(
++                CloudConfigBundleFixture::loader_with_enterprise_requirement(format!(
++                    "[features]\n{} = true\n",
++                    feature.key()
++                )),
++            )
++            .with_config(configure_startup_fixture)
++            .build(&server)
++            .await?;
++        let parent = test.config.clone();
++        let mut pin_probe = parent.features.clone();
++        pin_probe.disable(feature)?;
++        assert!(pin_probe.enabled(feature), "managed pin: {}", feature.key());
++        let profile = parent.permissions.effective_permission_profile();
++        let error = crate::publication_permissions::bind_child_stage(
++            parent.clone(), &profile, &stage,
++        ).expect_err("required feature must prevent sandboxed admission");
++        let expected = format!("required worker feature `{}`", feature.key());
++        assert!(error.to_string().contains(&expected), "{error:#}");
++        #[cfg(windows)]
++        {
++            let error = crate::publication_permissions::bind_host_mediated_child(
++                parent.clone(), &profile, &stage,
++            ).expect_err("required feature must prevent host-mediated admission");
++            assert!(error.to_string().contains(&expected), "{error:#}");
++        }
++        assert_eq!(test.config.features, parent.features);
++        shutdown_test_codex(&test).await?;
++    }
++    Ok(())
++}
++
+ #[tokio::test]
+ async fn memories_startup_phase2_tracks_workspace_diff_across_runs() -> anyhow::Result<()> {
+     let server = start_mock_server().await;
+@@ -424,11 +569,11 @@ async fn memories_startup_phase2_tracks_workspace_diff_across_runs() -> anyhow::
          "expected workspace diff file in prompt: {prompt}"
      );
  
@@ -59377,7 +59479,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be951
      assert_eq!(rollout_summaries.len(), 1);
      assert!(
          rollout_summaries
-@@ -445,6 +541,14 @@ async fn memories_startup_phase2_tracks_workspace_diff_across_runs() -> anyhow::
+@@ -445,6 +590,14 @@ async fn memories_startup_phase2_tracks_workspace_diff_across_runs() -> anyhow::
              .iter()
              .all(|summary| !summary.contains("rollout summary A"))
      );
@@ -59392,7 +59494,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be951
  
      shutdown_test_codex(&test).await?;
      Ok(())
-@@ -485,7 +589,7 @@ async fn phase2_replays_legacy_baseline_with_unchanged_inputs() -> anyhow::Resul
+@@ -485,7 +638,7 @@ async fn phase2_replays_legacy_baseline_with_unchanged_inputs() -> anyhow::Resul
      let test = build_test_codex(&server, home.clone()).await?;
      trigger_memories_startup(&test).await;
      wait_for_single_request(&phase2).await;
@@ -59401,7 +59503,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be951
      shutdown_test_codex(&test).await?;
      Ok(())
  }
-@@ -534,9 +638,24 @@ async fn phase2_retries_when_clean_workspace_is_missing_artifacts() -> anyhow::R
+@@ -534,9 +687,24 @@ async fn phase2_retries_when_clean_workspace_is_missing_artifacts() -> anyhow::R
      );
      assert!(!memory_root.join("MEMORY.md").exists());
      assert!(!memory_root.join("memory_summary.md").exists());
@@ -59429,7 +59531,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be951
      );
  
      shutdown_test_codex(&test).await?;
-@@ -599,16 +718,9 @@ async fn memories_startup_phase2_prunes_old_extension_resources() -> anyhow::Res
+@@ -599,16 +767,9 @@ async fn memories_startup_phase2_prunes_old_extension_resources() -> anyhow::Res
          "expected workspace diff file in prompt: {prompt}"
      );
  
@@ -59449,7 +59551,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be951
  
      shutdown_test_codex(&test).await?;
      Ok(())
-@@ -660,8 +772,9 @@ async fn memories_startup_phase2_prunes_old_extension_resources_without_stage1_i
+@@ -660,8 +821,9 @@ async fn memories_startup_phase2_prunes_old_extension_resources_without_stage1_i
          "expected workspace diff file in prompt: {prompt}"
      );
  
@@ -59461,7 +59563,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be951
  
      shutdown_test_codex(&test).await?;
      Ok(())
-@@ -1166,7 +1279,7 @@ async fn run_memory_phase_two_model_request_test(
+@@ -1166,7 +1328,7 @@ async fn run_memory_phase_two_model_request_test(
              .as_str()
              .ok_or_else(|| anyhow::anyhow!("phase-2 request should include the child thread id"))?,
      )?;
@@ -59470,7 +59572,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be951
      assert!(
          test.thread_manager
              .remove_thread(&consolidation_thread_id)
-@@ -1178,7 +1291,10 @@ async fn run_memory_phase_two_model_request_test(
+@@ -1178,7 +1340,10 @@ async fn run_memory_phase_two_model_request_test(
          assert!(!root.join("raw_memories.md").exists());
          assert!(!root.join("MEMORY.md").exists());
          assert!(!root.join("skills").exists());
@@ -59482,7 +59584,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be951
          assert!(request.body_contains_text("Consolidate the supplied rollout summaries"));
      }
      test.codex.shutdown_and_wait().await?;
-@@ -1187,6 +1303,9 @@ async fn run_memory_phase_two_model_request_test(
+@@ -1187,6 +1352,9 @@ async fn run_memory_phase_two_model_request_test(
  
  fn startup_test_memories_config() -> MemoriesConfig {
      MemoriesConfig {
@@ -59492,7 +59594,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be951
          max_raw_memories_for_consolidation: 1,
          min_rollout_idle_hours: 0,
          ..MemoriesConfig::default()
-@@ -1204,14 +1323,44 @@ async fn build_test_codex(
+@@ -1204,14 +1372,44 @@ async fn build_test_codex(
  
  fn memory_test_codex(home: Arc<TempDir>, memories: MemoriesConfig) -> TestCodexBuilder {
      test_codex().with_home(home).with_config(move |config| {
@@ -59541,7 +59643,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be951
  async fn init_state_db(home: &Arc<TempDir>) -> anyhow::Result<Arc<codex_state::StateRuntime>> {
      let db = codex_state::StateRuntime::init(
          codex_state::SqliteConfig::new_for_testing(home.path().abs()),
-@@ -1413,19 +1562,56 @@ async fn wait_for_single_request(mock: &ResponseMock) -> ResponsesRequest {
+@@ -1413,19 +1611,56 @@ async fn wait_for_single_request(mock: &ResponseMock) -> ResponsesRequest {
      wait_for_request(mock, /*expected_count*/ 1).await.remove(0)
  }
  
@@ -59608,7 +59710,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be951
  }
  
  async fn wait_for_dir(path: &Path) -> anyhow::Result<()> {
-@@ -1486,17 +1672,45 @@ fn phase2_prompt_text(request: &ResponsesRequest) -> String {
+@@ -1486,17 +1721,45 @@ fn phase2_prompt_text(request: &ResponsesRequest) -> String {
          .expect("phase2 prompt text")
  }
  
@@ -59658,7 +59760,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be951
  }
  
  async fn wait_for_phase2_job_to_finish(
-@@ -1518,6 +1732,25 @@ async fn wait_for_phase2_job_to_finish(
+@@ -1518,6 +1781,25 @@ async fn wait_for_phase2_job_to_finish(
      }
  }
  

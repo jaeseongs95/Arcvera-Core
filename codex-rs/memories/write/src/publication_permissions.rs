@@ -1,10 +1,35 @@
 // Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Restrict consolidation worker permissions without changing the parent.
 use codex_core::config::Config;
+use codex_features::Feature;
 use codex_protocol::intersect_effective_permission_profiles;
 use codex_protocol::models::PermissionProfile;
 use codex_protocol::protocol::SandboxPolicy;
 use codex_utils_absolute_path::AbsolutePathBuf;
+
+/// Managed pins can normalize a successful disable request back to enabled.
+/// Check the resulting policy before either worker isolation path is admitted.
+fn restrict_worker_features(config: &mut Config) -> anyhow::Result<()> {
+    let forbidden = [
+        Feature::Collab,
+        Feature::MemoryTool,
+        Feature::Apps,
+        Feature::Plugins,
+        Feature::CodexHooks,
+        Feature::SkillMcpDependencyInstall,
+    ];
+    for feature in forbidden {
+        config.features.disable(feature)?;
+    }
+    for feature in forbidden {
+        anyhow::ensure!(
+            !config.features.enabled(feature),
+            "required worker feature `{}` prevents memory isolation",
+            feature.key()
+        );
+    }
+    Ok(())
+}
 
 /// Intersect, never replace, the parent's already-materialized authority.
 /// External, unsupported path/policy shapes and constraint rejection are errors.
@@ -13,6 +38,7 @@ pub(super) fn bind_child_stage(
     parent: &PermissionProfile,
     stage: &AbsolutePathBuf,
 ) -> anyhow::Result<Config> {
+    restrict_worker_features(&mut config)?;
     #[cfg(windows)]
     {
         use codex_core::windows_sandbox::WindowsSandboxLevelExt;
@@ -53,6 +79,7 @@ pub(super) fn bind_host_mediated_child(
     parent: &PermissionProfile,
     stage: &AbsolutePathBuf,
 ) -> anyhow::Result<Config> {
+    restrict_worker_features(&mut config)?;
     #[cfg(not(windows))]
     { let _ = (config, parent, stage); anyhow::bail!("host-mediated memory stage is unavailable on this platform"); }
     #[cfg(windows)]
@@ -71,9 +98,6 @@ pub(super) fn bind_host_mediated_child(
                 let fs = parent.file_system_sandbox_policy();
                 anyhow::ensure!(fs.can_read_local_path_with_cwd(stage.as_path(), stage.as_path()) && fs.can_write_local_path_with_cwd(stage.as_path(), stage.as_path()), "parent does not grant stage access");
             }
-        }
-        for feature in [codex_features::Feature::CodexHooks, codex_features::Feature::Plugins, codex_features::Feature::Collab, codex_features::Feature::MemoryTool, codex_features::Feature::Apps, codex_features::Feature::SkillMcpDependencyInstall] {
-            config.features.disable(feature)?;
         }
         config.cwd = stage.clone();
         config.permissions.set_workspace_roots(vec![stage.clone()]);
