@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "7bbd25659c558509c1ea84a9d13e25d53796b3730c043842e202a4b817e4204a",
+  "sourceTreeSha256": "b5974f58eefa575d0d46b321503a3d10ef176e8a3d757bba85508fb258edf6b7",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "7c65fa363940e43944ad572b71560c2f34a2d18f8af102c9b6cda08ca7eb438f"
+    "sha256": "313470c6c3ffc558a48dfabbf9fc62521d4d8850e483f7142d133dd45b054626"
   },
   "files": [
     {
@@ -11963,9 +11963,9 @@
     {
       "path": "codex-rs/app-server/tests/suite/v2/memory_recovery.rs",
       "gitMode": "100644",
-      "bytes": 11626,
-      "sha256": "ea51dfd684e63c34a10bb5a22ebae26a554d835681db2c7acce0d26d92d34d23",
-      "gitBlob": "07adba4c3f13e5d54217219c04fafb9c6ae2a0a5"
+      "bytes": 12391,
+      "sha256": "9a32c5d9709662baa84a6305cfecccd18f0601223e6629f98e11bde7798ec987",
+      "gitBlob": "ddf610db82f85c48c6f3b85d6cb8d398f503f8fa"
     },
     {
       "path": "codex-rs/app-server/tests/suite/v2/memory_reset.rs",

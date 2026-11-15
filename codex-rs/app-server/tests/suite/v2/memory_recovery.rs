@@ -1,6 +1,7 @@
 // Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Recovery with real stdio, worker tools, SQLite and synthetic inputs only.
 use super::*;
+use anyhow::Context;
 use core_test_support::responses::{ev_function_call, mount_sse_sequence};
 use std::collections::BTreeMap;
 use tokio::time::{Duration, Instant};
@@ -31,7 +32,10 @@ async fn recovery_state(
 ) -> Result<ThreadMemoryReadResponse> {
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
-        let read = read_memory(app, id, true).await?;
+        let read = tokio::time::timeout_at(deadline, read_memory(app, id, true))
+            .await
+            .context("memory read exceeded recovery deadline")??;
+        anyhow::ensure!(Instant::now() < deadline, "worker did not reach {expected}");
         if let Some(state) = &read.consolidation {
             if state.status == expected {
                 return Ok(read);
@@ -45,6 +49,14 @@ async fn recovery_state(
         anyhow::ensure!(Instant::now() < deadline, "worker did not reach {expected}");
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
+}
+
+async fn recovery_shutdown(app: &mut TestAppServer) -> Result<()> {
+    let status = tokio::time::timeout(Duration::from_secs(30), app.shutdown_gracefully())
+        .await
+        .context("recovery app shutdown exceeded deadline; do not archive")??;
+    anyhow::ensure!(status.success(), "recovery app exited abnormally: {status}");
+    Ok(())
 }
 
 async fn recovery_idle(root: &Path) -> Result<()> {
@@ -111,6 +123,12 @@ fn recovery_stages(root: &Path) -> Result<Vec<PathBuf>> {
 
 #[tokio::test]
 async fn memory_recovery_archives_failed_stages_after_shutdown_and_retries() -> Result<()> {
+    tokio::time::timeout(Duration::from_secs(180), recovery_case())
+        .await
+        .context("recovery integration case exceeded deadline")?
+}
+
+async fn recovery_case() -> Result<()> {
     let server = start_mock_server().await;
     let home = TempDir::new()?;
     let project = TempDir::new()?;
@@ -232,7 +250,7 @@ async fn memory_recovery_archives_failed_stages_after_shutdown_and_retries() -> 
     assert_eq!(stages.len(), 2);
     let marker = std::fs::read(root.join(".codex-memory-managed"))?;
     // Shutdown joins this fixture's workers/readers before any archive operation.
-    app.shutdown_gracefully().await?;
+    recovery_shutdown(&mut app).await?;
     let lock = MemoryWorkspaceLock::try_acquire(&root)?;
     let archive = home.path().join("recovery-archive");
     std::fs::create_dir(&archive)?;
@@ -289,6 +307,6 @@ async fn memory_recovery_archives_failed_stages_after_shutdown_and_retries() -> 
         assert_eq!(recovery_bytes(&path)?, bytes);
     }
     assert!(recovery_stages(&root)?.is_empty());
-    app.shutdown_gracefully().await?;
+    recovery_shutdown(&mut app).await?;
     Ok(())
 }

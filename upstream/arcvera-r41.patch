@@ -24835,13 +24835,14 @@ index 5545a04f0c69c7144a47850b39a9dde1f53f0411..15f4e1e56a30df1d3b7f0538648bf77e
  -> Result<()> {
 diff --git a/codex-rs/app-server/tests/suite/v2/memory_recovery.rs b/codex-rs/app-server/tests/suite/v2/memory_recovery.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..07adba4c3f13e5d54217219c04fafb9c6ae2a0a5
+index 0000000000000000000000000000000000000000..ddf610db82f85c48c6f3b85d6cb8d398f503f8fa
 --- /dev/null
 +++ b/codex-rs/app-server/tests/suite/v2/memory_recovery.rs
-@@ -0,0 +1,294 @@
+@@ -0,0 +1,312 @@
 +// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 +//! Recovery with real stdio, worker tools, SQLite and synthetic inputs only.
 +use super::*;
++use anyhow::Context;
 +use core_test_support::responses::{ev_function_call, mount_sse_sequence};
 +use std::collections::BTreeMap;
 +use tokio::time::{Duration, Instant};
@@ -24872,7 +24873,10 @@ index 0000000000000000000000000000000000000000..07adba4c3f13e5d54217219c04fafb9c
 +) -> Result<ThreadMemoryReadResponse> {
 +    let deadline = Instant::now() + Duration::from_secs(30);
 +    loop {
-+        let read = read_memory(app, id, true).await?;
++        let read = tokio::time::timeout_at(deadline, read_memory(app, id, true))
++            .await
++            .context("memory read exceeded recovery deadline")??;
++        anyhow::ensure!(Instant::now() < deadline, "worker did not reach {expected}");
 +        if let Some(state) = &read.consolidation {
 +            if state.status == expected {
 +                return Ok(read);
@@ -24886,6 +24890,14 @@ index 0000000000000000000000000000000000000000..07adba4c3f13e5d54217219c04fafb9c
 +        anyhow::ensure!(Instant::now() < deadline, "worker did not reach {expected}");
 +        tokio::time::sleep(Duration::from_millis(20)).await;
 +    }
++}
++
++async fn recovery_shutdown(app: &mut TestAppServer) -> Result<()> {
++    let status = tokio::time::timeout(Duration::from_secs(30), app.shutdown_gracefully())
++        .await
++        .context("recovery app shutdown exceeded deadline; do not archive")??;
++    anyhow::ensure!(status.success(), "recovery app exited abnormally: {status}");
++    Ok(())
 +}
 +
 +async fn recovery_idle(root: &Path) -> Result<()> {
@@ -24952,6 +24964,12 @@ index 0000000000000000000000000000000000000000..07adba4c3f13e5d54217219c04fafb9c
 +
 +#[tokio::test]
 +async fn memory_recovery_archives_failed_stages_after_shutdown_and_retries() -> Result<()> {
++    tokio::time::timeout(Duration::from_secs(180), recovery_case())
++        .await
++        .context("recovery integration case exceeded deadline")?
++}
++
++async fn recovery_case() -> Result<()> {
 +    let server = start_mock_server().await;
 +    let home = TempDir::new()?;
 +    let project = TempDir::new()?;
@@ -25073,7 +25091,7 @@ index 0000000000000000000000000000000000000000..07adba4c3f13e5d54217219c04fafb9c
 +    assert_eq!(stages.len(), 2);
 +    let marker = std::fs::read(root.join(".codex-memory-managed"))?;
 +    // Shutdown joins this fixture's workers/readers before any archive operation.
-+    app.shutdown_gracefully().await?;
++    recovery_shutdown(&mut app).await?;
 +    let lock = MemoryWorkspaceLock::try_acquire(&root)?;
 +    let archive = home.path().join("recovery-archive");
 +    std::fs::create_dir(&archive)?;
@@ -25130,7 +25148,7 @@ index 0000000000000000000000000000000000000000..07adba4c3f13e5d54217219c04fafb9c
 +        assert_eq!(recovery_bytes(&path)?, bytes);
 +    }
 +    assert!(recovery_stages(&root)?.is_empty());
-+    app.shutdown_gracefully().await?;
++    recovery_shutdown(&mut app).await?;
 +    Ok(())
 +}
 diff --git a/codex-rs/app-server/tests/suite/v2/memory_reset.rs b/codex-rs/app-server/tests/suite/v2/memory_reset.rs
