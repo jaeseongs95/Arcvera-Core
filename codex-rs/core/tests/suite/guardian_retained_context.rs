@@ -395,7 +395,7 @@ async fn compact_and_assert_answers(
     // Inspect live state by persisting a real compaction checkpoint, not a private getter.
     // Repeating this after legacy rollback replay also catches checkpoint resurrection.
     thread.submit(Op::Compact).await?;
-    wait_for_event(thread, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    core_test_support::wait_for_successful_turn(thread).await;
     thread.flush_rollout().await?;
     let history = load_context(test, thread).await?;
     let checkpoint = history
@@ -801,6 +801,7 @@ async fn standalone_fork_summary_only_checkpoint(history_mode: ThreadHistoryMode
         .with_history_mode(history_mode)
         .with_config(|config| {
             config.experimental_thread_store = ThreadStoreConfig::Local;
+            config.model_provider.name = "Local compaction test provider".to_owned();
             config
                 .features
                 .disable(Feature::TokenBudget)
@@ -1179,11 +1180,11 @@ async fn standalone_fork_from_migrated_inherited_checkpoint() -> Result<()> {
         })),
     );
     let mut wire = String::new();
-    for item in records {
+    for item in &records {
         wire.push_str(&serde_json::to_string(&codex_rollout::RolloutLine {
             timestamp: "2025-01-03T12:00:00Z".into(),
             ordinal: None,
-            item,
+            item: item.clone(),
         })?);
         wire.push('\n');
     }
@@ -1191,6 +1192,20 @@ async fn standalone_fork_from_migrated_inherited_checkpoint() -> Result<()> {
     let state_db = codex_core::init_state_db(&test.config)
         .await
         .context("migration state DB")?;
+    let metadata = codex_rollout::builder_from_items(&records, &path)
+        .context("fixture metadata builder")?
+        .build(&test.config.model_provider_id);
+    assert_eq!(metadata.id, thread_id);
+    assert_eq!(metadata.rollout_path, path);
+    state_db.upsert_thread(&metadata).await?;
+    assert_eq!(
+        state_db
+            .get_thread(thread_id)
+            .await?
+            .context("indexed fixture")?
+            .rollout_path,
+        path
+    );
     let store = codex_thread_store::LocalThreadStore::new(
         codex_thread_store::LocalThreadStoreConfig::from_config(&test.config),
         Some(state_db),
@@ -1392,7 +1407,11 @@ async fn standalone_fork_retains_inherited_user_instructions(
     if compacted {
         assert_ne!(inherited_text, instruction);
         assert!(!inherited_source.complete);
-        assert!(inherited_text.len() < 900 * 4);
+        // ASCII truncation fills the inclusive 900-token (3600-byte) limit.
+        assert_eq!(inherited_text.len(), 3_600);
+        assert!(inherited_text.starts_with("You may publish the release."));
+        assert!(inherited_text.ends_with("Delegate an inspection."));
+        assert!(inherited_text.contains("<truncated omitted_approx_tokens="));
     }
     // The adopted root later compacts through the mechanical path, which can drop originals.
     test.config

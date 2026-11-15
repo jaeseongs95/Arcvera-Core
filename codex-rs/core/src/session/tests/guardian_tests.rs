@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::*;
 use crate::config::Constrained;
 use crate::exec_policy::ExecPolicyManager;
@@ -226,7 +227,7 @@ async fn request_permissions_routes_to_guardian_when_reviewer_is_enabled() {
         config.model_provider.clone(),
     );
     session.services.models_manager = models_manager;
-    crate::guardian::test_host::install(&session, &config);
+    crate::guardian::test_host::initialize_storage(&mut session, &config).await;
     turn_context_raw.config = Arc::clone(&config);
     turn_context_raw.provider = create_model_provider(
         config.model_provider.clone(),
@@ -333,7 +334,7 @@ async fn request_permissions_uses_issuing_step_policy_and_reviewer() {
         ]),
     )
     .await;
-    let (session, turn, _) = make_session_and_context_with_auth_and_config_and_rx(
+    let (mut session, turn, _) = make_session_and_context_with_auth_and_config_and_rx(
         CodexAuth::from_api_key("Test API Key"),
         Vec::new(),
         |config| {
@@ -346,6 +347,11 @@ async fn request_permissions_uses_issuing_step_policy_and_reviewer() {
                 .enable(Feature::GuardianApproval)
                 .expect("enable Guardian");
         },
+    )
+    .await;
+    crate::guardian::test_host::initialize_storage(
+        Arc::get_mut(&mut session).expect("unshared fixture"),
+        &turn.config,
     )
     .await;
     *session.active_turn.lock().await = Some(ActiveTurn::default());
@@ -712,7 +718,7 @@ async fn strict_auto_review_turn_grant_forces_guardian_for_exec_command_policy_s
         config.model_provider.clone(),
     );
     session.services.models_manager = models_manager;
-    crate::guardian::test_host::install(&session, &config);
+    crate::guardian::test_host::initialize_storage(&mut session, &config).await;
     turn_context_raw.config = Arc::clone(&config);
     turn_context_raw.provider = create_model_provider(
         config.model_provider.clone(),

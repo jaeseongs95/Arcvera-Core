@@ -6603,8 +6603,22 @@ async fn compaction_persists_resume_metadata_and_companion_records() {
     else {
         panic!("unexpected compaction records: {compaction_items:#?}");
     };
-    assert_eq!(compacted.replacement_history, Some(live_history));
-    assert_eq!(compacted.resume_metadata.as_ref(), Some(&expected));
+    assert_eq!(compacted.replacement_history.as_ref(), Some(&live_history));
+    // Derived index caches are intentionally absent from the persisted wire format.
+    assert_eq!(
+        serde_json::to_value(compacted.resume_metadata.as_ref()).expect("saved metadata"),
+        serde_json::to_value(Some(&expected)).expect("expected persisted metadata"),
+    );
+    let restored = session
+        .reconstruct_history_from_rollout(&turn_context, &compaction_items)
+        .await;
+    assert_eq!(restored.context_index_error, None);
+    assert_eq!(restored.history, live_history);
+    assert_eq!(
+        restored.context_index,
+        *expected.context_index.as_ref().expect("live index")
+    );
+    assert_eq!(restored.context_index.active_source_ids().len(), 2);
     assert_eq!(
         saved_world_state,
         &WorldStateItem::full(world_state.render_full().0.into_object())
@@ -7353,6 +7367,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
         "turn_id".to_string(),
         skills_snapshot,
     );
+    session.services.thread_extension_data.insert(codex_home);
     session.mark_mcp_runtime_dirty();
     crate::guardian::test_host::install(&session, &turn_context.config);
     (session, turn_context)
@@ -9358,13 +9373,15 @@ where
     F: FnOnce(&mut Config),
 {
     let codex_home = tempfile::tempdir().expect("create temp dir");
-    make_session_and_context_with_auth_config_home_and_rx(
+    let result = make_session_and_context_with_auth_config_home_and_rx(
         auth,
         dynamic_tools,
         codex_home.path(),
         configure_config,
     )
-    .await
+    .await;
+    result.0.services.thread_extension_data.insert(codex_home);
+    result
 }
 
 pub(crate) async fn make_session_and_context_with_auth_config_home_and_rx<F>(

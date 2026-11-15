@@ -3545,9 +3545,24 @@ async fn spawn_agent_fork_strips_parent_usage_hints_from_compacted_history(marke
         !history_contains_text(history.raw_items(), "parent-private-release"),
         "a subagent must not inherit parent-local approval messages",
     );
-    let mut inherited_context = codex_history::RetainedContext::default();
-    inherited_context.reserve_order();
+    // Even an empty host archive records that parent answers were not inherited.
+    let inherited_context: codex_history::RetainedContext =
+        serde_json::from_value(serde_json::json!({
+            "verified_answers": [], "incomplete": false,
+            "user_messages": [], "user_messages_incomplete": false,
+            "assistant_messages": [], "assistant_messages_incomplete": false,
+            "next_order": 1, "sender_deliveries": [],
+            "inherited_user_context": {"messages": [], "incomplete": false}
+        }))
+        .expect("explicit inherited state");
     assert_eq!(history.retained_context(), &inherited_context);
+    let mut adopted = history.retained_context().clone();
+    adopted.adopt_inherited_user_context();
+    assert!(!adopted.verified_answers_complete());
+    assert_eq!(adopted.verified_answers().count(), 0);
+    assert!(adopted.sender_user_messages().is_none());
+    assert_eq!(adopted.ordered_entries().count(), 0);
+    assert!(!adopted.has_missing_user_messages());
     assert!(
         history_contains_text(history.raw_items(), "compacted parent summary"),
         "forked child history should retain compacted non-hint content"

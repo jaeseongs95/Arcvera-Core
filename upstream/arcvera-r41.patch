@@ -34465,7 +34465,7 @@ index 379a0c06a70b0337d0c187a8d536ad0627b3eb21..2d5a2cb8d372835236818496e392e0bc
      "web_search": {
        "allOf": [
 diff --git a/codex-rs/core/src/agent/control_tests.rs b/codex-rs/core/src/agent/control_tests.rs
-index bdfba72b865972ddcf09a80b3fd47acc5adbab4d..5c7c2522ce334ed718a87e7337d2172a60cd3793 100644
+index bdfba72b865972ddcf09a80b3fd47acc5adbab4d..b39152c12b686cf8eb7b621aa8c09282dd1e03dc 100644
 --- a/codex-rs/core/src/agent/control_tests.rs
 +++ b/codex-rs/core/src/agent/control_tests.rs
 @@ -1,5 +1,8 @@
@@ -34493,7 +34493,34 @@ index bdfba72b865972ddcf09a80b3fd47acc5adbab4d..5c7c2522ce334ed718a87e7337d2172a
              multi_agent_version: Some(MultiAgentVersion::V1),
              turn_attribution: None,
              ..parent_resume_metadata
-@@ -3881,6 +3886,7 @@ async fn spawn_agent_full_fork_legacy_compaction_rebuilds_child_instructions_onc
+@@ -3540,9 +3545,24 @@ async fn spawn_agent_fork_strips_parent_usage_hints_from_compacted_history(marke
+         !history_contains_text(history.raw_items(), "parent-private-release"),
+         "a subagent must not inherit parent-local approval messages",
+     );
+-    let mut inherited_context = codex_history::RetainedContext::default();
+-    inherited_context.reserve_order();
++    // Even an empty host archive records that parent answers were not inherited.
++    let inherited_context: codex_history::RetainedContext =
++        serde_json::from_value(serde_json::json!({
++            "verified_answers": [], "incomplete": false,
++            "user_messages": [], "user_messages_incomplete": false,
++            "assistant_messages": [], "assistant_messages_incomplete": false,
++            "next_order": 1, "sender_deliveries": [],
++            "inherited_user_context": {"messages": [], "incomplete": false}
++        }))
++        .expect("explicit inherited state");
+     assert_eq!(history.retained_context(), &inherited_context);
++    let mut adopted = history.retained_context().clone();
++    adopted.adopt_inherited_user_context();
++    assert!(!adopted.verified_answers_complete());
++    assert_eq!(adopted.verified_answers().count(), 0);
++    assert!(adopted.sender_user_messages().is_none());
++    assert_eq!(adopted.ordered_entries().count(), 0);
++    assert!(!adopted.has_missing_user_messages());
+     assert!(
+         history_contains_text(history.raw_items(), "compacted parent summary"),
+         "forked child history should retain compacted non-hint content"
+@@ -3881,6 +3901,7 @@ async fn spawn_agent_full_fork_legacy_compaction_rebuilds_child_instructions_onc
                  compaction_response_id: None,
                  latest_token_usage_record: None,
                  resume_metadata: Some(codex_history::CompactionResumeMetadata {
@@ -34501,7 +34528,7 @@ index bdfba72b865972ddcf09a80b3fd47acc5adbab4d..5c7c2522ce334ed718a87e7337d2172a
                      dynamic_tools: None,
                      multi_agent_version: Some(MultiAgentVersion::V2),
                      last_started_turn_id: None,
-@@ -4016,6 +4022,7 @@ async fn spawn_agent_full_fork_legacy_compaction_rebuilds_child_instructions_onc
+@@ -4016,6 +4037,7 @@ async fn spawn_agent_full_fork_legacy_compaction_rebuilds_child_instructions_onc
          assert_eq!(
              inherited_state,
              Some(codex_history::CompactionResumeMetadata {
@@ -39094,8 +39121,50 @@ index 6a247f55a47385ba3d09c2405bc1dbf5e34f59da..93e789b844b082dacb412e3a5172eca6
                  input_goal_ids: Default::default(),
                  message: String::new(),
                  window_number,
+diff --git a/codex-rs/core/src/guardian/test_host.rs b/codex-rs/core/src/guardian/test_host.rs
+index 3f98917afbb5e51a6672f864dc29aa75e2a9cf66..615cfb710b8f0ff8de0d2b3d5f9372027af22c11 100644
+--- a/codex-rs/core/src/guardian/test_host.rs
++++ b/codex-rs/core/src/guardian/test_host.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ //! Explicit ThreadManager host for core's context-adapter unit tests.
+ //! Application-level tests install the real Guardian extension instead.
+ 
+@@ -21,6 +22,32 @@ use crate::session::session::Session;
+ mod reviewer_config;
+ pub(super) use reviewer_config::build_reviewer_config;
+ 
++/// Connect the actual paginated store for tests that start a reviewer thread.
++pub(crate) async fn initialize_storage(session: &mut Session, config: &Config) {
++    assert!(
++        session.services.live_thread.is_none(),
++        "initialize before materializing the parent"
++    );
++    assert!(
++        config.codex_home.is_dir(),
++        "the owning fixture must retain its home"
++    );
++    assert!(
++        session.services.state_db.is_none(),
++        "do not replace an existing state DB"
++    );
++    let state_db =
++        codex_state::StateRuntime::init(config.sqlite.clone(), config.model_provider_id.clone())
++            .await
++            .expect("initialize Guardian fixture SQLite");
++    session.services.state_db = Some(Arc::clone(&state_db));
++    session.services.thread_store = Arc::new(codex_thread_store::LocalThreadStore::new(
++        codex_thread_store::LocalThreadStoreConfig::from_config(config),
++        Some(state_db),
++    ));
++    install(session, config);
++}
++
+ pub(crate) fn install(session: &Session, config: &Config) {
+     session.services.thread_extension_data.insert(
+         codex_guardian_reviewer::ReviewerConfig::<Config>(build_reviewer_config),
 diff --git a/codex-rs/core/src/guardian/tests.rs b/codex-rs/core/src/guardian/tests.rs
-index 4a81e55a51fb1a7f487bf43d9a839cc2d2188109..89dcdc3d758c4c416052ef57e56582df2eba76cf 100644
+index 4a81e55a51fb1a7f487bf43d9a839cc2d2188109..eb02c138f109190f7a43c4ea1bbe578ee0c939c0 100644
 --- a/codex-rs/core/src/guardian/tests.rs
 +++ b/codex-rs/core/src/guardian/tests.rs
 @@ -1,3 +1,4 @@
@@ -39215,6 +39284,24 @@ index 4a81e55a51fb1a7f487bf43d9a839cc2d2188109..89dcdc3d758c4c416052ef57e56582df
  }
  
  async fn seed_guardian_parent_history(session: &Arc<Session>, turn: &Arc<TurnContext>) {
+@@ -2228,7 +2268,7 @@ async fn guardian_review_request_layout_matches_model_visible_request_snapshot()
+         config.model_provider.clone(),
+     );
+     session.services.models_manager = models_manager;
+-    crate::guardian::test_host::install(&session, &config);
++    crate::guardian::test_host::initialize_storage(&mut session, &config).await;
+     let memory_extension = Arc::new(GuardianMemoryContextProbe);
+     let mut extensions = codex_extension_api::ExtensionRegistryBuilder::<Config>::new();
+     extensions.thread_lifecycle_contributor(memory_extension.clone());
+@@ -2307,7 +2347,7 @@ async fn guardian_review_request_layout_matches_model_visible_request_snapshot()
+     )
+     .await;
+     let (GuardianReviewOutcome::Completed(assessment), metadata) = outcome else {
+-        panic!("expected guardian assessment");
++        panic!("expected guardian assessment, got {outcome:?}");
+     };
+     let guardian_thread_id = metadata
+         .guardian_thread_id
 @@ -2674,6 +2714,7 @@ async fn guardian_reuses_prompt_cache_key_and_appends_prior_reviews() -> anyhow:
              turn.to_turn_context_item(),
              crate::context::world_state::WorldStateSnapshot::default(),
@@ -39223,7 +39310,33 @@ index 4a81e55a51fb1a7f487bf43d9a839cc2d2188109..89dcdc3d758c4c416052ef57e56582df
                  input_goal_ids: Default::default(),
                  message: String::new(),
                  window_number,
-@@ -3682,6 +3723,13 @@ async fn guardian_ephemeral_retry_preserves_parallel_trunk_and_fork_history() ->
+@@ -3065,7 +3106,11 @@ async fn guardian_review_surfaces_responses_api_errors_in_rejection_reason() ->
+         .expect("session should be uniquely owned")
+         .services
+         .models_manager = models_manager;
+-    crate::guardian::test_host::install(&session, &config);
++    crate::guardian::test_host::initialize_storage(
++        Arc::get_mut(&mut session).expect("unshared fixture"),
++        &config,
++    )
++    .await;
+     let turn_mut = Arc::get_mut(&mut turn).expect("turn should be uniquely owned");
+     turn_mut.config = Arc::clone(&config);
+     turn_mut.provider =
+@@ -3095,7 +3140,11 @@ async fn guardian_review_surfaces_responses_api_errors_in_rejection_reason() ->
+     let ReviewDecision::Denied { rejection } = decision else {
+         panic!("guardian error should deny the approval");
+     };
+-    assert_eq!(request_log.requests().len(), 1);
++    assert_eq!(
++        request_log.requests().len(),
++        1,
++        "denial before API response: {rejection}"
++    );
+ 
+     let mut warnings = Vec::new();
+     let mut denial_rationales = Vec::new();
+@@ -3682,6 +3731,13 @@ async fn guardian_ephemeral_retry_preserves_parallel_trunk_and_fork_history() ->
          .name("guardian_ephemeral_retry_preserves_parallel_trunk_and_fork_history".to_string())
          .stack_size(TEST_STACK_SIZE_BYTES)
          .spawn(|| -> anyhow::Result<()> {
@@ -39664,6 +39777,35 @@ index 0000000000000000000000000000000000000000..97bd5fab8aa203c9e1467cdaaad8603f
 +        Ok(projected)
 +    }
 +}
+diff --git a/codex-rs/core/src/mcp_tool_call_tests.rs b/codex-rs/core/src/mcp_tool_call_tests.rs
+index c0ac2d401b6367fa748d059d42db71149ff97f47..cdc6ef509d739c9f20df17092e9b023415fc7e9f 100644
+--- a/codex-rs/core/src/mcp_tool_call_tests.rs
++++ b/codex-rs/core/src/mcp_tool_call_tests.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ use super::account::McpToolAccountError;
+ use super::*;
+ use crate::config::ConfigBuilder;
+@@ -3286,6 +3287,7 @@ async fn strict_auto_review_forces_guardian_for_mcp_policy_skip() {
+         config.model_provider.clone(),
+     );
+     session.services.models_manager = models_manager;
++    crate::guardian::test_host::initialize_storage(&mut session, &config).await;
+     turn_context.config = Arc::clone(&config);
+     turn_context.provider = create_model_provider(
+         config.model_provider.clone(),
+@@ -3350,7 +3352,10 @@ async fn strict_auto_review_forces_guardian_for_mcp_policy_skip() {
+     else {
+         panic!("guardian-denied MCP approval should carry a rejection message");
+     };
+-    assert!(message.contains("Reason: The tool call would expose private calendar data"));
++    assert!(
++        message.contains("Reason: The tool call would expose private calendar data"),
++        "{message}"
++    );
+     assert!(message.contains("policy circumvention"));
+     assert_eq!(
+         guardian_request_log.single_request().path(),
 diff --git a/codex-rs/core/src/prompt_debug.rs b/codex-rs/core/src/prompt_debug.rs
 index 8d1af241c6d2117c3e8326733e3a3bf036b76ae6..32c088fa45a5df201a75934644a5b30a967b5505 100644
 --- a/codex-rs/core/src/prompt_debug.rs
@@ -40718,10 +40860,10 @@ index 0000000000000000000000000000000000000000..104f49faca048cad5fed37a1392ef0e9
 +}
 diff --git a/codex-rs/core/src/session/context_composition.rs b/codex-rs/core/src/session/context_composition.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..38bf4be33bd3cd799564746cf39ec8bb00ffe76c
+index 0000000000000000000000000000000000000000..bc909c64307b982e7c8032c93b4ec4db72f0d270
 --- /dev/null
 +++ b/codex-rs/core/src/session/context_composition.rs
-@@ -0,0 +1,761 @@
+@@ -0,0 +1,765 @@
 +// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 +use super::session::Session;
 +use crate::context_manager::{
@@ -41164,7 +41306,11 @@ index 0000000000000000000000000000000000000000..38bf4be33bd3cd799564746cf39ec8bb
 +        ] {
 +            assert!(!encoded.contains(sentinel));
 +        }
-+        let empty = ContextRequestSizes::measure(&Default::default(), 0, 0).unwrap();
++        let mut empty_prompt = crate::client_common::Prompt::default();
++        empty_prompt.base_instructions = codex_protocol::models::BaseInstructions {
++            text: String::new(),
++        };
++        let empty = ContextRequestSizes::measure(&empty_prompt, 0, 0).unwrap();
 +        assert_eq!(
 +            empty.output_schema_serialized_bytes, 0,
 +            "no output schema is known absent"
@@ -44274,7 +44420,7 @@ index 5d3fa4d681eb061f01dbd954e882cf59137236a7..fbd616359e0c922d1cac73e2a4ab3222
      client_session
          .prewarm_websocket(
 diff --git a/codex-rs/core/src/session/tests.rs b/codex-rs/core/src/session/tests.rs
-index 487759427966b1967651a4781efce28b2e0214a0..ea8d43578e9deaac233f0dd8cca1e82563f6be87 100644
+index 487759427966b1967651a4781efce28b2e0214a0..121cfba121d2b1f8dfe38876dc2467194a564412 100644
 --- a/codex-rs/core/src/session/tests.rs
 +++ b/codex-rs/core/src/session/tests.rs
 @@ -1,5 +1,8 @@
@@ -44379,6 +44525,105 @@ index 487759427966b1967651a4781efce28b2e0214a0..ea8d43578e9deaac233f0dd8cca1e825
      assert_eq!(&live_history[1..], &[accepted_goal]);
  
      session.flush_rollout().await.expect("flush checkpoints");
+@@ -6590,8 +6603,22 @@ async fn compaction_persists_resume_metadata_and_companion_records() {
+     else {
+         panic!("unexpected compaction records: {compaction_items:#?}");
+     };
+-    assert_eq!(compacted.replacement_history, Some(live_history));
+-    assert_eq!(compacted.resume_metadata.as_ref(), Some(&expected));
++    assert_eq!(compacted.replacement_history.as_ref(), Some(&live_history));
++    // Derived index caches are intentionally absent from the persisted wire format.
++    assert_eq!(
++        serde_json::to_value(compacted.resume_metadata.as_ref()).expect("saved metadata"),
++        serde_json::to_value(Some(&expected)).expect("expected persisted metadata"),
++    );
++    let restored = session
++        .reconstruct_history_from_rollout(&turn_context, &compaction_items)
++        .await;
++    assert_eq!(restored.context_index_error, None);
++    assert_eq!(restored.history, live_history);
++    assert_eq!(
++        restored.context_index,
++        *expected.context_index.as_ref().expect("live index")
++    );
++    assert_eq!(restored.context_index.active_source_ids().len(), 2);
+     assert_eq!(
+         saved_world_state,
+         &WorldStateItem::full(world_state.render_full().0.into_object())
+@@ -7340,6 +7367,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
+         "turn_id".to_string(),
+         skills_snapshot,
+     );
++    session.services.thread_extension_data.insert(codex_home);
+     session.mark_mcp_runtime_dirty();
+     crate::guardian::test_host::install(&session, &turn_context.config);
+     (session, turn_context)
+@@ -9345,13 +9373,15 @@ where
+     F: FnOnce(&mut Config),
+ {
+     let codex_home = tempfile::tempdir().expect("create temp dir");
+-    make_session_and_context_with_auth_config_home_and_rx(
++    let result = make_session_and_context_with_auth_config_home_and_rx(
+         auth,
+         dynamic_tools,
+         codex_home.path(),
+         configure_config,
+     )
+-    .await
++    .await;
++    result.0.services.thread_extension_data.insert(codex_home);
++    result
+ }
+ 
+ pub(crate) async fn make_session_and_context_with_auth_config_home_and_rx<F>(
+diff --git a/codex-rs/core/src/session/tests/guardian_tests.rs b/codex-rs/core/src/session/tests/guardian_tests.rs
+index 7ac50acc55859d5723feb9002ac6611cab8809f6..b6052a032f07f30f59c310d634ca113aae70f452 100644
+--- a/codex-rs/core/src/session/tests/guardian_tests.rs
++++ b/codex-rs/core/src/session/tests/guardian_tests.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ use super::*;
+ use crate::config::Constrained;
+ use crate::exec_policy::ExecPolicyManager;
+@@ -226,7 +227,7 @@ async fn request_permissions_routes_to_guardian_when_reviewer_is_enabled() {
+         config.model_provider.clone(),
+     );
+     session.services.models_manager = models_manager;
+-    crate::guardian::test_host::install(&session, &config);
++    crate::guardian::test_host::initialize_storage(&mut session, &config).await;
+     turn_context_raw.config = Arc::clone(&config);
+     turn_context_raw.provider = create_model_provider(
+         config.model_provider.clone(),
+@@ -333,7 +334,7 @@ async fn request_permissions_uses_issuing_step_policy_and_reviewer() {
+         ]),
+     )
+     .await;
+-    let (session, turn, _) = make_session_and_context_with_auth_and_config_and_rx(
++    let (mut session, turn, _) = make_session_and_context_with_auth_and_config_and_rx(
+         CodexAuth::from_api_key("Test API Key"),
+         Vec::new(),
+         |config| {
+@@ -348,6 +349,11 @@ async fn request_permissions_uses_issuing_step_policy_and_reviewer() {
+         },
+     )
+     .await;
++    crate::guardian::test_host::initialize_storage(
++        Arc::get_mut(&mut session).expect("unshared fixture"),
++        &turn.config,
++    )
++    .await;
+     *session.active_turn.lock().await = Some(ActiveTurn::default());
+     let mut step = StepContext::for_test(turn);
+     let captured = Arc::get_mut(&mut step).expect("unshared step");
+@@ -712,7 +718,7 @@ async fn strict_auto_review_turn_grant_forces_guardian_for_exec_command_policy_s
+         config.model_provider.clone(),
+     );
+     session.services.models_manager = models_manager;
+-    crate::guardian::test_host::install(&session, &config);
++    crate::guardian::test_host::initialize_storage(&mut session, &config).await;
+     turn_context_raw.config = Arc::clone(&config);
+     turn_context_raw.provider = create_model_provider(
+         config.model_provider.clone(),
 diff --git a/codex-rs/core/src/session/thread_settings.rs b/codex-rs/core/src/session/thread_settings.rs
 index 116f9f5a51a298061f82d1f5ad5c28d0d5d8db8a..61b056afacd617c1561917e300b77bd3061a8230 100644
 --- a/codex-rs/core/src/session/thread_settings.rs
@@ -46583,7 +46828,7 @@ index 0000000000000000000000000000000000000000..501e751e867ba35f2fff8d9b539bff81
 +    Ok(())
 +}
 diff --git a/codex-rs/core/tests/suite/guardian_retained_context.rs b/codex-rs/core/tests/suite/guardian_retained_context.rs
-index 47d5339046db13303ad6d94c32094df749e60480..8fd7f653a37cd76c0ff1fe5d90450b87f3209844 100644
+index 47d5339046db13303ad6d94c32094df749e60480..5c835e7c72f8fe7354133e4692ae7af4252f6852 100644
 --- a/codex-rs/core/tests/suite/guardian_retained_context.rs
 +++ b/codex-rs/core/tests/suite/guardian_retained_context.rs
 @@ -1,3 +1,4 @@
@@ -46614,7 +46859,16 @@ index 47d5339046db13303ad6d94c32094df749e60480..8fd7f653a37cd76c0ff1fe5d90450b87
  use codex_protocol::protocol::EventMsg;
  use codex_protocol::protocol::Op;
  use codex_protocol::protocol::ThreadHistoryMode;
-@@ -783,6 +787,478 @@ async fn legacy_checkpoint_recovers_root_excerpt_before_discarding_backup(
+@@ -391,7 +395,7 @@ async fn compact_and_assert_answers(
+     // Inspect live state by persisting a real compaction checkpoint, not a private getter.
+     // Repeating this after legacy rollback replay also catches checkpoint resurrection.
+     thread.submit(Op::Compact).await?;
+-    wait_for_event(thread, |event| matches!(event, EventMsg::TurnComplete(_))).await;
++    core_test_support::wait_for_successful_turn(thread).await;
+     thread.flush_rollout().await?;
+     let history = load_context(test, thread).await?;
+     let checkpoint = history
+@@ -783,6 +787,493 @@ async fn legacy_checkpoint_recovers_root_excerpt_before_discarding_backup(
      Ok(())
  }
  
@@ -46632,6 +46886,7 @@ index 47d5339046db13303ad6d94c32094df749e60480..8fd7f653a37cd76c0ff1fe5d90450b87
 +        .with_history_mode(history_mode)
 +        .with_config(|config| {
 +            config.experimental_thread_store = ThreadStoreConfig::Local;
++            config.model_provider.name = "Local compaction test provider".to_owned();
 +            config
 +                .features
 +                .disable(Feature::TokenBudget)
@@ -47010,11 +47265,11 @@ index 47d5339046db13303ad6d94c32094df749e60480..8fd7f653a37cd76c0ff1fe5d90450b87
 +        })),
 +    );
 +    let mut wire = String::new();
-+    for item in records {
++    for item in &records {
 +        wire.push_str(&serde_json::to_string(&codex_rollout::RolloutLine {
 +            timestamp: "2025-01-03T12:00:00Z".into(),
 +            ordinal: None,
-+            item,
++            item: item.clone(),
 +        })?);
 +        wire.push('\n');
 +    }
@@ -47022,6 +47277,20 @@ index 47d5339046db13303ad6d94c32094df749e60480..8fd7f653a37cd76c0ff1fe5d90450b87
 +    let state_db = codex_core::init_state_db(&test.config)
 +        .await
 +        .context("migration state DB")?;
++    let metadata = codex_rollout::builder_from_items(&records, &path)
++        .context("fixture metadata builder")?
++        .build(&test.config.model_provider_id);
++    assert_eq!(metadata.id, thread_id);
++    assert_eq!(metadata.rollout_path, path);
++    state_db.upsert_thread(&metadata).await?;
++    assert_eq!(
++        state_db
++            .get_thread(thread_id)
++            .await?
++            .context("indexed fixture")?
++            .rollout_path,
++        path
++    );
 +    let store = codex_thread_store::LocalThreadStore::new(
 +        codex_thread_store::LocalThreadStoreConfig::from_config(&test.config),
 +        Some(state_db),
@@ -47093,7 +47362,7 @@ index 47d5339046db13303ad6d94c32094df749e60480..8fd7f653a37cd76c0ff1fe5d90450b87
  // Cover live copied history and a truncated referenced checkpoint. Parent-answer
  // omission is already exercised by retained_answers_cross_real_session_boundaries.
  #[test_case(ThreadHistoryMode::Legacy; "copied worker history")]
-@@ -871,8 +1347,27 @@ async fn standalone_fork_retains_inherited_user_instructions(
+@@ -871,8 +1362,27 @@ async fn standalone_fork_retains_inherited_user_instructions(
          }]))
          .await?;
      wait_for_event(&worker, |event| matches!(event, EventMsg::TurnComplete(_))).await;
@@ -47122,7 +47391,7 @@ index 47d5339046db13303ad6d94c32094df749e60480..8fd7f653a37cd76c0ff1fe5d90450b87
          mount_sse_sequence(
              &server,
              vec![sse(vec![
-@@ -884,21 +1379,19 @@ async fn standalone_fork_retains_inherited_user_instructions(
+@@ -884,22 +1394,24 @@ async fn standalone_fork_retains_inherited_user_instructions(
          compact_and_assert_answers(&test, &worker, &[]).await?;
      }
      let worker_context = worker.conversation_history_snapshot().await;
@@ -47151,11 +47420,17 @@ index 47d5339046db13303ad6d94c32094df749e60480..8fd7f653a37cd76c0ff1fe5d90450b87
      if compacted {
          assert_ne!(inherited_text, instruction);
 -        assert!(inherited_text.contains("tokens truncated"));
+-        assert!(inherited_text.len() < 900 * 4);
 +        assert!(!inherited_source.complete);
-         assert!(inherited_text.len() < 900 * 4);
++        // ASCII truncation fills the inclusive 900-token (3600-byte) limit.
++        assert_eq!(inherited_text.len(), 3_600);
++        assert!(inherited_text.starts_with("You may publish the release."));
++        assert!(inherited_text.ends_with("Delegate an inspection."));
++        assert!(inherited_text.contains("<truncated omitted_approx_tokens="));
      }
      // The adopted root later compacts through the mechanical path, which can drop originals.
-@@ -957,7 +1450,7 @@ async fn standalone_fork_retains_inherited_user_instructions(
+     test.config
+@@ -957,7 +1469,7 @@ async fn standalone_fork_retains_inherited_user_instructions(
              })
              .collect::<Vec<_>>(),
          vec![

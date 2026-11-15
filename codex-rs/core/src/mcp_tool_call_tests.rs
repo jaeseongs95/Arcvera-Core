@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::account::McpToolAccountError;
 use super::*;
 use crate::config::ConfigBuilder;
@@ -3286,6 +3287,7 @@ async fn strict_auto_review_forces_guardian_for_mcp_policy_skip() {
         config.model_provider.clone(),
     );
     session.services.models_manager = models_manager;
+    crate::guardian::test_host::initialize_storage(&mut session, &config).await;
     turn_context.config = Arc::clone(&config);
     turn_context.provider = create_model_provider(
         config.model_provider.clone(),
@@ -3350,7 +3352,10 @@ async fn strict_auto_review_forces_guardian_for_mcp_policy_skip() {
     else {
         panic!("guardian-denied MCP approval should carry a rejection message");
     };
-    assert!(message.contains("Reason: The tool call would expose private calendar data"));
+    assert!(
+        message.contains("Reason: The tool call would expose private calendar data"),
+        "{message}"
+    );
     assert!(message.contains("policy circumvention"));
     assert_eq!(
         guardian_request_log.single_request().path(),

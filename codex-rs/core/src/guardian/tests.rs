@@ -2268,7 +2268,7 @@ async fn guardian_review_request_layout_matches_model_visible_request_snapshot()
         config.model_provider.clone(),
     );
     session.services.models_manager = models_manager;
-    crate::guardian::test_host::install(&session, &config);
+    crate::guardian::test_host::initialize_storage(&mut session, &config).await;
     let memory_extension = Arc::new(GuardianMemoryContextProbe);
     let mut extensions = codex_extension_api::ExtensionRegistryBuilder::<Config>::new();
     extensions.thread_lifecycle_contributor(memory_extension.clone());
@@ -2347,7 +2347,7 @@ async fn guardian_review_request_layout_matches_model_visible_request_snapshot()
     )
     .await;
     let (GuardianReviewOutcome::Completed(assessment), metadata) = outcome else {
-        panic!("expected guardian assessment");
+        panic!("expected guardian assessment, got {outcome:?}");
     };
     let guardian_thread_id = metadata
         .guardian_thread_id
@@ -3106,7 +3106,11 @@ async fn guardian_review_surfaces_responses_api_errors_in_rejection_reason() -> 
         .expect("session should be uniquely owned")
         .services
         .models_manager = models_manager;
-    crate::guardian::test_host::install(&session, &config);
+    crate::guardian::test_host::initialize_storage(
+        Arc::get_mut(&mut session).expect("unshared fixture"),
+        &config,
+    )
+    .await;
     let turn_mut = Arc::get_mut(&mut turn).expect("turn should be uniquely owned");
     turn_mut.config = Arc::clone(&config);
     turn_mut.provider =
@@ -3136,7 +3140,11 @@ async fn guardian_review_surfaces_responses_api_errors_in_rejection_reason() -> 
     let ReviewDecision::Denied { rejection } = decision else {
         panic!("guardian error should deny the approval");
     };
-    assert_eq!(request_log.requests().len(), 1);
+    assert_eq!(
+        request_log.requests().len(),
+        1,
+        "denial before API response: {rejection}"
+    );
 
     let mut warnings = Vec::new();
     let mut denial_rationales = Vec::new();

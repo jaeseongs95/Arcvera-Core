@@ -440,7 +440,11 @@ mod tests {
         ] {
             assert!(!encoded.contains(sentinel));
         }
-        let empty = ContextRequestSizes::measure(&Default::default(), 0, 0).unwrap();
+        let mut empty_prompt = crate::client_common::Prompt::default();
+        empty_prompt.base_instructions = codex_protocol::models::BaseInstructions {
+            text: String::new(),
+        };
+        let empty = ContextRequestSizes::measure(&empty_prompt, 0, 0).unwrap();
         assert_eq!(
             empty.output_schema_serialized_bytes, 0,
             "no output schema is known absent"

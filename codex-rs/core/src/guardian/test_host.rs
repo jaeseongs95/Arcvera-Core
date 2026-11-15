@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Explicit ThreadManager host for core's context-adapter unit tests.
 //! Application-level tests install the real Guardian extension instead.
 
@@ -20,6 +21,32 @@ use crate::session::session::Session;
 #[path = "../../../ext/guardian-v2/src/sync_reviewer/reviewer_config.rs"]
 mod reviewer_config;
 pub(super) use reviewer_config::build_reviewer_config;
+
+/// Connect the actual paginated store for tests that start a reviewer thread.
+pub(crate) async fn initialize_storage(session: &mut Session, config: &Config) {
+    assert!(
+        session.services.live_thread.is_none(),
+        "initialize before materializing the parent"
+    );
+    assert!(
+        config.codex_home.is_dir(),
+        "the owning fixture must retain its home"
+    );
+    assert!(
+        session.services.state_db.is_none(),
+        "do not replace an existing state DB"
+    );
+    let state_db =
+        codex_state::StateRuntime::init(config.sqlite.clone(), config.model_provider_id.clone())
+            .await
+            .expect("initialize Guardian fixture SQLite");
+    session.services.state_db = Some(Arc::clone(&state_db));
+    session.services.thread_store = Arc::new(codex_thread_store::LocalThreadStore::new(
+        codex_thread_store::LocalThreadStoreConfig::from_config(config),
+        Some(state_db),
+    ));
+    install(session, config);
+}
 
 pub(crate) fn install(session: &Session, config: &Config) {
     session.services.thread_extension_data.insert(
