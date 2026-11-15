@@ -24810,6 +24810,58 @@ index ca2e06e467b896dcb690786414c596cda7b01ada..73614bdcbd666edd3eed9e733b8370aa
              thread_id: thread.id,
              turn_id: None,
              server_name: TEST_SERVER_NAME.to_string(),
+diff --git a/codex-rs/app-server/tests/suite/v2/memory_reset.rs b/codex-rs/app-server/tests/suite/v2/memory_reset.rs
+index 5cfeb3c0aedb9250281f5f6ae692d5372b8ebd96..b011ca9c33251ff3adbd8ca06bc8135c016aa9d5 100644
+--- a/codex-rs/app-server/tests/suite/v2/memory_reset.rs
++++ b/codex-rs/app-server/tests/suite/v2/memory_reset.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ use anyhow::Result;
+ use app_test_support::MockResponsesConfig;
+ use app_test_support::TestAppServer;
+@@ -20,6 +21,42 @@ use uuid::Uuid;
+ 
+ const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+ 
++#[tokio::test]
++async fn memory_reset_preserves_original_notes_and_recovery_data() -> Result<()> {
++    let home = TempDir::new()?;
++    MockResponsesConfig::new("http://127.0.0.1:9")
++        .enable_feature(Feature::Sqlite)
++        .write(home.path())?;
++    let db = init_state_db(home.path()).await?;
++    let note = "Keep original note: 초기화 후에도 보존 🦀";
++    let mut roots = Vec::new();
++    for name in ["memories", "memories_v2", "memories_extensions"] {
++        let root = home.path().join(name);
++        let path = codex_memories_write::add_user_memory_note(&root, note).await?;
++        let generation = root.join(".codex-memory-generations/recovery/memory_summary.md");
++        tokio::fs::create_dir_all(generation.parent().unwrap()).await?;
++        tokio::fs::write(&generation, b"immutable recovery").await?;
++        tokio::fs::write(root.join(".codex-memory-managed"), b"managed-memory-v1\n").await?;
++        tokio::fs::write(root.join("memory_summary.md"), b"generated summary").await?;
++        roots.push((root, path, generation));
++    }
++    let mut app = TestAppServer::builder()
++        .with_codex_home(home.path())
++        .without_auto_env()
++        .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
++        .await?;
++    let request = app.send_raw_request("memory/reset", None).await?;
++    let _: MemoryResetResponse = timeout(DEFAULT_READ_TIMEOUT, app.read_response(request)).await??;
++    for (root, path, generation) in roots {
++        assert_eq!(tokio::fs::read(path).await?, note.as_bytes());
++        assert_eq!(tokio::fs::read(generation).await?, b"immutable recovery");
++        assert_eq!(tokio::fs::read(root.join(".codex-memory-managed")).await?, b"managed-memory-v1\n");
++        assert!(!tokio::fs::try_exists(root.join("memory_summary.md")).await?);
++    }
++    db.close().await;
++    Ok(())
++}
++
+ #[tokio::test]
+ async fn memory_reset_clears_memory_files_and_rows_preserves_threads() -> Result<()> {
+     let codex_home = TempDir::new()?;
 diff --git a/codex-rs/app-server/tests/suite/v2/model_provider_enforcement_tests.rs b/codex-rs/app-server/tests/suite/v2/model_provider_enforcement_tests.rs
 index 03a1b192d6b6e04673e6482654c80d488b332ed6..ad98288a11762a530a37e9bf5ac5db03947bc953 100644
 --- a/codex-rs/app-server/tests/suite/v2/model_provider_enforcement_tests.rs
@@ -55890,7 +55942,7 @@ index bf031a6a164f5a098757efdb6c791d9e2705ca50..58c0d47399ad0188050b9977d475daa6
  codex-model-provider-info = { workspace = true }
  codex-models-manager = { workspace = true }
 diff --git a/codex-rs/memories/write/src/control.rs b/codex-rs/memories/write/src/control.rs
-index b4ed62d09207de8ebc4ca913f0d5e3723718bfba..932e4b5e184d8a200390ccf083466916299bd171 100644
+index b4ed62d09207de8ebc4ca913f0d5e3723718bfba..c6c64e8d7afa1d1fc742f9ae60f7f76057ff71d7 100644
 --- a/codex-rs/memories/write/src/control.rs
 +++ b/codex-rs/memories/write/src/control.rs
 @@ -1,3 +1,4 @@
@@ -55928,22 +55980,47 @@ index b4ed62d09207de8ebc4ca913f0d5e3723718bfba..932e4b5e184d8a200390ccf083466916
          Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
          Err(err) => return Err(err),
      }
-@@ -32,6 +37,11 @@ pub(crate) async fn clear_memory_root_contents(memory_root: &Path) -> std::io::R
+@@ -32,6 +37,13 @@ pub(crate) async fn clear_memory_root_contents(memory_root: &Path) -> std::io::R
  
      let mut entries = tokio::fs::read_dir(memory_root).await?;
      while let Some(entry) = entries.next_entry().await? {
++        // Extension inputs include original user notes and imported resources.
++        // Reset generated memory, never the inputs needed to rebuild it.
 +        // Retain the managed marker and immutable generations as recovery data.
 +        // The caller clears the publication record before invoking this cleanup.
-+        if matches!(entry.file_name().to_str(), Some(".codex-memory-managed" | ".codex-memory-generations")) {
++        if matches!(entry.file_name().to_str(), Some("extensions" | ".codex-memory-managed" | ".codex-memory-generations")) {
 +            continue;
 +        }
          let path = entry.path();
          let file_type = entry.file_type().await?;
          if file_type.is_dir() {
-@@ -87,6 +97,22 @@ mod tests {
+@@ -87,6 +99,45 @@ mod tests {
          );
      }
  
++    #[tokio::test]
++    async fn reset_preserves_original_notes_and_extension_inputs() -> std::io::Result<()> {
++        let home = tempdir()?;
++        let note = "Original correction: 원문 보존 🦀";
++        let mut originals = Vec::new();
++        for name in ["memories", "memories_v2", "memories_extensions"] {
++            let root = home.path().join(name);
++            let path = crate::add_user_memory_note(&root, note).await?;
++            let imported = root.join("extensions/imported/resources/input.md");
++            tokio::fs::create_dir_all(imported.parent().unwrap()).await?;
++            tokio::fs::write(&imported, b"original imported input").await?;
++            tokio::fs::write(root.join("memory_summary.md"), b"generated summary").await?;
++            originals.push((root, path, imported));
++        }
++        clear_memory_roots_contents(home.path()).await?;
++        for (root, path, imported) in originals {
++            assert_eq!(tokio::fs::read(path).await?, note.as_bytes());
++            assert_eq!(tokio::fs::read(imported).await?, b"original imported input");
++            assert!(!tokio::fs::try_exists(root.join("memory_summary.md")).await?);
++        }
++        Ok(())
++    }
++
 +    #[tokio::test]
 +    async fn clear_preserves_managed_marker_and_immutable_generations_for_recovery() -> std::io::Result<()> {
 +        let dir = tempdir()?;

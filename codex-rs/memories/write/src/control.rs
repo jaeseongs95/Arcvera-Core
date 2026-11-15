@@ -37,9 +37,11 @@ pub(crate) async fn clear_memory_root_contents(memory_root: &Path) -> std::io::R
 
     let mut entries = tokio::fs::read_dir(memory_root).await?;
     while let Some(entry) = entries.next_entry().await? {
+        // Extension inputs include original user notes and imported resources.
+        // Reset generated memory, never the inputs needed to rebuild it.
         // Retain the managed marker and immutable generations as recovery data.
         // The caller clears the publication record before invoking this cleanup.
-        if matches!(entry.file_name().to_str(), Some(".codex-memory-managed" | ".codex-memory-generations")) {
+        if matches!(entry.file_name().to_str(), Some("extensions" | ".codex-memory-managed" | ".codex-memory-generations")) {
             continue;
         }
         let path = entry.path();
@@ -95,6 +97,29 @@ mod tests {
                 .is_none(),
             "memory root should be empty after clearing contents"
         );
+    }
+
+    #[tokio::test]
+    async fn reset_preserves_original_notes_and_extension_inputs() -> std::io::Result<()> {
+        let home = tempdir()?;
+        let note = "Original correction: 원문 보존 🦀";
+        let mut originals = Vec::new();
+        for name in ["memories", "memories_v2", "memories_extensions"] {
+            let root = home.path().join(name);
+            let path = crate::add_user_memory_note(&root, note).await?;
+            let imported = root.join("extensions/imported/resources/input.md");
+            tokio::fs::create_dir_all(imported.parent().unwrap()).await?;
+            tokio::fs::write(&imported, b"original imported input").await?;
+            tokio::fs::write(root.join("memory_summary.md"), b"generated summary").await?;
+            originals.push((root, path, imported));
+        }
+        clear_memory_roots_contents(home.path()).await?;
+        for (root, path, imported) in originals {
+            assert_eq!(tokio::fs::read(path).await?, note.as_bytes());
+            assert_eq!(tokio::fs::read(imported).await?, b"original imported input");
+            assert!(!tokio::fs::try_exists(root.join("memory_summary.md")).await?);
+        }
+        Ok(())
     }
 
     #[tokio::test]

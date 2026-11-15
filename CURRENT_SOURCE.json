@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "78010f75188a10eddded11d24d1ca6e6659d56ee66c96c9c0e33420017b2c523",
+  "sourceTreeSha256": "a38bac19b36d39818ed6f62d82563e0a9aa29f57d910fad8dc2768287a7ab0f7",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "18428a5cc87dcfcf7e9339abd0d79e3b89117c4819b10c7fd69cdd064ab36710"
+    "sha256": "e1d9a092b4dd2767572de4dcdafcbd27042eb1344939fb806aef08c63a46f878"
   },
   "files": [
     {
@@ -11963,9 +11963,9 @@
     {
       "path": "codex-rs/app-server/tests/suite/v2/memory_reset.rs",
       "gitMode": "100644",
-      "bytes": 9528,
-      "sha256": "ee4e5cabee6a0afad67073d5bbd9c53bfad6a93a6feec85dd4a08bb6f585bad8",
-      "gitBlob": "5cfeb3c0aedb9250281f5f6ae692d5372b8ebd96"
+      "bytes": 11434,
+      "sha256": "3228daccbbb682bd830345ff9b0a97845bc3c7ef15a6486d41e4faf4a7a85ddb",
+      "gitBlob": "b011ca9c33251ff3adbd8ca06bc8135c016aa9d5"
     },
     {
       "path": "codex-rs/app-server/tests/suite/v2/misalignment_policy.rs",
@@ -35245,9 +35245,9 @@
     {
       "path": "codex-rs/memories/write/src/control.rs",
       "gitMode": "100644",
-      "bytes": 5429,
-      "sha256": "7c9d595777d831630df2cbf3cd47450f58e1b252abad1bf8d07d7c6ed4914b32",
-      "gitBlob": "932e4b5e184d8a200390ccf083466916299bd171"
+      "bytes": 6797,
+      "sha256": "a42403ce24e9da95cf339f2edc28c4f08d79bffdd4b5f8b365dac848324e439c",
+      "gitBlob": "c6c64e8d7afa1d1fc742f9ae60f7f76057ff71d7"
     },
     {
       "path": "codex-rs/memories/write/src/explicit_consolidation_tests.rs",
@@ -68091,6 +68091,11 @@
     },
     {
       "path": "codex-rs/app-server/tests/suite/v2/mcp_tool.rs",
+      "status": "modified",
+      "notice": "inline-1.1.0"
+    },
+    {
+      "path": "codex-rs/app-server/tests/suite/v2/memory_reset.rs",
       "status": "modified",
       "notice": "inline-1.1.0"
     },

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use anyhow::Result;
 use app_test_support::MockResponsesConfig;
 use app_test_support::TestAppServer;
@@ -19,6 +20,42 @@ use tokio::time::timeout;
 use uuid::Uuid;
 
 const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+#[tokio::test]
+async fn memory_reset_preserves_original_notes_and_recovery_data() -> Result<()> {
+    let home = TempDir::new()?;
+    MockResponsesConfig::new("http://127.0.0.1:9")
+        .enable_feature(Feature::Sqlite)
+        .write(home.path())?;
+    let db = init_state_db(home.path()).await?;
+    let note = "Keep original note: 초기화 후에도 보존 🦀";
+    let mut roots = Vec::new();
+    for name in ["memories", "memories_v2", "memories_extensions"] {
+        let root = home.path().join(name);
+        let path = codex_memories_write::add_user_memory_note(&root, note).await?;
+        let generation = root.join(".codex-memory-generations/recovery/memory_summary.md");
+        tokio::fs::create_dir_all(generation.parent().unwrap()).await?;
+        tokio::fs::write(&generation, b"immutable recovery").await?;
+        tokio::fs::write(root.join(".codex-memory-managed"), b"managed-memory-v1\n").await?;
+        tokio::fs::write(root.join("memory_summary.md"), b"generated summary").await?;
+        roots.push((root, path, generation));
+    }
+    let mut app = TestAppServer::builder()
+        .with_codex_home(home.path())
+        .without_auto_env()
+        .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
+        .await?;
+    let request = app.send_raw_request("memory/reset", None).await?;
+    let _: MemoryResetResponse = timeout(DEFAULT_READ_TIMEOUT, app.read_response(request)).await??;
+    for (root, path, generation) in roots {
+        assert_eq!(tokio::fs::read(path).await?, note.as_bytes());
+        assert_eq!(tokio::fs::read(generation).await?, b"immutable recovery");
+        assert_eq!(tokio::fs::read(root.join(".codex-memory-managed")).await?, b"managed-memory-v1\n");
+        assert!(!tokio::fs::try_exists(root.join("memory_summary.md")).await?);
+    }
+    db.close().await;
+    Ok(())
+}
 
 #[tokio::test]
 async fn memory_reset_clears_memory_files_and_rows_preserves_threads() -> Result<()> {
