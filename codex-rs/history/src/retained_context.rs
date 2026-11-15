@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Bounded host-owned facts outside the model's compaction contract.
 //! Checkpoints and live recording use the same admission rules; rendering is a consumer concern.
 //! Adopted parent instructions precede local facts without sharing the local acceptance counter.
@@ -184,6 +185,16 @@ pub struct RetainedContext {
     /// Delivery snapshots share local input order, so later steers can be undone independently.
     #[serde(default, skip_serializing_if = "VecDeque::is_empty")]
     sender_deliveries: VecDeque<Ordered<SenderUserMessages>>,
+    /// Host-only source copies for a future standalone root. Worker review never
+    /// enumerates these as its own instructions or authorization.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    inherited_user_context: Option<InheritedUserContext>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+struct InheritedUserContext {
+    messages: VecDeque<Ordered<RetainedUserMessage>>,
+    incomplete: bool,
 }
 
 fn missing_message_history() -> bool {
@@ -238,6 +249,65 @@ impl RetainedContextEvent {
 }
 
 impl RetainedContext {
+    /// Fork only original user sources, without parent answers or local grants.
+    /// This archive remains invisible to `ordered_entries` until root adoption.
+    pub fn inherited_checkpoint(&self) -> Self {
+        let mut result = Self::default();
+        result.inherited_user_context = self.inherited_user_context.clone();
+        let archive = result.inherited_user_context.get_or_insert_default();
+        archive.incomplete |= self.has_missing_user_messages();
+        for entry in &self.user_messages {
+            Self::archive_user_message(archive, entry.value.clone());
+        }
+        result
+    }
+
+    fn archive_user_message(archive: &mut InheritedUserContext, mut message: RetainedUserMessage) {
+        message.bound();
+        if let Some(index) = archive.messages.iter().position(|entry| {
+            message.message_id.is_some()
+                && entry.value.message_id == message.message_id
+                && entry.value.turn_id == message.turn_id
+        }) {
+            // Replay of a shortened model-window copy cannot overwrite the
+            // host-captured original already carried by the checkpoint.
+            // The first host capture is authoritative for this identity. A later
+            // incomplete model-window copy cannot replace it or expand its grant.
+            if message.complete && archive.messages[index].value != message {
+                archive.incomplete = true;
+            }
+            return;
+        } else {
+            let order = archive
+                .messages
+                .back()
+                .map_or(0, |entry| entry.order.saturating_add(1));
+            archive.messages.push_back(Ordered {
+                revision: None,
+                inherited: true,
+                order,
+                value: message,
+            });
+        }
+        bound_family(&mut archive.messages, &mut archive.incomplete);
+    }
+
+    pub fn archive_inherited_user_message(&mut self, message: RetainedUserMessage) {
+        Self::archive_user_message(self.inherited_user_context.get_or_insert_default(), message);
+    }
+
+    /// Called only when the host constructs a standalone root. Missing parent
+    /// answer history remains explicit; inherited instructions never become local.
+    pub fn adopt_inherited_user_context(&mut self) {
+        if let Some(archive) = self.inherited_user_context.take() {
+            self.user_messages_incomplete |= archive.incomplete;
+            self.verified_answers_incomplete = true;
+            for entry in archive.messages {
+                self.record_user_message(entry.value, RetainedInputSource::Inherited);
+            }
+        }
+    }
+
     /// Context for the latest delivery still present in this task's retained history.
     pub fn sender_user_messages(&self) -> Option<&SenderUserMessages> {
         self.sender_deliveries.back().map(|entry| &entry.value)
@@ -387,7 +457,10 @@ impl RetainedContext {
         // cannot establish whether an omitted answer restricted an inherited grant.
         self.verified_answers_incomplete |= inherited;
         if let Some(index) = self.user_messages.iter().position(|entry| {
-            message.message_id.is_some() && entry.value.message_id == message.message_id
+            message.message_id.is_some()
+                && entry.value.message_id == message.message_id
+                && entry.value.turn_id == message.turn_id
+                && entry.inherited == inherited
         }) {
             if self.user_messages[index].value == message
                 && self.user_messages[index].inherited == inherited
@@ -498,6 +571,12 @@ impl RetainedContext {
             user_messages_incomplete: true,
             ..Self::default()
         });
+        if let Some(archive) = &mut self.inherited_user_context {
+            for entry in &mut archive.messages {
+                entry.value.bound();
+            }
+            bound_family(&mut archive.messages, &mut archive.incomplete);
+        }
         for entry in &mut self.verified_answers {
             let mut event = RetainedContextEvent::VerifiedAnswer {
                 answer: entry.value.clone(),
@@ -567,12 +646,33 @@ impl RetainedContext {
         first_removed_message_id: Option<&str>,
         source: RetainedInputSource,
     ) {
+        if source == RetainedInputSource::Inherited
+            && let Some(archive) = &mut self.inherited_user_context
+        {
+            if let Some(index) = first_removed_message_id.and_then(|id| {
+                archive.messages.iter().position(|entry| {
+                    entry.value.message_id.as_deref() == Some(id)
+                        && turn_ids.contains(&entry.value.turn_id.as_str())
+                })
+            }) {
+                archive.messages.truncate(index);
+            } else {
+                archive
+                    .messages
+                    .retain(|entry| !turn_ids.contains(&entry.value.turn_id.as_str()));
+                archive.incomplete = true;
+            }
+        }
         let boundary = source.acceptance_order().map(RetainedContextOrder::Local);
         if let Some(boundary) = boundary.or_else(|| {
             first_removed_message_id.and_then(|id| {
                 self.user_messages
                     .iter()
-                    .find(|message| message.value.message_id.as_deref() == Some(id))
+                    .find(|message| {
+                        message.value.message_id.as_deref() == Some(id)
+                            && turn_ids.contains(&message.value.turn_id.as_str())
+                            && message.inherited == (source == RetainedInputSource::Inherited)
+                    })
                     .map(Ordered::key)
             })
         }) {

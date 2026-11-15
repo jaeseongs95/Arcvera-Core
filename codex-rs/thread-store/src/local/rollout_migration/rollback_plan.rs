@@ -1,4 +1,5 @@
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Decides which legacy records remain visible after historical rollback.
 //!
 //! Legacy rollback removes logical instruction turns, not a physical suffix of the rollout file.
@@ -513,7 +514,11 @@ impl RollbackPlanner {
                 acceptance_order.is_some() || frame.record_index >= source.record_index
             }) {
                 if let Some(context) = &mut frame.item.retained_context {
-                    if acceptance_order.is_some()
+                    // Inherited checkpoints can contain only the host archive,
+                    // which intentionally stays outside worker ordered_entries.
+                    // Match live Core rollback even when no public facts exist.
+                    if source.input_source == RetainedInputSource::Inherited
+                        || acceptance_order.is_some()
                         || context
                             .ordered_entries()
                             .any(|(_, entry)| matches!(entry, RetainedContextEntry::UserMessage(_)))

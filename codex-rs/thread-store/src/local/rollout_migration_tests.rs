@@ -2149,6 +2149,83 @@ fn worker_communication(text: &str) -> InterAgentCommunication {
     )
 }
 
+#[tokio::test]
+async fn migration_rolls_back_archive_only_inherited_checkpoint() {
+    for second_id in ["second", "first"] {
+        let mut archive = codex_history::RetainedContext::default();
+        let mut envelopes = Vec::new();
+        for (turn_id, id, text) in [
+            ("first-turn", "first", "Never publish the first source."),
+            ("second-turn", second_id, "Never publish the second source."),
+        ] {
+            let mut item = input_response_message("user", text);
+            item.set_id(Some(ResponseItemId::from_server(id)));
+            item.set_turn_id_if_missing(turn_id);
+            let mut envelope = codex_rollout::ResponseItemEnvelope::new(item);
+            envelope
+                .metadata
+                .get_or_insert_default()
+                .inherited_user_message = true;
+            envelopes.push(envelope);
+            archive.archive_inherited_user_message(codex_history::RetainedUserMessage {
+                turn_id: turn_id.into(),
+                message_id: Some(id.into()),
+                text: text.into(),
+                complete: true,
+                origin: Default::default(),
+                phase: None,
+            });
+        }
+        assert_eq!(archive.ordered_entries().count(), 0);
+        let RolloutItem::Compacted(mut checkpoint) = compacted(Vec::new()) else {
+            unreachable!()
+        };
+        checkpoint.replacement_history = Some(envelopes.clone());
+        checkpoint.retained_context = Some(archive);
+        let migrated = migrate_after_rollback(vec![
+            started("first-turn"),
+            RolloutItem::ResponseItem(envelopes[0].clone()),
+            user_message("Never publish the first source."),
+            completed("first-turn"),
+            started("second-turn"),
+            RolloutItem::ResponseItem(envelopes[1].clone()),
+            user_message("Never publish the second source."),
+            completed("second-turn"),
+            started("compaction-turn"),
+            RolloutItem::Compacted(checkpoint),
+            completed("compaction-turn"),
+        ])
+        .await;
+        let mut retained = migrated
+            .into_iter()
+            .find_map(|item| match item {
+                RolloutItem::Compacted(item) => item.retained_context,
+                _ => None,
+            })
+            .expect("surviving checkpoint with rolled-back archive");
+        assert_eq!(retained.ordered_entries().count(), 0);
+        retained.adopt_inherited_user_context();
+        let originals = retained
+            .ordered_entries()
+            .filter_map(|(order, entry)| match entry {
+                codex_rollout::RetainedContextEntry::UserMessage(message) => {
+                    Some((order, message.turn_id.clone(), message.text.clone()))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            originals,
+            vec![(
+                codex_history::RetainedContextOrder::Inherited(0),
+                "first-turn".into(),
+                "Never publish the first source.".into()
+            )]
+        );
+        assert!(!retained.verified_answers_complete());
+    }
+}
+
 async fn migrate_after_rollback(mut items: Vec<RolloutItem>) -> Vec<RolloutItem> {
     items.push(RolloutItem::EventMsg(EventMsg::ThreadRolledBack(
         ThreadRolledBackEvent { num_turns: 1 },

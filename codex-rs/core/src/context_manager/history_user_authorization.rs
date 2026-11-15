@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Captures original user/assistant exchanges and adopts copied context when a worker becomes a root.
 //! Inherited history remains excluded for workers; roots also recover it from checkpoints.
 //! Oversized originals retain bounded, incomplete excerpts for root review.
@@ -78,6 +79,9 @@ impl ContextManager {
 
     pub(crate) fn restore_retained_context(&mut self, checkpoint: Option<&RetainedContext>) {
         Arc::make_mut(&mut self.retained_context).restore(checkpoint, &self.items);
+        if self.retain_inherited_user_messages {
+            Arc::make_mut(&mut self.retained_context).adopt_inherited_user_context();
+        }
         let items = Arc::clone(&self.items);
         for envelope in items.iter().filter(|envelope| {
             envelope
@@ -157,13 +161,12 @@ impl ContextManager {
         }
         let mut captured = None;
         let inherited = metadata.is_some_and(|metadata| metadata.inherited_user_message);
-        if (!inherited || self.retain_inherited_user_messages)
-            && let ResponseItem::Message {
-                content,
-                phase,
-                internal_chat_message_metadata_passthrough,
-                ..
-            } = item
+        if let ResponseItem::Message {
+            content,
+            phase,
+            internal_chat_message_metadata_passthrough,
+            ..
+        } = item
         {
             let mut complete = matches!(source, RetainedMessageSource::Original)
                 && (is_assistant
@@ -207,6 +210,12 @@ impl ContextManager {
                 complete,
             };
             let retained = Arc::make_mut(&mut self.retained_context);
+            if inherited && !self.retain_inherited_user_messages {
+                if !is_assistant {
+                    retained.archive_inherited_user_message(message);
+                }
+                return None;
+            }
             captured = if is_assistant {
                 retained.record_assistant_message(message, metadata.into())
             } else {

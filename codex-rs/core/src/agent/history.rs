@@ -407,10 +407,15 @@ pub(super) async fn prepare_forked_history(
                 // Parent-local review evidence must not become the child's authorization.
                 // Root user authorization is collected separately by the host.
                 compacted.guardian_history = None;
-                // Only V2 fetches root authorization live. Its local scope starts known-empty;
-                // V1 must remain incomplete when inherited authorization has been stripped.
-                compacted.retained_context = (multi_agent_version == MultiAgentVersion::V2)
-                    .then(codex_history::RetainedContext::default);
+                // Keep V2's local scope empty, but carry bounded original user sources
+                // for a future standalone root. Workers cannot review this archive.
+                // V1 must remain incomplete when inherited authorization is stripped.
+                compacted.retained_context =
+                    (multi_agent_version == MultiAgentVersion::V2).then(|| {
+                        let mut parent = codex_history::RetainedContext::default();
+                        parent.restore(compacted.retained_context.as_ref(), &[]);
+                        parent.inherited_checkpoint()
+                    });
                 if let Some(replacement_history) = compacted.replacement_history.as_mut() {
                     // Matches before this checkpoint cannot survive its replacement history.
                     replaced_parent_developer_instructions = false;

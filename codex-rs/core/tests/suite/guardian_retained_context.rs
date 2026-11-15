@@ -954,6 +954,18 @@ async fn standalone_fork_summary_only_checkpoint(history_mode: ThreadHistoryMode
         codex_core::GuardianRootMessage::User(text) if text.contains(RESTRICTION))),
         "fixture gap: live V2 root restriction was not available before standalone fork"
     );
+    mount_sse_sequence(
+        &server,
+        vec![sse(vec![
+            ev_assistant_message("d32-worker-summary", "Inspected the project."),
+            ev_completed("d32-worker-compact"),
+        ])],
+    )
+    .await;
+    compact_and_assert_answers(&test, &worker, &[]).await?;
+    assert!(!worker.conversation_history_snapshot().await.retained_context()
+        .context("compacted worker retained context")?.ordered_entries().any(|(_, entry)|
+        matches!(entry, RetainedContextEntry::UserMessage(message) if message.text.contains(RESTRICTION))));
     parent.shutdown_and_wait().await?;
     let fork = if history_mode == ThreadHistoryMode::Paginated {
         let prepared = test
@@ -991,10 +1003,13 @@ async fn standalone_fork_summary_only_checkpoint(history_mode: ThreadHistoryMode
     let retained = root_history
         .retained_context()
         .context("standalone retained context")?;
-    if let Some((order, _)) = retained.ordered_entries().find(|(_, entry)|
-        matches!(entry, RetainedContextEntry::UserMessage(message) if message.text.contains(RESTRICTION))) {
-        assert!(matches!(order, RetainedContextOrder::Inherited(_)), "parent source must retain inherited provenance");
-    }
+    let (order, _) = retained.ordered_entries().find(|(_, entry)|
+        matches!(entry, RetainedContextEntry::UserMessage(message) if message.text.contains(RESTRICTION)))
+        .context("standalone root must restore the original parent restriction")?;
+    assert!(
+        matches!(order, RetainedContextOrder::Inherited(_)),
+        "parent source must retain inherited provenance"
+    );
     let review = mount_sse_sequence(
         &server,
         vec![
@@ -1030,13 +1045,217 @@ async fn standalone_fork_summary_only_checkpoint(history_mode: ThreadHistoryMode
         .find(|request| request.body_json()["client_metadata"]["x-openai-subagent"] == "guardian")
         .context("fixture gap: no Guardian request observed")?;
     let input = serde_json::to_string(&guardian.input())?;
-    let missing = codex_guardian_context::GuardianRootMessage::IncompleteRootInstructions.render();
     assert!(
-        input.contains(RESTRICTION) || input.contains(missing.trim_end()),
-        "Guardian input omitted the retained parent restriction without disclosing incomplete instructions"
+        input.contains(RESTRICTION),
+        "Guardian input must restore the original parent restriction"
     );
     fork.thread.shutdown_and_wait().await?;
     worker.shutdown_and_wait().await?;
+    Ok(())
+}
+
+// Keep migration rollback connected to the real standalone-root startup path.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn standalone_fork_from_migrated_inherited_checkpoint() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+    const FIRST: &str = "D32 migration: never publish the first source.";
+    const REVOKED: &str = "D32 migration: revoked second source.";
+    let server = start_mock_server().await;
+    let test = test_codex()
+        .with_config(|config| {
+            config.experimental_thread_store = ThreadStoreConfig::Local;
+            config
+                .features
+                .disable(Feature::TokenBudget)
+                .expect("local context");
+            config
+                .features
+                .enable(Feature::MultiAgentV2)
+                .expect("standalone V2 fork");
+        })
+        .build_with_auto_env(&server)
+        .await?;
+    let thread_id = codex_protocol::ThreadId::new();
+    let mut archive = RetainedContext::default();
+    let mut envelopes = Vec::new();
+    let mut records = Vec::new();
+    for (turn_id, text) in [("first-turn", FIRST), ("second-turn", REVOKED)] {
+        let mut item = ResponseItem::Message {
+            id: Some(ResponseItemId::from_server("reused-id")),
+            role: "user".into(),
+            content: vec![ContentItem::InputText { text: text.into() }],
+            phase: None,
+            status: None,
+            encrypted_content: None,
+            internal_chat_message_metadata_passthrough: None,
+        };
+        item.set_turn_id_if_missing(turn_id);
+        let mut envelope = codex_history::ResponseItemEnvelope::new(item);
+        envelope
+            .metadata
+            .get_or_insert_default()
+            .inherited_user_message = true;
+        archive.archive_inherited_user_message(codex_history::RetainedUserMessage {
+            turn_id: turn_id.into(),
+            message_id: Some("reused-id".into()),
+            text: text.into(),
+            complete: true,
+            origin: Default::default(),
+            phase: None,
+        });
+        envelopes.push(envelope.clone());
+        records.extend([
+            RolloutItem::EventMsg(EventMsg::TurnStarted(
+                codex_protocol::protocol::TurnStartedEvent {
+                    turn_id: turn_id.into(),
+                    root_turn_id: None,
+                    trace_id: None,
+                    started_at: Some(1_735_905_600),
+                    model_context_window: None,
+                    collaboration_mode_kind: Default::default(),
+                    turn_attribution: None,
+                },
+            )),
+            RolloutItem::ResponseItem(envelope),
+            RolloutItem::EventMsg(EventMsg::UserMessage(
+                codex_protocol::protocol::UserMessageEvent {
+                    message: text.into(),
+                    ..Default::default()
+                },
+            )),
+            RolloutItem::EventMsg(EventMsg::TurnComplete(
+                codex_protocol::protocol::TurnCompleteEvent {
+                    turn_id: turn_id.into(),
+                    root_turn_id: None,
+                    last_agent_message: None,
+                    error: None,
+                    started_at: Some(1_735_905_600),
+                    completed_at: Some(1_735_905_601),
+                    duration_ms: Some(1_000),
+                    time_to_first_token_ms: None,
+                },
+            )),
+        ]);
+    }
+    assert_eq!(archive.ordered_entries().count(), 0);
+    records.push(RolloutItem::Compacted(Box::new(
+        codex_history::CompactedItem {
+            message: "migration checkpoint".into(),
+            replacement_history: Some(envelopes),
+            retained_context: Some(archive),
+            guardian_history: None,
+            mcp_resource_origins: None,
+            window_number: Some(1),
+            first_window_id: None,
+            previous_window_id: None,
+            window_id: None,
+            compaction_response_id: None,
+            latest_token_usage_record: None,
+            resume_metadata: None,
+        },
+    )));
+    records.push(RolloutItem::EventMsg(EventMsg::ThreadRolledBack(
+        codex_protocol::protocol::ThreadRolledBackEvent { num_turns: 1 },
+    )));
+    let directory = test.home.path().join("sessions/2025/01/03");
+    std::fs::create_dir_all(&directory)?;
+    let path = directory.join(format!("rollout-2025-01-03T12-00-00-{thread_id}.jsonl"));
+    let metadata = codex_protocol::protocol::SessionMeta {
+        session_id: thread_id.into(),
+        id: thread_id,
+        timestamp: "2025-01-03T12:00:00Z".into(),
+        cwd: test.cwd.path().into(),
+        originator: "d32-migration-fixture".into(),
+        cli_version: "0.0.0".into(),
+        source: codex_protocol::protocol::SessionSource::Cli,
+        model_provider: Some(test.config.model_provider_id.clone()),
+        ..Default::default()
+    };
+    records.insert(
+        0,
+        RolloutItem::SessionMeta(Box::new(codex_protocol::protocol::SessionMetaLine {
+            meta: metadata,
+            git: None,
+        })),
+    );
+    let mut wire = String::new();
+    for item in records {
+        wire.push_str(&serde_json::to_string(&codex_rollout::RolloutLine {
+            timestamp: "2025-01-03T12:00:00Z".into(),
+            ordinal: None,
+            item,
+        })?);
+        wire.push('\n');
+    }
+    std::fs::write(&path, wire)?;
+    let state_db = codex_core::init_state_db(&test.config)
+        .await
+        .context("migration state DB")?;
+    let store = codex_thread_store::LocalThreadStore::new(
+        codex_thread_store::LocalThreadStoreConfig::from_config(&test.config),
+        Some(state_db),
+    );
+    let report = store
+        .migrate_rollouts(codex_thread_store::RolloutMigrationOptions {
+            mode: codex_thread_store::RolloutMigrationMode::Apply,
+            max_mib_per_second: Some(1024),
+            ..Default::default()
+        })
+        .await?;
+    assert!(
+        report
+            .outcomes
+            .iter()
+            .any(|outcome| outcome.thread_id == Some(thread_id)
+                && outcome.status == codex_thread_store::RolloutMigrationStatus::Migrated),
+        "fixture must execute migration: {report:?}"
+    );
+    // Read the migrated file itself; migration failures cannot be hidden by
+    // reusing the pre-migration in-memory records or directly adopting them.
+    let migrated = std::fs::read_to_string(&path)?
+        .lines()
+        .map(codex_rollout::parse_rollout_line)
+        .collect::<std::result::Result<Vec<_>, _>>()?
+        .into_iter()
+        .map(|line| line.item)
+        .collect::<Vec<_>>();
+    let checkpoint = migrated
+        .iter()
+        .find_map(|item| match item {
+            RolloutItem::Compacted(item) => item.retained_context.as_ref(),
+            _ => None,
+        })
+        .context("migrated checkpoint")?;
+    assert_eq!(checkpoint.ordered_entries().count(), 0);
+    let fork = test
+        .thread_manager
+        .fork_thread_from_history(
+            ForkSnapshot::Interrupted,
+            codex_core::StartThreadOptions::new(test.config.clone()),
+            InitialHistory::Resumed(ResumedHistory {
+                history_revision: None,
+                conversation_id: thread_id,
+                history: Arc::new(migrated),
+                rollout_path: None,
+            }),
+        )
+        .await?;
+    assert!(fork.thread.guardian_root_snapshot().await.is_none());
+    let snapshot = fork.thread.conversation_history_snapshot().await;
+    let retained = snapshot
+        .retained_context()
+        .context("actual standalone retained context")?;
+    let originals = retained
+        .ordered_entries()
+        .filter_map(|(order, entry)| match entry {
+            RetainedContextEntry::UserMessage(message) => Some((order, message.text.as_str())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(originals, vec![(RetainedContextOrder::Inherited(0), FIRST)]);
+    assert!(!serde_json::to_string(&snapshot.items().collect::<Vec<_>>())?.contains(REVOKED));
+    fork.thread.shutdown_and_wait().await?;
+    test.codex.shutdown_and_wait().await?;
     Ok(())
 }
 
@@ -1128,8 +1347,27 @@ async fn standalone_fork_retains_inherited_user_instructions(
         }]))
         .await?;
     wait_for_event(&worker, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    let mut before_compaction = worker
+        .conversation_history_snapshot()
+        .await
+        .retained_context()
+        .context("worker source archive")?
+        .clone();
+    before_compaction.adopt_inherited_user_context();
+    let inherited_source = before_compaction
+        .ordered_entries()
+        .find_map(|(_, entry)| match entry {
+            RetainedContextEntry::UserMessage(message)
+                if message.text.starts_with("You may publish the release.") =>
+            {
+                Some(message.clone())
+            }
+            _ => None,
+        })
+        .context("host-captured inherited source before compaction")?;
     if compacted {
-        // Local compaction keeps the inherited source message in replacement history.
+        // The model window may contain only a summary. The host archive preserves
+        // the original bounded source independently of that replacement.
         mount_sse_sequence(
             &server,
             vec![sse(vec![
@@ -1141,21 +1379,19 @@ async fn standalone_fork_retains_inherited_user_instructions(
         compact_and_assert_answers(&test, &worker, &[]).await?;
     }
     let worker_context = worker.conversation_history_snapshot().await;
-    let inherited_text = worker_context
-        .items()
-        .find_map(|item| match item {
-            ResponseItem::Message { role, content, .. } if role == "user" => {
-                // Compaction keeps the retained text and truncation notice in separate parts.
-                let text = content_items_to_text(content)?;
-                text.starts_with("You may publish the release.")
-                    .then_some(text)
-            }
-            _ => None,
-        })
-        .context("inherited source in worker history")?;
+    let mut archived = worker_context
+        .retained_context()
+        .context("worker retained archive")?
+        .clone();
+    assert!(!archived.ordered_entries().any(|(_, entry)| matches!(entry,
+        RetainedContextEntry::UserMessage(message) if message.text.starts_with("You may publish the release."))));
+    archived.adopt_inherited_user_context();
+    assert!(archived.ordered_entries().any(|(_, entry)| matches!(entry,
+        RetainedContextEntry::UserMessage(message) if message == &inherited_source)));
+    let inherited_text = inherited_source.text;
     if compacted {
         assert_ne!(inherited_text, instruction);
-        assert!(inherited_text.contains("tokens truncated"));
+        assert!(!inherited_source.complete);
         assert!(inherited_text.len() < 900 * 4);
     }
     // The adopted root later compacts through the mechanical path, which can drop originals.
@@ -1214,7 +1450,7 @@ async fn standalone_fork_retains_inherited_user_instructions(
             })
             .collect::<Vec<_>>(),
         vec![
-            (inherited_text, !compacted),
+            (inherited_text, inherited_source.complete),
             (
                 codex_guardian_context::truncate_text(&local_instruction, /*max_tokens*/ 900),
                 !compacted,

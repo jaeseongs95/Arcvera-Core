@@ -1,8 +1,193 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::*;
 use crate::CodexHarnessMetadata;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseItem;
 use pretty_assertions::assert_eq;
+
+fn inherited_fixture(id: &str) -> RetainedUserMessage {
+    RetainedUserMessage {
+        phase: None,
+        origin: crate::UserInputOrigin::User,
+        turn_id: format!("turn-{id}"),
+        message_id: Some(id.to_owned()),
+        text: format!("Never publish private source {id}."),
+        complete: true,
+    }
+}
+
+#[test]
+fn inherited_archive_is_hidden_until_standalone_adoption() {
+    let mut parent = RetainedContext::default();
+    parent.record_user_message(
+        inherited_fixture("parent"),
+        RetainedInputSource::Local(Some(7)),
+    );
+    parent.record(&publish_answer());
+    let child = parent.inherited_checkpoint();
+    assert_eq!(child.ordered_entries().count(), 0);
+    assert_eq!(child.verified_answers().count(), 0);
+    let wire = serde_json::to_vec(&child).unwrap();
+    let checkpoint = serde_json::from_slice(&wire).unwrap();
+    let mut resumed = RetainedContext::default();
+    resumed.restore(Some(&checkpoint), &[]);
+    assert_eq!(resumed.ordered_entries().count(), 0);
+    resumed.adopt_inherited_user_context();
+    let entries = resumed.ordered_entries().collect::<Vec<_>>();
+    assert_eq!(entries.len(), 1);
+    assert!(
+        matches!(entries[0], (RetainedContextOrder::Inherited(0), RetainedContextEntry::UserMessage(message)) if message == &inherited_fixture("parent"))
+    );
+    assert!(!resumed.verified_answers_complete());
+    assert_eq!(resumed.reserve_order(), 0);
+}
+
+#[test]
+fn nested_archive_keeps_original_order_and_rejects_shortened_replay() {
+    let mut parent = RetainedContext::default();
+    parent.record_user_message(
+        inherited_fixture("parent"),
+        RetainedInputSource::Local(Some(2)),
+    );
+    let mut child = parent.inherited_checkpoint();
+    let mut shortened = inherited_fixture("parent");
+    shortened.text = "Never publish".into();
+    shortened.complete = false;
+    child.archive_inherited_user_message(shortened);
+    child.record_user_message(
+        inherited_fixture("child"),
+        RetainedInputSource::Local(Some(0)),
+    );
+    let mut grandchild = child.inherited_checkpoint();
+    assert_eq!(grandchild.ordered_entries().count(), 0);
+    grandchild.adopt_inherited_user_context();
+    let messages = grandchild
+        .ordered_entries()
+        .filter_map(|(order, entry)| match entry {
+            RetainedContextEntry::UserMessage(message) => Some((order, message.clone())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        messages,
+        vec![
+            (
+                RetainedContextOrder::Inherited(0),
+                inherited_fixture("parent")
+            ),
+            (
+                RetainedContextOrder::Inherited(1),
+                inherited_fixture("child")
+            )
+        ]
+    );
+}
+
+#[test]
+fn inherited_archive_is_bounded_and_rollback_does_not_remove_ancestors_for_local_input() {
+    let mut child = RetainedContext::default();
+    for index in 0..10 {
+        child.archive_inherited_user_message(inherited_fixture(&index.to_string()));
+    }
+    child.rollback(
+        &["local"],
+        Some("local"),
+        RetainedInputSource::Local(Some(0)),
+    );
+    let mut adopted = child.clone();
+    adopted.adopt_inherited_user_context();
+    assert_eq!(adopted.ordered_entries().count(), MAX_FAMILY_RECORDS);
+    assert!(adopted.has_missing_user_messages());
+    child.rollback(&["turn-8"], Some("8"), RetainedInputSource::Inherited);
+    child.adopt_inherited_user_context();
+    let ids = child
+        .ordered_entries()
+        .filter_map(|(_, entry)| match entry {
+            RetainedContextEntry::UserMessage(message) => message.message_id.clone(),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(ids, ["2", "3", "4", "5", "6", "7"]);
+}
+
+#[test]
+fn inherited_identity_preserves_turn_and_local_provenance_across_adoption_and_rollback() {
+    let first = inherited_fixture("same");
+    let mut second = first.clone();
+    second.turn_id = "second-turn".into();
+    second.text = "Do not change the second source.".into();
+    let mut archive = RetainedContext::default();
+    archive.archive_inherited_user_message(first.clone());
+    archive.archive_inherited_user_message(second.clone());
+    let mut checkpoint = RetainedContext::default();
+    checkpoint.restore(Some(&archive), &[]);
+    checkpoint.record_user_message(first.clone(), RetainedInputSource::Local(Some(0)));
+    checkpoint.adopt_inherited_user_context();
+    let messages = checkpoint
+        .ordered_entries()
+        .filter_map(|(order, entry)| match entry {
+            RetainedContextEntry::UserMessage(message) => Some((order, message.clone())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        messages,
+        vec![
+            (RetainedContextOrder::Inherited(0), first.clone()),
+            (RetainedContextOrder::Inherited(1), second.clone()),
+            (RetainedContextOrder::Local(0), first.clone()),
+        ]
+    );
+    archive.rollback(
+        &["second-turn"],
+        Some("same"),
+        RetainedInputSource::Inherited,
+    );
+    archive.adopt_inherited_user_context();
+    assert_eq!(
+        archive
+            .user_messages
+            .iter()
+            .map(|entry| entry.value.clone())
+            .collect::<Vec<_>>(),
+        vec![first.clone()]
+    );
+    checkpoint.rollback(
+        &["second-turn"],
+        Some("same"),
+        RetainedInputSource::Inherited,
+    );
+    assert_eq!(
+        checkpoint
+            .user_messages
+            .iter()
+            .map(|entry| entry.value.clone())
+            .collect::<Vec<_>>(),
+        vec![first]
+    );
+}
+
+#[test]
+fn inherited_conflicts_and_incomplete_first_capture_remain_explicit() {
+    let first = inherited_fixture("conflict");
+    let mut conflict = first.clone();
+    conflict.text = "Conflicting later instruction.".into();
+    let mut checkpoint = RetainedContext::default();
+    checkpoint.archive_inherited_user_message(first.clone());
+    checkpoint.archive_inherited_user_message(conflict);
+    checkpoint.adopt_inherited_user_context();
+    assert!(!checkpoint.user_messages_complete());
+    assert_eq!(checkpoint.user_messages.front().unwrap().value, first);
+    let mut incomplete = inherited_fixture("incomplete");
+    incomplete.complete = false;
+    incomplete.text = "Bounded excerpt".into();
+    let mut checkpoint = RetainedContext::default();
+    checkpoint.archive_inherited_user_message(incomplete.clone());
+    checkpoint.archive_inherited_user_message(inherited_fixture("incomplete"));
+    checkpoint.adopt_inherited_user_context();
+    assert!(!checkpoint.user_messages_complete());
+    assert_eq!(checkpoint.user_messages.front().unwrap().value, incomplete);
+}
 
 fn publish_answer() -> RetainedContextEvent {
     RetainedContextEvent::VerifiedAnswer {
