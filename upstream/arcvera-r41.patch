@@ -46848,7 +46848,7 @@ index 0000000000000000000000000000000000000000..501e751e867ba35f2fff8d9b539bff81
 +    Ok(())
 +}
 diff --git a/codex-rs/core/tests/suite/guardian_retained_context.rs b/codex-rs/core/tests/suite/guardian_retained_context.rs
-index 47d5339046db13303ad6d94c32094df749e60480..5c835e7c72f8fe7354133e4692ae7af4252f6852 100644
+index 47d5339046db13303ad6d94c32094df749e60480..ff19bbdca69b43272b14441f5af69107058c58b1 100644
 --- a/codex-rs/core/tests/suite/guardian_retained_context.rs
 +++ b/codex-rs/core/tests/suite/guardian_retained_context.rs
 @@ -1,3 +1,4 @@
@@ -47031,7 +47031,7 @@ index 47d5339046db13303ad6d94c32094df749e60480..5c835e7c72f8fe7354133e4692ae7af4
 +    let mut created = test.thread_manager.subscribe_thread_created();
 +    mount_sse_sequence(&server, vec![
 +        sse(vec![ev_function_call_with_namespace("d32-spawn", "collaboration", "spawn_agent",
-+            &json!({"task_name":"d32-worker","message":"Inspect the project.","fork_turns":"all"}).to_string()), ev_completed("d32-spawned")]),
++            &json!({"task_name":"d32_worker","message":"Inspect the project.","fork_turns":"all"}).to_string()), ev_completed("d32-spawned")]),
 +        sse(vec![ev_completed("d32-parent-done")]),
 +        sse(vec![ev_completed("d32-worker-done")]),
 +    ]).await;

@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "6c33a49806b78c74dae88486e3b143290e668c7f3716f74f7734341535c12813",
+  "sourceTreeSha256": "78010f75188a10eddded11d24d1ca6e6659d56ee66c96c9c0e33420017b2c523",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "76d39c21d8596000300c3820aaff890df0dcc85fb14195dc8c63cace1d1ecb62"
+    "sha256": "18428a5cc87dcfcf7e9339abd0d79e3b89117c4819b10c7fd69cdd064ab36710"
   },
   "files": [
     {
@@ -24634,8 +24634,8 @@
       "path": "codex-rs/core/tests/suite/guardian_retained_context.rs",
       "gitMode": "100644",
       "bytes": 73293,
-      "sha256": "fc1c6331f79602825125717d39f1772b75462ecc42c5b13d2e737d4e25e03db5",
-      "gitBlob": "5c835e7c72f8fe7354133e4692ae7af4252f6852"
+      "sha256": "0e3b1e8de10b5dee43361daa386e56bbdc18e7d985866206b2627e26f0cf1cac",
+      "gitBlob": "ff19bbdca69b43272b14441f5af69107058c58b1"
     },
     {
       "path": "codex-rs/core/tests/suite/guardian_retry.rs",

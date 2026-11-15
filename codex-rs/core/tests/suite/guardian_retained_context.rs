@@ -926,7 +926,7 @@ async fn standalone_fork_summary_only_checkpoint(history_mode: ThreadHistoryMode
     let mut created = test.thread_manager.subscribe_thread_created();
     mount_sse_sequence(&server, vec![
         sse(vec![ev_function_call_with_namespace("d32-spawn", "collaboration", "spawn_agent",
-            &json!({"task_name":"d32-worker","message":"Inspect the project.","fork_turns":"all"}).to_string()), ev_completed("d32-spawned")]),
+            &json!({"task_name":"d32_worker","message":"Inspect the project.","fork_turns":"all"}).to_string()), ev_completed("d32-spawned")]),
         sse(vec![ev_completed("d32-parent-done")]),
         sse(vec![ev_completed("d32-worker-done")]),
     ]).await;
