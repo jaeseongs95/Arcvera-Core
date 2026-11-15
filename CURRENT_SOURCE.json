@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "349dab9a1aea119eab4aea21e956ee87d1c84b3d2744944d239386293e05ede1",
+  "sourceTreeSha256": "caf1730f2d90c2dbc7ff80617891746cba698a90fd470fdaae7d1662249f7ab2",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "1b72db188094fc11cf86598a6eb7c53d26797bb3bf07518ca67ad92d24ce56c0"
+    "sha256": "df3cc032a212a70ed567bbdcdf1a5e0aa531159ce264cf7e07fad27e069f340d"
   },
   "files": [
     {
@@ -35455,9 +35455,9 @@
     {
       "path": "codex-rs/memories/write/src/startup_tests.rs",
       "gitMode": "100644",
-      "bytes": 77877,
-      "sha256": "2fb122533d78c162b4bc29a373479c9cc295986284be1c19e40cbf153d9b0535",
-      "gitBlob": "af9209b293d111848850c402c42fb010b8d31447"
+      "bytes": 78257,
+      "sha256": "382b78fe7a06bc24a2b69ebb1b8860802c307d7513c64c2eda4fd4225abbb4d8",
+      "gitBlob": "d56052da72df1fc89d7364fe12756d7af2426278"
     },
     {
       "path": "codex-rs/memories/write/src/storage.rs",

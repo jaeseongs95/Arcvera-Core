@@ -59160,7 +59160,7 @@ index ffb3582aa3e881bfbc8def479fcfd42c84d01890..306af6b51655232e6f96de3935234e57
          let requests = server.received_requests().await.expect("recorded requests");
          let bodies = requests
 diff --git a/codex-rs/memories/write/src/startup_tests.rs b/codex-rs/memories/write/src/startup_tests.rs
-index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010b8d31447 100644
+index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..d56052da72df1fc89d7364fe12756d7af2426278 100644
 --- a/codex-rs/memories/write/src/startup_tests.rs
 +++ b/codex-rs/memories/write/src/startup_tests.rs
 @@ -1,3 +1,4 @@
@@ -59406,7 +59406,29 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010
          assert!(
              !hook_log.exists(),
              "memory worker must not run the user Stop hook"
-@@ -361,6 +455,57 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
+@@ -342,6 +436,9 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
+         );
+ 
+         if managed_response.is_none() {
++            // A rejected worker leaves its single-use response unconsumed.
++            // Finish that fixture stage before registering the parent's response.
++            server.reset().await;
+             let parent = mount_sse_once(
+                 &server,
+                 sse(vec![
+@@ -353,6 +450,11 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
+             .await;
+             test.submit_turn("parent task").await?;
+             parent.single_request();
++            assert_eq!(
++                phase2.requests().len(),
++                usize::from(!pin_hooks),
++                "the parent must not consume the worker response"
++            );
+             assert_eq!(tokio::fs::read_to_string(hook_log).await?, "hook invoked\n");
+             fs_wait::wait_for_path_exists(notify_log, Duration::from_secs(10)).await?;
+         }
+@@ -361,6 +463,57 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
      Ok(())
  }
  
@@ -59464,7 +59486,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010
  #[tokio::test]
  async fn memories_startup_phase2_tracks_workspace_diff_across_runs() -> anyhow::Result<()> {
      let server = start_mock_server().await;
-@@ -424,11 +569,11 @@ async fn memories_startup_phase2_tracks_workspace_diff_across_runs() -> anyhow::
+@@ -424,11 +577,11 @@ async fn memories_startup_phase2_tracks_workspace_diff_across_runs() -> anyhow::
          "expected workspace diff file in prompt: {prompt}"
      );
  
@@ -59479,7 +59501,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010
      assert_eq!(rollout_summaries.len(), 1);
      assert!(
          rollout_summaries
-@@ -445,6 +590,14 @@ async fn memories_startup_phase2_tracks_workspace_diff_across_runs() -> anyhow::
+@@ -445,6 +598,14 @@ async fn memories_startup_phase2_tracks_workspace_diff_across_runs() -> anyhow::
              .iter()
              .all(|summary| !summary.contains("rollout summary A"))
      );
@@ -59494,7 +59516,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010
  
      shutdown_test_codex(&test).await?;
      Ok(())
-@@ -485,7 +638,7 @@ async fn phase2_replays_legacy_baseline_with_unchanged_inputs() -> anyhow::Resul
+@@ -485,7 +646,7 @@ async fn phase2_replays_legacy_baseline_with_unchanged_inputs() -> anyhow::Resul
      let test = build_test_codex(&server, home.clone()).await?;
      trigger_memories_startup(&test).await;
      wait_for_single_request(&phase2).await;
@@ -59503,7 +59525,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010
      shutdown_test_codex(&test).await?;
      Ok(())
  }
-@@ -534,9 +687,24 @@ async fn phase2_retries_when_clean_workspace_is_missing_artifacts() -> anyhow::R
+@@ -534,9 +695,24 @@ async fn phase2_retries_when_clean_workspace_is_missing_artifacts() -> anyhow::R
      );
      assert!(!memory_root.join("MEMORY.md").exists());
      assert!(!memory_root.join("memory_summary.md").exists());
@@ -59531,7 +59553,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010
      );
  
      shutdown_test_codex(&test).await?;
-@@ -599,16 +767,9 @@ async fn memories_startup_phase2_prunes_old_extension_resources() -> anyhow::Res
+@@ -599,16 +775,9 @@ async fn memories_startup_phase2_prunes_old_extension_resources() -> anyhow::Res
          "expected workspace diff file in prompt: {prompt}"
      );
  
@@ -59551,7 +59573,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010
  
      shutdown_test_codex(&test).await?;
      Ok(())
-@@ -660,8 +821,9 @@ async fn memories_startup_phase2_prunes_old_extension_resources_without_stage1_i
+@@ -660,8 +829,9 @@ async fn memories_startup_phase2_prunes_old_extension_resources_without_stage1_i
          "expected workspace diff file in prompt: {prompt}"
      );
  
@@ -59563,7 +59585,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010
  
      shutdown_test_codex(&test).await?;
      Ok(())
-@@ -1166,7 +1328,7 @@ async fn run_memory_phase_two_model_request_test(
+@@ -1166,7 +1336,7 @@ async fn run_memory_phase_two_model_request_test(
              .as_str()
              .ok_or_else(|| anyhow::anyhow!("phase-2 request should include the child thread id"))?,
      )?;
@@ -59572,7 +59594,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010
      assert!(
          test.thread_manager
              .remove_thread(&consolidation_thread_id)
-@@ -1178,7 +1340,10 @@ async fn run_memory_phase_two_model_request_test(
+@@ -1178,7 +1348,10 @@ async fn run_memory_phase_two_model_request_test(
          assert!(!root.join("raw_memories.md").exists());
          assert!(!root.join("MEMORY.md").exists());
          assert!(!root.join("skills").exists());
@@ -59584,7 +59606,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010
          assert!(request.body_contains_text("Consolidate the supplied rollout summaries"));
      }
      test.codex.shutdown_and_wait().await?;
-@@ -1187,6 +1352,9 @@ async fn run_memory_phase_two_model_request_test(
+@@ -1187,6 +1360,9 @@ async fn run_memory_phase_two_model_request_test(
  
  fn startup_test_memories_config() -> MemoriesConfig {
      MemoriesConfig {
@@ -59594,7 +59616,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010
          max_raw_memories_for_consolidation: 1,
          min_rollout_idle_hours: 0,
          ..MemoriesConfig::default()
-@@ -1204,14 +1372,44 @@ async fn build_test_codex(
+@@ -1204,14 +1380,44 @@ async fn build_test_codex(
  
  fn memory_test_codex(home: Arc<TempDir>, memories: MemoriesConfig) -> TestCodexBuilder {
      test_codex().with_home(home).with_config(move |config| {
@@ -59643,7 +59665,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010
  async fn init_state_db(home: &Arc<TempDir>) -> anyhow::Result<Arc<codex_state::StateRuntime>> {
      let db = codex_state::StateRuntime::init(
          codex_state::SqliteConfig::new_for_testing(home.path().abs()),
-@@ -1413,19 +1611,56 @@ async fn wait_for_single_request(mock: &ResponseMock) -> ResponsesRequest {
+@@ -1413,19 +1619,56 @@ async fn wait_for_single_request(mock: &ResponseMock) -> ResponsesRequest {
      wait_for_request(mock, /*expected_count*/ 1).await.remove(0)
  }
  
@@ -59710,7 +59732,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010
  }
  
  async fn wait_for_dir(path: &Path) -> anyhow::Result<()> {
-@@ -1486,17 +1721,45 @@ fn phase2_prompt_text(request: &ResponsesRequest) -> String {
+@@ -1486,17 +1729,45 @@ fn phase2_prompt_text(request: &ResponsesRequest) -> String {
          .expect("phase2 prompt text")
  }
  
@@ -59760,7 +59782,7 @@ index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..af9209b293d111848850c402c42fb010
  }
  
  async fn wait_for_phase2_job_to_finish(
-@@ -1518,6 +1781,25 @@ async fn wait_for_phase2_job_to_finish(
+@@ -1518,6 +1789,25 @@ async fn wait_for_phase2_job_to_finish(
      }
  }
  

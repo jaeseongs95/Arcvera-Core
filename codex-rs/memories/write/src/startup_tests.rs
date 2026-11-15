@@ -436,6 +436,9 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
         );
 
         if managed_response.is_none() {
+            // A rejected worker leaves its single-use response unconsumed.
+            // Finish that fixture stage before registering the parent's response.
+            server.reset().await;
             let parent = mount_sse_once(
                 &server,
                 sse(vec![
@@ -447,6 +450,11 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
             .await;
             test.submit_turn("parent task").await?;
             parent.single_request();
+            assert_eq!(
+                phase2.requests().len(),
+                usize::from(!pin_hooks),
+                "the parent must not consume the worker response"
+            );
             assert_eq!(tokio::fs::read_to_string(hook_log).await?, "hook invoked\n");
             fs_wait::wait_for_path_exists(notify_log, Duration::from_secs(10)).await?;
         }
