@@ -3,6 +3,7 @@
 use super::*;
 use anyhow::Context;
 use core_test_support::responses::{ev_function_call, mount_sse_sequence};
+use pretty_assertions::assert_eq;
 use std::collections::BTreeMap;
 use tokio::time::{Duration, Instant};
 
