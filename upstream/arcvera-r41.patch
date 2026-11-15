@@ -1162,17 +1162,21 @@ index 0000000000000000000000000000000000000000..6c2e29d22f88ea45e9e6e2efad667437
 +없으면 해당 의존성을 제외하고 공식 제공자의 직접 설치 방법을 안내합니다.
 +동봉하는 오픈소스의 소스 제공·고지 등 의무는 계속 유지합니다.
 diff --git a/MODIFICATIONS.md b/MODIFICATIONS.md
-index c3febe7112813d655a8b6c2367e9057cca8d1705..edab5388324c51caad5b57339e0eb5116dae869a 100644
+index c3febe7112813d655a8b6c2367e9057cca8d1705..e1ebedbdbb06d4e6b286c08cea16edb6fea309c1 100644
 --- a/MODIFICATIONS.md
 +++ b/MODIFICATIONS.md
-@@ -1,3 +1,63 @@
+@@ -1,3 +1,67 @@
 +# Arcvera-Core 1.1.0 candidate / 1.1.0 후보
 +
 +The 1.1.0 candidate adds indexed context selection and retrieval, body-free composition metadata, explicit provider cache policies, and MCP/hook runtime and reload handling. Native verification and release preparation remain in progress. Source inventory and derivative notices continue through `CURRENT_SOURCE.json`; original copyright, licenses and notices remain preserved. See [candidate notes](docs/releases/v1.1.0.md).
 +
++The candidate bounds asynchronous hook admission by unfinished job count and serialized input size, reporting saturation through the existing error path. Post-request coordinators share admission capacity without occupying command execution slots. Bounded inherited user sources survive worker checkpoints in a host-only archive and are adopted with inherited provenance only by standalone roots; worker-local authorization excludes the archive. Optional payload-free observations at the real browser opener support exact-pair integration checks; these observations are disabled by default. Guardian test fixtures retain their private home and use the real SQLite metadata store. Verification remains pending.
++
 +The candidate also introduces explicit HTTP(S) mouse-link ownership and aligns cooperating configuration writers on the resolved target. File links and URLs opened programmatically for authentication retain their existing paths. Native regression and joint Desktop verification remain pending; non-cooperating path replacement is outside the guarantee.
 +
 +1.1.0 후보는 인덱스 문맥 선택과 조회, 본문 없는 구성 메타데이터, 명시적 제공자 캐시 정책, MCP/hook 런타임 및 재로드 처리를 추가합니다. 네이티브 검증과 릴리스 준비가 진행 중입니다. 소스 목록과 파생 변경 고지는 `CURRENT_SOURCE.json`을 통해 유지하며 원 저작권·라이선스·고지를 보존합니다. [후보 안내](docs/releases/v1.1.0.md)를 참고하십시오.
++
++후보는 비동기 hook의 미완료 작업 수와 직렬화 입력 크기를 제한하며 포화 시 기존 오류 경로로 알립니다. 요청 후처리 작업은 접수 한도를 공유하되 명령 실행 슬롯을 점유하지 않습니다. 크기가 제한된 상속 사용자 원문은 호스트 전용 보관 영역에서 worker 체크포인트를 거쳐 유지되며 독립 root만 상속 출처로 채택합니다. worker 자체 권한 판단에는 이 보관 영역이 포함되지 않습니다. 실제 브라우저 열기 경계의 선택적 계측은 본문을 기록하지 않고 정확한 실행물 쌍의 통합 확인을 지원하며 기본적으로 꺼져 있습니다. Guardian 시험 환경은 전용 홈의 수명을 유지하고 실제 SQLite 메타데이터 저장소를 사용합니다. 검증은 아직 완료되지 않았습니다.
 +
 +후보에는 HTTP(S) 마우스 링크의 명시적 소유권과 협력하는 설정 writer의 해석된 대상 잠금도 포함됩니다. 파일 링크와 프로그램이 인증을 위해 여는 URL은 기존 경로를 유지합니다. 네이티브 회귀와 Desktop 공동 검증은 대기 중이며 비협력 프로세스의 경로 교체는 보장 범위 밖입니다.
 +
@@ -1229,7 +1233,7 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..edab5388324c51caad5b57339e0eb511
  # R39 compact 개발 후보 (2026-11-07)
  
  정식 발행·동결된 R38과 같은 공식 0.167.0 기반에서 압축 동작만 변경합니다. 버전은 `0.167.0+native-r39.20261107`이며, 고정 소스는 `c4399dce957bb63fe1fdc276aa4306c06f6cf47f`입니다. 메모리 리팩토링·후크·캐싱·스크롤 감도·한글화·컨텍스트 조회의 미완 작업은 R40으로 이관하며 이번 변경에 포함하지 않습니다. 현재 소스·시험 후보이며 최종 빌드·발행은 미완료입니다.
-@@ -701,3 +761,19 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
+@@ -701,3 +765,19 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
  고정 소스 `8e9b7eff953e750e8f071d101233920108e5ca26`는 R37 이후의 별도 개발 후보다. 플러그인 payload 비교에서 정확한 `.git`만 제외하고, 암시적 daemon의 전체 버전 확인과 실제 시작·재연결 화면 안내를 보강했다. Stop 속성의 명시적 교정 도구와 재로드 경고의 한국어/영어 안내, 에이전트 목록의 메인 마우스 복귀 및 작은 밑줄만 사용하는 hover를 포함한다.
  
  요구별 실행 결과·원래 실패·미검증 경계는 [R38 범위](docs/native-cli-r38.ko.md)와 연결된 사례 문서를 따른다. 운영 설정 자동 교정·R38 최종 릴리스 빌드·공개·설치는 수행하지 않았다. R37 동결 실행 파일은 변경하지 않았다.
@@ -1250,10 +1254,10 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..edab5388324c51caad5b57339e0eb511
 +영문·한글 공식 설치 안내를 제공하며 기존 실행 파일과 네이티브 소스 출처는
 +변경하지 않습니다. 패키징 변경의 커밋과 대응소스는 별도로 기록합니다.
 diff --git a/README.ko.md b/README.ko.md
-index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..ac918a8bf039082f9ac0c92cad2471774d58408a 100644
+index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..6e8be821753edbab77218941e94e965394a26272 100644
 --- a/README.ko.md
 +++ b/README.ko.md
-@@ -1,55 +1,60 @@
+@@ -1,55 +1,62 @@
 -# OpenDIY Codex
 +# Arcvera-Core
  
@@ -1319,6 +1323,8 @@ index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..ac918a8bf039082f9ac0c92cad247177
 +## 1.1.0 후보: 문맥과 캐시 제어
  
 -## 현재 릴리스
++후보는 비동기 hook과 수명 관리 작업을 합쳐 미완료 작업 72개까지 접수하며, 명령 hook은 최대 8개를 동시에 실행합니다. 입력 JSON 직렬화 크기의 합계는 16 MiB로 제한하고 포화 시 오류를 알립니다. 상속한 사용자 원문은 worker 권한과 분리된 유한 보관 영역에서 checkpoint 이후에도 유지하며, standalone root는 상속 출처로 채택합니다. 이전 checkpoint에서 이미 사라진 원문은 재구성할 수 없습니다. 이 변경의 네이티브 및 공동 검증은 아직 필요합니다.
++
 +1.1.0 후보는 네이티브 검증 중이며 아직 발행된 릴리스가 아닙니다. 인덱스 문맥은 작업 조각과 의존 항목을 모델의 활성 입력에 선택하고 원문은 권한에 따른 조회를 위해 보존합니다. 무관한 상세 내용을 활성 입력에서 제외해도 원문을 삭제하지 않습니다. 요청 전용 탐색 정보는 선택된 이력 뒤에 놓여 탐색 정보 변경이 안정적인 접두부를 바꾸지 않도록 합니다. 인덱스 포커스가 있으면 선택 문맥이 입력 예산을 사용하며 한도를 초과할 때 필수 근거를 요약으로 대체하지 않고 오류를 알립니다.
  
 -| 릴리스 | 주요 변경 | 검증 범위 |
@@ -1342,7 +1348,7 @@ index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..ac918a8bf039082f9ac0c92cad247177
  
  ## 대화 제어
  
-@@ -58,6 +63,7 @@ ZIP에는 `codex-patched.cmd`가 이미 포함돼 있습니다. 인자를 `bin\c
+@@ -58,6 +65,7 @@ ZIP에는 `codex-patched.cmd`가 이미 포함돼 있습니다. 인자를 `bin\c
  | 명령 | 용도 |
  | --- | --- |
  | `/context 120000` · `/context reset` | 대화 문맥 크기 지정·초기화 |
@@ -1350,7 +1356,7 @@ index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..ac918a8bf039082f9ac0c92cad247177
  | `/memory view` · `/memory enable on` | 메모리 조회·명시적 활성화 |
  | `/cron add --every 10m -- Check whether the build has finished` | 현재 CLI 세션의 반복 프롬프트 예약 |
  | `/cron list` · `/cron remove 1` | 예약 조회·실제 예약 ID로 삭제 |
-@@ -68,26 +74,26 @@ ZIP에는 `codex-patched.cmd`가 이미 포함돼 있습니다. 인자를 `bin\c
+@@ -68,26 +76,26 @@ ZIP에는 `codex-patched.cmd`가 이미 포함돼 있습니다. 인자를 `bin\c
  
  문맥 설정은 모델 한도를 늘리지 않습니다. 메모리 정정이 요약에 즉시 반영되는 것은 아닙니다. 예약은 대화가 바쁘면 해당 회차를 건너뛰며 CLI 종료 시 사라집니다. 자연어 제어에는 실행 중인 CLI의 도구가 필요합니다. 다시 연결 요청 확인이 모든 MCP 서버의 준비 완료를 뜻하지는 않습니다.
  
@@ -1388,10 +1394,10 @@ index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..ac918a8bf039082f9ac0c92cad247177
 -[Apache-2.0](LICENSE) · [NOTICE](NOTICE)
 +[AGPL-3.0-or-later](LICENSE) · [라이선스](LICENSING.md) · [원 Apache-2.0](LICENSE-APACHE-2.0) · [NOTICE](NOTICE)
 diff --git a/README.md b/README.md
-index 4fbf1c87d2f614904d8f43660f15495977558d7d..f400b1f85f20a13a0936a5a3a92be5eb841aaa1e 100644
+index 4fbf1c87d2f614904d8f43660f15495977558d7d..be8d0c745b34f36eb53096de527b4467ea8a9a07 100644
 --- a/README.md
 +++ b/README.md
-@@ -1,55 +1,60 @@
+@@ -1,55 +1,62 @@
 -# OpenDIY Codex
 +# Arcvera-Core
  
@@ -1457,15 +1463,17 @@ index 4fbf1c87d2f614904d8f43660f15495977558d7d..f400b1f85f20a13a0936a5a3a92be5eb
 +
 +## 1.1.0 candidate: context and cache controls
 +
-+The 1.1.0 candidate is under native verification and is not yet a published release. Indexed context selects task fragments and dependencies for active model input while preserving originals for authorized retrieval. Unrelated details can leave active input without deleting their originals. Request-only navigation follows selected history, so navigation changes do not disturb its stable prefix. With an indexed focus, selected context owns its input budget; an oversized selection reports an error instead of silently replacing required evidence with a summary.
++The candidate bounds unfinished asynchronous hooks and lifecycle coordinators to 72 jobs, with up to eight command hooks executing and a shared 16 MiB serialized-input budget. Saturation reports an error. Inherited user sources survive worker checkpoints in a bounded archive that is separate from worker permissions; standalone roots adopt those sources with inherited provenance. Sources already lost by an older checkpoint cannot be reconstructed. These changes still require the candidate's native and joint verification.
  
 -| Release | Main change | Verification boundary |
 -| --- | --- | --- |
 -| [R40](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108) · [Notes (EN/KO)](docs/releases/R40.md) | Temporary MCP reconnection, nonblocking context lookup, hook boundaries, scrolling, Korean text, and confirmed memory/provenance fixes | Final CLI, RPC, ConPTY, and isolated TEST Desktop checks; see the notes for failures and unrun cases. |
 -| [R39](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r39.20261107) · [Notes (EN/KO)](docs/releases/R39.md) | Compaction focused on unfinished work | 15 isolated final-package checks plus source compaction tests. Final Desktop joint testing was not run. |
-+The experimental `thread/context/read` returns body-free metadata for a loaded thread through the existing connection and runtime access checks. It separates UTF-8 serialized resident bytes, local token estimates and provider-reported usage. Pages bind to a snapshot; restart pagination on a stale snapshot. Unavailable archive sizes, provider support, expiry and individual fragment TTLs remain unknown. `hooks/list` distinguishes installed current-thread runtime information from configuration discovery. Reload acknowledgement alone does not establish MCP readiness. Hook stdout and stderr are each limited to 1 MiB; exceeding a limit produces an error.
++The 1.1.0 candidate is under native verification and is not yet a published release. Indexed context selects task fragments and dependencies for active model input while preserving originals for authorized retrieval. Unrelated details can leave active input without deleting their originals. Request-only navigation follows selected history, so navigation changes do not disturb its stable prefix. With an indexed focus, selected context owns its input budget; an oversized selection reports an error instead of silently replacing required evidence with a summary.
  
 -Both are based on official Codex 0.167.0. Publication does not establish the version installed on a PC. Earlier versions remain in the [release history](https://github.com/jaeseongs95/opendiy-codex/releases).
++The experimental `thread/context/read` returns body-free metadata for a loaded thread through the existing connection and runtime access checks. It separates UTF-8 serialized resident bytes, local token estimates and provider-reported usage. Pages bind to a snapshot; restart pagination on a stale snapshot. Unavailable archive sizes, provider support, expiry and individual fragment TTLs remain unknown. `hooks/list` distinguishes installed current-thread runtime information from configuration discovery. Reload acknowledgement alone does not establish MCP readiness. Hook stdout and stderr are each limited to 1 MiB; exceeding a limit produces an error.
++
 +The candidate adds `--terminal-link-owner=tui|host` for mouse-activated HTTP(S) links. The default is `tui`; select `host` only when the terminal host actually opens those links. File links and URLs opened programmatically for authentication retain their existing handling. Do not infer option support from a version string alone. Cooperating configuration writers use the resolved target for locking and the current read for version checks; independent external path replacement is not covered. These changes await native and Desktop integration verification.
 +
 +Prompt cache policy is opt-in for a Responses-compatible provider. Replace `example` with the configured provider ID, and use this example only when that provider supports the selected wire policy:
@@ -1480,7 +1488,7 @@ index 4fbf1c87d2f614904d8f43660f15495977558d7d..f400b1f85f20a13a0936a5a3a92be5eb
  
  ## Conversation controls
  
-@@ -58,6 +63,7 @@ Enter these in the CLI conversation input, not PowerShell.
+@@ -58,6 +65,7 @@ Enter these in the CLI conversation input, not PowerShell.
  | Command | Purpose |
  | --- | --- |
  | `/context 120000` · `/context reset` | Set or reset the conversation context override |
@@ -1488,7 +1496,7 @@ index 4fbf1c87d2f614904d8f43660f15495977558d7d..f400b1f85f20a13a0936a5a3a92be5eb
  | `/memory view` · `/memory enable on` | Inspect memory or explicitly enable it |
  | `/cron add --every 10m -- Check whether the build has finished` | Schedule a repeating prompt for this CLI session |
  | `/cron list` · `/cron remove 1` | Inspect schedules or remove the actual schedule ID |
-@@ -68,26 +74,27 @@ Enter these in the CLI conversation input, not PowerShell.
+@@ -68,26 +76,27 @@ Enter these in the CLI conversation input, not PowerShell.
  
  Context overrides cannot exceed the model limit. Memory corrections are not immediate summary consolidation. Schedules skip busy occurrences and disappear when the CLI exits. Natural-language controls need the running CLI's tools. Reload acknowledgement does not prove every MCP server is ready.
  
@@ -21428,7 +21436,7 @@ index b88142930d4605f3e54f617b457209ef36a1fd7e..9cbc9d0679b5e250135d508735cc2657
  
  fn parse_value(value: JsonValue) -> Result<Option<TomlValue>, ConfigManagerError> {
 diff --git a/codex-rs/app-server/src/config_manager_service_tests.rs b/codex-rs/app-server/src/config_manager_service_tests.rs
-index 36bd51fc42c224276b9156f77a86c3eb1de047f9..d22465ffa7ca048bd5d42345a5a22c3ba4b7efdd 100644
+index 36bd51fc42c224276b9156f77a86c3eb1de047f9..318f9036617b17f43523a096ff38c8fe25024724 100644
 --- a/codex-rs/app-server/src/config_manager_service_tests.rs
 +++ b/codex-rs/app-server/src/config_manager_service_tests.rs
 @@ -1,3 +1,4 @@
@@ -21548,7 +21556,7 @@ index 36bd51fc42c224276b9156f77a86c3eb1de047f9..d22465ffa7ca048bd5d42345a5a22c3b
      Ok(())
  }
  
-@@ -1235,6 +1334,218 @@ async fn version_conflict_rejected() {
+@@ -1235,6 +1334,219 @@ async fn version_conflict_rejected() {
      );
  }
  
@@ -21635,7 +21643,7 @@ index 36bd51fc42c224276b9156f77a86c3eb1de047f9..d22465ffa7ca048bd5d42345a5a22c3b
 +async fn batch_version_matches_saved_doc_and_preserves_explicit_table_and_comments() -> Result<()> {
 +    let tmp = tempdir()?;
 +    let path = tmp.path().join(CONFIG_TOML_FILE);
-+    let original = "# 보존할 주석\nmodel = '기존'\n\n[mcp_servers]\n# 명시적 빈 테이블 보존\n\n[mcp_servers.fixture]\ncommand = 'example'\n";
++    let original = "# 보존할 주석\nmodel = '기존'\n\n[mcp_servers] # 명시적 빈 테이블 보존\n\n# 삭제할 자식 테이블 주석\n[mcp_servers.fixture]\ncommand = 'example'\n";
 +    std::fs::write(&path, original)?;
 +    let service = ConfigManager::without_managed_config_for_tests(tmp.path().to_path_buf());
 +    let batch = service
@@ -21660,6 +21668,7 @@ index 36bd51fc42c224276b9156f77a86c3eb1de047f9..d22465ffa7ca048bd5d42345a5a22c3b
 +    let saved = std::fs::read_to_string(&path)?;
 +    assert!(saved.contains("# 보존할 주석"));
 +    assert!(saved.contains("# 명시적 빈 테이블 보존"));
++    assert!(!saved.contains("# 삭제할 자식 테이블 주석"));
 +    assert!(saved.contains("[mcp_servers]"));
 +    let parsed: TomlValue = toml::from_str(&saved)?;
 +    assert_eq!(parsed["model"].as_str(), Some("새 모델"));
@@ -21767,6 +21776,42 @@ index 36bd51fc42c224276b9156f77a86c3eb1de047f9..d22465ffa7ca048bd5d42345a5a22c3b
  #[tokio::test]
  async fn write_value_defaults_to_user_config_path() {
      let tmp = tempdir().expect("tempdir");
+@@ -2665,12 +2977,16 @@ exclude = []
+ "#,
+         ),
+         (
+-            r#"[permissions.dev.network.domains]
++            r#"default_permissions = "dev"
++
++[permissions.dev.network.domains]
+ "example.com" = "deny"
+ "#,
+             "permissions.dev.network.domains",
+             serde_json::json!({"EXAMPLE.COM": "allow"}),
+-            r#"[permissions.dev.network.domains]
++            r#"default_permissions = "dev"
++
++[permissions.dev.network.domains]
+ "example.com" = "allow"
+ "#,
+         ),
+@@ -2772,7 +3088,7 @@ custom = true
+         ),
+     ];
+ 
+-    for (base, key_path, value, expected) in cases {
++    for (case_index, (base, key_path, value, expected)) in cases.into_iter().enumerate() {
+         let tmp = tempdir()?;
+         let path = tmp.path().join(CONFIG_TOML_FILE);
+         std::fs::write(&path, base)?;
+@@ -2798,6 +3114,7 @@ custom = true
+                 cwd: None,
+             })
+             .await?;
++        eprintln!("path-sensitive merge case {} passed: {key_path}", case_index + 1);
+     }
+ 
+     Ok(())
 diff --git a/codex-rs/app-server/src/in_process.rs b/codex-rs/app-server/src/in_process.rs
 index bba236453bc0f5d918f00499570dae4db52f2376..d3a00b7f06db6d3b0accb68e7e92c32cc617f1e2 100644
 --- a/codex-rs/app-server/src/in_process.rs
@@ -34465,7 +34510,7 @@ index bdfba72b865972ddcf09a80b3fd47acc5adbab4d..5c7c2522ce334ed718a87e7337d2172a
                  multi_agent_version: Some(MultiAgentVersion::V2),
                  last_started_turn_id: None,
 diff --git a/codex-rs/core/src/agent/history.rs b/codex-rs/core/src/agent/history.rs
-index 9cba9c4260caa21b22eb6576ba01ea2bc5262b47..741c13fa72a5318cb30c9931939e3ec738810e61 100644
+index 9cba9c4260caa21b22eb6576ba01ea2bc5262b47..8cfcfef0dc996c63c65ab685e040e180c764a61e 100644
 --- a/codex-rs/core/src/agent/history.rs
 +++ b/codex-rs/core/src/agent/history.rs
 @@ -1,3 +1,4 @@
@@ -34505,7 +34550,27 @@ index 9cba9c4260caa21b22eb6576ba01ea2bc5262b47..741c13fa72a5318cb30c9931939e3ec7
                      resume_metadata.multi_agent_version = Some(multi_agent_version);
                      resume_metadata.turn_attribution = None;
                      if !preserve_context_baselines {
-@@ -421,6 +431,7 @@ pub(super) async fn prepare_forked_history(
+@@ -397,10 +407,15 @@ pub(super) async fn prepare_forked_history(
+                 // Parent-local review evidence must not become the child's authorization.
+                 // Root user authorization is collected separately by the host.
+                 compacted.guardian_history = None;
+-                // Only V2 fetches root authorization live. Its local scope starts known-empty;
+-                // V1 must remain incomplete when inherited authorization has been stripped.
+-                compacted.retained_context = (multi_agent_version == MultiAgentVersion::V2)
+-                    .then(codex_history::RetainedContext::default);
++                // Keep V2's local scope empty, but carry bounded original user sources
++                // for a future standalone root. Workers cannot review this archive.
++                // V1 must remain incomplete when inherited authorization is stripped.
++                compacted.retained_context =
++                    (multi_agent_version == MultiAgentVersion::V2).then(|| {
++                        let mut parent = codex_history::RetainedContext::default();
++                        parent.restore(compacted.retained_context.as_ref(), &[]);
++                        parent.inherited_checkpoint()
++                    });
+                 if let Some(replacement_history) = compacted.replacement_history.as_mut() {
+                     // Matches before this checkpoint cannot survive its replacement history.
+                     replaced_parent_developer_instructions = false;
+@@ -421,6 +436,7 @@ pub(super) async fn prepare_forked_history(
              }
              RolloutItem::RealtimeItem(_) => false,
              RolloutItem::DynamicToolsUpdated { .. }
@@ -38941,6 +39006,58 @@ index 0000000000000000000000000000000000000000..f4def0ea5b99c5dc11c76f3fce6a5fa2
 +        None
 +    );
 +}
+diff --git a/codex-rs/core/src/context_manager/history_user_authorization.rs b/codex-rs/core/src/context_manager/history_user_authorization.rs
+index 06cf19e48572433806fb178714d5338151851e20..2e23127b494e7d54371b0e5cc328b04ccf1fc839 100644
+--- a/codex-rs/core/src/context_manager/history_user_authorization.rs
++++ b/codex-rs/core/src/context_manager/history_user_authorization.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ //! Captures original user/assistant exchanges and adopts copied context when a worker becomes a root.
+ //! Inherited history remains excluded for workers; roots also recover it from checkpoints.
+ //! Oversized originals retain bounded, incomplete excerpts for root review.
+@@ -78,6 +79,9 @@ impl ContextManager {
+ 
+     pub(crate) fn restore_retained_context(&mut self, checkpoint: Option<&RetainedContext>) {
+         Arc::make_mut(&mut self.retained_context).restore(checkpoint, &self.items);
++        if self.retain_inherited_user_messages {
++            Arc::make_mut(&mut self.retained_context).adopt_inherited_user_context();
++        }
+         let items = Arc::clone(&self.items);
+         for envelope in items.iter().filter(|envelope| {
+             envelope
+@@ -157,13 +161,12 @@ impl ContextManager {
+         }
+         let mut captured = None;
+         let inherited = metadata.is_some_and(|metadata| metadata.inherited_user_message);
+-        if (!inherited || self.retain_inherited_user_messages)
+-            && let ResponseItem::Message {
+-                content,
+-                phase,
+-                internal_chat_message_metadata_passthrough,
+-                ..
+-            } = item
++        if let ResponseItem::Message {
++            content,
++            phase,
++            internal_chat_message_metadata_passthrough,
++            ..
++        } = item
+         {
+             let mut complete = matches!(source, RetainedMessageSource::Original)
+                 && (is_assistant
+@@ -207,6 +210,12 @@ impl ContextManager {
+                 complete,
+             };
+             let retained = Arc::make_mut(&mut self.retained_context);
++            if inherited && !self.retain_inherited_user_messages {
++                if !is_assistant {
++                    retained.archive_inherited_user_message(message);
++                }
++                return None;
++            }
+             captured = if is_assistant {
+                 retained.record_assistant_message(message, metadata.into())
+             } else {
 diff --git a/codex-rs/core/src/context_manager/mod.rs b/codex-rs/core/src/context_manager/mod.rs
 index 2bd7eb87c05418b9abe395ff048bdb3630b1c6a3..70d834b6c73486c6fc5e8817ac9b192824a037ba 100644
 --- a/codex-rs/core/src/context_manager/mod.rs
@@ -38978,7 +39095,7 @@ index 6a247f55a47385ba3d09c2405bc1dbf5e34f59da..93e789b844b082dacb412e3a5172eca6
                  message: String::new(),
                  window_number,
 diff --git a/codex-rs/core/src/guardian/tests.rs b/codex-rs/core/src/guardian/tests.rs
-index 4a81e55a51fb1a7f487bf43d9a839cc2d2188109..0c71ecb0409286a05fa60a79821a98cc99d7dfad 100644
+index 4a81e55a51fb1a7f487bf43d9a839cc2d2188109..70533f8107246f691b089608dcf570e8daa64b22 100644
 --- a/codex-rs/core/src/guardian/tests.rs
 +++ b/codex-rs/core/src/guardian/tests.rs
 @@ -1,3 +1,4 @@
@@ -38986,7 +39103,116 @@ index 4a81e55a51fb1a7f487bf43d9a839cc2d2188109..0c71ecb0409286a05fa60a79821a98cc
  // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
  use super::prompt::GuardianTranscriptHistory;
  use super::*;
-@@ -2674,6 +2675,7 @@ async fn guardian_reuses_prompt_cache_key_and_appends_prior_reviews() -> anyhow:
+@@ -162,23 +163,47 @@ async fn guardian_test_session_turn_and_rx(
+     Arc<TurnContext>,
+     async_channel::Receiver<Event>,
+ ) {
++    guardian_test_session_turn_and_rx_with_base_url(server.uri().as_str()).await
++}
++
++async fn guardian_test_session_turn_and_rx_with_base_url(
++    base_url: &str,
++) -> (
++    Arc<Session>,
++    Arc<TurnContext>,
++    async_channel::Receiver<Event>,
++) {
++    // The real review ThreadManager needs both a live home and SQLite metadata storage.
++    // Keep the fixture directory attached to its parent session for the whole review.
++    let home = tempfile::tempdir().expect("create Guardian fixture home");
+     let (mut session, mut turn, rx) =
+-        crate::session::tests::make_session_and_context_with_rx().await;
+-    Arc::get_mut(&mut session)
+-        .expect("session should be uniquely owned")
+-        .thread_id = fixed_guardian_parent_session_id();
++        crate::session::tests::make_session_and_context_with_auth_config_home_and_rx(
++            codex_login::CodexAuth::from_api_key("Test API Key"),
++            Vec::new(),
++            home.path(),
++            |_config| {},
++        )
++        .await;
+     let mut config = (*turn.config).clone();
+-    config.model_provider.base_url = Some(format!("{}/v1", server.uri()));
++    config.model_provider.base_url = Some(format!("{base_url}/v1"));
+     let config = Arc::new(config);
+-    let models_manager = test_support::models_manager_with_provider(
++    let state_db =
++        codex_state::StateRuntime::init(config.sqlite.clone(), config.model_provider_id.clone())
++            .await
++            .expect("initialize Guardian fixture SQLite");
++    let session_mut = Arc::get_mut(&mut session).expect("session should be uniquely owned");
++    session_mut.thread_id = fixed_guardian_parent_session_id();
++    session_mut.services.state_db = Some(Arc::clone(&state_db));
++    session_mut.services.thread_store = Arc::new(codex_thread_store::LocalThreadStore::new(
++        codex_thread_store::LocalThreadStoreConfig::from_config(config.as_ref()),
++        Some(state_db),
++    ));
++    session_mut.services.thread_extension_data.insert(home);
++    session_mut.services.models_manager = test_support::models_manager_with_provider(
+         config.codex_home.to_path_buf(),
+-        Arc::clone(&session.services.auth_manager),
++        Arc::clone(&session_mut.services.auth_manager),
+         config.model_provider.clone(),
+     );
+-    Arc::get_mut(&mut session)
+-        .expect("session should be uniquely owned")
+-        .services
+-        .models_manager = models_manager;
+     crate::guardian::test_host::install(&session, &config);
+     let turn_mut = Arc::get_mut(&mut turn).expect("turn should be uniquely owned");
+     turn_mut.config = Arc::clone(&config);
+@@ -285,22 +310,34 @@ fn guardian_mcp_request(server: &str, tool_name: &str) -> GuardianApprovalReques
+ async fn guardian_test_session_and_turn_with_base_url(
+     base_url: &str,
+ ) -> (Arc<Session>, Arc<TurnContext>) {
+-    let (mut session, mut turn) = crate::session::tests::make_session_and_context().await;
+-    session.thread_id = fixed_guardian_parent_session_id();
+-    let mut config = (*turn.config).clone();
+-    config.model_provider.base_url = Some(format!("{base_url}/v1"));
+-    let config = Arc::new(config);
+-    let models_manager = test_support::models_manager_with_provider(
+-        config.codex_home.to_path_buf(),
+-        Arc::clone(&session.services.auth_manager),
+-        config.model_provider.clone(),
+-    );
+-    session.services.models_manager = models_manager;
+-    crate::guardian::test_host::install(&session, &config);
+-    turn.config = Arc::clone(&config);
+-    turn.provider = create_model_provider(config.model_provider.clone(), turn.auth_manager.clone());
++    let (session, turn, _rx) = guardian_test_session_turn_and_rx_with_base_url(base_url).await;
++    (session, turn)
++}
+ 
+-    (Arc::new(session), Arc::new(turn))
++#[tokio::test]
++async fn guardian_fixture_keeps_real_storage_available_after_return() {
++    let (session, turn) = guardian_test_session_and_turn_with_base_url("http://127.0.0.1:1").await;
++    assert!(turn.config.codex_home.is_dir());
++    assert!(turn.config.sqlite.home().is_dir());
++    let state_db = session
++        .services
++        .state_db
++        .as_ref()
++        .expect("fixture state DB");
++    let store_db = session
++        .services
++        .thread_store
++        .state_db()
++        .await
++        .expect("thread store state DB");
++    assert!(Arc::ptr_eq(state_db, &store_db));
++    assert!(
++        session
++            .services
++            .thread_extension_data
++            .get::<tempfile::TempDir>()
++            .is_some()
++    );
+ }
+ 
+ async fn seed_guardian_parent_history(session: &Arc<Session>, turn: &Arc<TurnContext>) {
+@@ -2674,6 +2711,7 @@ async fn guardian_reuses_prompt_cache_key_and_appends_prior_reviews() -> anyhow:
              turn.to_turn_context_item(),
              crate::context::world_state::WorldStateSnapshot::default(),
              crate::compact::CompactedHistoryMetadata {
@@ -38994,7 +39220,7 @@ index 4a81e55a51fb1a7f487bf43d9a839cc2d2188109..0c71ecb0409286a05fa60a79821a98cc
                  input_goal_ids: Default::default(),
                  message: String::new(),
                  window_number,
-@@ -3682,6 +3684,13 @@ async fn guardian_ephemeral_retry_preserves_parallel_trunk_and_fork_history() ->
+@@ -3682,6 +3720,13 @@ async fn guardian_ephemeral_retry_preserves_parallel_trunk_and_fork_history() ->
          .name("guardian_ephemeral_retry_preserves_parallel_trunk_and_fork_history".to_string())
          .stack_size(TEST_STACK_SIZE_BYTES)
          .spawn(|| -> anyhow::Result<()> {
@@ -44416,7 +44642,7 @@ index 116f9f5a51a298061f82d1f5ad5c28d0d5d8db8a..61b056afacd617c1561917e300b77bd3
      }
  
 diff --git a/codex-rs/core/src/session/turn.rs b/codex-rs/core/src/session/turn.rs
-index 50b427b95694e13a6f2111ae74ee390bd5f48fda..d7af72a9fe8a0eef14b665fd493456c5e1dc0183 100644
+index 50b427b95694e13a6f2111ae74ee390bd5f48fda..bb1188bbd913f6a287e2ea940963585eb635c2f3 100644
 --- a/codex-rs/core/src/session/turn.rs
 +++ b/codex-rs/core/src/session/turn.rs
 @@ -1,3 +1,5 @@
@@ -44482,7 +44708,88 @@ index 50b427b95694e13a6f2111ae74ee390bd5f48fda..d7af72a9fe8a0eef14b665fd493456c5
          let err = match try_run_sampling_request(
              tool_runtime.clone(),
              Arc::clone(&sess),
-@@ -2873,6 +2894,11 @@ async fn try_run_sampling_request(
+@@ -2805,41 +2826,47 @@ async fn try_run_sampling_request(
+     let hooks = hooks_for_model_request(&sess, &step_context);
+     let post_mode = hooks.execution_mode_for_event(HookEventName::PostModelRequest);
+     let defer_tool_dispatch = post_mode == Some(HookExecutionMode::Sync);
+-    let finish_post_request = post_mode.map(|_| {
+-        let (post_request, completed) = tokio::sync::oneshot::channel();
+-        let (hook_done, wait_for_hook) = tokio::sync::oneshot::channel();
+-        hooks.schedule_async_task({
+-            let hooks = Arc::clone(&hooks);
+-            let session = Arc::clone(&sess);
+-            let step = Arc::clone(&step_context);
+-            async move {
+-                let event = completed.await.unwrap_or(PostModelRequest {
+-                    status: ModelRequestStatus::Cancelled,
+-                    error: None,
+-                    token_usage: None,
+-                });
+-                run_model_request_hooks(&session, &step, &hooks, event).await;
+-                let _ = hook_done.send(());
+-            }
+-        });
+-        let cancellation_token = cancellation_token.clone();
+-        let owner_session = Arc::clone(&sess);
+-        async move |event| {
+-            let _ = post_request.send(event);
+-            if defer_tool_dispatch {
+-                // Completion ends the stream, not ownership of its queued tool calls.
+-                // Interrupt this wait, preserving the session-owned hook and usage event.
+-                tokio::select! {
+-                    biased;
+-                    _ = cancellation_token.cancelled() => {}
+-                    _ = capacity_auth_owner_changed(&owner_session, capacity_owner) => {
+-                        cancellation_token.cancel();
++    let finish_post_request = post_mode
++        .map(|_| {
++            let (post_request, completed) = tokio::sync::oneshot::channel();
++            let (hook_done, wait_for_hook) = tokio::sync::oneshot::channel();
++            hooks
++                .schedule_async_task(|| {
++                    let hooks = Arc::clone(&hooks);
++                    let session = Arc::clone(&sess);
++                    let step = Arc::clone(&step_context);
++                    async move {
++                        let event = completed.await.unwrap_or(PostModelRequest {
++                            status: ModelRequestStatus::Cancelled,
++                            error: None,
++                            token_usage: None,
++                        });
++                        run_model_request_hooks(&session, &step, &hooks, event).await;
++                        let _ = hook_done.send(());
++                    }
++                })
++                .map_err(|error| {
++                    CodexErr::Fatal(format!("cannot schedule post-model-request hooks: {error}"))
++                })?;
++            let cancellation_token = cancellation_token.clone();
++            let owner_session = Arc::clone(&sess);
++            Ok::<_, CodexErr>(async move |event| {
++                let _ = post_request.send(event);
++                if defer_tool_dispatch {
++                    // Completion ends the stream, not ownership of its queued tool calls.
++                    // Interrupt this wait, preserving the session-owned hook and usage event.
++                    tokio::select! {
++                        biased;
++                        _ = cancellation_token.cancelled() => {}
++                        _ = capacity_auth_owner_changed(&owner_session, capacity_owner) => {
++                            cancellation_token.cancel();
++                        }
++                        _ = wait_for_hook => {}
+                     }
+-                    _ = wait_for_hook => {}
+                 }
+-            }
+-        }
+-    });
++            })
++        })
++        .transpose()?;
+     if hooks
+         .execution_mode_for_event(HookEventName::PreModelRequest)
+         .is_some()
+@@ -2873,6 +2900,11 @@ async fn try_run_sampling_request(
      } else {
          None
      };
@@ -44494,7 +44801,7 @@ index 50b427b95694e13a6f2111ae74ee390bd5f48fda..d7af72a9fe8a0eef14b665fd493456c5
      let stream_result = {
          let request = client_session
              .stream(
-@@ -3420,6 +3446,13 @@ async fn try_run_sampling_request(
+@@ -3420,6 +3452,13 @@ async fn try_run_sampling_request(
              } => {
                  response_completed = true;
                  request_token_usage = token_usage.clone();
@@ -44508,7 +44815,7 @@ index 50b427b95694e13a6f2111ae74ee390bd5f48fda..d7af72a9fe8a0eef14b665fd493456c5
                  sess.services
                      .analytics_events_client
                      .track_code_mode_tool_call(
-@@ -3452,6 +3485,7 @@ async fn try_run_sampling_request(
+@@ -3452,6 +3491,7 @@ async fn try_run_sampling_request(
                          super::TokenUsageContext::Sampling {
                              includes_reasoning,
                              input_item_count,
@@ -44516,7 +44823,7 @@ index 50b427b95694e13a6f2111ae74ee390bd5f48fda..d7af72a9fe8a0eef14b665fd493456c5
                          },
                      )
                      .await;
-@@ -3715,6 +3749,30 @@ pub(crate) fn get_last_assistant_message_from_turn<'a>(
+@@ -3715,6 +3755,30 @@ pub(crate) fn get_last_assistant_message_from_turn<'a>(
      None
  }
  
@@ -44548,7 +44855,7 @@ index 50b427b95694e13a6f2111ae74ee390bd5f48fda..d7af72a9fe8a0eef14b665fd493456c5
  #[path = "turn_tests.rs"]
  mod tests;
 diff --git a/codex-rs/core/src/session/turn_tests.rs b/codex-rs/core/src/session/turn_tests.rs
-index c1554d79c0241e43f59cb02e9ca62f8811f66ddb..8cda7bd87b496965871970a4f32b3d674348bea7 100644
+index c1554d79c0241e43f59cb02e9ca62f8811f66ddb..c6faf30d68a2629773f9a075e2ba6ca0f86f0518 100644
 --- a/codex-rs/core/src/session/turn_tests.rs
 +++ b/codex-rs/core/src/session/turn_tests.rs
 @@ -1,3 +1,4 @@
@@ -44556,10 +44863,99 @@ index c1554d79c0241e43f59cb02e9ca62f8811f66ddb..8cda7bd87b496965871970a4f32b3d67
  use super::*;
  use codex_extension_api::ExtensionData;
  use codex_extension_api::TurnItemContributor;
-@@ -7,6 +8,103 @@ use pretty_assertions::assert_eq;
+@@ -7,6 +8,192 @@ use pretty_assertions::assert_eq;
  use std::sync::Arc;
  use tracing_subscriber::prelude::*;
  
++#[test_case::test_case(false; "async post hook")]
++#[test_case::test_case(true; "sync post hook")]
++#[tokio::test]
++async fn saturated_post_hook_fails_before_provider_request(synchronous: bool) {
++    let home = tempfile::tempdir().unwrap();
++    let server = wiremock::MockServer::start().await;
++    let (session, turn, rx) =
++        crate::session::tests::make_session_and_context_with_auth_config_home_and_rx(
++            CodexAuth::from_api_key("Test API Key"),
++            Vec::new(),
++            home.path(),
++            |config| {
++                config.model_provider.base_url = Some(format!("{}/v1", server.uri()));
++                config.features.disable(Feature::TokenBudget).unwrap();
++            },
++        )
++        .await;
++    let user_config = serde_json::from_value(serde_json::json!({
++        "hooks": {"PostModelRequest": [{"hooks": [{
++            "type": "command", "command": "echo must-not-run", "async": !synchronous
++        }]}]}
++    }))
++    .unwrap();
++    let config = session.get_config().await;
++    let layers = config
++        .config_layer_stack
++        .with_user_config(&home.path().join("config.toml"), user_config)
++        .unwrap();
++    let hooks = session.hooks().reconfigured(codex_hooks::HooksConfig {
++        feature_enabled: true,
++        bypass_hook_trust: true,
++        config_layer_stack: Some(layers),
++        ..Default::default()
++    });
++    assert_eq!(
++        hooks.execution_mode_for_event(HookEventName::PostModelRequest),
++        Some(if synchronous {
++            HookExecutionMode::Sync
++        } else {
++            HookExecutionMode::Async
++        })
++    );
++    for _ in 0..72 {
++        hooks
++            .schedule_async_task(std::future::pending::<()>)
++            .unwrap();
++    }
++    session.services.hooks.store(Arc::new(hooks));
++    session
++        .services
++        .thread_extension_data
++        .insert(AutoCompactionDisabled);
++    let result = tokio::time::timeout(
++        Duration::from_secs(15),
++        run_turn(
++            Arc::clone(&session),
++            turn,
++            vec![TurnInput::UserInput {
++                content: vec![codex_protocol::user_input::UserInput::Text {
++                    text: "Synthetic saturation probe".into(),
++                    text_elements: Vec::new(),
++                }],
++                client_id: None,
++                metadata: Default::default(),
++            }],
++            &mut McpStartupRequirements::default(),
++            None,
++            CancellationToken::new(),
++        ),
++    )
++    .await
++    .expect("saturated admission must not wait for a provider");
++    result.expect("the turn reports its sampling failure through the existing error event");
++    let mut reported = false;
++    while let Ok(event) = rx.try_recv() {
++        if let EventMsg::Error(error) = event.msg {
++            reported |= error
++                .message
++                .contains("cannot schedule post-model-request hooks: async hook capacity exceeded");
++        }
++    }
++    assert!(
++        reported,
++        "saturated post hooks must report the actual admission failure"
++    );
++    assert!(server.received_requests().await.unwrap().is_empty());
++    session.hooks().shutdown().await;
++}
++
 +#[tokio::test]
 +async fn indexed_context_keeps_selected_originals_instead_of_running_auto_compaction() {
 +    use codex_history::context_index::ContextIndexOperation;
@@ -44660,7 +45056,7 @@ index c1554d79c0241e43f59cb02e9ca62f8811f66ddb..8cda7bd87b496965871970a4f32b3d67
  struct RewriteAgentMessageContributor;
  
  impl TurnItemContributor for RewriteAgentMessageContributor {
-@@ -97,6 +195,7 @@ async fn plan_mode_uses_contributed_turn_item_for_last_agent_message() {
+@@ -97,6 +284,7 @@ async fn plan_mode_uses_contributed_turn_item_for_last_agent_message() {
  #[test]
  fn realtime_user_verification_notice_excludes_request_payload() {
      let event = EventMsg::ElicitationRequest(codex_protocol::approvals::ElicitationRequestEvent {
@@ -46184,7 +46580,7 @@ index 0000000000000000000000000000000000000000..501e751e867ba35f2fff8d9b539bff81
 +    Ok(())
 +}
 diff --git a/codex-rs/core/tests/suite/guardian_retained_context.rs b/codex-rs/core/tests/suite/guardian_retained_context.rs
-index 47d5339046db13303ad6d94c32094df749e60480..97baa2b11a19a08301b684e93d21de7f95dd34b8 100644
+index 47d5339046db13303ad6d94c32094df749e60480..e4366993105aafc534761b36da5601120a98ed3c 100644
 --- a/codex-rs/core/tests/suite/guardian_retained_context.rs
 +++ b/codex-rs/core/tests/suite/guardian_retained_context.rs
 @@ -1,3 +1,4 @@
@@ -46215,7 +46611,7 @@ index 47d5339046db13303ad6d94c32094df749e60480..97baa2b11a19a08301b684e93d21de7f
  use codex_protocol::protocol::EventMsg;
  use codex_protocol::protocol::Op;
  use codex_protocol::protocol::ThreadHistoryMode;
-@@ -783,6 +787,259 @@ async fn legacy_checkpoint_recovers_root_excerpt_before_discarding_backup(
+@@ -783,6 +787,478 @@ async fn legacy_checkpoint_recovers_root_excerpt_before_discarding_backup(
      Ok(())
  }
  
@@ -46386,6 +46782,18 @@ index 47d5339046db13303ad6d94c32094df749e60480..97baa2b11a19a08301b684e93d21de7f
 +        codex_core::GuardianRootMessage::User(text) if text.contains(RESTRICTION))),
 +        "fixture gap: live V2 root restriction was not available before standalone fork"
 +    );
++    mount_sse_sequence(
++        &server,
++        vec![sse(vec![
++            ev_assistant_message("d32-worker-summary", "Inspected the project."),
++            ev_completed("d32-worker-compact"),
++        ])],
++    )
++    .await;
++    compact_and_assert_answers(&test, &worker, &[]).await?;
++    assert!(!worker.conversation_history_snapshot().await.retained_context()
++        .context("compacted worker retained context")?.ordered_entries().any(|(_, entry)|
++        matches!(entry, RetainedContextEntry::UserMessage(message) if message.text.contains(RESTRICTION))));
 +    parent.shutdown_and_wait().await?;
 +    let fork = if history_mode == ThreadHistoryMode::Paginated {
 +        let prepared = test
@@ -46423,10 +46831,13 @@ index 47d5339046db13303ad6d94c32094df749e60480..97baa2b11a19a08301b684e93d21de7f
 +    let retained = root_history
 +        .retained_context()
 +        .context("standalone retained context")?;
-+    if let Some((order, _)) = retained.ordered_entries().find(|(_, entry)|
-+        matches!(entry, RetainedContextEntry::UserMessage(message) if message.text.contains(RESTRICTION))) {
-+        assert!(matches!(order, RetainedContextOrder::Inherited(_)), "parent source must retain inherited provenance");
-+    }
++    let (order, _) = retained.ordered_entries().find(|(_, entry)|
++        matches!(entry, RetainedContextEntry::UserMessage(message) if message.text.contains(RESTRICTION)))
++        .context("standalone root must restore the original parent restriction")?;
++    assert!(
++        matches!(order, RetainedContextOrder::Inherited(_)),
++        "parent source must retain inherited provenance"
++    );
 +    let review = mount_sse_sequence(
 +        &server,
 +        vec![
@@ -46462,19 +46873,294 @@ index 47d5339046db13303ad6d94c32094df749e60480..97baa2b11a19a08301b684e93d21de7f
 +        .find(|request| request.body_json()["client_metadata"]["x-openai-subagent"] == "guardian")
 +        .context("fixture gap: no Guardian request observed")?;
 +    let input = serde_json::to_string(&guardian.input())?;
-+    let missing = codex_guardian_context::GuardianRootMessage::IncompleteRootInstructions.render();
 +    assert!(
-+        input.contains(RESTRICTION) || input.contains(missing.trim_end()),
-+        "Guardian input omitted the retained parent restriction without disclosing incomplete instructions"
++        input.contains(RESTRICTION),
++        "Guardian input must restore the original parent restriction"
 +    );
 +    fork.thread.shutdown_and_wait().await?;
 +    worker.shutdown_and_wait().await?;
 +    Ok(())
 +}
 +
++// Keep migration rollback connected to the real standalone-root startup path.
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn standalone_fork_from_migrated_inherited_checkpoint() -> Result<()> {
++    skip_if_no_network!(Ok(()));
++    const FIRST: &str = "D32 migration: never publish the first source.";
++    const REVOKED: &str = "D32 migration: revoked second source.";
++    let server = start_mock_server().await;
++    let test = test_codex()
++        .with_config(|config| {
++            config.experimental_thread_store = ThreadStoreConfig::Local;
++            config
++                .features
++                .disable(Feature::TokenBudget)
++                .expect("local context");
++            config
++                .features
++                .enable(Feature::MultiAgentV2)
++                .expect("standalone V2 fork");
++        })
++        .build_with_auto_env(&server)
++        .await?;
++    let thread_id = codex_protocol::ThreadId::new();
++    let mut archive = RetainedContext::default();
++    let mut envelopes = Vec::new();
++    let mut records = Vec::new();
++    for (turn_id, text) in [("first-turn", FIRST), ("second-turn", REVOKED)] {
++        let mut item = ResponseItem::Message {
++            id: Some(ResponseItemId::from_server("reused-id")),
++            role: "user".into(),
++            content: vec![ContentItem::InputText { text: text.into() }],
++            phase: None,
++            status: None,
++            encrypted_content: None,
++            internal_chat_message_metadata_passthrough: None,
++        };
++        item.set_turn_id_if_missing(turn_id);
++        let mut envelope = codex_history::ResponseItemEnvelope::new(item);
++        envelope
++            .metadata
++            .get_or_insert_default()
++            .inherited_user_message = true;
++        archive.archive_inherited_user_message(codex_history::RetainedUserMessage {
++            turn_id: turn_id.into(),
++            message_id: Some("reused-id".into()),
++            text: text.into(),
++            complete: true,
++            origin: Default::default(),
++            phase: None,
++        });
++        envelopes.push(envelope.clone());
++        records.extend([
++            RolloutItem::EventMsg(EventMsg::TurnStarted(
++                codex_protocol::protocol::TurnStartedEvent {
++                    turn_id: turn_id.into(),
++                    root_turn_id: None,
++                    trace_id: None,
++                    started_at: Some(1_735_905_600),
++                    model_context_window: None,
++                    collaboration_mode_kind: Default::default(),
++                    turn_attribution: None,
++                },
++            )),
++            RolloutItem::ResponseItem(envelope),
++            RolloutItem::EventMsg(EventMsg::UserMessage(
++                codex_protocol::protocol::UserMessageEvent {
++                    message: text.into(),
++                    ..Default::default()
++                },
++            )),
++            RolloutItem::EventMsg(EventMsg::TurnComplete(
++                codex_protocol::protocol::TurnCompleteEvent {
++                    turn_id: turn_id.into(),
++                    root_turn_id: None,
++                    last_agent_message: None,
++                    error: None,
++                    started_at: Some(1_735_905_600),
++                    completed_at: Some(1_735_905_601),
++                    duration_ms: Some(1_000),
++                    time_to_first_token_ms: None,
++                },
++            )),
++        ]);
++    }
++    assert_eq!(archive.ordered_entries().count(), 0);
++    records.push(RolloutItem::Compacted(Box::new(
++        codex_history::CompactedItem {
++            message: "migration checkpoint".into(),
++            replacement_history: Some(envelopes),
++            retained_context: Some(archive),
++            guardian_history: None,
++            mcp_resource_origins: None,
++            window_number: Some(1),
++            first_window_id: None,
++            previous_window_id: None,
++            window_id: None,
++            compaction_response_id: None,
++            latest_token_usage_record: None,
++            resume_metadata: None,
++        },
++    )));
++    records.push(RolloutItem::EventMsg(EventMsg::ThreadRolledBack(
++        codex_protocol::protocol::ThreadRolledBackEvent { num_turns: 1 },
++    )));
++    let directory = test.home.path().join("sessions/2025/01/03");
++    std::fs::create_dir_all(&directory)?;
++    let path = directory.join(format!("rollout-2025-01-03T12-00-00-{thread_id}.jsonl"));
++    let metadata = codex_protocol::protocol::SessionMeta {
++        session_id: thread_id.into(),
++        id: thread_id,
++        timestamp: "2025-01-03T12:00:00Z".into(),
++        cwd: test.cwd.path().into(),
++        originator: "d32-migration-fixture".into(),
++        cli_version: "0.0.0".into(),
++        source: codex_protocol::protocol::SessionSource::Cli,
++        model_provider: Some(test.config.model_provider_id.clone()),
++        ..Default::default()
++    };
++    records.insert(
++        0,
++        RolloutItem::SessionMeta(Box::new(codex_protocol::protocol::SessionMetaLine {
++            meta: metadata,
++            git: None,
++        })),
++    );
++    let mut wire = String::new();
++    for item in records {
++        wire.push_str(&serde_json::to_string(&codex_rollout::RolloutLine {
++            timestamp: "2025-01-03T12:00:00Z".into(),
++            ordinal: None,
++            item,
++        })?);
++        wire.push('\n');
++    }
++    std::fs::write(&path, wire)?;
++    let state_db = codex_core::init_state_db(&test.config)
++        .await
++        .context("migration state DB")?;
++    let store = codex_thread_store::LocalThreadStore::new(
++        codex_thread_store::LocalThreadStoreConfig::from_config(&test.config),
++        Some(state_db),
++    );
++    let report = store
++        .migrate_rollouts(codex_thread_store::RolloutMigrationOptions {
++            mode: codex_thread_store::RolloutMigrationMode::Apply,
++            max_mib_per_second: Some(1024),
++            ..Default::default()
++        })
++        .await?;
++    assert!(
++        report
++            .outcomes
++            .iter()
++            .any(|outcome| outcome.thread_id == Some(thread_id)
++                && outcome.status == codex_thread_store::RolloutMigrationStatus::Migrated),
++        "fixture must execute migration: {report:?}"
++    );
++    // Read the migrated file itself; migration failures cannot be hidden by
++    // reusing the pre-migration in-memory records or directly adopting them.
++    let migrated = std::fs::read_to_string(&path)?
++        .lines()
++        .map(codex_rollout::parse_rollout_line)
++        .collect::<std::result::Result<Vec<_>, _>>()?
++        .into_iter()
++        .map(|line| line.item)
++        .collect::<Vec<_>>();
++    let checkpoint = migrated
++        .iter()
++        .find_map(|item| match item {
++            RolloutItem::Compacted(item) => item.retained_context.as_ref(),
++            _ => None,
++        })
++        .context("migrated checkpoint")?;
++    assert_eq!(checkpoint.ordered_entries().count(), 0);
++    let fork = test
++        .thread_manager
++        .fork_thread_from_history(
++            ForkSnapshot::Interrupted,
++            codex_core::StartThreadOptions::new(test.config.clone()),
++            InitialHistory::Resumed(ResumedHistory {
++                history_revision: None,
++                conversation_id: thread_id,
++                history: Arc::new(migrated),
++                rollout_path: None,
++            }),
++        )
++        .await?;
++    assert!(fork.thread.guardian_root_snapshot().await.is_none());
++    let snapshot = fork.thread.conversation_history_snapshot().await;
++    let retained = snapshot
++        .retained_context()
++        .context("actual standalone retained context")?;
++    let originals = retained
++        .ordered_entries()
++        .filter_map(|(order, entry)| match entry {
++            RetainedContextEntry::UserMessage(message) => Some((order, message.text.as_str())),
++            _ => None,
++        })
++        .collect::<Vec<_>>();
++    assert_eq!(originals, vec![(RetainedContextOrder::Inherited(0), FIRST)]);
++    assert!(!serde_json::to_string(&snapshot.items().collect::<Vec<_>>())?.contains(REVOKED));
++    fork.thread.shutdown_and_wait().await?;
++    test.codex.shutdown_and_wait().await?;
++    Ok(())
++}
++
  // Cover live copied history and a truncated referenced checkpoint. Parent-answer
  // omission is already exercised by retained_answers_cross_real_session_boundaries.
  #[test_case(ThreadHistoryMode::Legacy; "copied worker history")]
+@@ -871,8 +1347,27 @@ async fn standalone_fork_retains_inherited_user_instructions(
+         }]))
+         .await?;
+     wait_for_event(&worker, |event| matches!(event, EventMsg::TurnComplete(_))).await;
++    let mut before_compaction = worker
++        .conversation_history_snapshot()
++        .await
++        .retained_context()
++        .context("worker source archive")?
++        .clone();
++    before_compaction.adopt_inherited_user_context();
++    let inherited_source = before_compaction
++        .ordered_entries()
++        .find_map(|(_, entry)| match entry {
++            RetainedContextEntry::UserMessage(message)
++                if message.text.starts_with("You may publish the release.") =>
++            {
++                Some(message.clone())
++            }
++            _ => None,
++        })
++        .context("host-captured inherited source before compaction")?;
+     if compacted {
+-        // Local compaction keeps the inherited source message in replacement history.
++        // The model window may contain only a summary. The host archive preserves
++        // the original bounded source independently of that replacement.
+         mount_sse_sequence(
+             &server,
+             vec![sse(vec![
+@@ -884,21 +1379,19 @@ async fn standalone_fork_retains_inherited_user_instructions(
+         compact_and_assert_answers(&test, &worker, &[]).await?;
+     }
+     let worker_context = worker.conversation_history_snapshot().await;
+-    let inherited_text = worker_context
+-        .items()
+-        .find_map(|item| match item {
+-            ResponseItem::Message { role, content, .. } if role == "user" => {
+-                // Compaction keeps the retained text and truncation notice in separate parts.
+-                let text = content_items_to_text(content)?;
+-                text.starts_with("You may publish the release.")
+-                    .then_some(text)
+-            }
+-            _ => None,
+-        })
+-        .context("inherited source in worker history")?;
++    let mut archived = worker_context
++        .retained_context()
++        .context("worker retained archive")?
++        .clone();
++    assert!(!archived.ordered_entries().any(|(_, entry)| matches!(entry,
++        RetainedContextEntry::UserMessage(message) if message.text.starts_with("You may publish the release."))));
++    archived.adopt_inherited_user_context();
++    assert!(archived.ordered_entries().any(|(_, entry)| matches!(entry,
++        RetainedContextEntry::UserMessage(message) if message == &inherited_source)));
++    let inherited_text = inherited_source.text;
+     if compacted {
+         assert_ne!(inherited_text, instruction);
+-        assert!(inherited_text.contains("tokens truncated"));
++        assert!(!inherited_source.complete);
+         assert!(inherited_text.len() < 900 * 4);
+     }
+     // The adopted root later compacts through the mechanical path, which can drop originals.
+@@ -957,7 +1450,7 @@ async fn standalone_fork_retains_inherited_user_instructions(
+             })
+             .collect::<Vec<_>>(),
+         vec![
+-            (inherited_text, !compacted),
++            (inherited_text, inherited_source.complete),
+             (
+                 codex_guardian_context::truncate_text(&local_instruction, /*max_tokens*/ 900),
+                 !compacted,
 diff --git a/codex-rs/core/tests/suite/hooks_executor.rs b/codex-rs/core/tests/suite/hooks_executor.rs
 index 4852848c759ba90a3bcfb23ea5ea8e0073fff836..9d199c04bbe8d90af7bda98f828ee53994fdc2c2 100644
 --- a/codex-rs/core/tests/suite/hooks_executor.rs
@@ -52567,6 +53253,357 @@ index a716384f226025306d2e18cd06d222cb07730c20..782477742b4941925e81a69c54a6448c
      EventMsg(EventMsg),
      /// Sparse, model-invisible facts used to reconstruct realtime presentation.
      RealtimeItem(RealtimeItem),
+diff --git a/codex-rs/history/src/retained_context.rs b/codex-rs/history/src/retained_context.rs
+index 6418bd6907764fb5daac43b0da0acb7bfd587ad6..82732529dd896c524f48320f875636d9ca97b0dd 100644
+--- a/codex-rs/history/src/retained_context.rs
++++ b/codex-rs/history/src/retained_context.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ //! Bounded host-owned facts outside the model's compaction contract.
+ //! Checkpoints and live recording use the same admission rules; rendering is a consumer concern.
+ //! Adopted parent instructions precede local facts without sharing the local acceptance counter.
+@@ -184,6 +185,16 @@ pub struct RetainedContext {
+     /// Delivery snapshots share local input order, so later steers can be undone independently.
+     #[serde(default, skip_serializing_if = "VecDeque::is_empty")]
+     sender_deliveries: VecDeque<Ordered<SenderUserMessages>>,
++    /// Host-only source copies for a future standalone root. Worker review never
++    /// enumerates these as its own instructions or authorization.
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    inherited_user_context: Option<InheritedUserContext>,
++}
++
++#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
++struct InheritedUserContext {
++    messages: VecDeque<Ordered<RetainedUserMessage>>,
++    incomplete: bool,
+ }
+ 
+ fn missing_message_history() -> bool {
+@@ -238,6 +249,65 @@ impl RetainedContextEvent {
+ }
+ 
+ impl RetainedContext {
++    /// Fork only original user sources, without parent answers or local grants.
++    /// This archive remains invisible to `ordered_entries` until root adoption.
++    pub fn inherited_checkpoint(&self) -> Self {
++        let mut result = Self::default();
++        result.inherited_user_context = self.inherited_user_context.clone();
++        let archive = result.inherited_user_context.get_or_insert_default();
++        archive.incomplete |= self.has_missing_user_messages();
++        for entry in &self.user_messages {
++            Self::archive_user_message(archive, entry.value.clone());
++        }
++        result
++    }
++
++    fn archive_user_message(archive: &mut InheritedUserContext, mut message: RetainedUserMessage) {
++        message.bound();
++        if let Some(index) = archive.messages.iter().position(|entry| {
++            message.message_id.is_some()
++                && entry.value.message_id == message.message_id
++                && entry.value.turn_id == message.turn_id
++        }) {
++            // Replay of a shortened model-window copy cannot overwrite the
++            // host-captured original already carried by the checkpoint.
++            // The first host capture is authoritative for this identity. A later
++            // incomplete model-window copy cannot replace it or expand its grant.
++            if message.complete && archive.messages[index].value != message {
++                archive.incomplete = true;
++            }
++            return;
++        } else {
++            let order = archive
++                .messages
++                .back()
++                .map_or(0, |entry| entry.order.saturating_add(1));
++            archive.messages.push_back(Ordered {
++                revision: None,
++                inherited: true,
++                order,
++                value: message,
++            });
++        }
++        bound_family(&mut archive.messages, &mut archive.incomplete);
++    }
++
++    pub fn archive_inherited_user_message(&mut self, message: RetainedUserMessage) {
++        Self::archive_user_message(self.inherited_user_context.get_or_insert_default(), message);
++    }
++
++    /// Called only when the host constructs a standalone root. Missing parent
++    /// answer history remains explicit; inherited instructions never become local.
++    pub fn adopt_inherited_user_context(&mut self) {
++        if let Some(archive) = self.inherited_user_context.take() {
++            self.user_messages_incomplete |= archive.incomplete;
++            self.verified_answers_incomplete = true;
++            for entry in archive.messages {
++                self.record_user_message(entry.value, RetainedInputSource::Inherited);
++            }
++        }
++    }
++
+     /// Context for the latest delivery still present in this task's retained history.
+     pub fn sender_user_messages(&self) -> Option<&SenderUserMessages> {
+         self.sender_deliveries.back().map(|entry| &entry.value)
+@@ -387,7 +457,10 @@ impl RetainedContext {
+         // cannot establish whether an omitted answer restricted an inherited grant.
+         self.verified_answers_incomplete |= inherited;
+         if let Some(index) = self.user_messages.iter().position(|entry| {
+-            message.message_id.is_some() && entry.value.message_id == message.message_id
++            message.message_id.is_some()
++                && entry.value.message_id == message.message_id
++                && entry.value.turn_id == message.turn_id
++                && entry.inherited == inherited
+         }) {
+             if self.user_messages[index].value == message
+                 && self.user_messages[index].inherited == inherited
+@@ -498,6 +571,12 @@ impl RetainedContext {
+             user_messages_incomplete: true,
+             ..Self::default()
+         });
++        if let Some(archive) = &mut self.inherited_user_context {
++            for entry in &mut archive.messages {
++                entry.value.bound();
++            }
++            bound_family(&mut archive.messages, &mut archive.incomplete);
++        }
+         for entry in &mut self.verified_answers {
+             let mut event = RetainedContextEvent::VerifiedAnswer {
+                 answer: entry.value.clone(),
+@@ -567,12 +646,33 @@ impl RetainedContext {
+         first_removed_message_id: Option<&str>,
+         source: RetainedInputSource,
+     ) {
++        if source == RetainedInputSource::Inherited
++            && let Some(archive) = &mut self.inherited_user_context
++        {
++            if let Some(index) = first_removed_message_id.and_then(|id| {
++                archive.messages.iter().position(|entry| {
++                    entry.value.message_id.as_deref() == Some(id)
++                        && turn_ids.contains(&entry.value.turn_id.as_str())
++                })
++            }) {
++                archive.messages.truncate(index);
++            } else {
++                archive
++                    .messages
++                    .retain(|entry| !turn_ids.contains(&entry.value.turn_id.as_str()));
++                archive.incomplete = true;
++            }
++        }
+         let boundary = source.acceptance_order().map(RetainedContextOrder::Local);
+         if let Some(boundary) = boundary.or_else(|| {
+             first_removed_message_id.and_then(|id| {
+                 self.user_messages
+                     .iter()
+-                    .find(|message| message.value.message_id.as_deref() == Some(id))
++                    .find(|message| {
++                        message.value.message_id.as_deref() == Some(id)
++                            && turn_ids.contains(&message.value.turn_id.as_str())
++                            && message.inherited == (source == RetainedInputSource::Inherited)
++                    })
+                     .map(Ordered::key)
+             })
+         }) {
+diff --git a/codex-rs/history/src/retained_context_tests.rs b/codex-rs/history/src/retained_context_tests.rs
+index 6cb0a3570463494a2b0835ee8192ec8d5b3f4c83..bd9491f165c0add420b8d541375814f6edd0cfd8 100644
+--- a/codex-rs/history/src/retained_context_tests.rs
++++ b/codex-rs/history/src/retained_context_tests.rs
+@@ -1,9 +1,194 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ use super::*;
+ use crate::CodexHarnessMetadata;
+ use codex_protocol::models::ContentItem;
+ use codex_protocol::models::ResponseItem;
+ use pretty_assertions::assert_eq;
+ 
++fn inherited_fixture(id: &str) -> RetainedUserMessage {
++    RetainedUserMessage {
++        phase: None,
++        origin: crate::UserInputOrigin::User,
++        turn_id: format!("turn-{id}"),
++        message_id: Some(id.to_owned()),
++        text: format!("Never publish private source {id}."),
++        complete: true,
++    }
++}
++
++#[test]
++fn inherited_archive_is_hidden_until_standalone_adoption() {
++    let mut parent = RetainedContext::default();
++    parent.record_user_message(
++        inherited_fixture("parent"),
++        RetainedInputSource::Local(Some(7)),
++    );
++    parent.record(&publish_answer());
++    let child = parent.inherited_checkpoint();
++    assert_eq!(child.ordered_entries().count(), 0);
++    assert_eq!(child.verified_answers().count(), 0);
++    let wire = serde_json::to_vec(&child).unwrap();
++    let checkpoint = serde_json::from_slice(&wire).unwrap();
++    let mut resumed = RetainedContext::default();
++    resumed.restore(Some(&checkpoint), &[]);
++    assert_eq!(resumed.ordered_entries().count(), 0);
++    resumed.adopt_inherited_user_context();
++    let entries = resumed.ordered_entries().collect::<Vec<_>>();
++    assert_eq!(entries.len(), 1);
++    assert!(
++        matches!(entries[0], (RetainedContextOrder::Inherited(0), RetainedContextEntry::UserMessage(message)) if message == &inherited_fixture("parent"))
++    );
++    assert!(!resumed.verified_answers_complete());
++    assert_eq!(resumed.reserve_order(), 0);
++}
++
++#[test]
++fn nested_archive_keeps_original_order_and_rejects_shortened_replay() {
++    let mut parent = RetainedContext::default();
++    parent.record_user_message(
++        inherited_fixture("parent"),
++        RetainedInputSource::Local(Some(2)),
++    );
++    let mut child = parent.inherited_checkpoint();
++    let mut shortened = inherited_fixture("parent");
++    shortened.text = "Never publish".into();
++    shortened.complete = false;
++    child.archive_inherited_user_message(shortened);
++    child.record_user_message(
++        inherited_fixture("child"),
++        RetainedInputSource::Local(Some(0)),
++    );
++    let mut grandchild = child.inherited_checkpoint();
++    assert_eq!(grandchild.ordered_entries().count(), 0);
++    grandchild.adopt_inherited_user_context();
++    let messages = grandchild
++        .ordered_entries()
++        .filter_map(|(order, entry)| match entry {
++            RetainedContextEntry::UserMessage(message) => Some((order, message.clone())),
++            _ => None,
++        })
++        .collect::<Vec<_>>();
++    assert_eq!(
++        messages,
++        vec![
++            (
++                RetainedContextOrder::Inherited(0),
++                inherited_fixture("parent")
++            ),
++            (
++                RetainedContextOrder::Inherited(1),
++                inherited_fixture("child")
++            )
++        ]
++    );
++}
++
++#[test]
++fn inherited_archive_is_bounded_and_rollback_does_not_remove_ancestors_for_local_input() {
++    let mut child = RetainedContext::default();
++    for index in 0..10 {
++        child.archive_inherited_user_message(inherited_fixture(&index.to_string()));
++    }
++    child.rollback(
++        &["local"],
++        Some("local"),
++        RetainedInputSource::Local(Some(0)),
++    );
++    let mut adopted = child.clone();
++    adopted.adopt_inherited_user_context();
++    assert_eq!(adopted.ordered_entries().count(), MAX_FAMILY_RECORDS);
++    assert!(adopted.has_missing_user_messages());
++    child.rollback(&["turn-8"], Some("8"), RetainedInputSource::Inherited);
++    child.adopt_inherited_user_context();
++    let ids = child
++        .ordered_entries()
++        .filter_map(|(_, entry)| match entry {
++            RetainedContextEntry::UserMessage(message) => message.message_id.clone(),
++            _ => None,
++        })
++        .collect::<Vec<_>>();
++    assert_eq!(ids, ["2", "3", "4", "5", "6", "7"]);
++}
++
++#[test]
++fn inherited_identity_preserves_turn_and_local_provenance_across_adoption_and_rollback() {
++    let first = inherited_fixture("same");
++    let mut second = first.clone();
++    second.turn_id = "second-turn".into();
++    second.text = "Do not change the second source.".into();
++    let mut archive = RetainedContext::default();
++    archive.archive_inherited_user_message(first.clone());
++    archive.archive_inherited_user_message(second.clone());
++    let mut checkpoint = RetainedContext::default();
++    checkpoint.restore(Some(&archive), &[]);
++    checkpoint.record_user_message(first.clone(), RetainedInputSource::Local(Some(0)));
++    checkpoint.adopt_inherited_user_context();
++    let messages = checkpoint
++        .ordered_entries()
++        .filter_map(|(order, entry)| match entry {
++            RetainedContextEntry::UserMessage(message) => Some((order, message.clone())),
++            _ => None,
++        })
++        .collect::<Vec<_>>();
++    assert_eq!(
++        messages,
++        vec![
++            (RetainedContextOrder::Inherited(0), first.clone()),
++            (RetainedContextOrder::Inherited(1), second.clone()),
++            (RetainedContextOrder::Local(0), first.clone()),
++        ]
++    );
++    archive.rollback(
++        &["second-turn"],
++        Some("same"),
++        RetainedInputSource::Inherited,
++    );
++    archive.adopt_inherited_user_context();
++    assert_eq!(
++        archive
++            .user_messages
++            .iter()
++            .map(|entry| entry.value.clone())
++            .collect::<Vec<_>>(),
++        vec![first.clone()]
++    );
++    checkpoint.rollback(
++        &["second-turn"],
++        Some("same"),
++        RetainedInputSource::Inherited,
++    );
++    assert_eq!(
++        checkpoint
++            .user_messages
++            .iter()
++            .map(|entry| entry.value.clone())
++            .collect::<Vec<_>>(),
++        vec![first]
++    );
++}
++
++#[test]
++fn inherited_conflicts_and_incomplete_first_capture_remain_explicit() {
++    let first = inherited_fixture("conflict");
++    let mut conflict = first.clone();
++    conflict.text = "Conflicting later instruction.".into();
++    let mut checkpoint = RetainedContext::default();
++    checkpoint.archive_inherited_user_message(first.clone());
++    checkpoint.archive_inherited_user_message(conflict);
++    checkpoint.adopt_inherited_user_context();
++    assert!(!checkpoint.user_messages_complete());
++    assert_eq!(checkpoint.user_messages.front().unwrap().value, first);
++    let mut incomplete = inherited_fixture("incomplete");
++    incomplete.complete = false;
++    incomplete.text = "Bounded excerpt".into();
++    let mut checkpoint = RetainedContext::default();
++    checkpoint.archive_inherited_user_message(incomplete.clone());
++    checkpoint.archive_inherited_user_message(inherited_fixture("incomplete"));
++    checkpoint.adopt_inherited_user_context();
++    assert!(!checkpoint.user_messages_complete());
++    assert_eq!(checkpoint.user_messages.front().unwrap().value, incomplete);
++}
++
+ fn publish_answer() -> RetainedContextEvent {
+     RetainedContextEvent::VerifiedAnswer {
+         answer: VerifiedAnswer {
 diff --git a/codex-rs/history/src/rollout_payload.rs b/codex-rs/history/src/rollout_payload.rs
 index 301c7d3c06ff96e871538889bcdd215105277819..0d9ae0cf1cf1f39e08421edeba73bf34d70478b6 100644
 --- a/codex-rs/history/src/rollout_payload.rs
@@ -52682,7 +53719,7 @@ index c02aa200cf6df082e16a1d28eb407d7d23c6b754..1f32bcdbfa04d003c6687f78026a6896
      assert_eq!(
          compacted["properties"]["replacement_history"]["items"]["$ref"],
 diff --git a/codex-rs/hooks/src/engine/command_runner.rs b/codex-rs/hooks/src/engine/command_runner.rs
-index 00cd404713c0bea3db25b4356b328940b45ec971..9f861d97c9c91a448a1178fd0afb6d237377a1cb 100644
+index 00cd404713c0bea3db25b4356b328940b45ec971..21c52bf422257647384a90768e86475cf5edd469 100644
 --- a/codex-rs/hooks/src/engine/command_runner.rs
 +++ b/codex-rs/hooks/src/engine/command_runner.rs
 @@ -1,3 +1,4 @@
@@ -52699,16 +53736,251 @@ index 00cd404713c0bea3db25b4356b328940b45ec971..9f861d97c9c91a448a1178fd0afb6d23
  use tokio::io::AsyncWriteExt;
  #[cfg(not(unix))]
  use tokio::process::Command;
-@@ -52,6 +55,8 @@ use codex_protocol::protocol::HookOutputEntry;
+@@ -52,6 +55,40 @@ use codex_protocol::protocol::HookOutputEntry;
  use codex_protocol::protocol::HookOutputEntryKind;
  
  const MAX_CONCURRENT_ASYNC_HOOKS: usize = 8;
++// ceiling: 72 unfinished command/coordinator jobs total, with up to eight
++// commands executing. Coordinators share admission but not command slots.
++const MAX_PENDING_ASYNC_HOOKS: usize = MAX_CONCURRENT_ASYNC_HOOKS + 64;
++const MAX_ASYNC_HOOK_INPUT_BYTES: usize = 16 * 1024 * 1024;
++pub(super) const ASYNC_HOOK_CAPACITY_ERROR: &str = "async hook capacity exceeded";
++
++// Count without allocating a second serialized payload. serde_json stops at the limit.
++pub(super) fn async_hook_input_bytes(
++    input: &Value,
++    metadata: Option<&serde_json::Map<String, Value>>,
++) -> Result<usize, &'static str> {
++    struct Counter(usize);
++    impl std::io::Write for Counter {
++        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
++            self.0 = self
++                .0
++                .checked_add(bytes.len())
++                .filter(|size| *size <= MAX_ASYNC_HOOK_INPUT_BYTES)
++                .ok_or_else(|| std::io::Error::other(ASYNC_HOOK_CAPACITY_ERROR))?;
++            Ok(bytes.len())
++        }
++        fn flush(&mut self) -> std::io::Result<()> {
++            Ok(())
++        }
++    }
++    let mut counter = Counter(0);
++    serde_json::to_writer(&mut counter, input).map_err(|_| ASYNC_HOOK_CAPACITY_ERROR)?;
++    if let Some(metadata) = metadata {
++        serde_json::to_writer(&mut counter, metadata).map_err(|_| ASYNC_HOOK_CAPACITY_ERROR)?;
++    }
++    Ok(counter.0.max(1))
++}
 +// Match the per-stream capture budget of environment command hooks.
 +const MAX_HOOK_OUTPUT_BYTES: usize = 1024 * 1024;
  
  /// Owns command execution and bounded asynchronous work for one session.
  #[derive(Clone)]
-@@ -321,11 +326,24 @@ pub(crate) async fn run_command(
+@@ -66,6 +103,8 @@ pub(crate) struct CommandHookRuntime {
+ 
+ struct CommandHookRuntimeState {
+     concurrency_limit: Arc<Semaphore>,
++    admission_limit: Arc<Semaphore>,
++    input_bytes_limit: Arc<Semaphore>,
+     tasks: JoinSet<()>,
+ }
+ 
+@@ -73,6 +112,8 @@ impl Default for CommandHookRuntimeState {
+     fn default() -> Self {
+         Self {
+             concurrency_limit: Arc::new(Semaphore::new(MAX_CONCURRENT_ASYNC_HOOKS)),
++            admission_limit: Arc::new(Semaphore::new(MAX_PENDING_ASYNC_HOOKS)),
++            input_bytes_limit: Arc::new(Semaphore::new(MAX_ASYNC_HOOK_INPUT_BYTES)),
+             tasks: JoinSet::new(),
+         }
+     }
+@@ -118,79 +159,136 @@ impl CommandHookRuntime {
+ 
+     pub(crate) fn schedule_async_hook<T: 'static>(
+         &self,
+-        engine: ClaudeHooksEngine,
+-        handler: ConfiguredHandler,
+-        event_input: Value,
+-        cwd: std::path::PathBuf,
++        engine: &ClaudeHooksEngine,
++        handler: &ConfiguredHandler,
++        event_input: &Value,
++        cwd: &Path,
+         turn_id: Option<String>,
+         parse: fn(&ConfiguredHandler, HandlerRunResult, Option<String>) -> ParsedHandler<T>,
+-    ) {
++    ) -> Result<(), &'static str> {
+         if self.result_sender.is_closed() {
+-            return;
++            return Err("async hook runtime is closed");
+         }
+-
+-        let result_sender = self.result_sender.clone();
+-        let runtime = self.clone();
+-        self.schedule_async_task(async move {
+-            let result = super::dispatcher::execute_handler(
+-                &engine,
+-                &handler,
+-                &event_input,
+-                &cwd,
+-                /*metadata*/ None,
+-            )
+-            .await;
+-            let mut hook_result = parse(&handler, result, turn_id).completed;
+-            let mut entries = Vec::new();
+-            let mut warnings = Vec::new();
+-
+-            for entry in std::mem::take(&mut hook_result.run.entries) {
+-                match entry.kind {
+-                    HookOutputEntryKind::Context => {
+-                        let text = runtime
+-                            .output_spiller
+-                            .maybe_spill_text_with_limit(
+-                                entry.text,
+-                                handler.additional_context_limit,
+-                            )
+-                            .await;
+-                        entries.push(HookOutputEntry {
+-                            kind: HookOutputEntryKind::Context,
+-                            text,
+-                        });
++        let input_bytes = async_hook_input_bytes(event_input, None)?;
++        self.schedule_async_task(input_bytes, || {
++            // Retain cloned inputs only after both admission budgets are acquired.
++            let engine = engine.clone();
++            let handler = handler.clone();
++            let event_input = event_input.clone();
++            let cwd = cwd.to_path_buf();
++            let result_sender = self.result_sender.clone();
++            let runtime = self.clone();
++            async move {
++                let result = super::dispatcher::execute_handler(
++                    &engine,
++                    &handler,
++                    &event_input,
++                    &cwd,
++                    /*metadata*/ None,
++                )
++                .await;
++                let mut hook_result = parse(&handler, result, turn_id).completed;
++                let mut entries = Vec::new();
++                let mut warnings = Vec::new();
++
++                for entry in std::mem::take(&mut hook_result.run.entries) {
++                    match entry.kind {
++                        HookOutputEntryKind::Context => {
++                            let text = runtime
++                                .output_spiller
++                                .maybe_spill_text_with_limit(
++                                    entry.text,
++                                    handler.additional_context_limit,
++                                )
++                                .await;
++                            entries.push(HookOutputEntry {
++                                kind: HookOutputEntryKind::Context,
++                                text,
++                            });
++                        }
++                        HookOutputEntryKind::Warning => warnings.push(entry),
++                        HookOutputEntryKind::Error => entries.push(entry),
++                        HookOutputEntryKind::Stop | HookOutputEntryKind::Feedback => {}
+                     }
+-                    HookOutputEntryKind::Warning => warnings.push(entry),
+-                    HookOutputEntryKind::Error => entries.push(entry),
+-                    HookOutputEntryKind::Stop | HookOutputEntryKind::Feedback => {}
+                 }
++
++                entries.extend(warnings);
++                hook_result.run.entries = entries;
++                let _ = result_sender.try_send(hook_result);
+             }
++        })
++    }
+ 
+-            entries.extend(warnings);
+-            hook_result.run.entries = entries;
+-            let _ = result_sender.try_send(hook_result);
+-        });
++    pub(crate) fn schedule_async_task<F>(
++        &self,
++        input_bytes: usize,
++        make_task: impl FnOnce() -> F,
++    ) -> Result<(), &'static str>
++    where
++        F: Future<Output = ()> + Send + 'static,
++    {
++        self.schedule_task(input_bytes, true, make_task)
++    }
++
++    // Lifecycle coordinators may dispatch command hooks themselves. They share the
++    // admission ceiling, but must not occupy a command execution slot while waiting.
++    pub(crate) fn schedule_coordinator<F>(
++        &self,
++        make_task: impl FnOnce() -> F,
++    ) -> Result<(), &'static str>
++    where
++        F: Future<Output = ()> + Send + 'static,
++    {
++        self.schedule_task(1, false, make_task)
+     }
+ 
+-    pub(crate) fn schedule_async_task(&self, task: impl Future<Output = ()> + Send + 'static) {
++    fn schedule_task<F>(
++        &self,
++        input_bytes: usize,
++        command_slot: bool,
++        make_task: impl FnOnce() -> F,
++    ) -> Result<(), &'static str>
++    where
++        F: Future<Output = ()> + Send + 'static,
++    {
+         let mut state = self.lock_state();
+         if state.concurrency_limit.is_closed() {
+-            return;
++            return Err("async hook runtime is closed");
++        }
++        if input_bytes > MAX_ASYNC_HOOK_INPUT_BYTES {
++            return Err(ASYNC_HOOK_CAPACITY_ERROR);
+         }
+-
+         while state.tasks.try_join_next().is_some() {}
++        let admission = Arc::clone(&state.admission_limit)
++            .try_acquire_owned()
++            .map_err(|_| ASYNC_HOOK_CAPACITY_ERROR)?;
++        let input_budget = Arc::clone(&state.input_bytes_limit)
++            .try_acquire_many_owned(input_bytes.max(1) as u32)
++            .map_err(|_| ASYNC_HOOK_CAPACITY_ERROR)?;
++        let task = make_task();
+         let concurrency_limit = Arc::clone(&state.concurrency_limit);
+         state.tasks.spawn(async move {
+-            let Ok(_permit) = concurrency_limit.acquire_owned().await else {
+-                return;
++            let _admission = admission;
++            let _input_budget = input_budget;
++            let _permit = if command_slot {
++                let Ok(permit) = concurrency_limit.acquire_owned().await else {
++                    return;
++                };
++                Some(permit)
++            } else {
++                None
+             };
+             task.await;
+         });
++        Ok(())
+     }
+ 
+     pub(crate) async fn shutdown(&self) {
+         let mut tasks = {
+             let mut state = self.lock_state();
+             state.concurrency_limit.close();
++            state.admission_limit.close();
++            state.input_bytes_limit.close();
+             std::mem::take(&mut state.tasks)
+         };
+         tasks.abort_all();
+@@ -321,11 +419,24 @@ pub(crate) async fn run_command(
          }
          Ok(())
      };
@@ -52737,7 +54009,7 @@ index 00cd404713c0bea3db25b4356b328940b45ec971..9f861d97c9c91a448a1178fd0afb6d23
      };
  
      // Drain output while sending input so neither pipe can block the other, and
-@@ -380,6 +398,35 @@ pub(crate) async fn run_command(
+@@ -380,6 +491,35 @@ pub(crate) async fn run_command(
      }
  }
  
@@ -52774,7 +54046,7 @@ index 00cd404713c0bea3db25b4356b328940b45ec971..9f861d97c9c91a448a1178fd0afb6d23
  struct ProcessTreeGuard {
      process_id: Option<u32>,
 diff --git a/codex-rs/hooks/src/engine/command_runner_tests.rs b/codex-rs/hooks/src/engine/command_runner_tests.rs
-index 5f67b64db56a0b1a1b3991f2320400efb403d9d4..a41706ec496bdb539586ef2710c73cfb7d07b0e6 100644
+index 5f67b64db56a0b1a1b3991f2320400efb403d9d4..6dcd814cd6f381c45fa0172db132019160200fea 100644
 --- a/codex-rs/hooks/src/engine/command_runner_tests.rs
 +++ b/codex-rs/hooks/src/engine/command_runner_tests.rs
 @@ -1,3 +1,4 @@
@@ -52860,7 +54132,7 @@ index 5f67b64db56a0b1a1b3991f2320400efb403d9d4..a41706ec496bdb539586ef2710c73cfb
  #[tokio::test]
  async fn command_hook_does_not_expose_configured_noise_auth_token() {
      let temp = tempdir().expect("create temp dir");
-@@ -957,3 +1022,109 @@ async fn hook_rejects_nul_in_configured_and_default_shell_program() {
+@@ -957,3 +1022,316 @@ async fn hook_rejects_nul_in_configured_and_default_shell_program() {
          assert!(!root.path().join("ran").exists());
      }
  }
@@ -52970,8 +54242,374 @@ index 5f67b64db56a0b1a1b3991f2320400efb403d9d4..a41706ec496bdb539586ef2710c73cfb
 +        "overflow must terminate the owned child"
 +    );
 +}
++
++#[tokio::test]
++async fn async_admission_bounds_tasks_and_releases_after_completion() {
++    let (runtime, _results) = runtime();
++    let gate = Arc::new(tokio::sync::Semaphore::new(0));
++    for _ in 0..super::MAX_PENDING_ASYNC_HOOKS {
++        runtime
++            .schedule_async_task(1, || {
++                let gate = Arc::clone(&gate);
++                async move {
++                    let _permit = gate.acquire().await.unwrap();
++                }
++            })
++            .unwrap();
++    }
++    let mut constructed = false;
++    assert_eq!(
++        runtime.schedule_async_task(1, || {
++            constructed = true;
++            async {}
++        }),
++        Err(super::ASYNC_HOOK_CAPACITY_ERROR)
++    );
++    assert!(!constructed, "rejected work must not retain cloned inputs");
++    assert_eq!(
++        runtime.lock_state().tasks.len(),
++        super::MAX_PENDING_ASYNC_HOOKS
++    );
++    gate.add_permits(super::MAX_PENDING_ASYNC_HOOKS);
++    timeout(ASYNC_HOOK_TEST_TIMEOUT, async {
++        loop {
++            let available = runtime.lock_state().admission_limit.available_permits();
++            if available == super::MAX_PENDING_ASYNC_HOOKS {
++                break;
++            }
++            tokio::task::yield_now().await;
++        }
++    })
++    .await
++    .expect("all completed work returns its admission permit");
++    runtime.schedule_async_task(1, || async {}).unwrap();
++    runtime.shutdown().await;
++    assert_eq!(runtime.lock_state().tasks.len(), 0);
++}
++
++#[tokio::test]
++async fn async_admission_bounds_input_and_shutdown_releases_reservations() {
++    let (runtime, _results) = runtime();
++    runtime
++        .schedule_async_task(super::MAX_ASYNC_HOOK_INPUT_BYTES, || std::future::pending())
++        .unwrap();
++    assert_eq!(
++        runtime.schedule_async_task(1, || async {}),
++        Err(super::ASYNC_HOOK_CAPACITY_ERROR)
++    );
++    assert_eq!(
++        runtime.schedule_async_task(super::MAX_ASYNC_HOOK_INPUT_BYTES + 1, || async {}),
++        Err(super::ASYNC_HOOK_CAPACITY_ERROR)
++    );
++    assert_eq!(runtime.lock_state().tasks.len(), 1);
++    runtime.shutdown().await;
++    let state = runtime.lock_state();
++    assert_eq!(state.tasks.len(), 0);
++    assert_eq!(
++        state.admission_limit.available_permits(),
++        super::MAX_PENDING_ASYNC_HOOKS
++    );
++    assert_eq!(
++        state.input_bytes_limit.available_permits(),
++        super::MAX_ASYNC_HOOK_INPUT_BYTES
++    );
++    drop(state);
++    assert_eq!(
++        runtime.schedule_async_task(1, || async {}),
++        Err("async hook runtime is closed")
++    );
++}
++
++#[test]
++fn async_input_size_counts_escaping_and_metadata_without_allocating_serialized_copy() {
++    let input = serde_json::json!({"escaped": "\n\""});
++    let metadata = serde_json::Map::from_iter([("key".into(), serde_json::json!("value"))]);
++    assert_eq!(
++        super::async_hook_input_bytes(&input, Some(&metadata)),
++        Ok(serde_json::to_vec(&input).unwrap().len()
++            + serde_json::to_vec(&metadata).unwrap().len())
++    );
++    let large = serde_json::Value::String("x".repeat(super::MAX_ASYNC_HOOK_INPUT_BYTES));
++    assert_eq!(
++        super::async_hook_input_bytes(&large, None),
++        Err(super::ASYNC_HOOK_CAPACITY_ERROR)
++    );
++}
++
++#[tokio::test]
++async fn async_saturation_returns_failed_event_instead_of_silently_dropping() {
++    let temp = TempDir::new().unwrap();
++    let (runtime, _results) = runtime();
++    for _ in 0..super::MAX_PENDING_ASYNC_HOOKS {
++        runtime
++            .schedule_async_task(1, || std::future::pending())
++            .unwrap();
++    }
++    let handler = write_handler(&temp, "raise RuntimeError('must not execute')");
++    let engine = ClaudeHooksEngine {
++        enabled: true,
++        handlers: Arc::new(vec![handler]),
++        hook_entries: Default::default(),
++        warnings: Arc::default(),
++        required_load_errors: Arc::default(),
++        command_runtime: runtime.clone(),
++        mcp_executor: mcp_executor(),
++    };
++    let outcome = engine
++        .run_user_prompt_submit(UserPromptSubmitRequest {
++            session_id: ThreadId::new(),
++            turn_id: "saturated-turn".into(),
++            subagent: None,
++            cwd: AbsolutePathBuf::try_from(temp.path().to_path_buf()).unwrap(),
++            transcript_path: None,
++            model: "test-model".into(),
++            permission_mode: "default".into(),
++            prompt: "test prompt".into(),
++        })
++        .await;
++    assert_eq!(outcome.hook_events.len(), 1);
++    let event = &outcome.hook_events[0];
++    assert_eq!(event.run.status, HookRunStatus::Failed);
++    assert!(
++        event
++            .run
++            .entries
++            .iter()
++            .any(|entry| entry.kind == HookOutputEntryKind::Error
++                && entry.text.contains(super::ASYNC_HOOK_CAPACITY_ERROR))
++    );
++    assert_eq!(
++        runtime.lock_state().tasks.len(),
++        super::MAX_PENDING_ASYNC_HOOKS
++    );
++    runtime.shutdown().await;
++}
++
++#[tokio::test]
++async fn public_coordinator_rejects_before_constructing_and_shutdown_drains() {
++    let (hooks, _results) = crate::Hooks::new(
++        crate::HooksConfig::default(),
++        ThreadId::new(),
++        mcp_executor(),
++    )
++    .unwrap();
++    for _ in 0..super::MAX_PENDING_ASYNC_HOOKS {
++        hooks
++            .schedule_async_task(std::future::pending::<()>)
++            .unwrap();
++    }
++    let mut constructed = false;
++    assert_eq!(
++        hooks.schedule_async_task(|| {
++            constructed = true;
++            async {}
++        }),
++        Err(super::ASYNC_HOOK_CAPACITY_ERROR)
++    );
++    assert!(!constructed);
++    hooks.shutdown().await;
++    assert_eq!(
++        hooks.schedule_async_task(|| async {}),
++        Err("async hook runtime is closed")
++    );
++}
++
++#[tokio::test]
++async fn coordinators_do_not_starve_nested_command_dispatch() {
++    let (runtime, _results) = runtime();
++    let gate = Arc::new(tokio::sync::Semaphore::new(0));
++    let (started, mut started_rx) = tokio::sync::mpsc::unbounded_channel();
++    for _ in 0..MAX_CONCURRENT_ASYNC_HOOKS {
++        runtime
++            .schedule_coordinator(|| {
++                let runtime = runtime.clone();
++                let gate = Arc::clone(&gate);
++                let started = started.clone();
++                async move {
++                    let _permit = gate.acquire().await.unwrap();
++                    let (done, completed) = tokio::sync::oneshot::channel();
++                    runtime
++                        .schedule_async_task(1, || async move {
++                            let _ = done.send(());
++                        })
++                        .unwrap();
++                    completed.await.unwrap();
++                    let _ = started.send(());
++                }
++            })
++            .unwrap();
++    }
++    gate.add_permits(MAX_CONCURRENT_ASYNC_HOOKS);
++    timeout(ASYNC_HOOK_TEST_TIMEOUT, async {
++        for _ in 0..MAX_CONCURRENT_ASYNC_HOOKS {
++            started_rx.recv().await.unwrap();
++        }
++    })
++    .await
++    .expect("coordinators must leave command slots available");
++    runtime.shutdown().await;
++}
+diff --git a/codex-rs/hooks/src/engine/dispatcher.rs b/codex-rs/hooks/src/engine/dispatcher.rs
+index cc45564933ffc5043727bb69a8ff7898565dc912..84167334384662a4aaa1e3c2843240e4ac10cdb1 100644
+--- a/codex-rs/hooks/src/engine/dispatcher.rs
++++ b/codex-rs/hooks/src/engine/dispatcher.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ use std::path::Path;
+ 
+ use futures::StreamExt;
+@@ -18,6 +19,7 @@ use super::ConfiguredHandler;
+ use super::ConfiguredHandlerKind;
+ use super::HandlerRunResult;
+ use super::HandlerSourcePath;
++use super::command_runner::async_hook_input_bytes;
+ use super::command_runner::run_command;
+ use super::mcp_runner::run_mcp_tool;
+ use crate::events::common::matches_matcher;
+@@ -129,6 +131,7 @@ pub(crate) async fn execute_handlers_with_metadata<T: 'static>(
+     metadata: Option<&Map<String, Value>>,
+     parse: fn(&ConfiguredHandler, HandlerRunResult, Option<String>) -> ParsedHandler<T>,
+ ) -> Vec<ParsedHandler<T>> {
++    let mut completed = Vec::new();
+     let mut executor_handlers = Vec::new();
+     let mut pending = FuturesUnordered::new();
+     for (configured_order, handler) in handlers.into_iter().enumerate() {
+@@ -141,14 +144,29 @@ pub(crate) async fn execute_handlers_with_metadata<T: 'static>(
+         }
+         let event_input = handler.source_path.event_input(input);
+         if handler.execution_mode() == HookExecutionMode::Async {
+-            engine.command_runtime.schedule_async_hook(
+-                engine.clone(),
+-                handler,
+-                event_input.into_owned(),
+-                cwd.to_path_buf(),
++            if let Err(error) = engine.command_runtime.schedule_async_hook(
++                engine,
++                &handler,
++                &event_input,
++                cwd,
+                 turn_id.clone(),
+                 parse,
+-            );
++            ) {
++                let now = chrono::Utc::now().timestamp();
++                let result = HandlerRunResult {
++                    context_metadata: codex_protocol::models::ContentItemMetadata::command_hook(),
++                    started_at: now,
++                    completed_at: now,
++                    duration_ms: 0,
++                    exit_code: None,
++                    stdout: String::new(),
++                    stderr: String::new(),
++                    error: Some(error.to_string()),
++                };
++                let mut parsed = parse(&handler, result, turn_id.clone());
++                parsed.completion_order = completed.len();
++                completed.push((configured_order, parsed));
++            }
+             continue;
+         }
+         let turn_id = turn_id.clone();
+@@ -160,10 +178,13 @@ pub(crate) async fn execute_handlers_with_metadata<T: 'static>(
+         });
+     }
+ 
+-    let mut completed = Vec::new();
+-    let mut completion_order = 0;
+-    let mut should_stop = false;
+-    let mut should_block = false;
++    let mut completion_order = completed.len();
++    let mut should_stop = completed
++        .iter()
++        .any(|(_, parsed)| parsed.completed.run.status == HookRunStatus::Stopped);
++    let mut should_block = completed
++        .iter()
++        .any(|(_, parsed)| parsed.completed.run.status == HookRunStatus::Blocked);
+     while let Some((configured_order, mut parsed)) = pending.next().await {
+         should_stop |= parsed.completed.run.status == HookRunStatus::Stopped;
+         should_block |= parsed.completed.run.status == HookRunStatus::Blocked;
+@@ -175,27 +196,26 @@ pub(crate) async fn execute_handlers_with_metadata<T: 'static>(
+ 
+     if should_stop || !should_block {
+         for handler in executor_handlers {
+-            let task_engine = engine.clone();
+-            let event_input = input.clone();
+-            let cwd = cwd.to_path_buf();
+-            let metadata = metadata.cloned();
+-            engine.command_runtime.schedule_async_task(async move {
+-                let result = execute_handler(
+-                    &task_engine,
+-                    &handler,
+-                    &event_input,
+-                    &cwd,
+-                    metadata.as_ref(),
+-                )
+-                .await;
+-                if let Some(error) = result.error {
+-                    tracing::warn!(
+-                        source_path = %handler.source_path,
+-                        %error,
+-                        "executor-scoped hook failed"
+-                    );
+-                }
++            let scheduled = async_hook_input_bytes(input, metadata).and_then(|input_bytes| {
++                engine.command_runtime.schedule_async_task(input_bytes, || {
++                    let task_engine = engine.clone();
++                    let task_handler = handler.clone();
++                    let event_input = input.clone();
++                    let cwd = cwd.to_path_buf();
++                    let metadata = metadata.cloned();
++                    async move {
++                        let result = execute_handler(
++                            &task_engine, &task_handler, &event_input, &cwd, metadata.as_ref(),
++                        ).await;
++                        if let Some(error) = result.error {
++                            tracing::warn!(source_path = %task_handler.source_path, %error, "executor-scoped hook failed");
++                        }
++                    }
++                })
+             });
++            if let Err(error) = scheduled {
++                tracing::warn!(source_path = %handler.source_path, %error, "executor-scoped hook admission failed");
++            }
+         }
+     }
+ 
+diff --git a/codex-rs/hooks/src/engine/mod_tests.rs b/codex-rs/hooks/src/engine/mod_tests.rs
+index 4e93a0075d9ab74ee090c081246e026776527c7a..9216659d8a70dedb961982769142534366f662ee 100644
+--- a/codex-rs/hooks/src/engine/mod_tests.rs
++++ b/codex-rs/hooks/src/engine/mod_tests.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ use std::collections::HashMap;
+ use std::fs;
+ use std::path::Path;
+@@ -2626,6 +2627,23 @@ async fn executor_stop_hooks_run_unless_regular_hooks_block_without_stopping() {
+     );
+ }
+ 
++#[tokio::test]
++async fn executor_scoped_hooks_do_not_execute_when_admission_is_full() {
++    let (engine, calls, request, _, _) = executor_stop_hook_fixture();
++    // The shared ceiling includes lifecycle coordinators and executor work.
++    for _ in 0..72 {
++        engine
++            .command_runtime
++            .schedule_coordinator(std::future::pending::<()>)
++            .unwrap();
++    }
++    let outcome = engine.run_stop(request).await;
++    assert!(outcome.hook_events.is_empty());
++    assert!(calls.lock().unwrap().is_empty());
++    engine.command_runtime.shutdown().await;
++    assert!(calls.lock().unwrap().is_empty());
++}
++
+ #[test]
+ fn executor_stop_hooks_register_each_target_environment_once() {
+     let (mut engine, _, _, _, first_source) = executor_stop_hook_fixture();
 diff --git a/codex-rs/hooks/src/registry.rs b/codex-rs/hooks/src/registry.rs
-index 244ef754313b297515062922c31a68eae6ebca19..17c9d0064e0a8b3ccf8a5da71c464a733e2cc1eb 100644
+index 244ef754313b297515062922c31a68eae6ebca19..32bf0ba4e6d29e8fa4afd3c6e5a6cf7fd665d8b2 100644
 --- a/codex-rs/hooks/src/registry.rs
 +++ b/codex-rs/hooks/src/registry.rs
 @@ -1,3 +1,4 @@
@@ -52995,6 +54633,23 @@ index 244ef754313b297515062922c31a68eae6ebca19..17c9d0064e0a8b3ccf8a5da71c464a73
      /// Bind this session's hook runtime and output files to its thread, rejecting unloadable
      /// required managed hooks.
      pub fn new(
+@@ -365,9 +375,13 @@ impl Hooks {
+             .min_by_key(|mode| matches!(mode, HookExecutionMode::Async))
+     }
+ 
+-    /// Run a hook task independently of the turn, but abort and join it at session shutdown.
+-    pub fn schedule_async_task(&self, task: impl Future<Output = ()> + Send + 'static) {
+-        self.engine.command_runtime.schedule_async_task(task);
++    /// Admit a lifecycle coordinator before retaining its captured state.
++    /// Saturation is explicit; all admitted work is aborted and joined at shutdown.
++    pub fn schedule_async_task<F>(&self, make_task: impl FnOnce() -> F) -> Result<(), &'static str>
++    where
++        F: Future<Output = ()> + Send + 'static,
++    {
++        self.engine.command_runtime.schedule_coordinator(make_task)
+     }
+ 
+     pub fn preview_model_request(
 diff --git a/codex-rs/install-context/src/bundle_tests.rs b/codex-rs/install-context/src/bundle_tests.rs
 index 6208a9a16368ec13c90a145a4414183243825ffa..57602bcc2b376505ed073e40cb742005bab911d2 100644
 --- a/codex-rs/install-context/src/bundle_tests.rs
@@ -60009,15 +61664,16 @@ index 0000000000000000000000000000000000000000..889c78110ea668e9eb424f39d8fd9abb
 +    Ok(())
 +}
 diff --git a/codex-rs/thread-store/src/local/rollout_migration/rollback_plan.rs b/codex-rs/thread-store/src/local/rollout_migration/rollback_plan.rs
-index f23d057ae70f752dc2bacedb838dced15a39f062..5c47d077d512bf55db52c395448a6ad37f18c904 100644
+index f23d057ae70f752dc2bacedb838dced15a39f062..3b356271452bd93404163ff32f7e10ccef737cc1 100644
 --- a/codex-rs/thread-store/src/local/rollout_migration/rollback_plan.rs
 +++ b/codex-rs/thread-store/src/local/rollout_migration/rollback_plan.rs
-@@ -1,3 +1,4 @@
+@@ -1,3 +1,5 @@
 +// Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
  //! Decides which legacy records remain visible after historical rollback.
  //!
  //! Legacy rollback removes logical instruction turns, not a physical suffix of the rollout file.
-@@ -63,6 +64,8 @@ pub(super) struct RollbackPlan {
+@@ -63,6 +65,8 @@ pub(super) struct RollbackPlan {
      record_boundaries: Vec<Option<usize>>,
      boundary_alive: Vec<bool>,
      compacted_items: HashMap<usize, CompactedItem>,
@@ -60026,7 +61682,7 @@ index f23d057ae70f752dc2bacedb838dced15a39f062..5c47d077d512bf55db52c395448a6ad3
  }
  
  impl RollbackPlan {
-@@ -114,6 +117,8 @@ pub(super) struct RollbackPlanner {
+@@ -114,6 +118,8 @@ pub(super) struct RollbackPlanner {
      retained_fact_sources: Vec<RetainedFactSource>,
      compactions: Vec<CompactionFrame>,
      model_replay: ModelReplayPlanner,
@@ -60035,7 +61691,7 @@ index f23d057ae70f752dc2bacedb838dced15a39f062..5c47d077d512bf55db52c395448a6ad3
  }
  
  impl RollbackPlanner {
-@@ -133,6 +138,8 @@ impl RollbackPlanner {
+@@ -133,6 +139,8 @@ impl RollbackPlanner {
              retained_fact_sources: Vec::new(),
              compactions: Vec::new(),
              model_replay: ModelReplayPlanner::new(),
@@ -60044,7 +61700,7 @@ index f23d057ae70f752dc2bacedb838dced15a39f062..5c47d077d512bf55db52c395448a6ad3
          }
      }
  
-@@ -212,6 +219,9 @@ impl RollbackPlanner {
+@@ -212,6 +220,9 @@ impl RollbackPlanner {
                  }
              }
              RolloutItem::EventMsg(EventMsg::ThreadRolledBack(rollback)) => {
@@ -60054,7 +61710,7 @@ index f23d057ae70f752dc2bacedb838dced15a39f062..5c47d077d512bf55db52c395448a6ad3
                  self.apply_rollback(rollback.num_turns)?;
              }
              RolloutItem::EventMsg(EventMsg::TurnStarted(event)) => {
-@@ -257,6 +267,10 @@ impl RollbackPlanner {
+@@ -257,6 +268,10 @@ impl RollbackPlanner {
                  self.pending_delivery_boundary = Some(boundary);
              }
              RolloutItem::Compacted(item) => {
@@ -60065,7 +61721,7 @@ index f23d057ae70f752dc2bacedb838dced15a39f062..5c47d077d512bf55db52c395448a6ad3
                  let owner = self
                      .active_turn_id
                      .as_deref()
-@@ -282,6 +296,10 @@ impl RollbackPlanner {
+@@ -282,6 +297,10 @@ impl RollbackPlanner {
              RolloutItem::TokenUsageRecord(record) => {
                  self.assign_targeted_record(index, Some(record.turn_id.as_str()));
              }
@@ -60076,7 +61732,7 @@ index f23d057ae70f752dc2bacedb838dced15a39f062..5c47d077d512bf55db52c395448a6ad3
              RolloutItem::WorldState(_) | RolloutItem::RealtimeItem(_) => {}
              RolloutItem::RetainedContext(codex_rollout::RetainedContextEvent::VerifiedAnswer {
                  answer,
-@@ -362,6 +380,8 @@ impl RollbackPlanner {
+@@ -362,6 +381,8 @@ impl RollbackPlanner {
              boundaries,
              compactions,
              model_replay,
@@ -60085,7 +61741,7 @@ index f23d057ae70f752dc2bacedb838dced15a39f062..5c47d077d512bf55db52c395448a6ad3
              ..
          } = self;
          let replay_anchor = model_replay.finish().empty_replacement_history_compaction;
-@@ -387,6 +407,8 @@ impl RollbackPlanner {
+@@ -387,6 +408,8 @@ impl RollbackPlanner {
              record_boundaries,
              boundary_alive,
              compacted_items,
@@ -60094,6 +61750,19 @@ index f23d057ae70f752dc2bacedb838dced15a39f062..5c47d077d512bf55db52c395448a6ad3
          }
      }
  
+@@ -491,7 +514,11 @@ impl RollbackPlanner {
+                 acceptance_order.is_some() || frame.record_index >= source.record_index
+             }) {
+                 if let Some(context) = &mut frame.item.retained_context {
+-                    if acceptance_order.is_some()
++                    // Inherited checkpoints can contain only the host archive,
++                    // which intentionally stays outside worker ordered_entries.
++                    // Match live Core rollback even when no public facts exist.
++                    if source.input_source == RetainedInputSource::Inherited
++                        || acceptance_order.is_some()
+                         || context
+                             .ordered_entries()
+                             .any(|(_, entry)| matches!(entry, RetainedContextEntry::UserMessage(_)))
 diff --git a/codex-rs/thread-store/src/local/rollout_migration/rollback_replay.rs b/codex-rs/thread-store/src/local/rollout_migration/rollback_replay.rs
 index 92a0c6c0b248e5314aa24b939d2a3b2fc431d9b4..bec9af56863894ff7c19019425ba0e99d46cacdf 100644
 --- a/codex-rs/thread-store/src/local/rollout_migration/rollback_replay.rs
@@ -60112,7 +61781,7 @@ index 92a0c6c0b248e5314aa24b939d2a3b2fc431d9b4..bec9af56863894ff7c19019425ba0e99
              | RolloutItem::WorldState(_) => return,
          };
 diff --git a/codex-rs/thread-store/src/local/rollout_migration_tests.rs b/codex-rs/thread-store/src/local/rollout_migration_tests.rs
-index dea0da6a5974e521380b4ceb3fd6076f5ff0c036..9c06bcaf6a4f060658184d1811f6a1f82ae28d44 100644
+index dea0da6a5974e521380b4ceb3fd6076f5ff0c036..96f5754d147da55ee79e1a58f60932cdcf6926f1 100644
 --- a/codex-rs/thread-store/src/local/rollout_migration_tests.rs
 +++ b/codex-rs/thread-store/src/local/rollout_migration_tests.rs
 @@ -1,3 +1,4 @@
@@ -60775,6 +62444,90 @@ index dea0da6a5974e521380b4ceb3fd6076f5ff0c036..9c06bcaf6a4f060658184d1811f6a1f8
  #[tokio::test]
  async fn migration_rolls_back_response_and_inter_agent_user_boundaries() {
      let home = TempDir::new().expect("create Codex home");
+@@ -1500,6 +2149,83 @@ fn worker_communication(text: &str) -> InterAgentCommunication {
+     )
+ }
+ 
++#[tokio::test]
++async fn migration_rolls_back_archive_only_inherited_checkpoint() {
++    for second_id in ["second", "first"] {
++        let mut archive = codex_history::RetainedContext::default();
++        let mut envelopes = Vec::new();
++        for (turn_id, id, text) in [
++            ("first-turn", "first", "Never publish the first source."),
++            ("second-turn", second_id, "Never publish the second source."),
++        ] {
++            let mut item = input_response_message("user", text);
++            item.set_id(Some(ResponseItemId::from_server(id)));
++            item.set_turn_id_if_missing(turn_id);
++            let mut envelope = codex_rollout::ResponseItemEnvelope::new(item);
++            envelope
++                .metadata
++                .get_or_insert_default()
++                .inherited_user_message = true;
++            envelopes.push(envelope);
++            archive.archive_inherited_user_message(codex_history::RetainedUserMessage {
++                turn_id: turn_id.into(),
++                message_id: Some(id.into()),
++                text: text.into(),
++                complete: true,
++                origin: Default::default(),
++                phase: None,
++            });
++        }
++        assert_eq!(archive.ordered_entries().count(), 0);
++        let RolloutItem::Compacted(mut checkpoint) = compacted(Vec::new()) else {
++            unreachable!()
++        };
++        checkpoint.replacement_history = Some(envelopes.clone());
++        checkpoint.retained_context = Some(archive);
++        let migrated = migrate_after_rollback(vec![
++            started("first-turn"),
++            RolloutItem::ResponseItem(envelopes[0].clone()),
++            user_message("Never publish the first source."),
++            completed("first-turn"),
++            started("second-turn"),
++            RolloutItem::ResponseItem(envelopes[1].clone()),
++            user_message("Never publish the second source."),
++            completed("second-turn"),
++            started("compaction-turn"),
++            RolloutItem::Compacted(checkpoint),
++            completed("compaction-turn"),
++        ])
++        .await;
++        let mut retained = migrated
++            .into_iter()
++            .find_map(|item| match item {
++                RolloutItem::Compacted(item) => item.retained_context,
++                _ => None,
++            })
++            .expect("surviving checkpoint with rolled-back archive");
++        assert_eq!(retained.ordered_entries().count(), 0);
++        retained.adopt_inherited_user_context();
++        let originals = retained
++            .ordered_entries()
++            .filter_map(|(order, entry)| match entry {
++                codex_rollout::RetainedContextEntry::UserMessage(message) => {
++                    Some((order, message.turn_id.clone(), message.text.clone()))
++                }
++                _ => None,
++            })
++            .collect::<Vec<_>>();
++        assert_eq!(
++            originals,
++            vec![(
++                codex_history::RetainedContextOrder::Inherited(0),
++                "first-turn".into(),
++                "Never publish the first source.".into()
++            )]
++        );
++        assert!(!retained.verified_answers_complete());
++    }
++}
++
+ async fn migrate_after_rollback(mut items: Vec<RolloutItem>) -> Vec<RolloutItem> {
+     items.push(RolloutItem::EventMsg(EventMsg::ThreadRolledBack(
+         ThreadRolledBackEvent { num_turns: 1 },
 diff --git a/codex-rs/thread-store/src/store.rs b/codex-rs/thread-store/src/store.rs
 index 8b2cbe3e21e4ced5d61e92b2b8bc064a2079961d..6126edf7ffc1009282974d7093f89a1de7252bb8 100644
 --- a/codex-rs/thread-store/src/store.rs
@@ -62001,7 +63754,7 @@ index 411a476707afccbee531ea011e99f44d86ee7c01..16c1d093b5d248fa9fa311f8cd4666d8
                  }
              }
 diff --git a/codex-rs/tui/src/app/history_ui.rs b/codex-rs/tui/src/app/history_ui.rs
-index bc95bb0b813ed12c29796567ac68ced8d0cd95fe..231ddb6edf54e0b7f0d9e49ad95f150f9c5e58b5 100644
+index bc95bb0b813ed12c29796567ac68ced8d0cd95fe..b43e1d7bb0695a1a28b27d8473884cbf609607d3 100644
 --- a/codex-rs/tui/src/app/history_ui.rs
 +++ b/codex-rs/tui/src/app/history_ui.rs
 @@ -1,3 +1,4 @@
@@ -62018,7 +63771,14 @@ index bc95bb0b813ed12c29796567ac68ced8d0cd95fe..231ddb6edf54e0b7f0d9e49ad95f150f
  
  pub(super) struct RenderedHistoryTail {
      pub(super) cell: Weak<dyn HistoryCell>,
-@@ -311,18 +312,9 @@ impl App {
+@@ -305,24 +306,15 @@ impl App {
+     }
+ 
+     pub(super) fn open_url_in_browser(&mut self, url: String) {
+-        if let Err(err) = webbrowser::open(&url) {
++        if let Err(err) = crate::link_diagnostics::open(&url) {
+             self.chat_widget
+                 .add_error_message(format!("Failed to open browser for {url}: {err}"));
          }
      }
  
@@ -66340,7 +68100,7 @@ index 93f2c39960198d2eebdd6d3c34117a5c14d5a86f..b49c8ee0ffbaa63239b8826041e2d744
              )
          );
 diff --git a/codex-rs/tui/src/lib.rs b/codex-rs/tui/src/lib.rs
-index 408d81af7f07a3a39871e49c236d98f7eeceabad..c549a27639aa9843ec01fd16a7d2c2e23b44f8ed 100644
+index 408d81af7f07a3a39871e49c236d98f7eeceabad..2f8b64648572dd5d9d521e53d461747548fb3a1c 100644
 --- a/codex-rs/tui/src/lib.rs
 +++ b/codex-rs/tui/src/lib.rs
 @@ -1,3 +1,5 @@
@@ -66349,7 +68109,15 @@ index 408d81af7f07a3a39871e49c236d98f7eeceabad..c549a27639aa9843ec01fd16a7d2c2e2
  // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
  // Forbid accidental stdout/stderr writes in the *library* portion of the TUI.
  // The standalone `codex-tui` binary prints a short help message before the
-@@ -142,6 +144,7 @@ mod cron;
+@@ -133,6 +135,7 @@ mod clipboard_copy;
+ mod clipboard_html;
+ mod clipboard_paste;
+ mod clock_format;
++mod link_diagnostics;
+ mod collaboration_modes;
+ mod color;
+ mod config_panel;
+@@ -142,6 +145,7 @@ mod cron;
  mod cron_tools;
  mod desktop_cron;
  pub use cli::DesktopCronControl;
@@ -66357,7 +68125,7 @@ index 408d81af7f07a3a39871e49c236d98f7eeceabad..c549a27639aa9843ec01fd16a7d2c2e2
  pub use desktop_cron::{DesktopCronBootstrap, take_desktop_cron_bootstrap_from_env};
  pub(crate) mod custom_terminal;
  mod daybreak;
-@@ -485,7 +488,7 @@ fn websocket_url_supports_auth_token(parsed: &Url) -> bool {
+@@ -485,7 +489,7 @@ fn websocket_url_supports_auth_token(parsed: &Url) -> bool {
  pub fn resolve_remote_addr(addr: &str) -> color_eyre::Result<RemoteAppServerEndpoint> {
      if let Some(socket_path) = addr.strip_prefix("unix://") {
          let socket_path = if socket_path.is_empty() {
@@ -66366,7 +68134,7 @@ index 408d81af7f07a3a39871e49c236d98f7eeceabad..c549a27639aa9843ec01fd16a7d2c2e2
              codex_app_server_client::app_server_control_socket_path(&codex_home)
                  .map_err(color_eyre::Report::new)?
          } else {
-@@ -1294,6 +1297,7 @@ async fn run_ratatui_app(
+@@ -1294,6 +1298,7 @@ async fn run_ratatui_app(
      tooltips::announcement::prewarm(initial_config.http_client_factory());
  
      let (mut tui, mut terminal_restore_guard, mut startup_draft) = startup_draft.into_parts();
@@ -66374,7 +68142,7 @@ index 408d81af7f07a3a39871e49c236d98f7eeceabad..c549a27639aa9843ec01fd16a7d2c2e2
  
      #[cfg(not(debug_assertions))]
      {
-@@ -1570,7 +1574,7 @@ async fn run_ratatui_app(
+@@ -1570,7 +1575,7 @@ async fn run_ratatui_app(
                  disconnect_info: None,
                  update_action: None,
                  exit_reason: ExitReason::Fatal(format!(
@@ -66411,6 +68179,213 @@ index cdb1ce1a9c48dd49ae12284d75f3e0a07b8a88b9..76ccb42b40bbf441185efe3dfa57d618
      assert_eq!(
          resolve_remote_addr("unix://")?,
          RemoteAppServerEndpoint::UnixSocket {
+diff --git a/codex-rs/tui/src/link_diagnostics.rs b/codex-rs/tui/src/link_diagnostics.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..000fa67a4e78449f40474bc7de58129031a3d3dd
+--- /dev/null
++++ b/codex-rs/tui/src/link_diagnostics.rs
+@@ -0,0 +1,201 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
++//! Opt-in, payload-free observations at the real browser opener boundary.
++
++use std::sync::OnceLock;
++use std::sync::atomic::AtomicU64;
++use std::sync::atomic::Ordering;
++
++const MAX_RECORDED_ATTEMPTS: u64 = 4096;
++static DIAGNOSTICS: OnceLock<Counters> = OnceLock::new();
++
++#[derive(Default)]
++struct Counters {
++    attempts: AtomicU64,
++    completed: AtomicU64,
++    succeeded: AtomicU64,
++}
++
++#[derive(Debug, PartialEq, Eq)]
++struct Observation {
++    phase: &'static str,
++    id: u64,
++    ok: bool,
++    attempts: u64,
++    completed: u64,
++    succeeded: u64,
++    suppressed: u64,
++}
++
++impl Counters {
++    fn snapshot(&self, phase: &'static str, id: u64, ok: bool) -> Observation {
++        let attempts = self.attempts.load(Ordering::Relaxed);
++        Observation {
++            phase,
++            id,
++            ok,
++            attempts,
++            completed: self.completed.load(Ordering::Relaxed),
++            succeeded: self.succeeded.load(Ordering::Relaxed),
++            suppressed: attempts.saturating_sub(MAX_RECORDED_ATTEMPTS),
++        }
++    }
++
++    fn open<T, E>(
++        &self,
++        opener: impl FnOnce() -> Result<T, E>,
++        mut emit: impl FnMut(Observation),
++    ) -> Result<T, E> {
++        let id = self.attempts.fetch_add(1, Ordering::Relaxed) + 1;
++        // ceiling: bound diagnostic output; overflow still opens normally and invalidates
++        // a complete observation run through the final suppressed count.
++        if id <= MAX_RECORDED_ATTEMPTS {
++            emit(self.snapshot("attempt", id, false));
++        }
++        let result = opener();
++        if result.is_ok() {
++            self.succeeded.fetch_add(1, Ordering::Relaxed);
++        }
++        self.completed.fetch_add(1, Ordering::Relaxed);
++        if id <= MAX_RECORDED_ATTEMPTS {
++            emit(self.snapshot("completion", id, result.is_ok()));
++        }
++        result
++    }
++}
++
++fn emit(event: Observation) {
++    tracing::info!(
++        target: "codex_tui::link_diagnostics",
++        owner = "tui",
++        pid = std::process::id(),
++        phase = event.phase,
++        id = event.id,
++        ok = event.ok,
++        attempts = event.attempts,
++        completed = event.completed,
++        succeeded = event.succeeded,
++        suppressed = event.suppressed,
++        "link_open_trace"
++    );
++}
++
++pub(crate) fn init() {
++    if std::env::var_os("ARCVERA_LINK_DIAGNOSTICS").as_deref() == Some(std::ffi::OsStr::new("1"))
++        && DIAGNOSTICS.set(Counters::default()).is_ok()
++    {
++        emit(
++            DIAGNOSTICS
++                .get()
++                .expect("initialized diagnostics")
++                .snapshot("init", 0, false),
++        );
++    }
++}
++
++pub(crate) fn finish() {
++    if let Some(counters) = DIAGNOSTICS.get() {
++        emit(counters.snapshot("final", 0, false));
++    }
++}
++
++pub(crate) fn open(url: &str) -> std::io::Result<()> {
++    open_with(DIAGNOSTICS.get(), || webbrowser::open(url), emit)
++}
++
++fn open_with<T, E>(
++    counters: Option<&Counters>,
++    opener: impl FnOnce() -> Result<T, E>,
++    emit: impl FnMut(Observation),
++) -> Result<T, E> {
++    match counters {
++        Some(counters) => counters.open(opener, emit),
++        None => opener(),
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn disabled_keeps_result_and_emits_nothing() {
++        let mut calls = 0;
++        let result = open_with(
++            None,
++            || {
++                calls += 1;
++                Ok::<_, ()>(7)
++            },
++            |_| panic!("disabled"),
++        );
++        assert_eq!(result, Ok(7));
++        assert_eq!(calls, 1);
++    }
++
++    #[test]
++    fn success_and_failure_preserve_results_and_payload_free_counts() {
++        let counters = Counters::default();
++        let mut events = vec![counters.snapshot("init", 0, false)];
++        assert_eq!(
++            open_with(Some(&counters), || Ok::<_, &str>(7), |e| events.push(e)),
++            Ok(7)
++        );
++        let secret_error = "url-and-error-must-not-be-recorded";
++        assert_eq!(
++            open_with(
++                Some(&counters),
++                || Err::<(), _>(secret_error),
++                |e| events.push(e)
++            ),
++            Err(secret_error)
++        );
++        events.push(counters.snapshot("final", 0, false));
++        assert_eq!(
++            events.iter().map(|e| (e.phase, e.id)).collect::<Vec<_>>(),
++            vec![
++                ("init", 0),
++                ("attempt", 1),
++                ("completion", 1),
++                ("attempt", 2),
++                ("completion", 2),
++                ("final", 0),
++            ]
++        );
++        assert!(events[2].ok);
++        assert!(!events[4].ok);
++        let final_event = events.last().unwrap();
++        assert_eq!(
++            (
++                final_event.attempts,
++                final_event.completed,
++                final_event.succeeded,
++                final_event.suppressed
++            ),
++            (2, 2, 1, 0)
++        );
++        assert!(!format!("{events:?}").contains(secret_error));
++    }
++
++    #[test]
++    fn overflow_bounds_records_without_suppressing_browser_calls() {
++        let counters = Counters::default();
++        let mut calls = 0;
++        let mut records = 0;
++        for _ in 0..MAX_RECORDED_ATTEMPTS + 1 {
++            open_with(
++                Some(&counters),
++                || {
++                    calls += 1;
++                    Ok::<_, ()>(())
++                },
++                |_| records += 1,
++            )
++            .unwrap();
++        }
++        assert_eq!(calls, MAX_RECORDED_ATTEMPTS + 1);
++        assert_eq!(records, MAX_RECORDED_ATTEMPTS * 2);
++        let summary = counters.snapshot("final", 0, false);
++        assert_eq!(summary.attempts, summary.completed);
++        assert_eq!(summary.suppressed, 1);
++    }
++}
 diff --git a/codex-rs/tui/src/managed_new_thread_defaults.rs b/codex-rs/tui/src/managed_new_thread_defaults.rs
 index 1d9d1f3ac55d45a2de8f73839b2665477fc8a128..6c2f959196ecfae959264ca8a8064e472a1e675c 100644
 --- a/codex-rs/tui/src/managed_new_thread_defaults.rs
@@ -66469,7 +68444,7 @@ index e0641d43ed25079605fa046363f796f83b869b23..f39801cdf50210f693d05cd09c3d0f09
          ]));
  
 diff --git a/codex-rs/tui/src/pager_overlay/transcript.rs b/codex-rs/tui/src/pager_overlay/transcript.rs
-index fc2efb0663f8e903c57a3882c3890a90c2e00640..4b649f9375c164e0bd05ae5aa4266f90936d1b35 100644
+index fc2efb0663f8e903c57a3882c3890a90c2e00640..b1bd1c9f647f149b669387b08df1e7ed87917c97 100644
 --- a/codex-rs/tui/src/pager_overlay/transcript.rs
 +++ b/codex-rs/tui/src/pager_overlay/transcript.rs
 @@ -1,3 +1,4 @@
@@ -66477,14 +68452,16 @@ index fc2efb0663f8e903c57a3882c3890a90c2e00640..4b649f9375c164e0bd05ae5aa4266f90
  // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
  //! Standalone transcript chrome around the same viewport used by the main conversation.
  //!
-@@ -551,6 +552,7 @@ impl TranscriptOverlay {
+@@ -551,7 +552,8 @@ impl TranscriptOverlay {
                  Err(error) => error,
              });
          } else if let ViewAction::OpenLink(url) = action
+-            && let Err(error) = webbrowser::open(&url)
 +            && tui.terminal_link_owner.tui_opens(&url)
-             && let Err(error) = webbrowser::open(&url)
++            && let Err(error) = crate::link_diagnostics::open(&url)
          {
              self.notice = Some(format!("Could not open link: {error}"));
+         }
 diff --git a/codex-rs/tui/src/pets/ambient.rs b/codex-rs/tui/src/pets/ambient.rs
 index e5507ce5c9e8779baa47136d895a0bb1dd372fd7..97bdf0995c1d1b19871cf65210927851d9adb650 100644
 --- a/codex-rs/tui/src/pets/ambient.rs
@@ -66928,7 +68905,7 @@ index 5e977f15a4d9d3a1d73205c2ab327016868888d9..22cd98c53e005b678963707da6b309af
          {
              StartupDraftInitialScreen::Onboarding
 diff --git a/codex-rs/tui/src/startup_orchestration.rs b/codex-rs/tui/src/startup_orchestration.rs
-index 181f7f8a1f47ecd07b6035a23578f8801aa7294c..a8615a8cf8b8d6a894e3de6f18ac96ea4341917a 100644
+index 181f7f8a1f47ecd07b6035a23578f8801aa7294c..b6899e0eb51079ab8f1f0d65b1bf34bfd801a1e3 100644
 --- a/codex-rs/tui/src/startup_orchestration.rs
 +++ b/codex-rs/tui/src/startup_orchestration.rs
 @@ -1,3 +1,5 @@
@@ -66958,14 +68935,26 @@ index 181f7f8a1f47ecd07b6035a23578f8801aa7294c..a8615a8cf8b8d6a894e3de6f18ac96ea
      let _ = tracing_subscriber::registry()
          .with(tui_file_layer)
          .with(feedback_layer)
-@@ -1042,7 +1039,6 @@ pub(super) async fn run_main_inner(
+@@ -1042,9 +1039,10 @@ pub(super) async fn run_main_inner(
          .with(log_db_layer)
          .with(otel_logger_layer)
          .with(otel_tracing_layer)
 -        .with(batch_layer)
          .try_init();
  
++    crate::link_diagnostics::init();
++
      if let Err(err) = screen_reader_result {
+         tracing::warn!("Could not save screen-reader detection: {err}");
+     }
+@@ -1112,6 +1110,7 @@ pub(super) async fn run_main_inner(
+         warn!(error = %err, "failed to finish interactive telemetry shutdown");
+     }
+ 
++    crate::link_diagnostics::finish();
+     app_result
+ }
+ 
 diff --git a/codex-rs/tui/src/startup_preflight_tests.rs b/codex-rs/tui/src/startup_preflight_tests.rs
 index 726277cd1fd8395502f7abc5f5eace4a83b3c6de..5b051ca7788f26b00d97b1a9d93fe0e381912c67 100644
 --- a/codex-rs/tui/src/startup_preflight_tests.rs
@@ -69856,10 +71845,10 @@ index 0000000000000000000000000000000000000000..f970f0b09299e828b7179a505b74dd8a
 +전체 패키지에 프로젝트 대응소스, AGPL-3.0-or-later, 원 Apache 라이선스와 출처 고지를 포함합니다. [변경 고지](../../MODIFICATIONS.md), [소스 가져오기](../source-import.md), [패키징](../../tools/windows-cli/README.md)을 참고하십시오. 제품은 GitHub Actions가 아닌 로컬에서 빌드합니다. Microsoft CRT DLL·설치기는 동봉하지 않습니다. 최종 커밋, 컴파일러·프로필 설정, 실행 파일·ZIP 해시, 원격 자산 확인과 독립감사는 빌드 후 검증 부록에 기록합니다. 이 기준 시점에는 최종 체크섬이 없습니다.
 diff --git a/docs/releases/v1.1.0.md b/docs/releases/v1.1.0.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..81cbfa55bac9a4dcc00bdca5f298fa7a5943be8b
+index 0000000000000000000000000000000000000000..13e710744dc3282fbed2b3230b8070ab4c8dabf1
 --- /dev/null
 +++ b/docs/releases/v1.1.0.md
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,81 @@
 +# Arcvera-Core 1.1.0 — Context selection and cache visibility / 문맥 선택과 캐시 가시성
 +
 +## English
@@ -69873,7 +71862,8 @@ index 0000000000000000000000000000000000000000..81cbfa55bac9a4dcc00bdca5f298fa7a
 +* Indexed task fragments and dependencies determine the selected context. Unrelated details can leave active model input while originals remain available through authorized retrieval. Request-only navigation follows selected history, preserving its stable prefix when navigation changes.
 +* With an indexed focus, selected context owns the input budget. If the selection exceeds the model limit, the request reports the limit instead of silently replacing required evidence with a summary. Retrieve smaller original fragments or release unrelated details before retrying.
 +* Experimental `thread/context/read` returns body-free metadata for a loaded thread using existing connection and runtime access checks. `snapshotId` binds paginated results to one generation; restart on `staleContextSnapshot`. Each serialized page is limited to 65,536 bytes. Resident serialized UTF-8 bytes, local token estimates and provider-reported usage are distinct; unavailable values are null or explicitly unknown. Archive size is not assumed to be zero.
-+* `hooks/list` distinguishes the current-thread installed runtime from configuration discovery. MCP/hook configuration refresh respects active runtime and policy boundaries; acknowledgement does not establish that an MCP server is ready. Hook stdout and stderr each have a 1 MiB bound; excess output is an error.
++* `hooks/list` distinguishes the current-thread installed runtime from configuration discovery. MCP/hook configuration refresh respects active runtime and policy boundaries; acknowledgement does not establish that an MCP server is ready. Hook stdout and stderr each have a 1 MiB bound; excess output is an error. Asynchronous hooks and lifecycle coordinators share admission for at most 72 unfinished jobs. Up to eight command jobs execute concurrently, with a combined 16 MiB serialized-input budget; coordinators do not occupy command execution slots. Saturation reports an explicit hook or request error; already admitted jobs remain scheduled. These limits are not a whole-process memory bound.
++* Bounded inherited user sources are retained separately from a worker's authorization and restored with inherited provenance when it becomes a standalone root. Parent verified answers are not promoted to local permissions. Missing sources remain explicit. Older checkpoints that already discarded original sources cannot recreate them; retain the previous package for recovery and do not treat an omission notice as successful original-text restoration.
 +* Explicit provider cache policy is optional. For a supporting Responses-compatible provider, configure `[model_providers.<id>.capabilities.prompt_cache]` with `kind = "implicit"` and `ttl = "30m"` or `"12h"`. Alternatively select `kind = "legacy"` and `retention = "in_memory"` or `"24h"` only where supported. With no policy, existing wire behavior is preserved. This does not add a new vendor login or a different wire protocol.
 +* Requested TTL and reported cache activity do not confirm provider support, application or retention. `minimumValidUntil`, effective TTL, individual fragment TTLs and server-confirmed expiry remain unknown. TTL expiry does not delete originals or change permissions or required selection.
 +
@@ -69912,7 +71902,8 @@ index 0000000000000000000000000000000000000000..81cbfa55bac9a4dcc00bdca5f298fa7a
 +* 인덱스 작업 조각과 의존 항목이 선택 문맥을 결정합니다. 무관한 상세 내용을 모델의 활성 입력에서 제외해도 원문은 권한에 따른 조회를 위해 보존합니다. 요청 전용 탐색 정보는 선택된 이력 뒤에 놓여 탐색 정보가 바뀌어도 안정적인 접두부를 유지합니다.
 +* 인덱스 포커스가 있으면 선택 문맥이 입력 예산을 사용합니다. 선택 항목이 모델 한도를 초과하면 필수 근거를 요약으로 대체하지 않고 한도 오류를 알립니다. 다시 시도하기 전에 더 작은 원문 조각을 조회하거나 무관한 상세 내용을 제외하십시오.
 +* 실험적 `thread/context/read`는 기존 연결 및 실행 인스턴스 접근 검사 아래 로드된 스레드의 본문 없는 메타데이터를 반환합니다. 페이지는 `snapshotId`로 한 세대에 묶이며 `staleContextSnapshot`이면 처음부터 다시 조회합니다. 직렬화된 각 페이지는 65,536바이트 이하여야 합니다. 상주 데이터의 UTF-8 직렬화 바이트, 로컬 토큰 추정치와 제공자 보고 사용량을 구분합니다. 이용할 수 없는 값은 null 또는 명시적 미확인 상태이며 보관 크기를 0으로 추정하지 않습니다.
-+* `hooks/list`는 현재 스레드에 설치된 런타임과 설정 검색을 구분합니다. MCP/hook 설정 갱신은 활성 런타임 및 정책 경계를 따릅니다. 요청 확인만으로 MCP 서버 준비 완료를 뜻하지 않습니다. Hook stdout과 stderr는 각각 1 MiB로 제한하며 초과 시 오류를 반환합니다.
++* `hooks/list`는 현재 스레드에 설치된 런타임과 설정 검색을 구분합니다. MCP/hook 설정 갱신은 활성 런타임 및 정책 경계를 따릅니다. 요청 확인만으로 MCP 서버 준비 완료를 뜻하지 않습니다. Hook stdout과 stderr는 각각 1 MiB로 제한하며 초과 시 오류를 반환합니다. 비동기 hook과 수명 관리 작업은 미완료 작업을 합쳐 최대 72개까지 접수합니다. 명령 작업은 최대 8개를 동시에 실행하며 입력 JSON 직렬화 크기의 합계를 16 MiB로 제한합니다. 수명 관리 작업은 명령 실행 슬롯을 점유하지 않습니다. 포화 시 명시적인 hook 또는 요청 오류를 반환하며, 이미 접수한 작업의 실행 예약은 유지합니다. 이 제한이 프로세스 전체 메모리 상한을 뜻하지는 않습니다.
++* 크기가 제한된 상속 사용자 원문은 worker의 권한 판단과 분리해 보존하며, 독립 root가 될 때 상속 출처를 유지해 복원합니다. 부모의 확인된 답변을 로컬 권한으로 승격하지 않으며 누락된 출처는 명시합니다. 이미 원문을 버린 이전 체크포인트에서 원문을 재생성할 수는 없습니다. 복구용 이전 패키지를 보존하고, 누락 안내를 원문 복원 성공으로 해석하지 마십시오.
 +* 제공자 캐시 정책은 선택 사항입니다. 지원하는 Responses 호환 제공자에 대해 `[model_providers.<id>.capabilities.prompt_cache]`에서 `kind = "implicit"`과 `ttl = "30m"` 또는 `"12h"`를 지정할 수 있습니다. 지원되는 경우 명시적 대안으로 `kind = "legacy"`와 `retention = "in_memory"` 또는 `"24h"`를 선택할 수 있습니다. 정책을 지정하지 않으면 기존 전송 동작이 유지됩니다. 새로운 벤더 로그인이나 다른 전송 프로토콜을 추가하지 않습니다.
 +* 요청 TTL과 보고된 캐시 활동은 제공자의 지원, 적용 또는 보존을 확인하지 않습니다. `minimumValidUntil`, 실제 적용 TTL, 개별 조각 TTL과 서버 확정 만료는 미확인 상태로 유지합니다. TTL 만료는 원문을 삭제하거나 권한과 필수 선택을 변경하지 않습니다.
 +

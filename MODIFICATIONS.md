@@ -2,9 +2,13 @@
 
 The 1.1.0 candidate adds indexed context selection and retrieval, body-free composition metadata, explicit provider cache policies, and MCP/hook runtime and reload handling. Native verification and release preparation remain in progress. Source inventory and derivative notices continue through `CURRENT_SOURCE.json`; original copyright, licenses and notices remain preserved. See [candidate notes](docs/releases/v1.1.0.md).
 
+The candidate bounds asynchronous hook admission by unfinished job count and serialized input size, reporting saturation through the existing error path. Post-request coordinators share admission capacity without occupying command execution slots. Bounded inherited user sources survive worker checkpoints in a host-only archive and are adopted with inherited provenance only by standalone roots; worker-local authorization excludes the archive. Optional payload-free observations at the real browser opener support exact-pair integration checks; these observations are disabled by default. Guardian test fixtures retain their private home and use the real SQLite metadata store. Verification remains pending.
+
 The candidate also introduces explicit HTTP(S) mouse-link ownership and aligns cooperating configuration writers on the resolved target. File links and URLs opened programmatically for authentication retain their existing paths. Native regression and joint Desktop verification remain pending; non-cooperating path replacement is outside the guarantee.
 
 1.1.0 후보는 인덱스 문맥 선택과 조회, 본문 없는 구성 메타데이터, 명시적 제공자 캐시 정책, MCP/hook 런타임 및 재로드 처리를 추가합니다. 네이티브 검증과 릴리스 준비가 진행 중입니다. 소스 목록과 파생 변경 고지는 `CURRENT_SOURCE.json`을 통해 유지하며 원 저작권·라이선스·고지를 보존합니다. [후보 안내](docs/releases/v1.1.0.md)를 참고하십시오.
+
+후보는 비동기 hook의 미완료 작업 수와 직렬화 입력 크기를 제한하며 포화 시 기존 오류 경로로 알립니다. 요청 후처리 작업은 접수 한도를 공유하되 명령 실행 슬롯을 점유하지 않습니다. 크기가 제한된 상속 사용자 원문은 호스트 전용 보관 영역에서 worker 체크포인트를 거쳐 유지되며 독립 root만 상속 출처로 채택합니다. worker 자체 권한 판단에는 이 보관 영역이 포함되지 않습니다. 실제 브라우저 열기 경계의 선택적 계측은 본문을 기록하지 않고 정확한 실행물 쌍의 통합 확인을 지원하며 기본적으로 꺼져 있습니다. Guardian 시험 환경은 전용 홈의 수명을 유지하고 실제 SQLite 메타데이터 저장소를 사용합니다. 검증은 아직 완료되지 않았습니다.
 
 후보에는 HTTP(S) 마우스 링크의 명시적 소유권과 협력하는 설정 writer의 해석된 대상 잠금도 포함됩니다. 파일 링크와 프로그램이 인증을 위해 여는 URL은 기존 경로를 유지합니다. 네이티브 회귀와 Desktop 공동 검증은 대기 중이며 비협력 프로세스의 경로 교체는 보장 범위 밖입니다.
 
