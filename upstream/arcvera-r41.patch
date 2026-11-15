@@ -44418,7 +44418,7 @@ index 5d3fa4d681eb061f01dbd954e882cf59137236a7..fbd616359e0c922d1cac73e2a4ab3222
      client_session
          .prewarm_websocket(
 diff --git a/codex-rs/core/src/session/tests.rs b/codex-rs/core/src/session/tests.rs
-index 487759427966b1967651a4781efce28b2e0214a0..121cfba121d2b1f8dfe38876dc2467194a564412 100644
+index 487759427966b1967651a4781efce28b2e0214a0..db3fae7de19dcb63592118b57d183cd904c50e50 100644
 --- a/codex-rs/core/src/session/tests.rs
 +++ b/codex-rs/core/src/session/tests.rs
 @@ -1,5 +1,8 @@
@@ -44523,7 +44523,7 @@ index 487759427966b1967651a4781efce28b2e0214a0..121cfba121d2b1f8dfe38876dc246719
      assert_eq!(&live_history[1..], &[accepted_goal]);
  
      session.flush_rollout().await.expect("flush checkpoints");
-@@ -6590,8 +6603,22 @@ async fn compaction_persists_resume_metadata_and_companion_records() {
+@@ -6590,8 +6603,44 @@ async fn compaction_persists_resume_metadata_and_companion_records() {
      else {
          panic!("unexpected compaction records: {compaction_items:#?}");
      };
@@ -44540,15 +44540,37 @@ index 487759427966b1967651a4781efce28b2e0214a0..121cfba121d2b1f8dfe38876dc246719
 +        .await;
 +    assert_eq!(restored.context_index_error, None);
 +    assert_eq!(restored.history, live_history);
++    let live_index = expected.context_index.as_ref().expect("live index");
++    // Replay initializes each resident projection hash, including newly appended
++    // items whose live descriptor has not yet passed through model preparation.
++    // Compare every persisted field and independently verify that derived value.
++    let mut restored_index = serde_json::to_value(&restored.context_index).unwrap();
++    let mut expected_index = serde_json::to_value(live_index).unwrap();
++    for index in [&mut restored_index, &mut expected_index] {
++        for source in index["sources"].as_object_mut().unwrap().values_mut() {
++            source.as_object_mut().unwrap().remove("projection_sha256");
++        }
++    }
++    assert_eq!(restored_index, expected_index);
++    for envelope in &live_history {
++        use sha2::Digest as _;
++        let id = codex_history::ContextIndex::source_id(&envelope.item).expect("resident ID");
++        let bytes = serde_json::to_vec(&envelope.item).unwrap();
++        let digest = format!("{:x}", sha2::Sha256::digest(bytes));
++        assert_eq!(
++            restored.context_index.sources()[&id].projection_sha256.as_deref(),
++            Some(digest.as_str()),
++        );
++    }
 +    assert_eq!(
-+        restored.context_index,
-+        *expected.context_index.as_ref().expect("live index")
++        restored.context_index.active_source_ids(),
++        live_index.active_source_ids()
 +    );
 +    assert_eq!(restored.context_index.active_source_ids().len(), 2);
      assert_eq!(
          saved_world_state,
          &WorldStateItem::full(world_state.render_full().0.into_object())
-@@ -7340,6 +7367,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
+@@ -7340,6 +7389,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
          "turn_id".to_string(),
          skills_snapshot,
      );
@@ -44556,7 +44578,7 @@ index 487759427966b1967651a4781efce28b2e0214a0..121cfba121d2b1f8dfe38876dc246719
      session.mark_mcp_runtime_dirty();
      crate::guardian::test_host::install(&session, &turn_context.config);
      (session, turn_context)
-@@ -9345,13 +9373,15 @@ where
+@@ -9345,13 +9395,15 @@ where
      F: FnOnce(&mut Config),
  {
      let codex_home = tempfile::tempdir().expect("create temp dir");

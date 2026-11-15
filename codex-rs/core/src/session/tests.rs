@@ -6614,9 +6614,31 @@ async fn compaction_persists_resume_metadata_and_companion_records() {
         .await;
     assert_eq!(restored.context_index_error, None);
     assert_eq!(restored.history, live_history);
+    let live_index = expected.context_index.as_ref().expect("live index");
+    // Replay initializes each resident projection hash, including newly appended
+    // items whose live descriptor has not yet passed through model preparation.
+    // Compare every persisted field and independently verify that derived value.
+    let mut restored_index = serde_json::to_value(&restored.context_index).unwrap();
+    let mut expected_index = serde_json::to_value(live_index).unwrap();
+    for index in [&mut restored_index, &mut expected_index] {
+        for source in index["sources"].as_object_mut().unwrap().values_mut() {
+            source.as_object_mut().unwrap().remove("projection_sha256");
+        }
+    }
+    assert_eq!(restored_index, expected_index);
+    for envelope in &live_history {
+        use sha2::Digest as _;
+        let id = codex_history::ContextIndex::source_id(&envelope.item).expect("resident ID");
+        let bytes = serde_json::to_vec(&envelope.item).unwrap();
+        let digest = format!("{:x}", sha2::Sha256::digest(bytes));
+        assert_eq!(
+            restored.context_index.sources()[&id].projection_sha256.as_deref(),
+            Some(digest.as_str()),
+        );
+    }
     assert_eq!(
-        restored.context_index,
-        *expected.context_index.as_ref().expect("live index")
+        restored.context_index.active_source_ids(),
+        live_index.active_source_ids()
     );
     assert_eq!(restored.context_index.active_source_ids().len(), 2);
     assert_eq!(
