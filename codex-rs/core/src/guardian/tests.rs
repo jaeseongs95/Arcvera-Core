@@ -163,23 +163,47 @@ async fn guardian_test_session_turn_and_rx(
     Arc<TurnContext>,
     async_channel::Receiver<Event>,
 ) {
+    guardian_test_session_turn_and_rx_with_base_url(server.uri().as_str()).await
+}
+
+async fn guardian_test_session_turn_and_rx_with_base_url(
+    base_url: &str,
+) -> (
+    Arc<Session>,
+    Arc<TurnContext>,
+    async_channel::Receiver<Event>,
+) {
+    // The real review ThreadManager needs both a live home and SQLite metadata storage.
+    // Keep the fixture directory attached to its parent session for the whole review.
+    let home = tempfile::tempdir().expect("create Guardian fixture home");
     let (mut session, mut turn, rx) =
-        crate::session::tests::make_session_and_context_with_rx().await;
-    Arc::get_mut(&mut session)
-        .expect("session should be uniquely owned")
-        .thread_id = fixed_guardian_parent_session_id();
+        crate::session::tests::make_session_and_context_with_auth_config_home_and_rx(
+            codex_login::CodexAuth::from_api_key("Test API Key"),
+            Vec::new(),
+            home.path(),
+            |_config| {},
+        )
+        .await;
     let mut config = (*turn.config).clone();
-    config.model_provider.base_url = Some(format!("{}/v1", server.uri()));
+    config.model_provider.base_url = Some(format!("{base_url}/v1"));
     let config = Arc::new(config);
-    let models_manager = test_support::models_manager_with_provider(
+    let state_db =
+        codex_state::StateRuntime::init(config.sqlite.clone(), config.model_provider_id.clone())
+            .await
+            .expect("initialize Guardian fixture SQLite");
+    let session_mut = Arc::get_mut(&mut session).expect("session should be uniquely owned");
+    session_mut.thread_id = fixed_guardian_parent_session_id();
+    session_mut.services.state_db = Some(Arc::clone(&state_db));
+    session_mut.services.thread_store = Arc::new(codex_thread_store::LocalThreadStore::new(
+        codex_thread_store::LocalThreadStoreConfig::from_config(config.as_ref()),
+        Some(state_db),
+    ));
+    session_mut.services.thread_extension_data.insert(home);
+    session_mut.services.models_manager = test_support::models_manager_with_provider(
         config.codex_home.to_path_buf(),
-        Arc::clone(&session.services.auth_manager),
+        Arc::clone(&session_mut.services.auth_manager),
         config.model_provider.clone(),
     );
-    Arc::get_mut(&mut session)
-        .expect("session should be uniquely owned")
-        .services
-        .models_manager = models_manager;
     crate::guardian::test_host::install(&session, &config);
     let turn_mut = Arc::get_mut(&mut turn).expect("turn should be uniquely owned");
     turn_mut.config = Arc::clone(&config);
@@ -286,22 +310,34 @@ fn guardian_mcp_request(server: &str, tool_name: &str) -> GuardianApprovalReques
 async fn guardian_test_session_and_turn_with_base_url(
     base_url: &str,
 ) -> (Arc<Session>, Arc<TurnContext>) {
-    let (mut session, mut turn) = crate::session::tests::make_session_and_context().await;
-    session.thread_id = fixed_guardian_parent_session_id();
-    let mut config = (*turn.config).clone();
-    config.model_provider.base_url = Some(format!("{base_url}/v1"));
-    let config = Arc::new(config);
-    let models_manager = test_support::models_manager_with_provider(
-        config.codex_home.to_path_buf(),
-        Arc::clone(&session.services.auth_manager),
-        config.model_provider.clone(),
-    );
-    session.services.models_manager = models_manager;
-    crate::guardian::test_host::install(&session, &config);
-    turn.config = Arc::clone(&config);
-    turn.provider = create_model_provider(config.model_provider.clone(), turn.auth_manager.clone());
+    let (session, turn, _rx) = guardian_test_session_turn_and_rx_with_base_url(base_url).await;
+    (session, turn)
+}
 
-    (Arc::new(session), Arc::new(turn))
+#[tokio::test]
+async fn guardian_fixture_keeps_real_storage_available_after_return() {
+    let (session, turn) = guardian_test_session_and_turn_with_base_url("http://127.0.0.1:1").await;
+    assert!(turn.config.codex_home.is_dir());
+    assert!(turn.config.sqlite.home().is_dir());
+    let state_db = session
+        .services
+        .state_db
+        .as_ref()
+        .expect("fixture state DB");
+    let store_db = session
+        .services
+        .thread_store
+        .state_db()
+        .await
+        .expect("thread store state DB");
+    assert!(Arc::ptr_eq(state_db, &store_db));
+    assert!(
+        session
+            .services
+            .thread_extension_data
+            .get::<tempfile::TempDir>()
+            .is_some()
+    );
 }
 
 async fn seed_guardian_parent_history(session: &Arc<Session>, turn: &Arc<TurnContext>) {

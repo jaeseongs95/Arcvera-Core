@@ -1417,7 +1417,7 @@ async fn last_mcp_deletion_returns_saved_user_layer_version_and_allows_next_cas(
 async fn batch_version_matches_saved_doc_and_preserves_explicit_table_and_comments() -> Result<()> {
     let tmp = tempdir()?;
     let path = tmp.path().join(CONFIG_TOML_FILE);
-    let original = "# 보존할 주석\nmodel = '기존'\n\n[mcp_servers]\n# 명시적 빈 테이블 보존\n\n[mcp_servers.fixture]\ncommand = 'example'\n";
+    let original = "# 보존할 주석\nmodel = '기존'\n\n[mcp_servers] # 명시적 빈 테이블 보존\n\n# 삭제할 자식 테이블 주석\n[mcp_servers.fixture]\ncommand = 'example'\n";
     std::fs::write(&path, original)?;
     let service = ConfigManager::without_managed_config_for_tests(tmp.path().to_path_buf());
     let batch = service
@@ -1442,6 +1442,7 @@ async fn batch_version_matches_saved_doc_and_preserves_explicit_table_and_commen
     let saved = std::fs::read_to_string(&path)?;
     assert!(saved.contains("# 보존할 주석"));
     assert!(saved.contains("# 명시적 빈 테이블 보존"));
+    assert!(!saved.contains("# 삭제할 자식 테이블 주석"));
     assert!(saved.contains("[mcp_servers]"));
     let parsed: TomlValue = toml::from_str(&saved)?;
     assert_eq!(parsed["model"].as_str(), Some("새 모델"));
@@ -2976,12 +2977,16 @@ exclude = []
 "#,
         ),
         (
-            r#"[permissions.dev.network.domains]
+            r#"default_permissions = "dev"
+
+[permissions.dev.network.domains]
 "example.com" = "deny"
 "#,
             "permissions.dev.network.domains",
             serde_json::json!({"EXAMPLE.COM": "allow"}),
-            r#"[permissions.dev.network.domains]
+            r#"default_permissions = "dev"
+
+[permissions.dev.network.domains]
 "example.com" = "allow"
 "#,
         ),
@@ -3083,7 +3088,7 @@ custom = true
         ),
     ];
 
-    for (base, key_path, value, expected) in cases {
+    for (case_index, (base, key_path, value, expected)) in cases.into_iter().enumerate() {
         let tmp = tempdir()?;
         let path = tmp.path().join(CONFIG_TOML_FILE);
         std::fs::write(&path, base)?;
@@ -3109,6 +3114,7 @@ custom = true
                 cwd: None,
             })
             .await?;
+        eprintln!("path-sensitive merge case {} passed: {key_path}", case_index + 1);
     }
 
     Ok(())
