@@ -1162,11 +1162,15 @@ index 0000000000000000000000000000000000000000..6c2e29d22f88ea45e9e6e2efad667437
 +없으면 해당 의존성을 제외하고 공식 제공자의 직접 설치 방법을 안내합니다.
 +동봉하는 오픈소스의 소스 제공·고지 등 의무는 계속 유지합니다.
 diff --git a/MODIFICATIONS.md b/MODIFICATIONS.md
-index c3febe7112813d655a8b6c2367e9057cca8d1705..e1ebedbdbb06d4e6b286c08cea16edb6fea309c1 100644
+index c3febe7112813d655a8b6c2367e9057cca8d1705..f81eb239d3cb07727ca121c600828c10da3bab5a 100644
 --- a/MODIFICATIONS.md
 +++ b/MODIFICATIONS.md
-@@ -1,3 +1,67 @@
+@@ -1,3 +1,71 @@
 +# Arcvera-Core 1.1.0 candidate / 1.1.0 후보
++
++An additional synthetic stdio integration case exercises retained-stage capacity, stopped-process archival and explicit consolidation retry while checking original inputs and the legacy baseline byte for byte. Native execution is pending; this case does not establish old-executable compatibility or power-loss durability.
++
++합성 입력을 사용하는 stdio 통합시험을 추가하여 보존 stage 상한, 프로세스 종료 후 보관, 명시적 통합 재시도 과정에서 원본 입력과 legacy 기준 세대의 바이트 보존을 검사합니다. 네이티브 실행은 대기 중이며 구버전 실행 파일 호환성이나 전원 차단 시 내구성을 입증하지 않습니다.
 +
 +The 1.1.0 candidate adds indexed context selection and retrieval, body-free composition metadata, explicit provider cache policies, and MCP/hook runtime and reload handling. Native verification and release preparation remain in progress. Source inventory and derivative notices continue through `CURRENT_SOURCE.json`; original copyright, licenses and notices remain preserved. See [candidate notes](docs/releases/v1.1.0.md).
 +
@@ -1233,7 +1237,7 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..e1ebedbdbb06d4e6b286c08cea16edb6
  # R39 compact 개발 후보 (2026-11-07)
  
  정식 발행·동결된 R38과 같은 공식 0.167.0 기반에서 압축 동작만 변경합니다. 버전은 `0.167.0+native-r39.20261107`이며, 고정 소스는 `c4399dce957bb63fe1fdc276aa4306c06f6cf47f`입니다. 메모리 리팩토링·후크·캐싱·스크롤 감도·한글화·컨텍스트 조회의 미완 작업은 R40으로 이관하며 이번 변경에 포함하지 않습니다. 현재 소스·시험 후보이며 최종 빌드·발행은 미완료입니다.
-@@ -701,3 +765,19 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
+@@ -701,3 +769,19 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
  고정 소스 `8e9b7eff953e750e8f071d101233920108e5ca26`는 R37 이후의 별도 개발 후보다. 플러그인 payload 비교에서 정확한 `.git`만 제외하고, 암시적 daemon의 전체 버전 확인과 실제 시작·재연결 화면 안내를 보강했다. Stop 속성의 명시적 교정 도구와 재로드 경고의 한국어/영어 안내, 에이전트 목록의 메인 마우스 복귀 및 작은 밑줄만 사용하는 hover를 포함한다.
  
  요구별 실행 결과·원래 실패·미검증 경계는 [R38 범위](docs/native-cli-r38.ko.md)와 연결된 사례 문서를 따른다. 운영 설정 자동 교정·R38 최종 릴리스 빌드·공개·설치는 수행하지 않았다. R37 동결 실행 파일은 변경하지 않았다.
@@ -24810,6 +24814,325 @@ index ca2e06e467b896dcb690786414c596cda7b01ada..73614bdcbd666edd3eed9e733b8370aa
              thread_id: thread.id,
              turn_id: None,
              server_name: TEST_SERVER_NAME.to_string(),
+diff --git a/codex-rs/app-server/tests/suite/v2/memory_consolidate.rs b/codex-rs/app-server/tests/suite/v2/memory_consolidate.rs
+index 5545a04f0c69c7144a47850b39a9dde1f53f0411..15f4e1e56a30df1d3b7f0538648bf77e42cf7666 100644
+--- a/codex-rs/app-server/tests/suite/v2/memory_consolidate.rs
++++ b/codex-rs/app-server/tests/suite/v2/memory_consolidate.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
+ //! Real stdio transport tests with synthetic memory workspaces and SQLite state only.
+ use super::*;
+@@ -15,6 +16,9 @@ use pretty_assertions::assert_eq;
+ use std::path::Path;
+ use std::path::PathBuf;
+ 
++#[path = "memory_recovery.rs"]
++mod recovery;
++
+ #[tokio::test]
+ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_and_context()
+ -> Result<()> {
+diff --git a/codex-rs/app-server/tests/suite/v2/memory_recovery.rs b/codex-rs/app-server/tests/suite/v2/memory_recovery.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..07adba4c3f13e5d54217219c04fafb9c6ae2a0a5
+--- /dev/null
++++ b/codex-rs/app-server/tests/suite/v2/memory_recovery.rs
+@@ -0,0 +1,294 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
++//! Recovery with real stdio, worker tools, SQLite and synthetic inputs only.
++use super::*;
++use core_test_support::responses::{ev_function_call, mount_sse_sequence};
++use std::collections::BTreeMap;
++use tokio::time::{Duration, Instant};
++
++async fn recovery_thread(app: &mut TestAppServer, project: &Path) -> Result<String> {
++    let request = app
++        .send_thread_start_request_with_auto_env(ThreadStartParams {
++            cwd: Some(project.to_string_lossy().into_owned()),
++            config: Some(std::collections::HashMap::from([
++                ("memories.scope".into(), json!("project")),
++                ("memories.version".into(), json!("v1")),
++                ("memories.dual_write".into(), json!(false)),
++                ("memories.generate_memories".into(), json!(true)),
++                ("memories.use_memories".into(), json!(false)),
++                ("memories.consolidation_model".into(), json!("gpt-5.5")),
++            ])),
++            ..Default::default()
++        })
++        .await?;
++    let started: ThreadStartResponse = app.read_response(request).await?;
++    Ok(started.thread.id)
++}
++
++async fn recovery_state(
++    app: &mut TestAppServer,
++    id: &str,
++    expected: &str,
++) -> Result<ThreadMemoryReadResponse> {
++    let deadline = Instant::now() + Duration::from_secs(30);
++    loop {
++        let read = read_memory(app, id, true).await?;
++        if let Some(state) = &read.consolidation {
++            if state.status == expected {
++                return Ok(read);
++            }
++            anyhow::ensure!(
++                state.status != "error" || expected == "error",
++                "unexpected worker failure: {:?}",
++                state.last_error
++            );
++        }
++        anyhow::ensure!(Instant::now() < deadline, "worker did not reach {expected}");
++        tokio::time::sleep(Duration::from_millis(20)).await;
++    }
++}
++
++async fn recovery_idle(root: &Path) -> Result<()> {
++    let deadline = Instant::now() + Duration::from_secs(30);
++    loop {
++        match MemoryWorkspaceLock::try_acquire(root) {
++            Ok(lock) => {
++                drop(lock);
++                return Ok(());
++            }
++            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
++            Err(error) => return Err(error.into()),
++        }
++        anyhow::ensure!(
++            Instant::now() < deadline,
++            "worker retained workspace ownership"
++        );
++        tokio::time::sleep(Duration::from_millis(20)).await;
++    }
++}
++
++fn recovery_bytes(root: &Path) -> Result<BTreeMap<PathBuf, Vec<u8>>> {
++    fn visit(root: &Path, path: &Path, out: &mut BTreeMap<PathBuf, Vec<u8>>) -> Result<()> {
++        let metadata = std::fs::symlink_metadata(path)?;
++        anyhow::ensure!(
++            !metadata.file_type().is_symlink(),
++            "fixture contains redirected path"
++        );
++        if metadata.is_dir() {
++            for entry in std::fs::read_dir(path)? {
++                visit(root, &entry?.path(), out)?;
++            }
++        } else {
++            out.insert(path.strip_prefix(root)?.to_path_buf(), std::fs::read(path)?);
++        }
++        Ok(())
++    }
++    let mut result = BTreeMap::new();
++    visit(root, root, &mut result)?;
++    Ok(result)
++}
++
++fn recovery_stages(root: &Path) -> Result<Vec<PathBuf>> {
++    let identity = codex_memories_read::publication_snapshot::root_identity(root)?;
++    let prefix = format!("codex-memory-stage-{identity}-");
++    let mut paths = Vec::new();
++    for entry in std::fs::read_dir(root.parent().expect("fixture root parent"))? {
++        let entry = entry?;
++        let name = entry.file_name();
++        if let Some(id) = name.to_string_lossy().strip_prefix(&prefix) {
++            // Exact root identity and a canonical UUID prove fixture ownership.
++            let parsed = uuid::Uuid::parse_str(id)?;
++            assert_eq!(parsed.to_string(), id);
++            assert_eq!(
++                std::fs::read_to_string(entry.path().join(".codex-memory-stage"))?,
++                format!("{identity}\n{id}\n")
++            );
++            paths.push(entry.path());
++        }
++    }
++    paths.sort();
++    Ok(paths)
++}
++
++#[tokio::test]
++async fn memory_recovery_archives_failed_stages_after_shutdown_and_retries() -> Result<()> {
++    let server = start_mock_server().await;
++    let home = TempDir::new()?;
++    let project = TempDir::new()?;
++    MockResponsesConfig::new(&server.uri())
++        .with_model("gpt-5.5")
++        .with_sandbox_mode("danger-full-access")
++        .enable_feature(Feature::MemoryTool)
++        .enable_feature(Feature::Sqlite)
++        .disable_feature(Feature::CodeMode)
++        .disable_feature(Feature::CodeModeOnly)
++        .write(home.path())?;
++    let mut app = TestAppServer::builder()
++        .with_codex_home(home.path())
++        .build_initialized()
++        .await?;
++    let id = recovery_thread(&mut app, project.path()).await?;
++    let root = PathBuf::from(
++        read_memory(&mut app, &id, true)
++            .await?
++            .root
++            .expect("project root"),
++    );
++    std::fs::create_dir_all(&root)?;
++    let legacy = "v1\n\n## User Profile\n\n## User preferences\n- Synthetic legacy preference.\n\n## General Tips\n\n## What's in Memory\n- Legacy input.\n";
++    std::fs::write(root.join("memory_summary.md"), legacy)?;
++    std::fs::write(
++        root.join("MEMORY.md"),
++        "# Original synthetic legacy memory\n",
++    )?;
++    let add = app
++        .send_raw_request(
++            "thread/memory/note/add",
++            Some(json!({"threadId":id,"note":"Synthetic recovery note: preserve original bytes."})),
++        )
++        .await?;
++    let note: ThreadMemoryNoteAddResponse = app.read_response(add).await?;
++    assert!(note.pending_consolidation);
++    let originals = recovery_bytes(&root.join("extensions"))?;
++    let mut events = Vec::new();
++    for attempt in 0..2 {
++        events.push(sse(vec![ev_function_call(&format!("invalid-{attempt}"), "memory_stage", &json!({"operation":"write","path":"memory_summary.md","content":"invalid summary without version header\n"}).to_string()), ev_completed(&format!("invalid-write-{attempt}"))]));
++        events.push(sse(vec![
++            ev_assistant_message(&format!("invalid-done-{attempt}"), "Done."),
++            ev_completed(&format!("invalid-finished-{attempt}")),
++        ]));
++    }
++    let valid = legacy.replace("Legacy input.", "Recovered publication.");
++    events.push(sse(vec![
++        ev_function_call(
++            "recovered-write",
++            "memory_stage",
++            &json!({"operation":"write","path":"memory_summary.md","content":valid}).to_string(),
++        ),
++        ev_completed("recovered-tools"),
++    ]));
++    events.push(sse(vec![
++        ev_assistant_message("recovered-done", "Done."),
++        ev_completed("recovered-finished"),
++    ]));
++    let model = mount_sse_sequence(&server, events).await;
++    let mut baseline_id = None;
++    let mut baseline_bytes = None;
++    for attempt in 0..2 {
++        assert_eq!(
++            consolidate_wire(&mut app, &id, Some(true)).await?.status,
++            "accepted"
++        );
++        let read = recovery_state(&mut app, &id, "error").await?;
++        assert!(
++            read.consolidation
++                .as_ref()
++                .and_then(|state| state.last_error.as_deref())
++                .is_some_and(
++                    |error| error.contains("memory summary artifact does not start with v1")
++                )
++        );
++        recovery_idle(&root).await?;
++        assert_eq!(read.summary.as_deref(), Some(legacy));
++        assert_eq!(
++            read.publication_provenance.as_deref(),
++            Some("legacy_import")
++        );
++        let generation = read.generation_id.expect("retained legacy generation");
++        if let Some(previous) = &baseline_id {
++            assert_eq!(previous, &generation);
++        }
++        let path = codex_memories_read::publication_snapshot::generation_root(&root, &generation)?;
++        let bytes = recovery_bytes(&path)?;
++        if let Some(previous) = &baseline_bytes {
++            assert_eq!(previous, &bytes);
++        }
++        baseline_id = Some(generation);
++        baseline_bytes = Some(bytes);
++        assert_eq!(recovery_stages(&root)?.len(), attempt + 1);
++        assert_eq!(recovery_bytes(&root.join("extensions"))?, originals);
++        let requests = model.requests();
++        let call = format!("invalid-{attempt}");
++        let output = requests[attempt * 2 + 1]
++            .function_call_output_content_and_success(&call)
++            .expect("actual stage tool result");
++        assert_ne!(output.1, Some(false));
++        assert!(output.0.expect("stage tool output").contains("written"));
++    }
++    assert_eq!(model.requests().len(), 4);
++    let blocked = consolidate_wire(&mut app, &id, Some(true)).await?;
++    assert_eq!(blocked.status, "blocked");
++    assert!(
++        blocked
++            .reason
++            .as_deref()
++            .is_some_and(|reason| reason.contains("retained memory stages require recovery"))
++    );
++    assert_eq!(
++        model.requests().len(),
++        4,
++        "capacity block must precede model work"
++    );
++    let stages = recovery_stages(&root)?;
++    assert_eq!(stages.len(), 2);
++    let marker = std::fs::read(root.join(".codex-memory-managed"))?;
++    // Shutdown joins this fixture's workers/readers before any archive operation.
++    app.shutdown_gracefully().await?;
++    let lock = MemoryWorkspaceLock::try_acquire(&root)?;
++    let archive = home.path().join("recovery-archive");
++    std::fs::create_dir(&archive)?;
++    let mut archived = Vec::new();
++    for stage in stages {
++        let bytes = recovery_bytes(&stage)?;
++        let destination = archive.join(stage.file_name().expect("owned stage name"));
++        assert!(!destination.exists());
++        std::fs::rename(&stage, &destination)?;
++        assert_eq!(recovery_bytes(&destination)?, bytes);
++        archived.push((destination, bytes));
++    }
++    assert!(recovery_stages(&root)?.is_empty());
++    drop(lock);
++    let mut app = TestAppServer::builder()
++        .with_codex_home(home.path())
++        .build_initialized()
++        .await?;
++    let id = recovery_thread(&mut app, project.path()).await?;
++    let before = read_memory(&mut app, &id, true).await?;
++    assert_eq!(before.generation_id, baseline_id);
++    assert_eq!(before.root.as_deref(), root.to_str());
++    assert_eq!(
++        consolidate_wire(&mut app, &id, Some(true)).await?.status,
++        "accepted"
++    );
++    let recovered = recovery_state(&mut app, &id, "done").await?;
++    assert_eq!(recovered.summary.as_deref(), Some(valid.as_str()));
++    assert_eq!(
++        recovered.publication_provenance.as_deref(),
++        Some("consolidated")
++    );
++    assert_ne!(recovered.generation_id, baseline_id);
++    assert_eq!(model.requests().len(), 6);
++    assert_eq!(std::fs::read(root.join(".codex-memory-managed"))?, marker);
++    assert_eq!(
++        std::fs::read_to_string(root.join("memory_summary.md"))?,
++        legacy
++    );
++    assert_eq!(
++        std::fs::read_to_string(root.join("MEMORY.md"))?,
++        "# Original synthetic legacy memory\n"
++    );
++    assert_eq!(recovery_bytes(&root.join("extensions"))?, originals);
++    let baseline = codex_memories_read::publication_snapshot::generation_root(
++        &root,
++        baseline_id.as_deref().expect("baseline"),
++    )?;
++    assert_eq!(
++        recovery_bytes(&baseline)?,
++        baseline_bytes.expect("baseline bytes")
++    );
++    for (path, bytes) in archived {
++        assert_eq!(recovery_bytes(&path)?, bytes);
++    }
++    assert!(recovery_stages(&root)?.is_empty());
++    app.shutdown_gracefully().await?;
++    Ok(())
++}
 diff --git a/codex-rs/app-server/tests/suite/v2/memory_reset.rs b/codex-rs/app-server/tests/suite/v2/memory_reset.rs
 index 5cfeb3c0aedb9250281f5f6ae692d5372b8ebd96..b011ca9c33251ff3adbd8ca06bc8135c016aa9d5 100644
 --- a/codex-rs/app-server/tests/suite/v2/memory_reset.rs

@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "051dc0283e94d253bc7077ce24f7a0f99b5c62e197944d7ef3dab54f1a6be0cd",
+  "sourceTreeSha256": "7bbd25659c558509c1ea84a9d13e25d53796b3730c043842e202a4b817e4204a",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "b6b6da3641e1ff1fd0000f6db1ec2e765980bb0eb543617883eb2ed30b842eff"
+    "sha256": "7c65fa363940e43944ad572b71560c2f34a2d18f8af102c9b6cda08ca7eb438f"
   },
   "files": [
     {
@@ -77,9 +77,9 @@
     {
       "path": "MODIFICATIONS.md",
       "gitMode": "100644",
-      "bytes": 89406,
-      "sha256": "a4ff43b41e8e6aa6544ff2440a3ab694a4a922e13cea42e7964b5a94fcc67042",
-      "gitBlob": "e1ebedbdbb06d4e6b286c08cea16edb6fea309c1"
+      "bytes": 90105,
+      "sha256": "151e2a488adb3e4ec95bbd2e229fc07000c51458ecd40a2029d7afc81bad06ea",
+      "gitBlob": "f81eb239d3cb07727ca121c600828c10da3bab5a"
     },
     {
       "path": "NOTICE",
@@ -11949,9 +11949,9 @@
     {
       "path": "codex-rs/app-server/tests/suite/v2/memory_consolidate.rs",
       "gitMode": "100644",
-      "bytes": 26575,
-      "sha256": "84d76b248f1facdb22e1194d3ba9c82122cedfcf9c8464eb73fe3d465850db7f",
-      "gitBlob": "5545a04f0c69c7144a47850b39a9dde1f53f0411"
+      "bytes": 26692,
+      "sha256": "a8e742e348c47bdb17698eaaeba4b8ecf67cd493dc98056d32d180b8635b3cbf",
+      "gitBlob": "15f4e1e56a30df1d3b7f0538648bf77e42cf7666"
     },
     {
       "path": "codex-rs/app-server/tests/suite/v2/memory_read.rs",
@@ -11959,6 +11959,13 @@
       "bytes": 18092,
       "sha256": "eb8ac31ea7743366498434b12e9927c435abdf5c6935e74420469185c966e779",
       "gitBlob": "85acf6c07726546f1af1fc4d8313779a5526a99c"
+    },
+    {
+      "path": "codex-rs/app-server/tests/suite/v2/memory_recovery.rs",
+      "gitMode": "100644",
+      "bytes": 11626,
+      "sha256": "ea51dfd684e63c34a10bb5a22ebae26a554d835681db2c7acce0d26d92d34d23",
+      "gitBlob": "07adba4c3f13e5d54217219c04fafb9c6ae2a0a5"
     },
     {
       "path": "codex-rs/app-server/tests/suite/v2/memory_reset.rs",
@@ -68099,6 +68106,16 @@
     {
       "path": "codex-rs/app-server/tests/suite/v2/mcp_tool.rs",
       "status": "modified",
+      "notice": "inline-1.1.0"
+    },
+    {
+      "path": "codex-rs/app-server/tests/suite/v2/memory_consolidate.rs",
+      "status": "modified",
+      "notice": "inline-1.1.0"
+    },
+    {
+      "path": "codex-rs/app-server/tests/suite/v2/memory_recovery.rs",
+      "status": "added",
       "notice": "inline-1.1.0"
     },
     {

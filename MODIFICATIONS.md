@@ -1,5 +1,9 @@
 # Arcvera-Core 1.1.0 candidate / 1.1.0 후보
 
+An additional synthetic stdio integration case exercises retained-stage capacity, stopped-process archival and explicit consolidation retry while checking original inputs and the legacy baseline byte for byte. Native execution is pending; this case does not establish old-executable compatibility or power-loss durability.
+
+합성 입력을 사용하는 stdio 통합시험을 추가하여 보존 stage 상한, 프로세스 종료 후 보관, 명시적 통합 재시도 과정에서 원본 입력과 legacy 기준 세대의 바이트 보존을 검사합니다. 네이티브 실행은 대기 중이며 구버전 실행 파일 호환성이나 전원 차단 시 내구성을 입증하지 않습니다.
+
 The 1.1.0 candidate adds indexed context selection and retrieval, body-free composition metadata, explicit provider cache policies, and MCP/hook runtime and reload handling. Native verification and release preparation remain in progress. Source inventory and derivative notices continue through `CURRENT_SOURCE.json`; original copyright, licenses and notices remain preserved. See [candidate notes](docs/releases/v1.1.0.md).
 
 The candidate bounds asynchronous hook admission by unfinished job count and serialized input size, reporting saturation through the existing error path. Post-request coordinators share admission capacity without occupying command execution slots. Bounded inherited user sources survive worker checkpoints in a host-only archive and are adopted with inherited provenance only by standalone roots; worker-local authorization excludes the archive. Optional payload-free observations at the real browser opener support exact-pair integration checks; these observations are disabled by default. Guardian test fixtures retain their private home and use the real SQLite metadata store. Verification remains pending.

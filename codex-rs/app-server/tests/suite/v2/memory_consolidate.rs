@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Real stdio transport tests with synthetic memory workspaces and SQLite state only.
 use super::*;
@@ -14,6 +15,9 @@ use codex_utils_absolute_path::test_support::PathExt;
 use pretty_assertions::assert_eq;
 use std::path::Path;
 use std::path::PathBuf;
+
+#[path = "memory_recovery.rs"]
+mod recovery;
 
 #[tokio::test]
 async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_and_context()
