@@ -1,5 +1,9 @@
 # Arcvera-Core 1.1.0 candidate / 1.1.0 후보
 
+The note consolidation integration fixture uses the actual Windows host-mediated stage tools and validates the API-selected immutable publication. It preserves original note bytes and verifies fresh API/context visibility. Native verification is pending.
+
+노트 통합시험은 Windows의 실제 호스트 중개 stage 도구를 사용하고 API가 선택한 불변 발행물을 검증합니다. 원본 노트 바이트 보존과 새 대화의 API·문맥 반영을 확인하며 네이티브 검증은 대기 중입니다.
+
 The stable embedded internal schema is regenerated for the retained host-only inherited user context. Public TypeScript and JSON exports are unchanged. Matching native schema regression remains pending.
 
 호스트 전용 상속 사용자 문맥에 맞춰 stable 내부 스키마 번들을 재생성합니다. 공개 TypeScript와 JSON 내보내기는 유지하며 동일 네이티브 스키마 회귀는 대기 중입니다.

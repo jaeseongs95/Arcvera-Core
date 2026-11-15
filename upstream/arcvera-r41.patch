@@ -1162,11 +1162,15 @@ index 0000000000000000000000000000000000000000..6c2e29d22f88ea45e9e6e2efad667437
 +없으면 해당 의존성을 제외하고 공식 제공자의 직접 설치 방법을 안내합니다.
 +동봉하는 오픈소스의 소스 제공·고지 등 의무는 계속 유지합니다.
 diff --git a/MODIFICATIONS.md b/MODIFICATIONS.md
-index c3febe7112813d655a8b6c2367e9057cca8d1705..34fb2a4583ebaabfd94690202d57bb9003dd7591 100644
+index c3febe7112813d655a8b6c2367e9057cca8d1705..9662c0b05d09803bb849fc6ca166e3fa1ade6030 100644
 --- a/MODIFICATIONS.md
 +++ b/MODIFICATIONS.md
-@@ -1,3 +1,79 @@
+@@ -1,3 +1,83 @@
 +# Arcvera-Core 1.1.0 candidate / 1.1.0 후보
++
++The note consolidation integration fixture uses the actual Windows host-mediated stage tools and validates the API-selected immutable publication. It preserves original note bytes and verifies fresh API/context visibility. Native verification is pending.
++
++노트 통합시험은 Windows의 실제 호스트 중개 stage 도구를 사용하고 API가 선택한 불변 발행물을 검증합니다. 원본 노트 바이트 보존과 새 대화의 API·문맥 반영을 확인하며 네이티브 검증은 대기 중입니다.
 +
 +The stable embedded internal schema is regenerated for the retained host-only inherited user context. Public TypeScript and JSON exports are unchanged. Matching native schema regression remains pending.
 +
@@ -1245,7 +1249,7 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..34fb2a4583ebaabfd94690202d57bb90
  # R39 compact 개발 후보 (2026-11-07)
  
  정식 발행·동결된 R38과 같은 공식 0.167.0 기반에서 압축 동작만 변경합니다. 버전은 `0.167.0+native-r39.20261107`이며, 고정 소스는 `c4399dce957bb63fe1fdc276aa4306c06f6cf47f`입니다. 메모리 리팩토링·후크·캐싱·스크롤 감도·한글화·컨텍스트 조회의 미완 작업은 R40으로 이관하며 이번 변경에 포함하지 않습니다. 현재 소스·시험 후보이며 최종 빌드·발행은 미완료입니다.
-@@ -701,3 +777,19 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
+@@ -701,3 +781,19 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
  고정 소스 `8e9b7eff953e750e8f071d101233920108e5ca26`는 R37 이후의 별도 개발 후보다. 플러그인 payload 비교에서 정확한 `.git`만 제외하고, 암시적 daemon의 전체 버전 확인과 실제 시작·재연결 화면 안내를 보강했다. Stop 속성의 명시적 교정 도구와 재로드 경고의 한국어/영어 안내, 에이전트 목록의 메인 마우스 복귀 및 작은 밑줄만 사용하는 hover를 포함한다.
  
  요구별 실행 결과·원래 실패·미검증 경계는 [R38 범위](docs/native-cli-r38.ko.md)와 연결된 사례 문서를 따른다. 운영 설정 자동 교정·R38 최종 릴리스 빌드·공개·설치는 수행하지 않았다. R37 동결 실행 파일은 변경하지 않았다.
@@ -24829,7 +24833,7 @@ index ca2e06e467b896dcb690786414c596cda7b01ada..73614bdcbd666edd3eed9e733b8370aa
              turn_id: None,
              server_name: TEST_SERVER_NAME.to_string(),
 diff --git a/codex-rs/app-server/tests/suite/v2/memory_consolidate.rs b/codex-rs/app-server/tests/suite/v2/memory_consolidate.rs
-index 5545a04f0c69c7144a47850b39a9dde1f53f0411..15f4e1e56a30df1d3b7f0538648bf77e42cf7666 100644
+index 5545a04f0c69c7144a47850b39a9dde1f53f0411..93a3d9c852ab3d2e48c48471bb5fd5de19248b74 100644
 --- a/codex-rs/app-server/tests/suite/v2/memory_consolidate.rs
 +++ b/codex-rs/app-server/tests/suite/v2/memory_consolidate.rs
 @@ -1,3 +1,4 @@
@@ -24847,6 +24851,223 @@ index 5545a04f0c69c7144a47850b39a9dde1f53f0411..15f4e1e56a30df1d3b7f0538648bf77e
  #[tokio::test]
  async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_and_context()
  -> Result<()> {
+@@ -88,15 +92,13 @@ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_a
+         .map(|entry| entry.map(|entry| entry.path()))
+         .collect::<std::io::Result<Vec<_>>>()?;
+     assert_eq!(notes.len(), 1);
+-    let quoted_note = notes[0].to_string_lossy();
+-    let read_command = if cfg!(windows) {
+-        format!(
+-            "Get-Content -Raw -LiteralPath '{}'",
+-            quoted_note.replace('\'', "''")
+-        )
+-    } else {
+-        format!("cat -- '{}'", quoted_note.replace('\'', "'\\''"))
+-    };
++    let original_note = std::fs::read(&notes[0])?;
++    let relative_note = notes[0]
++        .strip_prefix(&root)?
++        .to_string_lossy()
++        .replace('\\', "/");
++    let read_command = format!("cat -- '{}'", relative_note.replace('\'', "'\\''"));
++    let memory = format!("# Synthetic fixture memory\n- Keep README current: {marker}.\n");
+     let patch = format!(
+         "*** Begin Patch\n*** Add File: MEMORY.md\n+# Synthetic fixture memory\n+- Keep README current: {marker}.\n*** Add File: memory_summary.md\n{}\n*** End Patch",
+         summary
+@@ -105,8 +107,56 @@ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_a
+             .collect::<Vec<_>>()
+             .join("\n")
+     );
+-    let worker = mount_sse_sequence(
+-        &server,
++    // Windows without an OS sandbox exposes only host-mediated stage tools.
++    // Other platforms use the sandboxed process/patch tools with stage-relative input.
++    let responses = if cfg!(windows) {
++        vec![
++            sse(vec![
++                ev_response_created("t09-read-note"),
++                ev_function_call(
++                    "t09-read-note-tool",
++                    "memory_stage",
++                    &json!({
++                        "operation": "read", "path": relative_note
++                    })
++                    .to_string(),
++                ),
++                ev_completed("t09-read-note"),
++            ]),
++            sse(vec![
++                ev_response_created("t09-write-memory"),
++                ev_function_call(
++                    "t09-write-memory-tool",
++                    "memory_stage",
++                    &json!({
++                        "operation": "write", "path": "MEMORY.md", "content": memory
++                    })
++                    .to_string(),
++                ),
++                ev_completed("t09-write-memory"),
++            ]),
++            sse(vec![
++                ev_response_created("t09-write-summary"),
++                ev_function_call(
++                    "t09-write-summary-tool",
++                    "memory_stage",
++                    &json!({
++                        "operation": "write", "path": "memory_summary.md", "content": summary
++                    })
++                    .to_string(),
++                ),
++                ev_completed("t09-write-summary"),
++            ]),
++            sse(vec![
++                ev_response_created("t09-worker-complete"),
++                ev_assistant_message(
++                    "t09-worker-complete-message",
++                    "Synthetic consolidation finished.",
++                ),
++                ev_completed("t09-worker-complete"),
++            ]),
++        ]
++    } else {
+         vec![
+             sse(vec![
+                 ev_response_created("t09-read-note"),
+@@ -133,9 +183,9 @@ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_a
+                 ),
+                 ev_completed("t09-worker-complete"),
+             ]),
+-        ],
+-    )
+-    .await;
++        ]
++    };
++    let worker = mount_sse_sequence(&server, responses).await;
+     assert_eq!(
+         consolidate_wire(&mut app, &started.thread.id, None)
+             .await?
+@@ -143,11 +193,15 @@ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_a
+         "accepted"
+     );
+     let deadline = Instant::now() + Duration::from_secs(30);
+-    loop {
+-        if let Some(state) = read_memory(&mut app, &started.thread.id, true)
+-            .await?
+-            .consolidation
+-        {
++    let published = loop {
++        let read =
++            tokio::time::timeout_at(deadline, read_memory(&mut app, &started.thread.id, true))
++                .await??;
++        anyhow::ensure!(
++            Instant::now() < deadline,
++            "worker did not persist completion"
++        );
++        if let Some(state) = &read.consolidation {
+             anyhow::ensure!(
+                 state.status != "error",
+                 "consolidation failed: {:?}",
+@@ -155,7 +209,7 @@ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_a
+             );
+             if state.status == "done" {
+                 assert!(state.finished_at.is_some());
+-                break;
++                break read;
+             }
+         }
+         anyhow::ensure!(
+@@ -163,9 +217,9 @@ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_a
+             "worker did not persist completion"
+         );
+         tokio::time::sleep(Duration::from_millis(20)).await;
+-    }
++    };
+     let requests = worker.requests();
+-    assert_eq!(requests.len(), 3);
++    assert_eq!(requests.len(), if cfg!(windows) { 4 } else { 3 });
+     assert!(
+         !requests[0].body_contains_text(marker),
+         "the note must be read through the real tool"
+@@ -175,21 +229,56 @@ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_a
+         .expect("worker's actual note-read tool result");
+     let note_output = note_result.0.expect("note-read output text");
+     assert!(note_output.contains(marker));
+-    assert!(note_output.contains("Process exited with code 0"));
+     assert_ne!(note_result.1, Some(false));
+-    let patch_output = requests[2]
+-        .custom_tool_call_output_content_and_success("t09-apply-memory-tool")
+-        .expect("worker's actual patch tool result");
+-    let patch_text = patch_output.0.expect("patch output text");
+-    assert!(patch_text.contains("Success. Updated the following files:"));
+-    assert!(patch_text.contains("MEMORY.md"));
+-    assert!(patch_text.contains("memory_summary.md"));
+-    assert_ne!(patch_output.1, Some(false));
+-    assert!(std::fs::read_to_string(root.join("MEMORY.md"))?.contains(marker));
++    if cfg!(windows) {
++        let read: serde_json::Value = serde_json::from_str(&note_output)?;
++        assert!(
++            read["content"]
++                .as_str()
++                .expect("note content")
++                .contains(marker)
++        );
++        assert!(read["next_offset"].is_null());
++        for (request, call_id, bytes) in [
++            (&requests[2], "t09-write-memory-tool", memory.len()),
++            (&requests[3], "t09-write-summary-tool", summary.len()),
++        ] {
++            let output = request
++                .function_call_output_content_and_success(call_id)
++                .expect("worker's actual stage write result");
++            assert_ne!(output.1, Some(false));
++            let value: serde_json::Value =
++                serde_json::from_str(&output.0.expect("stage write output"))?;
++            assert_eq!(value["written"].as_u64(), Some(bytes as u64));
++        }
++    } else {
++        assert!(note_output.contains("Process exited with code 0"));
++        let patch_output = requests[2]
++            .custom_tool_call_output_content_and_success("t09-apply-memory-tool")
++            .expect("worker's actual patch tool result");
++        let patch_text = patch_output.0.expect("patch output text");
++        assert!(patch_text.contains("Success. Updated the following files:"));
++        assert!(patch_text.contains("MEMORY.md"));
++        assert!(patch_text.contains("memory_summary.md"));
++        assert_ne!(patch_output.1, Some(false));
++    }
++    assert_eq!(
++        published.publication_provenance.as_deref(),
++        Some("consolidated")
++    );
++    let generation_id = published
++        .generation_id
++        .as_deref()
++        .expect("published generation ID");
++    let derived = codex_memories_read::publication_snapshot::generation_root(&root, generation_id)?;
++    assert!(std::fs::read_to_string(derived.join("MEMORY.md"))?.contains(marker));
+     assert_eq!(
+-        std::fs::read_to_string(root.join("memory_summary.md"))?,
++        std::fs::read_to_string(derived.join("memory_summary.md"))?,
+         summary
+     );
++    assert_eq!(std::fs::read(&notes[0])?, original_note);
++    assert!(!root.join("MEMORY.md").exists());
++    assert!(!root.join("memory_summary.md").exists());
+ 
+     // A fresh thread exercises the real memory API and extension, without another startup job.
+     let request = app
+@@ -211,6 +300,11 @@ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_a
+     assert_eq!(reread.root.as_deref(), root.to_str());
+     assert_eq!(reread.status.as_deref(), Some("ready"));
+     assert_eq!(reread.summary.as_deref(), Some(summary.as_str()));
++    assert_eq!(reread.generation_id.as_deref(), Some(generation_id));
++    assert_eq!(
++        reread.publication_provenance.as_deref(),
++        Some("consolidated")
++    );
+     let foreground = mount_sse_once(
+         &server,
+         sse(vec![
 diff --git a/codex-rs/app-server/tests/suite/v2/memory_recovery.rs b/codex-rs/app-server/tests/suite/v2/memory_recovery.rs
 new file mode 100644
 index 0000000000000000000000000000000000000000..ddf610db82f85c48c6f3b85d6cb8d398f503f8fa
