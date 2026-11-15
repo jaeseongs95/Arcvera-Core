@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "081a00fd4fb8ea650f4ae1f10822fd8834d3f5477092a27044a7f2f2f6566cfa",
+  "sourceTreeSha256": "9e984eddda6cca193c47b0e56f1cb838b2bf836cc43413f13f6c450815b3bab3",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "8d4ce3ba1d8e086329b8fa81e31ccc0ba6b74d32ee4c5d8ee1d234b9d2427faf"
+    "sha256": "15b32cf4cdd61303f5c2d6fb347dd96ab912965d6b0078920037fbe5a83d3663"
   },
   "files": [
     {
@@ -21273,9 +21273,9 @@
     {
       "path": "codex-rs/core/src/guardian/tests.rs",
       "gitMode": "100644",
-      "bytes": 173923,
-      "sha256": "d98b9a9114f4e00a1da974d7b1c3aba47a46fdea0a9ca3ffc124b3c6114efa25",
-      "gitBlob": "70533f8107246f691b089608dcf570e8daa64b22"
+      "bytes": 174056,
+      "sha256": "fd6f35be8aa94b4ef69b07a8a7b22d4b781c966d352b91ef5a4cc277f08cff99",
+      "gitBlob": "89dcdc3d758c4c416052ef57e56582df2eba76cf"
     },
     {
       "path": "codex-rs/core/src/guardian_review.rs",
@@ -22232,9 +22232,9 @@
     {
       "path": "codex-rs/core/src/session/turn_tests.rs",
       "gitMode": "100644",
-      "bytes": 10941,
-      "sha256": "d4bbde0bae6459a027ec6a046f44cff8acd4edc3a6680c4e51f0e9b71234f1ac",
-      "gitBlob": "c6faf30d68a2629773f9a075e2ba6ca0f86f0518"
+      "bytes": 10947,
+      "sha256": "457e75ef8cd13042df3f5e4454994f5b326e138eb0d7e7a445273bbaaf5189fc",
+      "gitBlob": "7da0db06f72ac27febb841d78fbd49472843136c"
     },
     {
       "path": "codex-rs/core/src/session/world_state.rs",

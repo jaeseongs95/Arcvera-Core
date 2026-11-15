@@ -39095,7 +39095,7 @@ index 6a247f55a47385ba3d09c2405bc1dbf5e34f59da..93e789b844b082dacb412e3a5172eca6
                  message: String::new(),
                  window_number,
 diff --git a/codex-rs/core/src/guardian/tests.rs b/codex-rs/core/src/guardian/tests.rs
-index 4a81e55a51fb1a7f487bf43d9a839cc2d2188109..70533f8107246f691b089608dcf570e8daa64b22 100644
+index 4a81e55a51fb1a7f487bf43d9a839cc2d2188109..89dcdc3d758c4c416052ef57e56582df2eba76cf 100644
 --- a/codex-rs/core/src/guardian/tests.rs
 +++ b/codex-rs/core/src/guardian/tests.rs
 @@ -1,3 +1,4 @@
@@ -39162,7 +39162,7 @@ index 4a81e55a51fb1a7f487bf43d9a839cc2d2188109..70533f8107246f691b089608dcf570e8
      crate::guardian::test_host::install(&session, &config);
      let turn_mut = Arc::get_mut(&mut turn).expect("turn should be uniquely owned");
      turn_mut.config = Arc::clone(&config);
-@@ -285,22 +310,34 @@ fn guardian_mcp_request(server: &str, tool_name: &str) -> GuardianApprovalReques
+@@ -285,22 +310,37 @@ fn guardian_mcp_request(server: &str, tool_name: &str) -> GuardianApprovalReques
  async fn guardian_test_session_and_turn_with_base_url(
      base_url: &str,
  ) -> (Arc<Session>, Arc<TurnContext>) {
@@ -39198,6 +39198,9 @@ index 4a81e55a51fb1a7f487bf43d9a839cc2d2188109..70533f8107246f691b089608dcf570e8
 +    let store_db = session
 +        .services
 +        .thread_store
++        .as_any()
++        .downcast_ref::<codex_thread_store::LocalThreadStore>()
++        .expect("fixture uses local thread store")
 +        .state_db()
 +        .await
 +        .expect("thread store state DB");
@@ -39212,7 +39215,7 @@ index 4a81e55a51fb1a7f487bf43d9a839cc2d2188109..70533f8107246f691b089608dcf570e8
  }
  
  async fn seed_guardian_parent_history(session: &Arc<Session>, turn: &Arc<TurnContext>) {
-@@ -2674,6 +2711,7 @@ async fn guardian_reuses_prompt_cache_key_and_appends_prior_reviews() -> anyhow:
+@@ -2674,6 +2714,7 @@ async fn guardian_reuses_prompt_cache_key_and_appends_prior_reviews() -> anyhow:
              turn.to_turn_context_item(),
              crate::context::world_state::WorldStateSnapshot::default(),
              crate::compact::CompactedHistoryMetadata {
@@ -39220,7 +39223,7 @@ index 4a81e55a51fb1a7f487bf43d9a839cc2d2188109..70533f8107246f691b089608dcf570e8
                  input_goal_ids: Default::default(),
                  message: String::new(),
                  window_number,
-@@ -3682,6 +3720,13 @@ async fn guardian_ephemeral_retry_preserves_parallel_trunk_and_fork_history() ->
+@@ -3682,6 +3723,13 @@ async fn guardian_ephemeral_retry_preserves_parallel_trunk_and_fork_history() ->
          .name("guardian_ephemeral_retry_preserves_parallel_trunk_and_fork_history".to_string())
          .stack_size(TEST_STACK_SIZE_BYTES)
          .spawn(|| -> anyhow::Result<()> {
@@ -44855,7 +44858,7 @@ index 50b427b95694e13a6f2111ae74ee390bd5f48fda..bb1188bbd913f6a287e2ea940963585e
  #[path = "turn_tests.rs"]
  mod tests;
 diff --git a/codex-rs/core/src/session/turn_tests.rs b/codex-rs/core/src/session/turn_tests.rs
-index c1554d79c0241e43f59cb02e9ca62f8811f66ddb..c6faf30d68a2629773f9a075e2ba6ca0f86f0518 100644
+index c1554d79c0241e43f59cb02e9ca62f8811f66ddb..7da0db06f72ac27febb841d78fbd49472843136c 100644
 --- a/codex-rs/core/src/session/turn_tests.rs
 +++ b/codex-rs/core/src/session/turn_tests.rs
 @@ -1,3 +1,4 @@
@@ -44893,7 +44896,7 @@ index c1554d79c0241e43f59cb02e9ca62f8811f66ddb..c6faf30d68a2629773f9a075e2ba6ca0
 +    let config = session.get_config().await;
 +    let layers = config
 +        .config_layer_stack
-+        .with_user_config(&home.path().join("config.toml"), user_config)
++        .with_user_config(&config.codex_home.join("config.toml"), user_config)
 +        .unwrap();
 +    let hooks = session.hooks().reconfigured(codex_hooks::HooksConfig {
 +        feature_enabled: true,

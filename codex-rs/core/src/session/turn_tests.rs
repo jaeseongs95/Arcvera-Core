@@ -34,7 +34,7 @@ async fn saturated_post_hook_fails_before_provider_request(synchronous: bool) {
     let config = session.get_config().await;
     let layers = config
         .config_layer_stack
-        .with_user_config(&home.path().join("config.toml"), user_config)
+        .with_user_config(&config.codex_home.join("config.toml"), user_config)
         .unwrap();
     let hooks = session.hooks().reconfigured(codex_hooks::HooksConfig {
         feature_enabled: true,

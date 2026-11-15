@@ -327,6 +327,9 @@ async fn guardian_fixture_keeps_real_storage_available_after_return() {
     let store_db = session
         .services
         .thread_store
+        .as_any()
+        .downcast_ref::<codex_thread_store::LocalThreadStore>()
+        .expect("fixture uses local thread store")
         .state_db()
         .await
         .expect("thread store state DB");
