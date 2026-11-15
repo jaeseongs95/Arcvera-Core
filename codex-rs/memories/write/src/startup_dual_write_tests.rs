@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Exercises dual-write and v2 cutover through model requests and committed versioned state.
 
 use super::*;
@@ -27,6 +28,7 @@ async fn dual_write_runs_both_versions_until_v2_is_selected() -> anyhow::Result<
         .await?;
         let test = test_codex()
             .with_home(Arc::clone(&home))
+            .with_config(configure_startup_fixture)
             .build(&server)
             .await?;
         let selected_version = test.config.memories.version;
@@ -95,8 +97,7 @@ async fn dual_write_runs_both_versions_until_v2_is_selected() -> anyhow::Result<
                 assert!(!root.join("rollout_summaries").exists());
                 continue;
             }
-            // Both pipelines initialize Git workspaces and run consolidation agents.
-            // Allow for process startup under contention on Windows CI runners.
+            // Both pipelines publish into separate immutable generations.
             let deadline = Instant::now() + Duration::from_secs(60);
             while store.max_consolidated_thread_count().await? == 0 {
                 anyhow::ensure!(
@@ -117,9 +118,14 @@ async fn dual_write_runs_both_versions_until_v2_is_selected() -> anyhow::Result<
                     .collect::<Vec<_>>(),
                 vec![(source, expected_raw, expected_summary)]
             );
-            let summaries = read_rollout_summary_bodies(root).await?;
+            let generation = wait_for_phase2_publication(&store, root).await?;
+            let summaries = read_rollout_summary_bodies(&generation).await?;
             assert_eq!(summaries.len(), 1);
             assert!(summaries[0].contains(expected_summary));
+            if version == MemoryVersion::V2 {
+                assert!(!generation.join("MEMORY.md").exists());
+                assert!(!generation.join("raw_memories.md").exists());
+            }
         }
         let requests = server.received_requests().await.expect("recorded requests");
         let bodies = requests

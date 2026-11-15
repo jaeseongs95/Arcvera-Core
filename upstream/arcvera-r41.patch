@@ -1162,11 +1162,15 @@ index 0000000000000000000000000000000000000000..6c2e29d22f88ea45e9e6e2efad667437
 +없으면 해당 의존성을 제외하고 공식 제공자의 직접 설치 방법을 안내합니다.
 +동봉하는 오픈소스의 소스 제공·고지 등 의무는 계속 유지합니다.
 diff --git a/MODIFICATIONS.md b/MODIFICATIONS.md
-index c3febe7112813d655a8b6c2367e9057cca8d1705..9662c0b05d09803bb849fc6ca166e3fa1ade6030 100644
+index c3febe7112813d655a8b6c2367e9057cca8d1705..bd04924461d5dddd8ccd7d7135f86da95c5929a4 100644
 --- a/MODIFICATIONS.md
 +++ b/MODIFICATIONS.md
-@@ -1,3 +1,83 @@
+@@ -1,3 +1,87 @@
 +# Arcvera-Core 1.1.0 candidate / 1.1.0 후보
++
++Startup memory fixtures explicitly select their legacy namespace and grant their temporary parent access to isolated staging. Assertions follow the host-selected immutable publication and resource fingerprints, preserve original inputs, and check rejection when required hooks prevent Windows worker isolation. Production permission checks are unchanged. Native verification is pending.
++
++메모리 시작 시험은 기존 namespace를 명시하고 임시 부모에 격리 stage 접근 권한을 부여합니다. 호스트가 선택한 불변 발행물과 리소스 해시, 원본 입력 보존을 검사하며 필수 hook 제약으로 Windows 작업자 격리가 불가능한 경우 차단을 확인합니다. 제품 권한 검사는 유지하며 네이티브 검증은 대기 중입니다.
 +
 +The note consolidation integration fixture uses the actual Windows host-mediated stage tools and validates the API-selected immutable publication. It preserves original note bytes and verifies fresh API/context visibility. Native verification is pending.
 +
@@ -1249,7 +1253,7 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..9662c0b05d09803bb849fc6ca166e3fa
  # R39 compact 개발 후보 (2026-11-07)
  
  정식 발행·동결된 R38과 같은 공식 0.167.0 기반에서 압축 동작만 변경합니다. 버전은 `0.167.0+native-r39.20261107`이며, 고정 소스는 `c4399dce957bb63fe1fdc276aa4306c06f6cf47f`입니다. 메모리 리팩토링·후크·캐싱·스크롤 감도·한글화·컨텍스트 조회의 미완 작업은 R40으로 이관하며 이번 변경에 포함하지 않습니다. 현재 소스·시험 후보이며 최종 빌드·발행은 미완료입니다.
-@@ -701,3 +781,19 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
+@@ -701,3 +785,19 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
  고정 소스 `8e9b7eff953e750e8f071d101233920108e5ca26`는 R37 이후의 별도 개발 후보다. 플러그인 payload 비교에서 정확한 `.git`만 제외하고, 암시적 daemon의 전체 버전 확인과 실제 시작·재연결 화면 안내를 보강했다. Stop 속성의 명시적 교정 도구와 재로드 경고의 한국어/영어 안내, 에이전트 목록의 메인 마우스 복귀 및 작은 밑줄만 사용하는 hover를 포함한다.
  
  요구별 실행 결과·원래 실패·미검증 경계는 [R38 범위](docs/native-cli-r38.ko.md)와 연결된 사례 문서를 따른다. 운영 설정 자동 교정·R38 최종 릴리스 빌드·공개·설치는 수행하지 않았다. R37 동결 실행 파일은 변경하지 않았다.
@@ -56622,7 +56626,7 @@ index b4ed62d09207de8ebc4ca913f0d5e3723718bfba..c6c64e8d7afa1d1fc742f9ae60f7f760
      #[tokio::test]
      async fn clear_memory_root_contents_rejects_symlinked_root() {
 diff --git a/codex-rs/memories/write/src/explicit_consolidation_tests.rs b/codex-rs/memories/write/src/explicit_consolidation_tests.rs
-index a51805b5ae078169771ceec695379f6a18ce4356..ac359c5a6c43b59cca704d4835b5fe0a1a0275bd 100644
+index a51805b5ae078169771ceec695379f6a18ce4356..d87b16b9100fa12484d4ead06d5654999c06fe0f 100644
 --- a/codex-rs/memories/write/src/explicit_consolidation_tests.rs
 +++ b/codex-rs/memories/write/src/explicit_consolidation_tests.rs
 @@ -1,3 +1,4 @@
@@ -56687,6 +56691,94 @@ index a51805b5ae078169771ceec695379f6a18ce4356..ac359c5a6c43b59cca704d4835b5fe0a
  async fn consolidate(
      test: &TestCodex,
      retry: bool,
+@@ -129,9 +180,17 @@ async fn explicit_consolidation_uses_only_phase2_and_reports_invalid_artifacts_a
+         if let Some(status) = db.memories().consolidation_status().await?
+             && status.status == "error"
+         {
+-            assert_eq!(
+-                status.last_error.as_deref(),
+-                Some("failed_invalid_artifacts")
++            let error = status
++                .last_error
++                .as_deref()
++                .expect("publication failure detail");
++            assert!(
++                error.starts_with("failed_publication:"),
++                "unexpected failure: {error}"
++            );
++            assert!(
++                error.contains("MEMORY.md"),
++                "missing required artifact must be the failure: {error}"
+             );
+             break;
+         }
+@@ -171,6 +230,7 @@ async fn explicit_consolidation_completion_is_job_state_not_a_note_application_r
+     seed_required_memory_artifacts(&root).await?;
+     let previous_summary = tokio::fs::read_to_string(root.join("memory_summary.md")).await?;
+     let note = crate::add_user_memory_note(&root, "Explicit correction from this test").await?;
++    let note_bytes = tokio::fs::read(&note).await?;
+     let response = mount_sse_once(
+         &server,
+         sse(vec![
+@@ -196,8 +256,25 @@ async fn explicit_consolidation_completion_is_job_state_not_a_note_application_r
+         );
+         tokio::time::sleep(Duration::from_millis(20)).await;
+     }
+-    assert!(!diff_since_latest_init(&root).await?.has_changes());
++    let db = test.codex.state_db().expect("state");
++    let generation = wait_for_phase2_publication(db.memories(), &root).await?;
++    assert_eq!(
++        tokio::fs::read_to_string(generation.join("memory_summary.md")).await?,
++        previous_summary
++    );
+     assert!(note.is_file());
++    assert_eq!(tokio::fs::read(&note).await?, note_bytes);
++    assert!(!generation.join("extensions/ad_hoc/notes").exists());
++    let identity = codex_memories_read::publication_snapshot::root_identity(&root)?;
++    let publication = db
++        .memories()
++        .published_generation(&identity)
++        .await?
++        .expect("publication");
++    assert_eq!(
++        publication.notes_digest,
++        codex_memories_read::publication_notes::notes_digest(&root)?
++    );
+     assert_eq!(
+         tokio::fs::read_to_string(root.join("memory_summary.md")).await?,
+         previous_summary
+@@ -210,6 +287,11 @@ async fn explicit_consolidation_completion_is_job_state_not_a_note_application_r
+     let retry = consolidate(&test, true).await?;
+     assert_eq!(retry.status, "completed");
+     assert_eq!(retry.reason.as_deref(), Some("no_workspace_changes"));
++    assert_eq!(
++        response.requests().len(),
++        1,
++        "unchanged retry must not run a worker"
++    );
+     // A note accepted after the last job cannot inherit that job's completion.
+     crate::add_user_memory_note(&root, "Later correction not processed by this worker").await?;
+     assert_eq!(
+@@ -219,7 +301,18 @@ async fn explicit_consolidation_completion_is_job_state_not_a_note_application_r
+             .status,
+         "done"
+     );
+-    assert!(diff_since_latest_init(&root).await?.has_changes());
++    let after = db
++        .memories()
++        .published_generation(&identity)
++        .await?
++        .expect("previous publication");
++    assert_eq!(after.generation_id, publication.generation_id);
++    assert_eq!(after.notes_digest, publication.notes_digest);
++    assert_ne!(
++        after.notes_digest,
++        codex_memories_read::publication_notes::notes_digest(&root)?
++    );
++    assert_eq!(tokio::fs::read(&note).await?, note_bytes);
+     shutdown_test_codex(&test).await?;
+     Ok(())
+ }
 diff --git a/codex-rs/memories/write/src/lib.rs b/codex-rs/memories/write/src/lib.rs
 index 14432145fb9086ec26d1a2e9e8b677e9b5b75359..50a6ddaab1f9b5c39753bc831d5660ef6fa0905d 100644
 --- a/codex-rs/memories/write/src/lib.rs
@@ -58986,6 +59078,612 @@ index 6661c88720ef5f23eccdbbf5223c1330efd178fa..ee160c7e4760ca35efd024ba701287b3
  
              // Clean memories to make preserve DB size. This does not consume tokens so can be
              // done before the quota check.
+diff --git a/codex-rs/memories/write/src/startup_dual_write_tests.rs b/codex-rs/memories/write/src/startup_dual_write_tests.rs
+index ffb3582aa3e881bfbc8def479fcfd42c84d01890..306af6b51655232e6f96de3935234e571ed3efdb 100644
+--- a/codex-rs/memories/write/src/startup_dual_write_tests.rs
++++ b/codex-rs/memories/write/src/startup_dual_write_tests.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ //! Exercises dual-write and v2 cutover through model requests and committed versioned state.
+ 
+ use super::*;
+@@ -27,6 +28,7 @@ async fn dual_write_runs_both_versions_until_v2_is_selected() -> anyhow::Result<
+         .await?;
+         let test = test_codex()
+             .with_home(Arc::clone(&home))
++            .with_config(configure_startup_fixture)
+             .build(&server)
+             .await?;
+         let selected_version = test.config.memories.version;
+@@ -95,8 +97,7 @@ async fn dual_write_runs_both_versions_until_v2_is_selected() -> anyhow::Result<
+                 assert!(!root.join("rollout_summaries").exists());
+                 continue;
+             }
+-            // Both pipelines initialize Git workspaces and run consolidation agents.
+-            // Allow for process startup under contention on Windows CI runners.
++            // Both pipelines publish into separate immutable generations.
+             let deadline = Instant::now() + Duration::from_secs(60);
+             while store.max_consolidated_thread_count().await? == 0 {
+                 anyhow::ensure!(
+@@ -117,9 +118,14 @@ async fn dual_write_runs_both_versions_until_v2_is_selected() -> anyhow::Result<
+                     .collect::<Vec<_>>(),
+                 vec![(source, expected_raw, expected_summary)]
+             );
+-            let summaries = read_rollout_summary_bodies(root).await?;
++            let generation = wait_for_phase2_publication(&store, root).await?;
++            let summaries = read_rollout_summary_bodies(&generation).await?;
+             assert_eq!(summaries.len(), 1);
+             assert!(summaries[0].contains(expected_summary));
++            if version == MemoryVersion::V2 {
++                assert!(!generation.join("MEMORY.md").exists());
++                assert!(!generation.join("raw_memories.md").exists());
++            }
+         }
+         let requests = server.received_requests().await.expect("recorded requests");
+         let bodies = requests
+diff --git a/codex-rs/memories/write/src/startup_tests.rs b/codex-rs/memories/write/src/startup_tests.rs
+index c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c..7a5f3909bb058b8042b0bc8b348be9517ab29edd 100644
+--- a/codex-rs/memories/write/src/startup_tests.rs
++++ b/codex-rs/memories/write/src/startup_tests.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
+ use crate::extensions::seed_extension_instructions;
+ use crate::memory_root;
+@@ -93,12 +94,56 @@ async fn dual_write_prepares_both_roots_without_importing_old_notes() -> anyhow:
+     tokio::fs::write(old_notes.join("old.md"), "old memory").await?;
+     let mut memories = startup_test_memories_config();
+     memories.dual_write = true;
++    let db = init_state_db(&home).await?;
++    for version in [
++        codex_protocol::MemoryVersion::V1,
++        codex_protocol::MemoryVersion::V2,
++    ] {
++        let root = home.path().join(version.directory_name());
++        seed_required_memory_artifacts(&root).await?;
++        if version == codex_protocol::MemoryVersion::V2 {
++            tokio::fs::remove_file(root.join("MEMORY.md")).await?;
++        }
++        db.memories_for_version(version)
++            .await?
++            .enqueue_global_consolidation(1)
++            .await?;
++    }
++    let responses = core_test_support::responses::mount_sse_sequence(
++        &server,
++        vec![
++            sse(vec![
++                ev_assistant_message("v1-or-v2-a", "complete"),
++                ev_completed("a"),
++            ]),
++            sse(vec![
++                ev_assistant_message("v1-or-v2-b", "complete"),
++                ev_completed("b"),
++            ]),
++        ],
++    )
++    .await;
+     let test = memory_test_codex(Arc::clone(&home), memories)
+         .build(&server)
+         .await?;
+     trigger_memories_startup(&test).await;
+-    wait_for_dir(&home.path().join("memories/extensions/ad_hoc")).await?;
+-    wait_for_dir(&home.path().join("memories_v2/extensions/ad_hoc")).await?;
++    for version in [
++        codex_protocol::MemoryVersion::V1,
++        codex_protocol::MemoryVersion::V2,
++    ] {
++        let store = db.memories_for_version(version).await?;
++        // Wait for both pipelines to start before inspecting their terminal jobs.
++        let deadline = Instant::now() + Duration::from_secs(10);
++        while responses.requests().len() < 2 {
++            anyhow::ensure!(Instant::now() < deadline, "both memory workers must run");
++            tokio::time::sleep(Duration::from_millis(20)).await;
++        }
++        let generation =
++            wait_for_phase2_publication(&store, &home.path().join(version.directory_name()))
++                .await?;
++        assert!(!generation.join("extensions/ad_hoc/notes/old.md").exists());
++    }
++    assert_eq!(responses.requests().len(), 2);
+     assert_eq!(
+         tokio::fs::read_to_string(old_notes.join("old.md")).await?,
+         "old memory"
+@@ -115,7 +160,8 @@ async fn dual_write_prepares_both_roots_without_importing_old_notes() -> anyhow:
+ 
+ #[cfg(unix)]
+ #[tokio::test]
+-async fn memories_startup_removes_symlinked_extensions_before_seeding() -> anyhow::Result<()> {
++async fn memories_startup_rejects_symlinked_extensions_without_touching_originals()
++-> anyhow::Result<()> {
+     let server = start_mock_server().await;
+     let home = Arc::new(TempDir::new()?);
+     let memory_root = home.path().join("memories");
+@@ -123,19 +169,34 @@ async fn memories_startup_removes_symlinked_extensions_before_seeding() -> anyho
+     tokio::fs::create_dir_all(&memory_root).await?;
+     tokio::fs::create_dir_all(&outside).await?;
+     std::os::unix::fs::symlink(&outside, memory_root.join("extensions"))?;
+-
++    let db = init_state_db(&home).await?;
++    db.memories().enqueue_global_consolidation(1).await?;
+     let test = build_test_codex(&server, home).await?;
+     trigger_memories_startup(&test).await;
+-    wait_for_dir(&memory_root.join("extensions/ad_hoc")).await?;
+-
++    let status = wait_for_phase2_error(db.memories()).await?;
++    assert!(
++        status
++            .last_error
++            .as_deref()
++            .is_some_and(|error| error.starts_with("failed_prepare_publication:"))
++    );
+     assert!(
+         tokio::fs::symlink_metadata(memory_root.join("extensions"))
+             .await?
+-            .is_dir()
++            .file_type()
++            .is_symlink()
+     );
+     assert!(
+         !outside.join("ad_hoc").exists(),
+-        "extension seeding must not create directories through the removed symbolic link"
++        "extension seeding must not follow the original symbolic link"
++    );
++    assert!(
++        !server
++            .received_requests()
++            .await
++            .unwrap()
++            .iter()
++            .any(|request| request.url.path().ends_with("/responses"))
+     );
+ 
+     shutdown_test_codex(&test).await?;
+@@ -155,7 +216,7 @@ async fn memories_startup_fails_consolidation_when_worker_creates_extension_syml
+         sse_failed("resp-phase2-failed", "invalid_prompt", "worker failed"),
+     ];
+ 
+-    for response in responses {
++    for (index, response) in responses.into_iter().enumerate() {
+         let server = start_mock_server().await;
+         let home = Arc::new(TempDir::new()?);
+         let db = init_state_db(&home).await?;
+@@ -174,12 +235,16 @@ async fn memories_startup_fails_consolidation_when_worker_creates_extension_syml
+ 
+         let target = home.path().join("outside.md");
+         tokio::fs::write(&target, "outside content").await?;
+-        let link = root.join("extensions/external_agent_import/instructions.md");
++        let relative_link = PathBuf::from("extensions/external_agent_import/instructions.md");
+         let worker_target = target.clone();
+-        let worker_link = link.clone();
++        let worker_root = root.clone();
++        let worker_relative_link = relative_link.clone();
+         let phase2 = mount_sse_once_match(
+             &server,
+             move |_request: &wiremock::Request| {
++                let stages = retained_test_stages(&worker_root).expect("owned stage");
++                assert_eq!(stages.len(), 1);
++                let worker_link = stages[0].join(&worker_relative_link);
+                 std::fs::create_dir_all(worker_link.parent().expect("extension directory"))
+                     .expect("create extension directory");
+                 std::os::unix::fs::symlink(&worker_target, &worker_link)
+@@ -199,16 +264,36 @@ async fn memories_startup_fails_consolidation_when_worker_creates_extension_syml
+             Phase2JobClaimOutcome::SkippedRetryUnavailable
+         );
+         assert_eq!(tokio::fs::read_to_string(&target).await?, "outside content");
++        let stages = retained_test_stages(&root)?;
++        assert_eq!(stages.len(), 1);
++        let link = stages[0].join(&relative_link);
++        if index == 0 {
++            assert_eq!(
++                tokio::fs::symlink_metadata(&link)
++                    .await
++                    .expect_err("successful worker artifact validation removes the rejected link")
++                    .kind(),
++                std::io::ErrorKind::NotFound
++            );
++        } else {
++            assert!(
++                tokio::fs::symlink_metadata(&link)
++                    .await?
++                    .file_type()
++                    .is_symlink(),
++                "failed worker stage is retained for recovery"
++            );
++        }
++        assert!(stages[0].join("phase2_workspace_diff.md").is_file());
++        assert!(!root.join(&relative_link).exists());
++        let identity = codex_memories_read::publication_snapshot::root_identity(&root)?;
+         assert_eq!(
+-            tokio::fs::symlink_metadata(&link)
+-                .await
+-                .expect_err("worker-created symbolic link should be removed")
+-                .kind(),
+-            std::io::ErrorKind::NotFound
+-        );
+-        assert!(
+-            root.join("phase2_workspace_diff.md").exists(),
+-            "a rejected consolidation result must not reset the trusted baseline"
++            db.memories()
++                .published_generation(&identity)
++                .await?
++                .expect("baseline")
++                .provenance,
++            "legacy_import"
+         );
+ 
+         shutdown_test_codex(&test).await?;
+@@ -292,10 +377,7 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
+                 CloudConfigBundleFixture::loader_with_enterprise_requirement(requirements),
+             )
+             .with_config(move |config| {
+-                config
+-                    .features
+-                    .enable(Feature::Sqlite)
+-                    .expect("enable SQLite");
++                configure_startup_fixture(config);
+                 config.memories = startup_test_memories_config();
+                 config.notify = Some(vec![
+                     python.to_string(),
+@@ -318,8 +400,19 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
+         .await;
+ 
+         trigger_memories_startup(&test).await;
+-        wait_for_single_request(&phase2).await;
+-        if managed_response.is_some() {
++        if cfg!(windows) && pin_hooks {
++            let status = wait_for_phase2_error(db.memories()).await?;
++            assert_eq!(
++                status.last_error.as_deref(),
++                Some("unsupported_stage_permissions")
++            );
++            assert!(
++                phase2.requests().is_empty(),
++                "required hooks forbid host-mediated child isolation"
++            );
++            assert!(!managed_log.exists());
++        } else if managed_response.is_some() {
++            wait_for_single_request(&phase2).await;
+             assert_eq!(
+                 wait_for_phase2_job_to_finish(db.memories()).await?,
+                 Phase2JobClaimOutcome::SkippedRetryUnavailable
+@@ -329,9 +422,12 @@ elif kind == "stop" and Path(json.load(sys.stdin)["cwd"]).name == "memories":
+                 "hook invoked\n"
+             );
+         } else {
+-            wait_for_phase2_workspace_reset(db.memories(), &root).await?;
++            wait_for_single_request(&phase2).await;
++            wait_for_phase2_publication(db.memories(), &root).await?;
++        }
++        if !(cfg!(windows) && pin_hooks) {
++            phase2.single_request();
+         }
+-        phase2.single_request();
+         assert!(
+             !hook_log.exists(),
+             "memory worker must not run the user Stop hook"
+@@ -424,11 +520,11 @@ async fn memories_startup_phase2_tracks_workspace_diff_across_runs() -> anyhow::
+         "expected workspace diff file in prompt: {prompt}"
+     );
+ 
+-    wait_for_phase2_workspace_reset(db.memories(), &memory_root).await?;
+-    let raw_memories = tokio::fs::read_to_string(memory_root.join("raw_memories.md")).await?;
++    let generation = wait_for_phase2_publication(db.memories(), &memory_root).await?;
++    let raw_memories = tokio::fs::read_to_string(generation.join("raw_memories.md")).await?;
+     assert!(raw_memories.contains("raw memory B"));
+     assert!(!raw_memories.contains("raw memory A"));
+-    let rollout_summaries = read_rollout_summary_bodies(&memory_root).await?;
++    let rollout_summaries = read_rollout_summary_bodies(&generation).await?;
+     assert_eq!(rollout_summaries.len(), 1);
+     assert!(
+         rollout_summaries
+@@ -445,6 +541,14 @@ async fn memories_startup_phase2_tracks_workspace_diff_across_runs() -> anyhow::
+             .iter()
+             .all(|summary| !summary.contains("rollout summary A"))
+     );
++    assert_eq!(
++        tokio::fs::read_to_string(memory_root.join("raw_memories.md")).await?,
++        "# Raw Memories\n\nraw memory A\n"
++    );
++    assert_eq!(
++        tokio::fs::read_to_string(rollout_summaries_root.join("rollout-a.md")).await?,
++        "git_branch: branch-rollout-a\n\nrollout summary A\n"
++    );
+ 
+     shutdown_test_codex(&test).await?;
+     Ok(())
+@@ -485,7 +589,7 @@ async fn phase2_replays_legacy_baseline_with_unchanged_inputs() -> anyhow::Resul
+     let test = build_test_codex(&server, home.clone()).await?;
+     trigger_memories_startup(&test).await;
+     wait_for_single_request(&phase2).await;
+-    wait_for_phase2_workspace_reset(db.memories(), &root).await?;
++    wait_for_phase2_publication(db.memories(), &root).await?;
+     shutdown_test_codex(&test).await?;
+     Ok(())
+ }
+@@ -534,9 +638,24 @@ async fn phase2_retries_when_clean_workspace_is_missing_artifacts() -> anyhow::R
+     );
+     assert!(!memory_root.join("MEMORY.md").exists());
+     assert!(!memory_root.join("memory_summary.md").exists());
+-    assert_eq!(
+-        tokio::fs::read_to_string(memory_root.join("phase2_workspace_diff.md")).await?,
+-        "# Memory Workspace Diff\n\nGenerated by Codex before Phase 2 memory consolidation. Read this file first and do not edit it.\n\n## Status\n- none\n"
++    assert!(!memory_root.join("phase2_workspace_diff.md").exists());
++    let identity = codex_memories_read::publication_snapshot::root_identity(&memory_root)?;
++    let baseline = db
++        .memories()
++        .published_generation(&identity)
++        .await?
++        .expect("legacy baseline");
++    assert_eq!(baseline.provenance, "legacy_import");
++    assert!(baseline.legacy_empty);
++    let stages = retained_test_stages(&memory_root)?;
++    assert_eq!(stages.len(), 1);
++    let diff = tokio::fs::read_to_string(stages[0].join("phase2_workspace_diff.md")).await?;
++    assert!(diff.contains("Host-selected memory input changes:"));
++    assert!(diff.contains("legacy source-to-filename mapping unknown: true"));
++    assert!(
++        tokio::fs::read_to_string(stages[0].join("raw_memories.md"))
++            .await?
++            .contains("raw memory")
+     );
+ 
+     shutdown_test_codex(&test).await?;
+@@ -599,16 +718,9 @@ async fn memories_startup_phase2_prunes_old_extension_resources() -> anyhow::Res
+         "expected workspace diff file in prompt: {prompt}"
+     );
+ 
+-    wait_for_phase2_workspace_reset(db.memories(), &home.path().join("memories")).await?;
+-    wait_for_file_removed(&old_file).await?;
+-    assert!(
+-        !tokio::fs::try_exists(&old_file).await?,
+-        "old extension resource should be pruned"
+-    );
+-    assert!(
+-        tokio::fs::try_exists(&recent_file).await?,
+-        "recent extension resource should be retained"
+-    );
++    let root = home.path().join("memories");
++    let generation = wait_for_phase2_publication(db.memories(), &root).await?;
++    assert_resource_selection(&generation, &root, &old_file, Some(&recent_file)).await?;
+ 
+     shutdown_test_codex(&test).await?;
+     Ok(())
+@@ -660,8 +772,9 @@ async fn memories_startup_phase2_prunes_old_extension_resources_without_stage1_i
+         "expected workspace diff file in prompt: {prompt}"
+     );
+ 
+-    wait_for_phase2_workspace_reset(db.memories(), &home.path().join("memories")).await?;
+-    wait_for_file_removed(&old_file).await?;
++    let root = home.path().join("memories");
++    let generation = wait_for_phase2_publication(db.memories(), &root).await?;
++    assert_resource_selection(&generation, &root, &old_file, None).await?;
+ 
+     shutdown_test_codex(&test).await?;
+     Ok(())
+@@ -1166,7 +1279,7 @@ async fn run_memory_phase_two_model_request_test(
+             .as_str()
+             .ok_or_else(|| anyhow::anyhow!("phase-2 request should include the child thread id"))?,
+     )?;
+-    wait_for_phase2_workspace_reset(&store, &root).await?;
++    let generation = wait_for_phase2_publication(&store, &root).await?;
+     assert!(
+         test.thread_manager
+             .remove_thread(&consolidation_thread_id)
+@@ -1178,7 +1291,10 @@ async fn run_memory_phase_two_model_request_test(
+         assert!(!root.join("raw_memories.md").exists());
+         assert!(!root.join("MEMORY.md").exists());
+         assert!(!root.join("skills").exists());
+-        assert_eq!(read_rollout_summary_bodies(&root).await?.len(), 1);
++        assert!(!generation.join("raw_memories.md").exists());
++        assert!(!generation.join("MEMORY.md").exists());
++        assert!(!generation.join("skills").exists());
++        assert_eq!(read_rollout_summary_bodies(&generation).await?.len(), 1);
+         assert!(request.body_contains_text("Consolidate the supplied rollout summaries"));
+     }
+     test.codex.shutdown_and_wait().await?;
+@@ -1187,6 +1303,9 @@ async fn run_memory_phase_two_model_request_test(
+ 
+ fn startup_test_memories_config() -> MemoriesConfig {
+     MemoriesConfig {
++        // These legacy fixtures seed memories/ and the V1 store explicitly.
++        // The default-V2 cutover is exercised by the dual-write tests.
++        version: codex_protocol::MemoryVersion::V1,
+         max_raw_memories_for_consolidation: 1,
+         min_rollout_idle_hours: 0,
+         ..MemoriesConfig::default()
+@@ -1204,14 +1323,44 @@ async fn build_test_codex(
+ 
+ fn memory_test_codex(home: Arc<TempDir>, memories: MemoriesConfig) -> TestCodexBuilder {
+     test_codex().with_home(home).with_config(move |config| {
+-        config
+-            .features
+-            .enable(Feature::Sqlite)
+-            .expect("test config should allow feature update");
++        configure_startup_fixture(config);
+         config.memories = memories;
+     })
+ }
+ 
++fn configure_startup_fixture(config: &mut codex_core::config::Config) {
++    config
++        .features
++        .enable(Feature::Sqlite)
++        .expect("enable SQLite");
++    // Publication rechecks the live parent, not only the startup clone.
++    config
++        .features
++        .enable(Feature::MemoryTool)
++        .expect("enable memory");
++    // The temporary parent must grant access to its sibling stage. Worker
++    // admission still requires a sandbox intersection or stage-only host tools.
++    config
++        .permissions
++        .set_permission_profile(codex_protocol::models::PermissionProfile::Disabled)
++        .expect("test parent profile");
++    #[cfg(windows)]
++    {
++        // Exercise host-mediated isolation on hosts without an OS sandbox.
++        // This grants only this temporary test parent; production admission and
++        // child feature constraints still run unchanged.
++        config
++            .features
++            .disable(Feature::WindowsSandbox)
++            .expect("test sandbox");
++        config
++            .features
++            .disable(Feature::WindowsSandboxElevated)
++            .expect("test sandbox");
++        config.permissions.windows_sandbox_mode = None;
++    }
++}
++
+ async fn init_state_db(home: &Arc<TempDir>) -> anyhow::Result<Arc<codex_state::StateRuntime>> {
+     let db = codex_state::StateRuntime::init(
+         codex_state::SqliteConfig::new_for_testing(home.path().abs()),
+@@ -1413,19 +1562,56 @@ async fn wait_for_single_request(mock: &ResponseMock) -> ResponsesRequest {
+     wait_for_request(mock, /*expected_count*/ 1).await.remove(0)
+ }
+ 
+-async fn wait_for_file_removed(path: &Path) -> anyhow::Result<()> {
+-    let deadline = Instant::now() + Duration::from_secs(10);
+-    loop {
+-        if !tokio::fs::try_exists(path).await? {
+-            return Ok(());
++fn retained_test_stages(root: &Path) -> anyhow::Result<Vec<PathBuf>> {
++    let identity = codex_memories_read::publication_snapshot::root_identity(root)?;
++    let prefix = format!("codex-memory-stage-{identity}-");
++    let mut paths = Vec::new();
++    for entry in std::fs::read_dir(root.parent().expect("memory parent"))? {
++        let entry = entry?;
++        if entry.file_name().to_string_lossy().starts_with(&prefix) {
++            assert!(entry.file_type()?.is_dir());
++            paths.push(entry.path());
+         }
+-        assert!(
+-            Instant::now() < deadline,
+-            "timed out waiting for {} to be removed",
+-            path.display()
++    }
++    Ok(paths)
++}
++
++async fn assert_resource_selection(
++    generation: &Path,
++    root: &Path,
++    old: &Path,
++    recent: Option<&Path>,
++) -> anyhow::Result<()> {
++    // Extensions remain original inputs, not generated outputs. Pruning is
++    // visible in the host's fingerprint manifest, not as deletion of originals.
++    let manifest: std::collections::BTreeMap<String, String> = serde_json::from_slice(
++        &tokio::fs::read(generation.join(".codex-memory-input-manifest.json")).await?,
++    )?;
++    let key = |path: &Path| -> anyhow::Result<String> {
++        Ok(format!(
++            "resource:{}",
++            path.strip_prefix(root)?
++                .to_str()
++                .expect("resource path")
++                .replace('\\', "/")
++        ))
++    };
++    assert!(
++        !manifest.contains_key(&key(old)?),
++        "old resource must be pruned from selected stage inputs"
++    );
++    assert_eq!(tokio::fs::read(old).await?, b"old resource");
++    if let Some(recent) = recent {
++        use sha2::{Digest, Sha256};
++        let bytes = tokio::fs::read(recent).await?;
++        assert_eq!(bytes, b"recent resource");
++        assert_eq!(
++            manifest.get(&key(recent)?),
++            Some(&format!("{:x}", Sha256::digest(&bytes)))
+         );
+-        tokio::time::sleep(Duration::from_millis(50)).await;
+     }
++    assert!(!generation.join("extensions").exists());
++    Ok(())
+ }
+ 
+ async fn wait_for_dir(path: &Path) -> anyhow::Result<()> {
+@@ -1486,17 +1672,45 @@ fn phase2_prompt_text(request: &ResponsesRequest) -> String {
+         .expect("phase2 prompt text")
+ }
+ 
+-async fn wait_for_phase2_workspace_reset(
++async fn wait_for_phase2_publication(
+     db: &codex_state::MemoryStore,
+     memory_root: &Path,
+-) -> anyhow::Result<()> {
++) -> anyhow::Result<PathBuf> {
+     assert_eq!(
+         wait_for_phase2_job_to_finish(db).await?,
+         Phase2JobClaimOutcome::SkippedCooldown
+     );
+     assert!(!tokio::fs::try_exists(memory_root.join("phase2_workspace_diff.md")).await?);
+-    assert!(!diff_since_latest_init(memory_root).await?.has_changes());
+-    Ok(())
++    let identity = codex_memories_read::publication_snapshot::root_identity(memory_root)?;
++    let record = db
++        .published_generation(&identity)
++        .await?
++        .expect("published generation");
++    assert_eq!(record.provenance, "consolidated");
++    assert!(!record.legacy_empty);
++    assert_eq!(
++        uuid::Uuid::parse_str(&record.generation_id)?.to_string(),
++        record.generation_id
++    );
++    let generation = codex_memories_read::publication_snapshot::generation_root(
++        memory_root,
++        &record.generation_id,
++    )?;
++    assert_ne!(generation, memory_root);
++    assert!(codex_memories_read::publication_snapshot::managed_marker(
++        memory_root
++    )?);
++    let artifacts = codex_memories_read::publication_snapshot::load_artifact_manifest(
++        &generation,
++        &record.artifact_manifest_digest,
++    )?;
++    let actual = codex_memories_read::publication_snapshot::make_artifact_manifest(&generation)?;
++    assert_eq!(
++        codex_memories_read::publication_snapshot::artifact_manifest_digest(&actual),
++        record.artifact_manifest_digest
++    );
++    crate::publication_manifest::read_manifest(&generation, &artifacts)?;
++    Ok(generation)
+ }
+ 
+ async fn wait_for_phase2_job_to_finish(
+@@ -1518,6 +1732,25 @@ async fn wait_for_phase2_job_to_finish(
+     }
+ }
+ 
++async fn wait_for_phase2_error(
++    db: &codex_state::MemoryStore,
++) -> anyhow::Result<codex_state::MemoryConsolidationStatus> {
++    let deadline = Instant::now() + Duration::from_secs(10);
++    loop {
++        if let Some(status) = db.consolidation_status().await? {
++            anyhow::ensure!(status.status != "done", "expected a rejected publication");
++            if status.status == "error" {
++                return Ok(status);
++            }
++        }
++        anyhow::ensure!(
++            Instant::now() < deadline,
++            "phase2 failure was not persisted"
++        );
++        tokio::time::sleep(Duration::from_millis(20)).await;
++    }
++}
++
+ async fn seed_required_memory_artifacts(root: &Path) -> anyhow::Result<()> {
+     tokio::fs::create_dir_all(root).await?;
+     tokio::fs::write(root.join("MEMORY.md"), "memory\n").await?;
 diff --git a/codex-rs/memories/write/src/workspace_lock.rs b/codex-rs/memories/write/src/workspace_lock.rs
 index 4e94c6ae8f0dfe2bb2fa773013fdd190ea1de2f4..1ee017139caa42a5defd5020277fe440588c4a09 100644
 --- a/codex-rs/memories/write/src/workspace_lock.rs

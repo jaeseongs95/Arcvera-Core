@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "7daad2fbbe18b88758f4d1101e8a5401d5e528aa815fc41788f6ad1a097920ae",
+  "sourceTreeSha256": "7a36ccb5ae412d8b1f68aa5011457a4abd303d19c6a1a8495024ec9dfcbbfbb7",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "908ede425495b1ed3fa078e25c592f29f81d062e63488710902ca273d2c7c31d"
+    "sha256": "95306307a8e142584f1d69ea71293a028e90ce2ebb1195de2fd16ee84e744a79"
   },
   "files": [
     {
@@ -77,9 +77,9 @@
     {
       "path": "MODIFICATIONS.md",
       "gitMode": "100644",
-      "bytes": 91498,
-      "sha256": "9d05e6b8ade05b70a4a531cdedfab0b1bfb23b2f0d3d9cb429a19df1e9da12fe",
-      "gitBlob": "9662c0b05d09803bb849fc6ca166e3fa1ade6030"
+      "bytes": 92290,
+      "sha256": "0842f447788b7f2773064271727e98a1ef7d768aeb74d083d9d862fb82ad3c2b",
+      "gitBlob": "bd04924461d5dddd8ccd7d7135f86da95c5929a4"
     },
     {
       "path": "NOTICE",
@@ -35259,9 +35259,9 @@
     {
       "path": "codex-rs/memories/write/src/explicit_consolidation_tests.rs",
       "gitMode": "100644",
-      "bytes": 10964,
-      "sha256": "b2ca36526aa0e8b1d224c284f57c093c397ff6f98766e91df5058a3d95a92bc0",
-      "gitBlob": "ac359c5a6c43b59cca704d4835b5fe0a1a0275bd"
+      "bytes": 12476,
+      "sha256": "ee631f29a522c9b18b7ca781e96745f5e1774814c8f4802719952ff26aa2a03c",
+      "gitBlob": "d87b16b9100fa12484d4ead06d5654999c06fe0f"
     },
     {
       "path": "codex-rs/memories/write/src/extensions/ad_hoc.rs",
@@ -35448,16 +35448,16 @@
     {
       "path": "codex-rs/memories/write/src/startup_dual_write_tests.rs",
       "gitMode": "100644",
-      "bytes": 6320,
-      "sha256": "4976cbf1e41fdf2527cd3c337bef39fe84e0960ca0ee2835545c11cc67e1d8d9",
-      "gitBlob": "ffb3582aa3e881bfbc8def479fcfd42c84d01890"
+      "bytes": 6633,
+      "sha256": "9ef97caf5f31ab3f5010feee148779f1f2df4b04c3f2cc0e136a0923165a9e49",
+      "gitBlob": "306af6b51655232e6f96de3935234e571ed3efdb"
     },
     {
       "path": "codex-rs/memories/write/src/startup_tests.rs",
       "gitMode": "100644",
-      "bytes": 66602,
-      "sha256": "a8508f891903fc3acfc333f24d22da657b101ad56939bf5d9fe236c15f98a060",
-      "gitBlob": "c9fdae6939fd2d67fd7f6f7b93ce36f357960a2c"
+      "bytes": 75770,
+      "sha256": "7378746d0c7f0b36fe25bd59a5a40520824f37cee8f069939efbaeada1d9a323",
+      "gitBlob": "7a5f3909bb058b8042b0bc8b348be9517ab29edd"
     },
     {
       "path": "codex-rs/memories/write/src/storage.rs",
@@ -69625,6 +69625,16 @@
     },
     {
       "path": "codex-rs/memories/write/src/start.rs",
+      "status": "modified",
+      "notice": "inline-1.1.0"
+    },
+    {
+      "path": "codex-rs/memories/write/src/startup_dual_write_tests.rs",
+      "status": "modified",
+      "notice": "inline-1.1.0"
+    },
+    {
+      "path": "codex-rs/memories/write/src/startup_tests.rs",
       "status": "modified",
       "notice": "inline-1.1.0"
     },

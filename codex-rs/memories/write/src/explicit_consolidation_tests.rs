@@ -180,9 +180,17 @@ async fn explicit_consolidation_uses_only_phase2_and_reports_invalid_artifacts_a
         if let Some(status) = db.memories().consolidation_status().await?
             && status.status == "error"
         {
-            assert_eq!(
-                status.last_error.as_deref(),
-                Some("failed_invalid_artifacts")
+            let error = status
+                .last_error
+                .as_deref()
+                .expect("publication failure detail");
+            assert!(
+                error.starts_with("failed_publication:"),
+                "unexpected failure: {error}"
+            );
+            assert!(
+                error.contains("MEMORY.md"),
+                "missing required artifact must be the failure: {error}"
             );
             break;
         }
@@ -222,6 +230,7 @@ async fn explicit_consolidation_completion_is_job_state_not_a_note_application_r
     seed_required_memory_artifacts(&root).await?;
     let previous_summary = tokio::fs::read_to_string(root.join("memory_summary.md")).await?;
     let note = crate::add_user_memory_note(&root, "Explicit correction from this test").await?;
+    let note_bytes = tokio::fs::read(&note).await?;
     let response = mount_sse_once(
         &server,
         sse(vec![
@@ -247,8 +256,25 @@ async fn explicit_consolidation_completion_is_job_state_not_a_note_application_r
         );
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-    assert!(!diff_since_latest_init(&root).await?.has_changes());
+    let db = test.codex.state_db().expect("state");
+    let generation = wait_for_phase2_publication(db.memories(), &root).await?;
+    assert_eq!(
+        tokio::fs::read_to_string(generation.join("memory_summary.md")).await?,
+        previous_summary
+    );
     assert!(note.is_file());
+    assert_eq!(tokio::fs::read(&note).await?, note_bytes);
+    assert!(!generation.join("extensions/ad_hoc/notes").exists());
+    let identity = codex_memories_read::publication_snapshot::root_identity(&root)?;
+    let publication = db
+        .memories()
+        .published_generation(&identity)
+        .await?
+        .expect("publication");
+    assert_eq!(
+        publication.notes_digest,
+        codex_memories_read::publication_notes::notes_digest(&root)?
+    );
     assert_eq!(
         tokio::fs::read_to_string(root.join("memory_summary.md")).await?,
         previous_summary
@@ -261,6 +287,11 @@ async fn explicit_consolidation_completion_is_job_state_not_a_note_application_r
     let retry = consolidate(&test, true).await?;
     assert_eq!(retry.status, "completed");
     assert_eq!(retry.reason.as_deref(), Some("no_workspace_changes"));
+    assert_eq!(
+        response.requests().len(),
+        1,
+        "unchanged retry must not run a worker"
+    );
     // A note accepted after the last job cannot inherit that job's completion.
     crate::add_user_memory_note(&root, "Later correction not processed by this worker").await?;
     assert_eq!(
@@ -270,7 +301,18 @@ async fn explicit_consolidation_completion_is_job_state_not_a_note_application_r
             .status,
         "done"
     );
-    assert!(diff_since_latest_init(&root).await?.has_changes());
+    let after = db
+        .memories()
+        .published_generation(&identity)
+        .await?
+        .expect("previous publication");
+    assert_eq!(after.generation_id, publication.generation_id);
+    assert_eq!(after.notes_digest, publication.notes_digest);
+    assert_ne!(
+        after.notes_digest,
+        codex_memories_read::publication_notes::notes_digest(&root)?
+    );
+    assert_eq!(tokio::fs::read(&note).await?, note_bytes);
     shutdown_test_codex(&test).await?;
     Ok(())
 }

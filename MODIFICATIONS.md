@@ -1,5 +1,9 @@
 # Arcvera-Core 1.1.0 candidate / 1.1.0 후보
 
+Startup memory fixtures explicitly select their legacy namespace and grant their temporary parent access to isolated staging. Assertions follow the host-selected immutable publication and resource fingerprints, preserve original inputs, and check rejection when required hooks prevent Windows worker isolation. Production permission checks are unchanged. Native verification is pending.
+
+메모리 시작 시험은 기존 namespace를 명시하고 임시 부모에 격리 stage 접근 권한을 부여합니다. 호스트가 선택한 불변 발행물과 리소스 해시, 원본 입력 보존을 검사하며 필수 hook 제약으로 Windows 작업자 격리가 불가능한 경우 차단을 확인합니다. 제품 권한 검사는 유지하며 네이티브 검증은 대기 중입니다.
+
 The note consolidation integration fixture uses the actual Windows host-mediated stage tools and validates the API-selected immutable publication. It preserves original note bytes and verifies fresh API/context visibility. Native verification is pending.
 
 노트 통합시험은 Windows의 실제 호스트 중개 stage 도구를 사용하고 API가 선택한 불변 발행물을 검증합니다. 원본 노트 바이트 보존과 새 대화의 API·문맥 반영을 확인하며 네이티브 검증은 대기 중입니다.
