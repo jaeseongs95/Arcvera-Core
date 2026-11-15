@@ -1,5 +1,9 @@
 # Arcvera-Core 1.1.0 candidate / 1.1.0 후보
 
+The stable embedded internal schema is regenerated for the retained host-only inherited user context. Public TypeScript and JSON exports are unchanged. Matching native schema regression remains pending.
+
+호스트 전용 상속 사용자 문맥에 맞춰 stable 내부 스키마 번들을 재생성합니다. 공개 TypeScript와 JSON 내보내기는 유지하며 동일 네이티브 스키마 회귀는 대기 중입니다.
+
 The memory extension's generation-switch test now declares its existing workspace UUID dependency as a development dependency. Test assertions and production dependencies are unchanged. Native verification is pending.
 
 메모리 extension의 세대 전환 시험이 사용하는 기존 workspace UUID를 개발 의존성으로 명시합니다. 시험 assertion과 제품 의존성은 유지하며 네이티브 검증은 대기 중입니다.

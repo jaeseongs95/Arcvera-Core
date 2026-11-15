@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "e78b89b46d8a6494ae94167ccfda36aaf7e70d4ee6c4627725595f06d182dd77",
+  "sourceTreeSha256": "1069838bd831d45d1349dd655a1d1d48365afd0c10e9d531f035ab4f553fb237",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "4b46da8225793cab288ec0b8a9c003ad6129f5df4346fe603caab8bed9d4e8b4"
+    "sha256": "87563033da7cec3b2f7facd10a1f8d632d2e55a54d1bcca3b04bbbd3f032d930"
   },
   "files": [
     {
@@ -77,9 +77,9 @@
     {
       "path": "MODIFICATIONS.md",
       "gitMode": "100644",
-      "bytes": 90547,
-      "sha256": "91ae4504a24c7dbceae000b2c81f507c9b939b52ace4d5dde28668409c11587a",
-      "gitBlob": "15bc94458ce05d89cfe937c82d09c7316c2cf06b"
+      "bytes": 90973,
+      "sha256": "87c4f1afcda6c43153e46f74d1376e1569f33d2950a534f6039b864948193627",
+      "gitBlob": "34fb2a4583ebaabfd94690202d57bb9003dd7591"
     },
     {
       "path": "NOTICE",
@@ -3360,9 +3360,9 @@
     {
       "path": "codex-rs/app-server-protocol/schema/precomputed/app-server-exports-stable.json.zst",
       "gitMode": "100644",
-      "bytes": 172904,
-      "sha256": "1a114c386308edebaf1f80cf3ca23a86c84a4f62b2e83b52a6225592203e955d",
-      "gitBlob": "b43d5130ec2db3a2c22218984bee7f2114e46aec"
+      "bytes": 172967,
+      "sha256": "98a251277a238b57b2d5b84c5cc4dddea1ac4a4b620cdb94277155617f0eb17e",
+      "gitBlob": "58f5c3136a9f709efc8a19b07768c7a88a087061"
     },
     {
       "path": "codex-rs/app-server-protocol/schema/typescript/AbsolutePathBuf.ts",
