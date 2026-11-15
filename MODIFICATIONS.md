@@ -1,5 +1,9 @@
 # Arcvera-Core 1.1.0 candidate / 1.1.0 후보
 
+The memory extension's generation-switch test now declares its existing workspace UUID dependency as a development dependency. Test assertions and production dependencies are unchanged. Native verification is pending.
+
+메모리 extension의 세대 전환 시험이 사용하는 기존 workspace UUID를 개발 의존성으로 명시합니다. 시험 assertion과 제품 의존성은 유지하며 네이티브 검증은 대기 중입니다.
+
 An additional synthetic stdio integration case exercises retained-stage capacity, stopped-process archival and explicit consolidation retry while checking original inputs and the legacy baseline byte for byte. Native execution is pending; this case does not establish old-executable compatibility or power-loss durability.
 
 합성 입력을 사용하는 stdio 통합시험을 추가하여 보존 stage 상한, 프로세스 종료 후 보관, 명시적 통합 재시도 과정에서 원본 입력과 legacy 기준 세대의 바이트 보존을 검사합니다. 네이티브 실행은 대기 중이며 구버전 실행 파일 호환성이나 전원 차단 시 내구성을 입증하지 않습니다.
