@@ -1041,6 +1041,8 @@ pub(super) async fn run_main_inner(
         .with(otel_tracing_layer)
         .try_init();
 
+    crate::link_diagnostics::init();
+
     if let Err(err) = screen_reader_result {
         tracing::warn!("Could not save screen-reader detection: {err}");
     }
@@ -1108,6 +1110,7 @@ pub(super) async fn run_main_inner(
         warn!(error = %err, "failed to finish interactive telemetry shutdown");
     }
 
+    crate::link_diagnostics::finish();
     app_result
 }
 

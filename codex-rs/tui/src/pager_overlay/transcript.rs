@@ -553,7 +553,7 @@ impl TranscriptOverlay {
             });
         } else if let ViewAction::OpenLink(url) = action
             && tui.terminal_link_owner.tui_opens(&url)
-            && let Err(error) = webbrowser::open(&url)
+            && let Err(error) = crate::link_diagnostics::open(&url)
         {
             self.notice = Some(format!("Could not open link: {error}"));
         }

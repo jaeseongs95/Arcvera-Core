@@ -306,7 +306,7 @@ impl App {
     }
 
     pub(super) fn open_url_in_browser(&mut self, url: String) {
-        if let Err(err) = webbrowser::open(&url) {
+        if let Err(err) = crate::link_diagnostics::open(&url) {
             self.chat_widget
                 .add_error_message(format!("Failed to open browser for {url}: {err}"));
         }

@@ -135,6 +135,7 @@ mod clipboard_copy;
 mod clipboard_html;
 mod clipboard_paste;
 mod clock_format;
+mod link_diagnostics;
 mod collaboration_modes;
 mod color;
 mod config_panel;
