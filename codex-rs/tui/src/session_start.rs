@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Interactive recovery when starting an archived session.
@@ -152,13 +153,40 @@ fn session_start_error(
 fn archived_session_guidance(err: &color_eyre::Report) -> Option<String> {
     let err = err.to_string();
     let message = &err[err.find("session ")?..];
-    if !message.contains(" is archived. Run `arcvera unarchive ") {
+    if !message.contains(" is archived. Run `arcvera unarchive ")
+        && !message.contains(" is archived. Run `codex unarchive ")
+    {
         return None;
     }
     let message = message
         .split_once(" (code ")
         .map_or(message, |(message, _)| message);
-    Some(message.to_string())
+    Some(message.replace(
+        " is archived. Run `codex unarchive ",
+        " is archived. Run `arcvera unarchive ",
+    ))
+}
+
+#[cfg(test)]
+mod archived_guidance_tests {
+    use super::archived_session_guidance;
+
+    #[test]
+    fn server_and_cli_archive_guidance_are_recognized() {
+        for command in ["codex", "arcvera"] {
+            let err = color_eyre::eyre::eyre!(
+                "thread/resume failed: session example is archived. Run `{command} unarchive example` to unarchive it first. (code -32600)"
+            );
+            assert_eq!(
+                archived_session_guidance(&err).as_deref(),
+                Some(
+                    "session example is archived. Run `arcvera unarchive example` to unarchive it first."
+                )
+            );
+        }
+        let unrelated = color_eyre::eyre::eyre!("session example is unavailable");
+        assert!(archived_session_guidance(&unrelated).is_none());
+    }
 }
 
 #[cfg(test)]
