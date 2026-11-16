@@ -344,6 +344,12 @@ impl App {
         self.clear_ui_header_lines_with_version(width, CODEX_CLI_VERSION)
     }
 
+    pub(super) fn has_cleared_display_boundary(&self) -> bool {
+        self.transcript_cells
+            .iter()
+            .any(|cell| cell.as_any().is::<history_cell::ClearScreenHeader>())
+    }
+
     pub(super) fn start_cleared_display(&mut self, tui: &mut tui::Tui) {
         self.reset_terminal_display_state();
         self.transcript_cells

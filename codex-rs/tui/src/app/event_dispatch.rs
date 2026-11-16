@@ -1009,10 +1009,11 @@ impl App {
                 tui.frame_requester().schedule_frame();
             }
             AppEvent::EndInitialHistoryReplayBuffer => {
-                self.scrollback_has_older_history = self
-                    .chat_widget
-                    .thread_id()
-                    .is_some_and(|thread_id| app_server.has_older_history(thread_id));
+                self.scrollback_has_older_history = !self.has_cleared_display_boundary()
+                    && self
+                        .chat_widget
+                        .thread_id()
+                        .is_some_and(|thread_id| app_server.has_older_history(thread_id));
                 if tui.is_owned_screen() {
                     self.transcript_view.history = self.chat_widget.thread_id().map_or(
                         TranscriptHistoryState::Complete,

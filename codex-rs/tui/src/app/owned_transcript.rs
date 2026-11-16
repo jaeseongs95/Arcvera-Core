@@ -936,6 +936,9 @@ impl App {
         tui: &mut tui::Tui,
         app_server: &mut AppServerSession,
     ) {
+        if self.has_cleared_display_boundary() {
+            return;
+        }
         if let Some(thread_id) = self.chat_widget.thread_id() {
             use crate::app_server_session::HistoryDirection;
             if self.history_window.evicted

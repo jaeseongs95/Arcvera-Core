@@ -629,10 +629,11 @@ impl App {
                 || find_transcript
                 || select_transcript)
         {
-            self.scrollback_has_older_history = self
-                .chat_widget
-                .thread_id()
-                .is_some_and(|thread_id| app_server.has_older_history(thread_id));
+            self.scrollback_has_older_history = !self.has_cleared_display_boundary()
+                && self
+                    .chat_widget
+                    .thread_id()
+                    .is_some_and(|thread_id| app_server.has_older_history(thread_id));
             self.open_transcript_overlay(tui);
             if find_transcript && let Some(Overlay::Transcript(overlay)) = &mut self.overlay {
                 overlay.set_keymap_bindings(&self.keymap);
