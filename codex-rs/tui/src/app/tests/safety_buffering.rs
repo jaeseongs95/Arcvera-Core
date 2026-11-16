@@ -1149,6 +1149,22 @@ goals = true
     .await;
     assert_eq!(app.voice_owner_thread_id(), Some(voice_owner));
 
+    if failing_draft.is_none()
+        && scenario != SafetyRetryScenario::UnsupportedPermissions
+        && app.chat_widget.thread_id() == Some(source_thread_id)
+    {
+        let diagnostics = std::iter::from_fn(|| app_event_rx.try_recv().ok())
+            .filter_map(|event| match event {
+                AppEvent::InsertHistoryCell(cell) => {
+                    Some(lines_to_single_string(&cell.display_lines(200)))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        panic!("safety retry did not create a new thread: {diagnostics}");
+    }
+
     if scenario == SafetyRetryScenario::UnsupportedPermissions {
         assert_eq!(app.active_thread_id, Some(source_thread_id));
         assert_eq!(app.primary_thread_id, Some(source_thread_id));

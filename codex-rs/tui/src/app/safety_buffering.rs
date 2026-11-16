@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Safety-buffered turn retries that preserve the source thread.
 
 use super::session_lifecycle::ThreadAttachPresentation;
@@ -9,6 +10,7 @@ use crate::app_server_session::turn_permissions_overrides;
 use crate::chatwidget::ThreadInputState;
 use crate::chatwidget::ThreadInputStateRestoreMode;
 use crate::chatwidget::UserMessage;
+use codex_app_server_client::AppServerEvent;
 use codex_app_server_protocol::ThreadHistoryMode;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::TurnItemsView;
@@ -112,6 +114,16 @@ impl App {
         if let Err(err) = app_server.turn_interrupt(thread_id, turn_id.clone()).await {
             self.chat_widget
                 .add_error_message(format!("Failed to retry with a faster model: {err}"));
+            return;
+        }
+
+        // Exact-turn interrupt acknowledges the claim before cancellation joins its
+        // tasks. Only the matching terminal event makes history safe to fork.
+        if let Err(err) = self
+            .wait_for_safety_retry_turn_completion(app_server, thread_id, &turn_id)
+            .await
+        {
+            self.fail_safety_buffered_branch(input_state, prompt, err);
             return;
         }
 
@@ -256,6 +268,43 @@ impl App {
         }
         self.chat_widget
             .commit_safety_buffered_retry_submission(retry_display);
+    }
+
+    async fn wait_for_safety_retry_turn_completion(
+        &mut self,
+        app_server: &mut AppServerSession,
+        thread_id: ThreadId,
+        turn_id: &str,
+    ) -> color_eyre::Result<()> {
+        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+            loop {
+                let Some(event) = app_server.next_event().await else {
+                    self.handle_backend_stream_closed(app_server);
+                    color_eyre::eyre::bail!("Backend event stream ended before the interrupted turn completed.");
+                };
+                let completed = event.backend_id == app_server.backend_id()
+                    && matches!(
+                        &event.event,
+                        AppServerEvent::ServerNotification(notification)
+                            if matches!(notification.as_ref(), ServerNotification::TurnCompleted(completed)
+                                if completed.thread_id == thread_id.to_string()
+                                    && completed.turn.id == turn_id)
+                    );
+                let events_lost = matches!(
+                    &event.event,
+                    AppServerEvent::Disconnected { .. } | AppServerEvent::Lagged { .. }
+                );
+                self.handle_backend_event(app_server, event).await;
+                if events_lost {
+                    color_eyre::eyre::bail!("Backend events were lost before the interrupted turn completed.");
+                }
+                if completed {
+                    return Ok(());
+                }
+            }
+        })
+        .await
+        .map_err(|_| color_eyre::eyre::eyre!("Timed out waiting for the interrupted turn to complete."))?
     }
 
     fn fail_safety_buffered_branch(
