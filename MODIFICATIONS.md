@@ -1,5 +1,9 @@
 # Arcvera-Core 1.1.0 candidate / 1.1.0 후보
 
+Safety retries wait for the interrupted turn's terminal event before reading history and forking; the earlier interrupt acknowledgement confirms only the cancellation claim. Disconnect, event loss and timeout preserve the prompt and stop the retry. Resume reads parent-owned input capability before configuring tools, and confirmed MCP registration contributes to historical task-tool availability. Clearing the display keeps its boundary across transcript hydration. The remaining regression fixture changes preserve the frozen translation hash, opaque status values, permission checks and reviewed release identity. Native validation of these follow-up changes is pending.
+
+안전 재시도는 중단 대상 확보만 알리는 응답 이후 해당 턴의 종료 이벤트를 기다린 뒤 이력 조회와 분기를 수행합니다. 연결 종료·이벤트 유실·시간 초과 시 프롬프트를 보존하고 재시도를 중단합니다. 대화 재개는 부모 소유 입력 권한을 먼저 읽은 뒤 도구를 구성하며, 확인된 MCP 등록을 과거 작업 도구 가용성에 반영합니다. 화면 지우기 경계는 대화 이력을 불러올 때도 유지합니다. 나머지 회귀시험 수정은 기존 번역 해시, 상태의 원본 값, 권한 검사와 검토된 릴리스 식별 정보를 보존합니다. 후속 변경의 네이티브 검증은 대기 중입니다.
+
 The ordinary skills-change integration fixture explicitly leaves the optional tool ceiling unset. This completes the `ThreadStartParams` field migration found by the grouped compilation; existing assertions are preserved. Native verification remains pending.
 
 일반 skills 변경 통합시험은 선택적인 도구 상한을 명시적으로 미설정 상태로 둡니다. 묶음 컴파일에서 발견한 `ThreadStartParams` 필드 이식 누락을 보완하며 기존 assertion은 유지합니다. 네이티브 검증은 대기 중입니다.

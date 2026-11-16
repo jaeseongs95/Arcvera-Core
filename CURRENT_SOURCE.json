@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "ea040b25c6d84aab46cbf8379a4209aee7ad3b74022a7f7f939445972510db78",
+  "sourceTreeSha256": "b2f2dcaeed6dd77bee39b4aa397c1a30dbc8125920cf3d01bc38b4492e692b6e",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "3b2723be83a96585a3ab013804767c4a35687a9b999780ffbcdf6f40408fb72f"
+    "sha256": "ae59026a52f1c6cb4e3e8cff165af96093380e149cd30fed774def38c56bbde2"
   },
   "files": [
     {
@@ -77,9 +77,9 @@
     {
       "path": "MODIFICATIONS.md",
       "gitMode": "100644",
-      "bytes": 97720,
-      "sha256": "fda50ef64934d0ae40feee64f98b11c99757a7fd855e5c52fae2dbdcea81b406",
-      "gitBlob": "7d9b02b3ad5c1ab9a3bdcc491d6f5c7fa9b51abf"
+      "bytes": 99119,
+      "sha256": "6a4e54bc18d9a2c73da038e1bbb9b0e5167463317562eeb0bea9c85383f8572b",
+      "gitBlob": "2442e5700296cc6b20a83d6fd5ea9eb14ef7bd2d"
     },
     {
       "path": "NOTICE",
@@ -11697,9 +11697,9 @@
     {
       "path": "codex-rs/app-server/tests/suite/v2/external_agent_memory_concurrency.rs",
       "gitMode": "100644",
-      "bytes": 11422,
-      "sha256": "d5bba4e0de6757bc16afd8416044ba6bcbaa52c2c83f14917b787d94ba174121",
-      "gitBlob": "8948542ac72c9abcad9d5b98849459660683ba57"
+      "bytes": 11589,
+      "sha256": "ca94273a8146b52f28911b66d115ab83600ac21f536ff330ee1b9b85cb0f8540",
+      "gitBlob": "7a646a41a37e23ad8daf078f255cd98d1a901b11"
     },
     {
       "path": "codex-rs/app-server/tests/suite/v2/feedback.rs",
@@ -44807,9 +44807,9 @@
     {
       "path": "codex-rs/tui/src/app/event_dispatch.rs",
       "gitMode": "100644",
-      "bytes": 196866,
-      "sha256": "2946270ca18a1e2c643cb6b05effd901660a6bd2e193fbc4582adcd947912081",
-      "gitBlob": "a0005430358e2c80fd942800f06bbd3838aeeb70"
+      "bytes": 196938,
+      "sha256": "c2880a5adeeb9be51d11c25c5d559ed863ba33506461fbe4b39ac553242c90cd",
+      "gitBlob": "ccea57f6a840a06ced4454d4b2df00f8ecb909bd"
     },
     {
       "path": "codex-rs/tui/src/app/exit_summary.rs",
@@ -44884,9 +44884,9 @@
     {
       "path": "codex-rs/tui/src/app/history_ui.rs",
       "gitMode": "100644",
-      "bytes": 18295,
-      "sha256": "e7c80b5c6ec22e9be3b58e839b37de0cd657eed6500982d40105c4637cf0e886",
-      "gitBlob": "b43e1d7bb0695a1a28b27d8473884cbf609607d3"
+      "bytes": 18495,
+      "sha256": "3feb8eae56dfb28ef127943d6c165ac0fafa8a56615dea142c5f75307b06a5e1",
+      "gitBlob": "2b4e4bc090c1c00008e014822c905e200fb00ccf"
     },
     {
       "path": "codex-rs/tui/src/app/history_ui_tests.rs",
@@ -44905,9 +44905,9 @@
     {
       "path": "codex-rs/tui/src/app/input.rs",
       "gitMode": "100644",
-      "bytes": 37290,
-      "sha256": "7e29985d56978d7ecffa218e0fe8e0011cc7765951382c2ba65631f6cba6f896",
-      "gitBlob": "6be3821e177d3cf92546e1dfaac14badace49561"
+      "bytes": 37429,
+      "sha256": "4af11e2f7f24bdaa75ddee49ce27bd4b58c9bb8c9aaf011b5cc945c7e710fed0",
+      "gitBlob": "5bf6c61e98482fdb5d1fd28a20ddbf49df145f93"
     },
     {
       "path": "codex-rs/tui/src/app/input/select_mode.rs",
@@ -44989,9 +44989,9 @@
     {
       "path": "codex-rs/tui/src/app/owned_transcript.rs",
       "gitMode": "100644",
-      "bytes": 42585,
-      "sha256": "829058fd8819e79c089406022883e041778f6b35e9cdac5b55bc2c37727753e6",
-      "gitBlob": "47ec2d56c50b2da7750241802faf49ef5ac7b7d1"
+      "bytes": 42664,
+      "sha256": "7bda37d005ae3b34c663cac3c24d02dd68bb0d989af2a5f989f849bd344b9cdd",
+      "gitBlob": "66341c217e212c7edc8812dcbf8c280e84163f36"
     },
     {
       "path": "codex-rs/tui/src/app/owned_transcript_browsing_tests.rs",
@@ -45178,9 +45178,9 @@
     {
       "path": "codex-rs/tui/src/app/safety_buffering.rs",
       "gitMode": "100644",
-      "bytes": 11362,
-      "sha256": "740c56ac0e8ed9ea488ae9bf4b799d4b27c53ee9caf75e95d51a136f63c0f0ce",
-      "gitBlob": "72da56bfcd6430265d1b2e7d87f7a2ab49e64e76"
+      "bytes": 13605,
+      "sha256": "ab4078a873cc43eb7c28c520a74ae78295801ee765748ad09a2bfd0509c3f24d",
+      "gitBlob": "9032bde5eb31ac02584b4a8a2e9ca67e267da3d2"
     },
     {
       "path": "codex-rs/tui/src/app/safety_buffering_tests.rs",
@@ -45969,9 +45969,9 @@
     {
       "path": "codex-rs/tui/src/app/tests/active_reconnect_tests.rs",
       "gitMode": "100644",
-      "bytes": 49188,
-      "sha256": "0d92ce09be78b703649454f50725b432711b9b89b4c3044ceb64ad740eb861ba",
-      "gitBlob": "40182516e31bfc629f884751b410aa42b759abf2"
+      "bytes": 50635,
+      "sha256": "838a83cd3bf9488bdf5a2ed1325654d45f6a6f8a291673e9997787e308aa87ec",
+      "gitBlob": "7eb5c4789992046ae472564322c586dd9995107d"
     },
     {
       "path": "codex-rs/tui/src/app/tests/advanced_reasoning_tests.rs",
@@ -46312,9 +46312,9 @@
     {
       "path": "codex-rs/tui/src/app/tests/safety_buffering.rs",
       "gitMode": "100644",
-      "bytes": 60547,
-      "sha256": "6f3c43240870b132dd1a3f418d87e09def957a1920ce2f7a044b77ac33c51d46",
-      "gitBlob": "55bd4836c17e0eb3ce234f54096763b7f849706e"
+      "bytes": 61170,
+      "sha256": "8c424febb023de64f359dead4bd65151abf3612d23ad74723caf20b828d1ef1c",
+      "gitBlob": "f6cbfdac5a9a60a645e8fb1eb5547b0e4bf08693"
     },
     {
       "path": "codex-rs/tui/src/app/tests/security_setup_tests.rs",
@@ -47271,9 +47271,9 @@
     {
       "path": "codex-rs/tui/src/app_server_session.rs",
       "gitMode": "100644",
-      "bytes": 229052,
-      "sha256": "555f829de69b4d92ed30540b9d1c20f434045e75129e6730ff2174dd13183f66",
-      "gitBlob": "1afc09ca2fbbeaa4655b85c8ca51168c058a722d"
+      "bytes": 229256,
+      "sha256": "57a1318c8190a69c973ed972b701a71010f40d4ae80f06573d3f03843f8d2ffd",
+      "gitBlob": "2a0f6bfb97ba1611c0863ca75e8685c8a448cd65"
     },
     {
       "path": "codex-rs/tui/src/app_server_session/collaboration_catalog_tests.rs",
@@ -47397,9 +47397,9 @@
     {
       "path": "codex-rs/tui/src/app_server_session/rollout_history.rs",
       "gitMode": "100644",
-      "bytes": 25670,
-      "sha256": "4a1f21aeb7c1b8a9cac20f71e8633f373ef1463a8dffb8834b5a5f7baf6688ad",
-      "gitBlob": "7a3b7fab2e8c78d98237c47745a86f5cd42d3319"
+      "bytes": 25963,
+      "sha256": "967ed71675d21eda59884421fcd439767a0d280e2afad3386289c2532da36e7f",
+      "gitBlob": "384a8ab5a5fcb2cb3d091db93d62d4a4987f9d00"
     },
     {
       "path": "codex-rs/tui/src/app_server_session/rollout_history_tests.rs",
@@ -52298,8 +52298,8 @@
       "path": "codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_resume.snap",
       "gitMode": "100644",
       "bytes": 178,
-      "sha256": "4bd086c9a560c7d4fa16a646f29d6b8a0efc8b21adcd5f8cd0328cd29e6bf9a2",
-      "gitBlob": "915041d85fa6112b9727d6ce497358398d49cdc0"
+      "sha256": "a96fd8e4b9ef6c80e81ee05b076bc2ad9f36aabae6440366f9112a1d9c4cb2e0",
+      "gitBlob": "2ad35b15c468a06761fd7c64a44694909433f9f6"
     },
     {
       "path": "codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_startup.snap",
@@ -52312,8 +52312,8 @@
       "path": "codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_unknown_model.snap",
       "gitMode": "100644",
       "bytes": 188,
-      "sha256": "424a78c1ea7b2ca20327cc75780ec2be148e13d692cf669b8c0f9c06f095cc07",
-      "gitBlob": "147a544c9485f429f0e9ac058ee0ebd0389b265c"
+      "sha256": "5839ef7a93a2b66c4dfc5222b10eff347781e239e9bed6d182eeb58ef503b374",
+      "gitBlob": "44ea020acfdd3a533f10dd16be45c05fb2f15f8f"
     },
     {
       "path": "codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__chained_config_error_wraps_in_history_snapshot.snap",
@@ -53656,8 +53656,8 @@
       "path": "codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__slash_copy_whole_status.snap",
       "gitMode": "100644",
       "bytes": 757,
-      "sha256": "db6e99f903e1eb439ca7aa34267947934162fca9232395ae1852716b891a772f",
-      "gitBlob": "a8631ab1a581454c29ba87a9c4c8980f42a3c3f4"
+      "sha256": "50402ee4c7801a9cf03148302eb321b820a1b80403bcfbfbc275cfdffd5f09bf",
+      "gitBlob": "6d011cb8af92bbcbc98146458c76ce43384afdea"
     },
     {
       "path": "codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__slash_daybreak_api_key_help.snap",
@@ -57281,9 +57281,9 @@
     {
       "path": "codex-rs/tui/src/i18n/catalog.rs",
       "gitMode": "100644",
-      "bytes": 20115,
-      "sha256": "78c3bac35bcc0bf5b726bee7b5977512ba6d95c50a3d1eb1ae892a4bed3f3ac3",
-      "gitBlob": "85f533d261ce5be2da8d84f458ebce7a92b387f1"
+      "bytes": 20346,
+      "sha256": "938c947f067e3d0a4be38de744ec48ed3efcd9ac2523a310dd176f7564101ddd",
+      "gitBlob": "cc9526fae9a2aedf28f0ffe5bb301cd27adae8b0"
     },
     {
       "path": "codex-rs/tui/src/ide_context.rs",
@@ -60480,9 +60480,9 @@
     {
       "path": "codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_server_auth_required.snap",
       "gitMode": "100644",
-      "bytes": 544,
-      "sha256": "e7c768f830b70728f1a00f616a2f1b19c1e6858093b4d73a94a20ac0bb6e80cc",
-      "gitBlob": "edd970b4be32eb7640b269566d110677fe73163e"
+      "bytes": 522,
+      "sha256": "7a8033d5740ef26115a19766637e650128860c6c9e0d42422da99682a942127c",
+      "gitBlob": "40d346146475f2dc0cee4382c0f0c1fdd8151cae"
     },
     {
       "path": "codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_cached_limits_hide_credits_without_flag.snap",
@@ -60529,16 +60529,16 @@
     {
       "path": "codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_local_background_server.snap",
       "gitMode": "100644",
-      "bytes": 601,
-      "sha256": "9311117474c4d8f647af964a49af0cd7f5a029e6efd27ae07241d2b972321305",
-      "gitBlob": "11369eeb29dd9d7e331b7c6c09e7c812418ed0b8"
+      "bytes": 579,
+      "sha256": "e871b19cac282c5e86180c10f769951f253eda764b4e469b958b73b8128db09e",
+      "gitBlob": "1a850188c7635f0b1be4d4c468a9135d55c36c62"
     },
     {
       "path": "codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_remote_server.snap",
       "gitMode": "100644",
-      "bytes": 674,
-      "sha256": "f69f2b2a26f907d98f6e7ac7a66d84d018ddb41d55ffe6fd9a94c477b5c15da4",
-      "gitBlob": "e858573dd0b955a7e4f3e12661dbade66cf7bc75"
+      "bytes": 652,
+      "sha256": "f4100c676ab6a93bec146e12a7d944763381677d70d4a1b4d80fe94f78610fa5",
+      "gitBlob": "3ef1e945b4bf696504f136a42349601ff7c23990"
     },
     {
       "path": "codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_shows_active_user_defined_profile.snap",
@@ -60620,9 +60620,9 @@
     {
       "path": "codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_wraps_enterprise_monthly_credit_details_in_narrow_terminal.snap",
       "gitMode": "100644",
-      "bytes": 909,
-      "sha256": "f7dce9faff64fbe8259cd432fab075dd96dacec71a77b4c4bd29ab260499ee13",
-      "gitBlob": "0b7295bf13172fc4ddb24aeb68af86e22aade826"
+      "bytes": 884,
+      "sha256": "d730388cea2263569a2e4113935bad2ab01b5ac56b45d277e44e2d628e4e326a",
+      "gitBlob": "0359473fec2e6effcc2a99cfc6f036c99e7f8507"
     },
     {
       "path": "codex-rs/tui/src/status/snapshots/codex_tui__status__tests__transcript_overlay_status_rate_limit_refresh.snap",
@@ -60634,9 +60634,9 @@
     {
       "path": "codex-rs/tui/src/status/tests.rs",
       "gitMode": "100644",
-      "bytes": 86117,
-      "sha256": "e41b36dd838ad1d580cf13fb4dfcb58a9bb384ad0a37616745d6f73dbe7044c0",
-      "gitBlob": "f5d974e06997be93d81c38d6f562f1d43c65a381"
+      "bytes": 86512,
+      "sha256": "b5e63a81adb8f467109a101eed7d62fdaf09fcbda5ac14d0c25772e5ca487ace",
+      "gitBlob": "866e9f5d484389afb6bf0de926b5637b438af8ff"
     },
     {
       "path": "codex-rs/tui/src/status/thread_usage.rs",
@@ -70139,6 +70139,11 @@
       "notice": "inline-1.0.1"
     },
     {
+      "path": "codex-rs/tui/src/app/input.rs",
+      "status": "modified",
+      "notice": "inline-1.1.0"
+    },
+    {
       "path": "codex-rs/tui/src/app/managed_worktree_creation.rs",
       "status": "modified",
       "notice": "inline-r41"
@@ -70155,6 +70160,11 @@
     },
     {
       "path": "codex-rs/tui/src/app/reconnect.rs",
+      "status": "modified",
+      "notice": "inline-1.1.0"
+    },
+    {
+      "path": "codex-rs/tui/src/app/safety_buffering.rs",
       "status": "modified",
       "notice": "inline-1.1.0"
     },
@@ -70444,7 +70454,17 @@
       "notice": "inline-1.0.1"
     },
     {
+      "path": "codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_resume.snap",
+      "status": "modified",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
       "path": "codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_startup.snap",
+      "status": "modified",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_unknown_model.snap",
       "status": "modified",
       "notice": "external-in-CURRENT_SOURCE.json"
     },
@@ -70460,6 +70480,11 @@
     },
     {
       "path": "codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__slash_copy_picker_status_fields.snap",
+      "status": "modified",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__slash_copy_whole_status.snap",
       "status": "modified",
       "notice": "external-in-CURRENT_SOURCE.json"
     },
@@ -70819,6 +70844,11 @@
       "notice": "external-in-CURRENT_SOURCE.json"
     },
     {
+      "path": "codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_server_auth_required.snap",
+      "status": "modified",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
       "path": "codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_cached_limits_hide_credits_without_flag.snap",
       "status": "modified",
       "notice": "external-in-CURRENT_SOURCE.json"
@@ -70845,6 +70875,16 @@
     },
     {
       "path": "codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_includes_reasoning_details.snap",
+      "status": "modified",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_local_background_server.snap",
+      "status": "modified",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_remote_server.snap",
       "status": "modified",
       "notice": "external-in-CURRENT_SOURCE.json"
     },
@@ -70900,6 +70940,11 @@
     },
     {
       "path": "codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_uses_generic_limit_labels_for_unsupported_windows.snap",
+      "status": "modified",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_wraps_enterprise_monthly_credit_details_in_narrow_terminal.snap",
       "status": "modified",
       "notice": "external-in-CURRENT_SOURCE.json"
     },

@@ -1162,11 +1162,15 @@ index 0000000000000000000000000000000000000000..6c2e29d22f88ea45e9e6e2efad667437
 +없으면 해당 의존성을 제외하고 공식 제공자의 직접 설치 방법을 안내합니다.
 +동봉하는 오픈소스의 소스 제공·고지 등 의무는 계속 유지합니다.
 diff --git a/MODIFICATIONS.md b/MODIFICATIONS.md
-index c3febe7112813d655a8b6c2367e9057cca8d1705..7d9b02b3ad5c1ab9a3bdcc491d6f5c7fa9b51abf 100644
+index c3febe7112813d655a8b6c2367e9057cca8d1705..2442e5700296cc6b20a83d6fd5ea9eb14ef7bd2d 100644
 --- a/MODIFICATIONS.md
 +++ b/MODIFICATIONS.md
-@@ -1,3 +1,108 @@
+@@ -1,3 +1,112 @@
 +# Arcvera-Core 1.1.0 candidate / 1.1.0 후보
++
++Safety retries wait for the interrupted turn's terminal event before reading history and forking; the earlier interrupt acknowledgement confirms only the cancellation claim. Disconnect, event loss and timeout preserve the prompt and stop the retry. Resume reads parent-owned input capability before configuring tools, and confirmed MCP registration contributes to historical task-tool availability. Clearing the display keeps its boundary across transcript hydration. The remaining regression fixture changes preserve the frozen translation hash, opaque status values, permission checks and reviewed release identity. Native validation of these follow-up changes is pending.
++
++안전 재시도는 중단 대상 확보만 알리는 응답 이후 해당 턴의 종료 이벤트를 기다린 뒤 이력 조회와 분기를 수행합니다. 연결 종료·이벤트 유실·시간 초과 시 프롬프트를 보존하고 재시도를 중단합니다. 대화 재개는 부모 소유 입력 권한을 먼저 읽은 뒤 도구를 구성하며, 확인된 MCP 등록을 과거 작업 도구 가용성에 반영합니다. 화면 지우기 경계는 대화 이력을 불러올 때도 유지합니다. 나머지 회귀시험 수정은 기존 번역 해시, 상태의 원본 값, 권한 검사와 검토된 릴리스 식별 정보를 보존합니다. 후속 변경의 네이티브 검증은 대기 중입니다.
 +
 +The ordinary skills-change integration fixture explicitly leaves the optional tool ceiling unset. This completes the `ThreadStartParams` field migration found by the grouped compilation; existing assertions are preserved. Native verification remains pending.
 +
@@ -1274,7 +1278,7 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..7d9b02b3ad5c1ab9a3bdcc491d6f5c7f
  # R39 compact 개발 후보 (2026-11-07)
  
  정식 발행·동결된 R38과 같은 공식 0.167.0 기반에서 압축 동작만 변경합니다. 버전은 `0.167.0+native-r39.20261107`이며, 고정 소스는 `c4399dce957bb63fe1fdc276aa4306c06f6cf47f`입니다. 메모리 리팩토링·후크·캐싱·스크롤 감도·한글화·컨텍스트 조회의 미완 작업은 R40으로 이관하며 이번 변경에 포함하지 않습니다. 현재 소스·시험 후보이며 최종 빌드·발행은 미완료입니다.
-@@ -701,3 +806,30 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
+@@ -701,3 +810,30 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
  고정 소스 `8e9b7eff953e750e8f071d101233920108e5ca26`는 R37 이후의 별도 개발 후보다. 플러그인 payload 비교에서 정확한 `.git`만 제외하고, 암시적 daemon의 전체 버전 확인과 실제 시작·재연결 화면 안내를 보강했다. Stop 속성의 명시적 교정 도구와 재로드 경고의 한국어/영어 안내, 에이전트 목록의 메인 마우스 복귀 및 작은 밑줄만 사용하는 hover를 포함한다.
  
  요구별 실행 결과·원래 실패·미검증 경계는 [R38 범위](docs/native-cli-r38.ko.md)와 연결된 사례 문서를 따른다. 운영 설정 자동 교정·R38 최종 릴리스 빌드·공개·설치는 수행하지 않았다. R37 동결 실행 파일은 변경하지 않았다.
@@ -27541,7 +27545,7 @@ index e6a8d863b3e8fb98a247e7949adc83267d8bfb63..6ca60fcdb3beed0d6e56ac68e570d314
          .build_initialized_with_timeout(DEFAULT_TIMEOUT)
          .await?;
 diff --git a/codex-rs/app-server/tests/suite/v2/external_agent_memory_concurrency.rs b/codex-rs/app-server/tests/suite/v2/external_agent_memory_concurrency.rs
-index 3bbbbd7e0815116b43137698022f4b0184409f12..8948542ac72c9abcad9d5b98849459660683ba57 100644
+index 3bbbbd7e0815116b43137698022f4b0184409f12..7a646a41a37e23ad8daf078f255cd98d1a901b11 100644
 --- a/codex-rs/app-server/tests/suite/v2/external_agent_memory_concurrency.rs
 +++ b/codex-rs/app-server/tests/suite/v2/external_agent_memory_concurrency.rs
 @@ -1,3 +1,4 @@
@@ -27558,7 +27562,7 @@ index 3bbbbd7e0815116b43137698022f4b0184409f12..8948542ac72c9abcad9d5b9884945966
 +    // Grant only this synthetic home's sibling staging directories; production
 +    // admission and the child stage-only tool restrictions remain unchanged.
 +    let mock_config = MockResponsesConfig::new(server.uri())
-+        .with_sandbox_mode("workspace-write")
++        .with_root_config("default_permissions = \"memory-test\"")
          .enable_feature(Feature::Sqlite)
          .enable_feature(Feature::MemoryTool)
 -        .enable_feature(Feature::ExternalAgentMemoryImport)
@@ -27575,7 +27579,7 @@ index 3bbbbd7e0815116b43137698022f4b0184409f12..8948542ac72c9abcad9d5b9884945966
 +    )?;
 +    mock_config
 +        .with_extra_config(&format!(
-+            "[sandbox_workspace_write]\nwritable_roots = [{writable_home}]\n\n[memories]\nversion = \"v2\"\ngenerate_memories = true\n"
++            "[permissions.memory-test.workspace_roots]\n{writable_home} = true\n\n[permissions.memory-test.filesystem]\n\":root\" = \"read\"\n\n[permissions.memory-test.filesystem.\":workspace_roots\"]\n\".\" = \"write\"\n\n[memories]\nversion = \"v2\"\ngenerate_memories = true\n"
 +        ))
          .write(home.path())?;
  
@@ -69363,7 +69367,7 @@ index d3aa50573fd27dfe8a373efabdf17a2b7f8fbfd2..00000000000000000000000000000000
 -    }
 -}
 diff --git a/codex-rs/tui/src/app/event_dispatch.rs b/codex-rs/tui/src/app/event_dispatch.rs
-index 2e74e735aec3744a857af70047d47a394368bf98..a0005430358e2c80fd942800f06bbd3838aeeb70 100644
+index 2e74e735aec3744a857af70047d47a394368bf98..ccea57f6a840a06ced4454d4b2df00f8ecb909bd 100644
 --- a/codex-rs/tui/src/app/event_dispatch.rs
 +++ b/codex-rs/tui/src/app/event_dispatch.rs
 @@ -1,3 +1,4 @@
@@ -69397,6 +69401,22 @@ index 2e74e735aec3744a857af70047d47a394368bf98..a0005430358e2c80fd942800f06bbd38
                  }
                  // Fallback metadata must not replay after fresh reads or newer notifications.
                  if !thread.ephemeral
+@@ -1003,10 +1009,11 @@ impl App {
+                 tui.frame_requester().schedule_frame();
+             }
+             AppEvent::EndInitialHistoryReplayBuffer => {
+-                self.scrollback_has_older_history = self
+-                    .chat_widget
+-                    .thread_id()
+-                    .is_some_and(|thread_id| app_server.has_older_history(thread_id));
++                self.scrollback_has_older_history = !self.has_cleared_display_boundary()
++                    && self
++                        .chat_widget
++                        .thread_id()
++                        .is_some_and(|thread_id| app_server.has_older_history(thread_id));
+                 if tui.is_owned_screen() {
+                     self.transcript_view.history = self.chat_widget.thread_id().map_or(
+                         TranscriptHistoryState::Complete,
 diff --git a/codex-rs/tui/src/app/exit_summary.rs b/codex-rs/tui/src/app/exit_summary.rs
 index 6dd9b5465d7fe1ac29cd39b4f40de3b00480d5fb..969d4c2d5b9a09d1dab54037357502abdc8fb34f 100644
 --- a/codex-rs/tui/src/app/exit_summary.rs
@@ -69490,7 +69510,7 @@ index 411a476707afccbee531ea011e99f44d86ee7c01..16c1d093b5d248fa9fa311f8cd4666d8
                  }
              }
 diff --git a/codex-rs/tui/src/app/history_ui.rs b/codex-rs/tui/src/app/history_ui.rs
-index bc95bb0b813ed12c29796567ac68ced8d0cd95fe..b43e1d7bb0695a1a28b27d8473884cbf609607d3 100644
+index bc95bb0b813ed12c29796567ac68ced8d0cd95fe..2b4e4bc090c1c00008e014822c905e200fb00ccf 100644
 --- a/codex-rs/tui/src/app/history_ui.rs
 +++ b/codex-rs/tui/src/app/history_ui.rs
 @@ -1,3 +1,4 @@
@@ -69536,7 +69556,20 @@ index bc95bb0b813ed12c29796567ac68ced8d0cd95fe..b43e1d7bb0695a1a28b27d8473884cbf
      }
  
      pub(super) fn clear_ui_header_lines_with_version(
-@@ -454,107 +446,6 @@ impl App {
+@@ -352,6 +344,12 @@ impl App {
+         self.clear_ui_header_lines_with_version(width, CODEX_CLI_VERSION)
+     }
+ 
++    pub(super) fn has_cleared_display_boundary(&self) -> bool {
++        self.transcript_cells
++            .iter()
++            .any(|cell| cell.as_any().is::<history_cell::ClearScreenHeader>())
++    }
++
+     pub(super) fn start_cleared_display(&mut self, tui: &mut tui::Tui) {
+         self.reset_terminal_display_state();
+         self.transcript_cells
+@@ -454,107 +452,6 @@ impl App {
      }
  }
  
@@ -69700,6 +69733,31 @@ index 46bbd9eb47775a77312379cbfaade63eaa306460..948b8625d588d5ed43a5d25f0f8c0afa
  }
  
  #[tokio::test]
+diff --git a/codex-rs/tui/src/app/input.rs b/codex-rs/tui/src/app/input.rs
+index 6be3821e177d3cf92546e1dfaac14badace49561..5bf6c61e98482fdb5d1fd28a20ddbf49df145f93 100644
+--- a/codex-rs/tui/src/app/input.rs
++++ b/codex-rs/tui/src/app/input.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
+ //! Keyboard input, external editor, and status-line dispatch for the TUI app.
+ //!
+@@ -629,10 +630,11 @@ impl App {
+                 || find_transcript
+                 || select_transcript)
+         {
+-            self.scrollback_has_older_history = self
+-                .chat_widget
+-                .thread_id()
+-                .is_some_and(|thread_id| app_server.has_older_history(thread_id));
++            self.scrollback_has_older_history = !self.has_cleared_display_boundary()
++                && self
++                    .chat_widget
++                    .thread_id()
++                    .is_some_and(|thread_id| app_server.has_older_history(thread_id));
+             self.open_transcript_overlay(tui);
+             if find_transcript && let Some(Overlay::Transcript(overlay)) = &mut self.overlay {
+                 overlay.set_keymap_bindings(&self.keymap);
 diff --git a/codex-rs/tui/src/app/managed_worktree_creation.rs b/codex-rs/tui/src/app/managed_worktree_creation.rs
 index 7b53366557dcf7084b4b23501ad7e0611f512009..0e1587b91f54e142d16eb48e95de9780428a0498 100644
 --- a/codex-rs/tui/src/app/managed_worktree_creation.rs
@@ -69720,7 +69778,7 @@ index 7b53366557dcf7084b4b23501ad7e0611f512009..0e1587b91f54e142d16eb48e95de9780
          }
          _ => Some("Active background terminals block /cd."),
 diff --git a/codex-rs/tui/src/app/owned_transcript.rs b/codex-rs/tui/src/app/owned_transcript.rs
-index 59182fe4e106d37d514589a04d5269343cb2ff72..47ec2d56c50b2da7750241802faf49ef5ac7b7d1 100644
+index 59182fe4e106d37d514589a04d5269343cb2ff72..66341c217e212c7edc8812dcbf8c280e84163f36 100644
 --- a/codex-rs/tui/src/app/owned_transcript.rs
 +++ b/codex-rs/tui/src/app/owned_transcript.rs
 @@ -1,3 +1,4 @@
@@ -69739,6 +69797,16 @@ index 59182fe4e106d37d514589a04d5269343cb2ff72..47ec2d56c50b2da7750241802faf49ef
                  self.open_url_in_browser(url);
              }
          }
+@@ -933,6 +936,9 @@ impl App {
+         tui: &mut tui::Tui,
+         app_server: &mut AppServerSession,
+     ) {
++        if self.has_cleared_display_boundary() {
++            return;
++        }
+         if let Some(thread_id) = self.chat_widget.thread_id() {
+             use crate::app_server_session::HistoryDirection;
+             if self.history_window.evicted
 diff --git a/codex-rs/tui/src/app/pending_interactive_replay.rs b/codex-rs/tui/src/app/pending_interactive_replay.rs
 index ee932e5c268b9375f2139d29df321c2091e86401..904ec1431707dd99a50cbde6f480ba910e6aa9f4 100644
 --- a/codex-rs/tui/src/app/pending_interactive_replay.rs
@@ -69818,6 +69886,84 @@ index 73c54f08e0cbb89bb9940a2455ae0ad939f024bb..15744d79be89b64a9130171ca18070ad
          match result {
              Ok(Ok(connected)) => return Ok(connected),
              Ok(Err(error)) if error.is::<crate::app_server_connection::LocalVersionMismatch>() => {
+diff --git a/codex-rs/tui/src/app/safety_buffering.rs b/codex-rs/tui/src/app/safety_buffering.rs
+index 72da56bfcd6430265d1b2e7d87f7a2ab49e64e76..9032bde5eb31ac02584b4a8a2e9ca67e267da3d2 100644
+--- a/codex-rs/tui/src/app/safety_buffering.rs
++++ b/codex-rs/tui/src/app/safety_buffering.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ //! Safety-buffered turn retries that preserve the source thread.
+ 
+ use super::session_lifecycle::ThreadAttachPresentation;
+@@ -9,6 +10,7 @@ use crate::app_server_session::turn_permissions_overrides;
+ use crate::chatwidget::ThreadInputState;
+ use crate::chatwidget::ThreadInputStateRestoreMode;
+ use crate::chatwidget::UserMessage;
++use codex_app_server_client::AppServerEvent;
+ use codex_app_server_protocol::ThreadHistoryMode;
+ use codex_app_server_protocol::ThreadItem;
+ use codex_app_server_protocol::TurnItemsView;
+@@ -115,6 +117,16 @@ impl App {
+             return;
+         }
+ 
++        // Exact-turn interrupt acknowledges the claim before cancellation joins its
++        // tasks. Only the matching terminal event makes history safe to fork.
++        if let Err(err) = self
++            .wait_for_safety_retry_turn_completion(app_server, thread_id, &turn_id)
++            .await
++        {
++            self.fail_safety_buffered_branch(input_state, prompt, err);
++            return;
++        }
++
+         let thread = match async {
+             let mut thread = app_server
+                 .thread_read(thread_id, /*include_turns*/ false)
+@@ -258,6 +270,43 @@ impl App {
+             .commit_safety_buffered_retry_submission(retry_display);
+     }
+ 
++    async fn wait_for_safety_retry_turn_completion(
++        &mut self,
++        app_server: &mut AppServerSession,
++        thread_id: ThreadId,
++        turn_id: &str,
++    ) -> color_eyre::Result<()> {
++        tokio::time::timeout(std::time::Duration::from_secs(30), async {
++            loop {
++                let Some(event) = app_server.next_event().await else {
++                    self.handle_backend_stream_closed(app_server);
++                    color_eyre::eyre::bail!("Backend event stream ended before the interrupted turn completed.");
++                };
++                let completed = event.backend_id == app_server.backend_id()
++                    && matches!(
++                        &event.event,
++                        AppServerEvent::ServerNotification(notification)
++                            if matches!(notification.as_ref(), ServerNotification::TurnCompleted(completed)
++                                if completed.thread_id == thread_id.to_string()
++                                    && completed.turn.id == turn_id)
++                    );
++                let events_lost = matches!(
++                    &event.event,
++                    AppServerEvent::Disconnected { .. } | AppServerEvent::Lagged { .. }
++                );
++                self.handle_backend_event(app_server, event).await;
++                if events_lost {
++                    color_eyre::eyre::bail!("Backend events were lost before the interrupted turn completed.");
++                }
++                if completed {
++                    return Ok(());
++                }
++            }
++        })
++        .await
++        .map_err(|_| color_eyre::eyre::eyre!("Timed out waiting for the interrupted turn to complete."))?
++    }
++
+     fn fail_safety_buffered_branch(
+         &mut self,
+         input_state: Option<ThreadInputState>,
 diff --git a/codex-rs/tui/src/app/session_control.rs b/codex-rs/tui/src/app/session_control.rs
 index 4e64cc0b16319c69e596b466f6978e579ebe4ad6..14b3107a47b5150e770c0a65960db5b03ea011b9 100644
 --- a/codex-rs/tui/src/app/session_control.rs
@@ -70259,7 +70405,7 @@ index 6fdd0bf692340b8194edca8b5269ca0c2d2b6c88..9b2856d94a559a078a57073ea93736db
      assert_eq!(
          goal_files::objective_text_for_edit(&mut app_server, Some(&codex_home), &goal.objective)
 diff --git a/codex-rs/tui/src/app/tests/active_reconnect_tests.rs b/codex-rs/tui/src/app/tests/active_reconnect_tests.rs
-index 00f0da7832ae85ad3a8b535fbd0f956e0d123e1b..40182516e31bfc629f884751b410aa42b759abf2 100644
+index 00f0da7832ae85ad3a8b535fbd0f956e0d123e1b..7eb5c4789992046ae472564322c586dd9995107d 100644
 --- a/codex-rs/tui/src/app/tests/active_reconnect_tests.rs
 +++ b/codex-rs/tui/src/app/tests/active_reconnect_tests.rs
 @@ -1,3 +1,5 @@
@@ -70268,7 +70414,47 @@ index 00f0da7832ae85ad3a8b535fbd0f956e0d123e1b..40182516e31bfc629f884751b410aa42
  // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
  //! Active recovery keeps local input and policy while reusing ordinary thread resume.
  
-@@ -752,7 +754,7 @@ async fn reconnect_restores_history_permissions_and_resumes_unsent_input() -> Re
+@@ -463,6 +465,7 @@ async fn reconnect_restores_history_permissions_and_resumes_unsent_input() -> Re
+             let mut methods = Vec::new();
+             for attempt in 0..2 {
+                 let (stream, _) = listener.accept().await?;
++                let mut registered_mcp_origin = None;
+                 methods.extend(serve_reconnect_requests(tokio_tungstenite::accept_async(stream).await?, |request| std::future::ready(match request.method.as_str() {
+                     "thread/resume" if attempt == 0 => Some(json!({"error": {"code": resume_error_code, "message":
+                         if resume_error_code == -32600 {
+@@ -477,6 +480,15 @@ async fn reconnect_restores_history_permissions_and_resumes_unsent_input() -> Re
+                         assert!(params["model"].is_null());
+                         let mut result = json!({"thread": thread, "model": "gpt-test", "modelProvider": "test-provider", "cwd": cwd,
+                             "approvalPolicy": "never", "approvalsReviewer": "user", "sandbox": {"type": "dangerFullAccess"}, "reasoningEffort": null});
++                        if !params["runtimeDynamicTools"].is_null() {
++                            registered_mcp_origin = params["runtimeMcpServers"]["codex_tui"]["url"]
++                                .as_str()
++                                .map(|value| url::Url::parse(value).unwrap().origin().ascii_serialization());
++                            result["runtimeDynamicToolsApplied"] = json!(true);
++                            result["runtimeDynamicToolsRuntimeId"] = json!("reconnected-runtime");
++                            result["runtimeMcpServersApplied"] = json!(true);
++                            result["runtimeMcpRegistrationId"] = json!("reconnected-registration");
++                        }
+                         if let Some(mode) = &server_mode {
+                             result["collaborationMode"] = json!(mode);
+                         }
+@@ -485,6 +497,15 @@ async fn reconnect_restores_history_permissions_and_resumes_unsent_input() -> Re
+                     "thread/read" => Some(json!({"result": {"thread": thread}})),
+                     "thread/list" | "thread/loaded/list" => Some(json!({"result": {"data": [], "nextCursor": null}})),
+                     "thread/goal/get" => Some(json!({"result": {"goal": null}})),
++                    "mcpServerStatus/list" => {
++                        assert_eq!(request.params.as_ref().unwrap()["threadId"], id.to_string());
++                        Some(json!({"result": {"data": [{
++                            "name": "codex_tui", "runtimeRegistrationId": "reconnected-registration",
++                            "runtimeStatus": "connected", "httpOrigin": registered_mcp_origin,
++                            "tools": {"list_threads": {"name": "list_threads", "inputSchema": {"type": "object"}}},
++                            "resources": [], "resourceTemplates": [], "authStatus": "unsupported"
++                        }], "nextCursor": null}}))
++                    }
+                     "turn/start" => {
+                         assert!(!edit_offline);
+                         let params = request.params.as_ref().unwrap();
+@@ -752,7 +773,7 @@ async fn reconnect_restores_history_permissions_and_resumes_unsent_input() -> Re
              .join("\n");
          if deferred_notice {
              assert_snapshot!(notices, @r###"
@@ -70353,7 +70539,7 @@ index fc06c7852392fbfb70b9640caa9cee9809824722..118726feba139d05e51ba144128940ea
              assert!(visible.contains(expected), "{visible}");
          }
 diff --git a/codex-rs/tui/src/app/tests/safety_buffering.rs b/codex-rs/tui/src/app/tests/safety_buffering.rs
-index f63edd80c671506070bb2bb7a7d3f968a93ecd47..55bd4836c17e0eb3ce234f54096763b7f849706e 100644
+index f63edd80c671506070bb2bb7a7d3f968a93ecd47..f6cbfdac5a9a60a645e8fb1eb5547b0e4bf08693 100644
 --- a/codex-rs/tui/src/app/tests/safety_buffering.rs
 +++ b/codex-rs/tui/src/app/tests/safety_buffering.rs
 @@ -1,3 +1,4 @@
@@ -70361,7 +70547,30 @@ index f63edd80c671506070bb2bb7a7d3f968a93ecd47..55bd4836c17e0eb3ce234f54096763b7
  // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
  use super::*;
  use crate::app::safety_buffering::SafetyBufferedRetry;
-@@ -1184,6 +1185,11 @@ goals = true
+@@ -1148,6 +1149,22 @@ goals = true
+     .await;
+     assert_eq!(app.voice_owner_thread_id(), Some(voice_owner));
+ 
++    if failing_draft.is_none()
++        && scenario != SafetyRetryScenario::UnsupportedPermissions
++        && app.chat_widget.thread_id() == Some(source_thread_id)
++    {
++        let diagnostics = std::iter::from_fn(|| app_event_rx.try_recv().ok())
++            .filter_map(|event| match event {
++                AppEvent::InsertHistoryCell(cell) => {
++                    Some(lines_to_single_string(&cell.display_lines(200)))
++                }
++                _ => None,
++            })
++            .collect::<Vec<_>>()
++            .join("\n");
++        panic!("safety retry did not create a new thread: {diagnostics}");
++    }
++
+     if scenario == SafetyRetryScenario::UnsupportedPermissions {
+         assert_eq!(app.active_thread_id, Some(source_thread_id));
+         assert_eq!(app.primary_thread_id, Some(source_thread_id));
+@@ -1184,6 +1201,11 @@ goals = true
          return Ok(());
      }
  
@@ -70373,7 +70582,7 @@ index f63edd80c671506070bb2bb7a7d3f968a93ecd47..55bd4836c17e0eb3ce234f54096763b7
      let first_retry_thread_id = app.chat_widget.thread_id().expect("first retry thread id");
      if scenario == SafetyRetryScenario::RetryTwice {
          let first_retry_turn_id =
-@@ -1283,19 +1289,19 @@ goals = true
+@@ -1283,19 +1305,19 @@ goals = true
              &PermissionProfile::read_only()
          );
      }
@@ -71777,7 +71986,7 @@ index 3460eb9b1a78a5f22f06a1de2bc41035d9f91e76..bae250fdbc82aa3ba2d8f03e5fcdbf0a
          thread_id: ThreadId,
      },
 diff --git a/codex-rs/tui/src/app_server_session.rs b/codex-rs/tui/src/app_server_session.rs
-index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c058a722d 100644
+index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8a448cd65 100644
 --- a/codex-rs/tui/src/app_server_session.rs
 +++ b/codex-rs/tui/src/app_server_session.rs
 @@ -1,10 +1,15 @@
@@ -71805,7 +72014,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
                  request_id,
                  params: params.clone(),
              })
-@@ -272,10 +277,25 @@ pub(crate) async fn request_thread_start_with_history_fallback(
+@@ -272,10 +277,28 @@ pub(crate) async fn request_thread_start_with_history_fallback(
                              !crate::cron_tools::is_owned_tool(&function.name)
                          }
                      })
@@ -71832,10 +72041,13 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
 +                        ),
 +                    });
 +                }
++                let task_tools_available = task_tools_available
++                    || (params.runtime_mcp_servers.is_some()
++                        && response.runtime_mcp_servers_applied == Some(true));
                  return Ok((response, history_support, task_tools_available));
              }
              Err(TypedRequestError::Server { source, .. })
-@@ -346,7 +366,11 @@ pub(crate) struct AppServerSession {
+@@ -346,7 +369,11 @@ pub(crate) struct AppServerSession {
      connection_live: Arc<std::sync::atomic::AtomicBool>,
      runtime_tool_registration_generation: u64,
      runtime_tool_registration_lifetime: tokio_util::sync::CancellationToken,
@@ -71848,7 +72060,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
      pending_compact: Option<(
          ThreadId,
          String,
-@@ -535,7 +559,10 @@ impl AppServerSession {
+@@ -535,7 +562,10 @@ impl AppServerSession {
              connection_live: Arc::new(std::sync::atomic::AtomicBool::new(true)),
              runtime_tool_registration_generation: 0,
              runtime_tool_registration_lifetime: tokio_util::sync::CancellationToken::new(),
@@ -71860,7 +72072,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
              pending_compact: None,
              connection_owner,
              request_handle,
-@@ -757,6 +784,8 @@ impl AppServerSession {
+@@ -757,6 +787,8 @@ impl AppServerSession {
          self.task_tool_threads.extend(&previous.task_tool_threads);
      }
  
@@ -71869,7 +72081,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
      pub(crate) fn task_tools_available(&self, thread_id: ThreadId) -> bool {
          self.task_tool_threads.contains(&thread_id)
              || self
-@@ -1051,6 +1080,8 @@ impl AppServerSession {
+@@ -1051,6 +1083,8 @@ impl AppServerSession {
              self.connection_live
                  .store(false, std::sync::atomic::Ordering::Release);
              self.pending_compact = None;
@@ -71878,7 +72090,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
          }
          if let Some(codex_app_server_client::AppServerEvent::ServerNotification(notification)) =
              &event
-@@ -1179,6 +1210,7 @@ impl AppServerSession {
+@@ -1179,6 +1213,7 @@ impl AppServerSession {
              self.thread_tool_transport().configure(&mut params);
          }
          let request_handle = self.request_handle();
@@ -71886,7 +72098,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
          let (response, history_support, task_tools_available) =
              request_thread_start_with_history_fallback(&request_handle, request_id, params)
                  .await
-@@ -1188,6 +1220,7 @@ impl AppServerSession {
+@@ -1188,6 +1223,7 @@ impl AppServerSession {
          if history_support == ThreadHistorySupport::LegacyOnly {
              self.history_support = ThreadHistorySupport::LegacyOnly;
          }
@@ -71894,7 +72106,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
          // An explicit server selection must not reuse the client's local display policy.
          let selected_permissions = selected_profile.map(|_| {
              PermissionProfile::from_legacy_sandbox_policy_for_cwd(
-@@ -1209,6 +1242,11 @@ impl AppServerSession {
+@@ -1209,6 +1245,11 @@ impl AppServerSession {
          if task_tools_available {
              self.remember_task_tool_thread(started.session.thread_id);
          }
@@ -71906,7 +72118,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
          Ok(started)
      }
  
-@@ -1383,7 +1421,8 @@ impl AppServerSession {
+@@ -1383,7 +1424,8 @@ impl AppServerSession {
              remove_permission_config_overrides(&mut params.config);
          }
          self.thread_tool_transport()
@@ -71916,7 +72128,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
          let response: ThreadForkResponse = match self
              .request_handle
              .request_typed(ClientRequest::ThreadFork {
-@@ -1413,6 +1452,19 @@ impl AppServerSession {
+@@ -1413,6 +1455,19 @@ impl AppServerSession {
                  ));
              }
          };
@@ -71936,12 +72148,12 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
          let mut response = response;
          if presentation == ForkPresentation::Regular
              && !response.thread.ephemeral
-@@ -1454,10 +1506,15 @@ impl AppServerSession {
+@@ -1454,10 +1509,15 @@ impl AppServerSession {
              started.session.daybreak_enabled = false;
          }
          started.session.fork_parent_title = fork_parent.and_then(|thread| thread.name);
 -        if self.task_tools_available(thread_id) {
-+        if !runtime_mcp_requested && self.task_tools_available(thread_id) {
++        if runtime_mcp_requested || self.task_tools_available(thread_id) {
              started.task_tools_available = true;
              self.remember_task_tool_thread(started.session.thread_id);
          }
@@ -71953,7 +72165,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
          Ok(started)
      }
  
-@@ -2267,7 +2324,8 @@ impl AppServerSession {
+@@ -2267,7 +2327,8 @@ impl AppServerSession {
          client.resolve_server_request(request_id, result).await
      }
  
@@ -71963,7 +72175,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
          self.connection_live
              .store(false, std::sync::atomic::Ordering::Release);
          match self.connection_owner {
-@@ -2280,6 +2338,17 @@ impl AppServerSession {
+@@ -2280,6 +2341,17 @@ impl AppServerSession {
          self.request_handle.clone()
      }
  
@@ -71981,7 +72193,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
      pub(crate) fn next_request_id(&mut self) -> RequestId {
          let request_id = self.next_request_id;
          self.next_request_id += 1;
-@@ -2314,16 +2383,29 @@ pub(crate) async fn start_thread_with_request_handle(
+@@ -2314,16 +2386,29 @@ pub(crate) async fn start_thread_with_request_handle(
          params.daybreak_enabled = (config.daybreak_enabled && !config.ephemeral).then_some(true);
          thread_tool_transport.configure(&mut params);
      }
@@ -72011,7 +72223,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
      Ok(started)
  }
  
-@@ -2702,6 +2784,7 @@ fn thread_start_params_with_reviewer(
+@@ -2702,6 +2787,7 @@ fn thread_start_params_with_reviewer(
          })
          .flatten();
      ThreadStartParams {
@@ -72019,7 +72231,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
          model: config.model.clone(),
          model_provider: provider_selection::explicit_provider(config),
          service_tier: service_tier_override_from_config(config),
-@@ -3440,6 +3523,7 @@ mod tests {
+@@ -3440,6 +3526,7 @@ mod tests {
                  previous_runtime_dynamic_tools: crate::cron_tools::previous_specs(),
                  ..Default::default()
              },
@@ -72027,7 +72239,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
          ));
          let thread_text = thread.to_string();
          let (_, params) = tokio::join!(
-@@ -3481,6 +3565,21 @@ mod tests {
+@@ -3481,6 +3568,21 @@ mod tests {
              params, expected,
              "no model, permissions, history, MCP config, or user input overrides"
          );
@@ -72049,7 +72261,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
          session
              .retry_runtime_tools_on_idle(
                  &thread.to_string(),
-@@ -3498,6 +3597,53 @@ mod tests {
+@@ -3498,6 +3600,53 @@ mod tests {
          );
      }
  
@@ -72103,7 +72315,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
      #[tokio::test]
      async fn runtime_tool_worker_never_sends_after_selection_or_registration_changes_before_poll() {
          for case in ["selection", "registration"] {
-@@ -3560,6 +3706,7 @@ mod tests {
+@@ -3560,6 +3709,7 @@ mod tests {
                      exclude_turns: true,
                      ..Default::default()
                  },
@@ -72111,7 +72323,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
              ));
              if case == "disconnected" {
                  session
-@@ -4606,7 +4753,8 @@ mod tests {
+@@ -4606,7 +4756,8 @@ mod tests {
  
          let expected_service_tier = Some(Some(ServiceTier::Fast.request_value().to_string()));
          assert_eq!(start.service_tier, expected_service_tier);
@@ -72121,7 +72333,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..1afc09ca2fbbeaa4655b85c8ca51168c
          assert_eq!(fork.service_tier, expected_service_tier);
          let string = |value: &str| serde_json::Value::String(value.to_string());
          let expected_config = HashMap::from([
-@@ -5343,6 +5491,9 @@ mod tests {
+@@ -5343,6 +5494,9 @@ mod tests {
          let forked_from_id = ThreadId::new();
          let read_only_profile = PermissionProfile::read_only();
          let response = ThreadResumeResponse {
@@ -72876,7 +73088,7 @@ index 0000000000000000000000000000000000000000..6d09fad512fc054ade184164fa3a077f
 +    }
 +}
 diff --git a/codex-rs/tui/src/app_server_session/rollout_history.rs b/codex-rs/tui/src/app_server_session/rollout_history.rs
-index 82c73de4714ab2f72517cb1d7f129fbce8240c9c..7a3b7fab2e8c78d98237c47745a86f5cd42d3319 100644
+index 82c73de4714ab2f72517cb1d7f129fbce8240c9c..384a8ab5a5fcb2cb3d091db93d62d4a4987f9d00 100644
 --- a/codex-rs/tui/src/app_server_session/rollout_history.rs
 +++ b/codex-rs/tui/src/app_server_session/rollout_history.rs
 @@ -1,3 +1,4 @@
@@ -73099,7 +73311,37 @@ index 82c73de4714ab2f72517cb1d7f129fbce8240c9c..7a3b7fab2e8c78d98237c47745a86f5c
                  tracing::warn!(
                      "연결 한정 도구의 유휴 보강을 확인하지 못했습니다. 자동 재전송하지 않습니다."
                  );
-@@ -348,6 +486,26 @@ impl AppServerSession {
+@@ -282,9 +420,6 @@ impl AppServerSession {
+         {
+             params.model_provider = self.explicit_model_provider(&config);
+         }
+-        if self.thread_params_mode().settings_owner() == ThreadSettingsOwner::Client {
+-            self.thread_tool_transport().configure_resume(&mut params);
+-        }
+         let paginated = self.history_support == ThreadHistorySupport::Paginated;
+         let cached_legacy = paginated
+             && self
+@@ -304,10 +439,19 @@ impl AppServerSession {
+         let metadata = Box::pin(self.thread_read(thread_id, /*include_turns*/ false))
+             .await
+             .ok();
++        let blocks_direct_input = metadata
++            .as_ref()
++            .is_some_and(super::thread_blocks_direct_input);
++        if self.thread_params_mode().settings_owner() == ThreadSettingsOwner::Client
++            && !blocks_direct_input
++        {
++            self.thread_tool_transport().configure_resume(&mut params);
++        }
+         let known_legacy = cached_legacy
+             && (!self.uses_embedded_app_server()
+                 || (rollout_maintenance_guard.is_some()
+                     && metadata
++                        .as_ref()
+                         .is_some_and(|thread| thread.history_mode == ThreadHistoryMode::Legacy)));
+         params.exclude_turns = paginated && !known_legacy;
+         if params.exclude_turns {
+@@ -348,6 +492,26 @@ impl AppServerSession {
              }
          };
          if params.runtime_dynamic_tools.is_some() {
@@ -73126,7 +73368,7 @@ index 82c73de4714ab2f72517cb1d7f129fbce8240c9c..7a3b7fab2e8c78d98237c47745a86f5c
              match (
                  response.runtime_dynamic_tools_applied,
                  response.runtime_dynamic_tools_runtime_id.as_deref(),
-@@ -365,11 +523,14 @@ impl AppServerSession {
+@@ -365,11 +529,14 @@ impl AppServerSession {
                              runtime_tools_only: true,
                              expected_runtime_id: Some(runtime_id.to_string()),
                              runtime_dynamic_tools: params.runtime_dynamic_tools.clone(),
@@ -73141,7 +73383,7 @@ index 82c73de4714ab2f72517cb1d7f129fbce8240c9c..7a3b7fab2e8c78d98237c47745a86f5c
                      ));
                  }
                  (Some(true), Some(_)) => {}
-@@ -396,6 +557,9 @@ impl AppServerSession {
+@@ -396,6 +563,9 @@ impl AppServerSession {
              // explicitly retaining that history has not been queried successfully.
              self.mark_initial_history_unavailable(thread_id, response.thread.history_mode, &error);
          }
@@ -73151,12 +73393,14 @@ index 82c73de4714ab2f72517cb1d7f129fbce8240c9c..7a3b7fab2e8c78d98237c47745a86f5c
          let fork_parent_title = self
              .fork_parent_title_from_app_server(response.thread.forked_from_id.as_deref())
              .await;
-@@ -406,10 +570,16 @@ impl AppServerSession {
+@@ -406,10 +576,18 @@ impl AppServerSession {
          )
          .await?;
          started.session.fork_parent_title = fork_parent_title;
 -        if self.task_tools_available(thread_id) {
-+        if params.runtime_mcp_servers.is_none() && self.task_tools_available(thread_id) {
++        if (runtime_mcp_confirmed && params.runtime_mcp_servers.is_some())
++            || (params.runtime_mcp_servers.is_none() && self.task_tools_available(thread_id))
++        {
              self.remember_task_tool_thread(thread_id);
              started.task_tools_available = true;
          }
@@ -73497,6 +73741,18 @@ index cf9dc459fd7c6314ed970acd2f9cf785cd8eb0cc..a9b0ee3fa9230216db33557670da0f0e
              }
              SlashCommand::Init => {
                  const INIT_PROMPT: &str = include_str!("../../assets/prompt_for_init_command.md");
+diff --git a/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_resume.snap b/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_resume.snap
+index 915041d85fa6112b9727d6ce497358398d49cdc0..2ad35b15c468a06761fd7c64a44694909433f9f6 100644
+--- a/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_resume.snap
++++ b/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_resume.snap
+@@ -3,6 +3,6 @@ source: tui/src/chatwidget/tests/app_server.rs
+ assertion_line: 99
+ expression: rendered
+ ---
+-OpenAI Codex (v<VERSION>)
++Arcvera Core (v<VERSION>)
+ model: GPT-5.6 Luna high
+ directory: /tmp/thread-settings
 diff --git a/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_startup.snap b/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_startup.snap
 index 915041d85fa6112b9727d6ce497358398d49cdc0..2ad35b15c468a06761fd7c64a44694909433f9f6 100644
 --- a/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_startup.snap
@@ -73508,6 +73764,18 @@ index 915041d85fa6112b9727d6ce497358398d49cdc0..2ad35b15c468a06761fd7c64a4469490
 -OpenAI Codex (v<VERSION>)
 +Arcvera Core (v<VERSION>)
  model: GPT-5.6 Luna high
+ directory: /tmp/thread-settings
+diff --git a/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_unknown_model.snap b/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_unknown_model.snap
+index 147a544c9485f429f0e9ac058ee0ebd0389b265c..44ea020acfdd3a533f10dd16be45c05fb2f15f8f 100644
+--- a/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_unknown_model.snap
++++ b/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__catalog_model_session_header_unknown_model.snap
+@@ -3,6 +3,6 @@ source: tui/src/chatwidget/tests/app_server.rs
+ assertion_line: 99
+ expression: rendered
+ ---
+-OpenAI Codex (v<VERSION>)
++Arcvera Core (v<VERSION>)
+ model: us.openai.gpt-5.6-luna high
  directory: /tmp/thread-settings
 diff --git a/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__guardian_write_stdin_denied_history.snap b/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__guardian_write_stdin_denied_history.snap
 index 038eeed13f28cab9cca53d728384cd7fa444ca0c..24e8a8a7e70b2dbe02cb7e9d284db738567cee17 100644
@@ -73542,6 +73810,19 @@ index b28012136e1fb5e155386c4fca77ae7283b282c6..363201e04ffaa453a8e5ad33ea0867bd
    2. Model         gpt-5.5
    3. Directory     [[workspace]]
    4. Thread name   Clipboard example
+diff --git a/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__slash_copy_whole_status.snap b/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__slash_copy_whole_status.snap
+index a8631ab1a581454c29ba87a9c4c8980f42a3c3f4..6d011cb8af92bbcbc98146458c76ce43384afdea 100644
+--- a/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__slash_copy_whole_status.snap
++++ b/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__slash_copy_whole_status.snap
+@@ -2,7 +2,7 @@
+ source: tui/src/chatwidget/tests/slash_commands.rs
+ expression: "whole_status.replace(&directory,\n\"[[workspace]]\").replace(crate::version::CODEX_CLI_VERSION, \"VERSION\")"
+ ---
+->_ OpenAI Codex (vVERSION)
++>_ Arcvera Core (vVERSION)
+ 
+   Visit https://chatgpt.com/settings/usage for up-to-date
+   information on rate limits and credits
 diff --git a/codex-rs/tui/src/chatwidget/tests/app_server.rs b/codex-rs/tui/src/chatwidget/tests/app_server.rs
 index 6b43ecaa897e0960ee516da56a3d3ba6eb4d3029..be39d19f55187b002ab029e07490dcd6c0606a91 100644
 --- a/codex-rs/tui/src/chatwidget/tests/app_server.rs
@@ -74553,7 +74834,7 @@ index 49073641d38d608d4f7730b7b871c867972a8406..c6e74d58646a32e6d853455929146bee
      }
  
 diff --git a/codex-rs/tui/src/i18n/catalog.rs b/codex-rs/tui/src/i18n/catalog.rs
-index d5089245a0fa8facdbb128816e522a0eb799fe29..85f533d261ce5be2da8d84f458ebce7a92b387f1 100644
+index d5089245a0fa8facdbb128816e522a0eb799fe29..cc9526fae9a2aedf28f0ffe5bb301cd27adae8b0 100644
 --- a/codex-rs/tui/src/i18n/catalog.rs
 +++ b/codex-rs/tui/src/i18n/catalog.rs
 @@ -1,3 +1,4 @@
@@ -74561,7 +74842,7 @@ index d5089245a0fa8facdbb128816e522a0eb799fe29..85f533d261ce5be2da8d84f458ebce7a
  // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
  //! Fluent catalogs for application-owned UI messages. Argument values are opaque.
  
-@@ -380,16 +381,34 @@ mod tests {
+@@ -380,16 +381,41 @@ mod tests {
      #[test]
      fn all_475_legacy_translations_match_the_pre_migration_dictionary() {
          // Freeze the original dictionary while allowing new official UI literals.
@@ -74581,22 +74862,31 @@ index d5089245a0fa8facdbb128816e522a0eb799fe29..85f533d261ce5be2da8d84f458ebce7a
 +        let original = Catalogs::new(&[("legacy", &english)], &[("legacy", &korean)]);
          let legacy = &original.legacy;
          assert_eq!(legacy.len(), 475);
-         let sorted: BTreeMap<_, _> = legacy.iter().collect();
+-        let sorted: BTreeMap<_, _> = legacy.iter().collect();
++        let sorted: BTreeMap<_, _> = legacy
++            .iter()
++            .map(|(original, translated)| {
++                assert_eq!(catalogs().legacy.get(original), Some(translated));
++                // d6026cbd61 deliberately replaced the inherited Desktop launcher.
++                // Verify that override, then hash its pre-migration pair so the
++                // other 474 translations retain the original frozen oracle.
++                let (original, translated) = if original == "Desktop launch disabled; show releases"
++                {
++                    assert_eq!(translated, "데스크톱 실행 비활성화; 릴리스 보기");
++                    (
++                        "continue this session in the Desktop app",
++                        "데스크톱 앱에서 이 세션 이어가기",
++                    )
++                } else {
++                    (original.as_str(), translated.as_str())
++                };
++                (original, translated)
++            })
++            .collect();
++        assert_eq!(sorted.len(), 475);
          let mut hash = Sha256::new();
          for (original, translated) in sorted {
-             assert_eq!(catalogs().legacy.get(original), Some(translated));
-+            // d6026cbd61 deliberately replaced the inherited Desktop launcher.
-+            // Verify that override, then hash its pre-migration pair so the
-+            // other 474 translations retain the original frozen oracle.
-+            let (original, translated) = if original == "Desktop launch disabled; show releases" {
-+                assert_eq!(translated, "데스크톱 실행 비활성화; 릴리스 보기");
-+                (
-+                    "continue this session in the Desktop app",
-+                    "데스크톱 앱에서 이 세션 이어가기",
-+                )
-+            } else {
-+                (original.as_str(), translated.as_str())
-+            };
+-            assert_eq!(catalogs().legacy.get(original), Some(translated));
              hash.update(original.as_bytes());
              hash.update([0]);
              hash.update(translated.as_bytes());
@@ -75965,6 +76255,19 @@ index 347a1f98b48f4413b02633dc5b3a00533983181b..e1de62ac76586f29e8f74b9c4f9027ea
  
    Model:           gpt-5.6-sol (reasoning none, summaries auto)
    Model provider:  server-ollama
+diff --git a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_server_auth_required.snap b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_server_auth_required.snap
+index edd970b4be32eb7640b269566d110677fe73163e..40d346146475f2dc0cee4382c0f0c1fdd8151cae 100644
+--- a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_server_auth_required.snap
++++ b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_server_auth_required.snap
+@@ -4,7 +4,7 @@ expression: rendered
+ ---
+ /status
+ 
+-  >_ OpenAI Codex (v0.165.0+native-r30.20261030)
++  >_ Arcvera Core (v1.1.0)
+ 
+   Visit https://chatgpt.com/settings/usage for up-to-date
+   information on rate limits and credits
 diff --git a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_cached_limits_hide_credits_without_flag.snap b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_cached_limits_hide_credits_without_flag.snap
 index c6e058f14de3f88038e8de727e32dfbf8eaf42ab..db6e0e861eff1996c0b1108214d458035d130aa5 100644
 --- a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_cached_limits_hide_credits_without_flag.snap
@@ -76035,6 +76338,32 @@ index 538672e31812c3694a2c1fa1eef5d46c5c7c3dfa..06857c7634ab2321754d82d977820dde
 --- a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_includes_reasoning_details.snap
 +++ b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_includes_reasoning_details.snap
 @@ -5,7 +5,7 @@ expression: sanitized
+ ---
+ /status
+ 
+-  >_ OpenAI Codex (v0.165.0+native-r30.20261030)
++  >_ Arcvera Core (v1.1.0)
+ 
+   Visit https://chatgpt.com/settings/usage for up-to-date
+   information on rate limits and credits
+diff --git a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_local_background_server.snap b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_local_background_server.snap
+index 11369eeb29dd9d7e331b7c6c09e7c812418ed0b8..1a850188c7635f0b1be4d4c468a9135d55c36c62 100644
+--- a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_local_background_server.snap
++++ b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_local_background_server.snap
+@@ -4,7 +4,7 @@ expression: sanitized
+ ---
+ /status
+ 
+-  >_ OpenAI Codex (v0.165.0+native-r30.20261030)
++  >_ Arcvera Core (v1.1.0)
+ 
+   Visit https://chatgpt.com/settings/usage for up-to-date
+   information on rate limits and credits
+diff --git a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_remote_server.snap b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_remote_server.snap
+index e858573dd0b955a7e4f3e12661dbade66cf7bc75..3ef1e945b4bf696504f136a42349601ff7c23990 100644
+--- a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_remote_server.snap
++++ b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_remote_server.snap
+@@ -4,7 +4,7 @@ expression: sanitized
  ---
  /status
  
@@ -76187,6 +76516,20 @@ index ea14255b0decb3ffd921eb336dabcd02677dc12e..4ee2ab4db96d9ef6b1e98ebe7b25b8b0
  
    Visit https://chatgpt.com/settings/usage for up-to-date
    information on rate limits and credits
+diff --git a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_wraps_enterprise_monthly_credit_details_in_narrow_terminal.snap b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_wraps_enterprise_monthly_credit_details_in_narrow_terminal.snap
+index 0b7295bf13172fc4ddb24aeb68af86e22aade826..0359473fec2e6effcc2a99cfc6f036c99e7f8507 100644
+--- a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_wraps_enterprise_monthly_credit_details_in_narrow_terminal.snap
++++ b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_wraps_enterprise_monthly_credit_details_in_narrow_terminal.snap
+@@ -4,8 +4,7 @@ expression: sanitized
+ ---
+ /status
+ 
+-  >_ OpenAI Codex (v0.165.0+native-
+-  r30.20261030)
++  >_ Arcvera Core (v1.1.0)
+ 
+   Visit https://chatgpt.com/settings/usage for
+   up-to-date
 diff --git a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__transcript_overlay_status_rate_limit_refresh.snap b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__transcript_overlay_status_rate_limit_refresh.snap
 index d46387bc32b59d953cbd18d252b9bc45dfc71385..1d77bcc33eb3895ce93e7c07ab10be66fee69bca 100644
 --- a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__transcript_overlay_status_rate_limit_refresh.snap
@@ -76210,7 +76553,7 @@ index d46387bc32b59d953cbd18d252b9bc45dfc71385..1d77bcc33eb3895ce93e7c07ab10be66
    Visit https://chatgpt.com/settings/usage for up-to-date
    information on rate limits and credits
 diff --git a/codex-rs/tui/src/status/tests.rs b/codex-rs/tui/src/status/tests.rs
-index ff052f6fc7086a5ca3c9b6c9a934994084ec57ad..f5d974e06997be93d81c38d6f562f1d43c65a381 100644
+index ff052f6fc7086a5ca3c9b6c9a934994084ec57ad..866e9f5d484389afb6bf0de926b5637b438af8ff 100644
 --- a/codex-rs/tui/src/status/tests.rs
 +++ b/codex-rs/tui/src/status/tests.rs
 @@ -1,3 +1,4 @@
@@ -76234,6 +76577,24 @@ index ff052f6fc7086a5ca3c9b6c9a934994084ec57ad..f5d974e06997be93d81c38d6f562f1d4
      config
          .permissions
          .approval_policy
+@@ -2471,7 +2481,16 @@ async fn localized_status_preserves_opaque_values_at_terminal_widths() {
+                     .collect::<String>();
+                 assert!(joined.contains(model_label), "{joined}");
+                 assert!(joined.contains(permission_label), "{joined}");
+-                assert!(joined.contains(approval_label), "{joined}");
++                let wrapped_prose = lines
++                    .iter()
++                    .map(|line| line.to_string().trim().to_string())
++                    .collect::<Vec<_>>()
++                    .join(" ");
++                let normalized_prose = wrapped_prose
++                    .split_whitespace()
++                    .collect::<Vec<_>>()
++                    .join(" ");
++                assert!(normalized_prose.contains(approval_label), "{wrapped_prose}");
+                 for opaque in [
+                     model,
+                     thread,
 diff --git a/codex-rs/tui/src/temporary_structured_request.rs b/codex-rs/tui/src/temporary_structured_request.rs
 index 840eafb2bae3cb0defb510bfa1ef4a7d1e8252bf..70992facc9eb818d643b61c75d0eda3e2c8a2c44 100644
 --- a/codex-rs/tui/src/temporary_structured_request.rs
