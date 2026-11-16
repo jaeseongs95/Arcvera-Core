@@ -1,5 +1,13 @@
 # Arcvera-Core 1.1.0 candidate / 1.1.0 후보
 
+The English voice badge retains its pre-localization two-space alignment. Daemon package and fresh-thread snapshots follow the approved Arcvera Core 1.1.0 identity; their remaining content and the voice layout oracle are preserved. Native verification is pending.
+
+영문 음성 배지는 현지화 전의 두 칸 정렬을 복원합니다. daemon 패키지와 새 대화 스냅샷은 승인된 Arcvera Core 1.1.0 식별 정보를 반영하며 나머지 내용과 음성 배치의 기준 스냅샷은 보존합니다. 네이티브 검증은 대기 중입니다.
+
+The memory import concurrency fixture grants its synthetic parent access to the isolated sibling stage and checks the actual staged diff. Existing exclusion, no-partial-write, lock and retry assertions remain. The retired live-directory Git-clean check is replaced with the selected immutable generation, verified summary and publication-preservation checks; imported resources remain pending until the next consolidation. Production permission checks are unchanged. Native verification is pending.
+
+메모리 가져오기 동시성 시험은 합성 부모에 격리된 형제 stage 접근 권한을 부여하고 실제 stage의 diff를 검사합니다. 기존 배제·부분 쓰기 방지·잠금·재시도 assertion을 유지합니다. 이전 원본 디렉터리의 Git-clean 검사는 선택된 불변 세대·검증된 요약·게시 상태 보존 검사로 바꾸고, 가져온 리소스는 다음 통합까지 대기 상태인지 확인합니다. 제품 권한 검사는 유지하며 네이티브 검증은 대기 중입니다.
+
 Memory reads now observe consolidation state before capturing publication artifacts, preventing the reproduced old-generation/new-completion race. A deterministic regression uses the real request dispatcher, SQLite publication transaction and artifact reader. The Core compaction test uses the public `codex_history::context_index::ContextIndex` path. These source changes do not by themselves establish final release validation; the release verification appendix identifies executed checks and their limits.
 
 메모리 읽기는 통합 상태를 먼저 조회한 뒤 게시 산출물을 캡처하여 재현된 이전 세대·새 완료 상태 혼합 경쟁을 방지합니다. 결정적 회귀시험은 실제 요청 처리기, SQLite 게시 트랜잭션과 산출물 reader를 사용합니다. Core 압축시험의 참조는 공개 경로인 `codex_history::context_index::ContextIndex`로 수정합니다. 소스 변경만으로 최종 릴리스 검증을 뜻하지 않으며, 실제 검사 결과와 한계는 릴리스 검증 부록에 기록합니다.

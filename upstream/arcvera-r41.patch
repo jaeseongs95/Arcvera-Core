@@ -1162,11 +1162,19 @@ index 0000000000000000000000000000000000000000..6c2e29d22f88ea45e9e6e2efad667437
 +없으면 해당 의존성을 제외하고 공식 제공자의 직접 설치 방법을 안내합니다.
 +동봉하는 오픈소스의 소스 제공·고지 등 의무는 계속 유지합니다.
 diff --git a/MODIFICATIONS.md b/MODIFICATIONS.md
-index c3febe7112813d655a8b6c2367e9057cca8d1705..50f51dde4b4d5a64e308c539287cd63a05c56ca8 100644
+index c3febe7112813d655a8b6c2367e9057cca8d1705..00a8e1ad4fd6f73a601ec755fe41af2744a8b07f 100644
 --- a/MODIFICATIONS.md
 +++ b/MODIFICATIONS.md
-@@ -1,3 +1,92 @@
+@@ -1,3 +1,100 @@
 +# Arcvera-Core 1.1.0 candidate / 1.1.0 후보
++
++The English voice badge retains its pre-localization two-space alignment. Daemon package and fresh-thread snapshots follow the approved Arcvera Core 1.1.0 identity; their remaining content and the voice layout oracle are preserved. Native verification is pending.
++
++영문 음성 배지는 현지화 전의 두 칸 정렬을 복원합니다. daemon 패키지와 새 대화 스냅샷은 승인된 Arcvera Core 1.1.0 식별 정보를 반영하며 나머지 내용과 음성 배치의 기준 스냅샷은 보존합니다. 네이티브 검증은 대기 중입니다.
++
++The memory import concurrency fixture grants its synthetic parent access to the isolated sibling stage and checks the actual staged diff. Existing exclusion, no-partial-write, lock and retry assertions remain. The retired live-directory Git-clean check is replaced with the selected immutable generation, verified summary and publication-preservation checks; imported resources remain pending until the next consolidation. Production permission checks are unchanged. Native verification is pending.
++
++메모리 가져오기 동시성 시험은 합성 부모에 격리된 형제 stage 접근 권한을 부여하고 실제 stage의 diff를 검사합니다. 기존 배제·부분 쓰기 방지·잠금·재시도 assertion을 유지합니다. 이전 원본 디렉터리의 Git-clean 검사는 선택된 불변 세대·검증된 요약·게시 상태 보존 검사로 바꾸고, 가져온 리소스는 다음 통합까지 대기 상태인지 확인합니다. 제품 권한 검사는 유지하며 네이티브 검증은 대기 중입니다.
 +
 +Memory reads now observe consolidation state before capturing publication artifacts, preventing the reproduced old-generation/new-completion race. A deterministic regression uses the real request dispatcher, SQLite publication transaction and artifact reader. The Core compaction test uses the public `codex_history::context_index::ContextIndex` path. These source changes do not by themselves establish final release validation; the release verification appendix identifies executed checks and their limits.
 +
@@ -1258,7 +1266,7 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..50f51dde4b4d5a64e308c539287cd63a
  # R39 compact 개발 후보 (2026-11-07)
  
  정식 발행·동결된 R38과 같은 공식 0.167.0 기반에서 압축 동작만 변경합니다. 버전은 `0.167.0+native-r39.20261107`이며, 고정 소스는 `c4399dce957bb63fe1fdc276aa4306c06f6cf47f`입니다. 메모리 리팩토링·후크·캐싱·스크롤 감도·한글화·컨텍스트 조회의 미완 작업은 R40으로 이관하며 이번 변경에 포함하지 않습니다. 현재 소스·시험 후보이며 최종 빌드·발행은 미완료입니다.
-@@ -701,3 +790,30 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
+@@ -701,3 +798,30 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
  고정 소스 `8e9b7eff953e750e8f071d101233920108e5ca26`는 R37 이후의 별도 개발 후보다. 플러그인 payload 비교에서 정확한 `.git`만 제외하고, 암시적 daemon의 전체 버전 확인과 실제 시작·재연결 화면 안내를 보강했다. Stop 속성의 명시적 교정 도구와 재로드 경고의 한국어/영어 안내, 에이전트 목록의 메인 마우스 복귀 및 작은 밑줄만 사용하는 hover를 포함한다.
  
  요구별 실행 결과·원래 실패·미검증 경계는 [R38 범위](docs/native-cli-r38.ko.md)와 연결된 사례 문서를 따른다. 운영 설정 자동 교정·R38 최종 릴리스 빌드·공개·설치는 수행하지 않았다. R37 동결 실행 파일은 변경하지 않았다.
@@ -24149,6 +24157,149 @@ index e6a8d863b3e8fb98a247e7949adc83267d8bfb63..6ca60fcdb3beed0d6e56ac68e570d314
          ])
          .build_initialized_with_timeout(DEFAULT_TIMEOUT)
          .await?;
+diff --git a/codex-rs/app-server/tests/suite/v2/external_agent_memory_concurrency.rs b/codex-rs/app-server/tests/suite/v2/external_agent_memory_concurrency.rs
+index 3bbbbd7e0815116b43137698022f4b0184409f12..8948542ac72c9abcad9d5b98849459660683ba57 100644
+--- a/codex-rs/app-server/tests/suite/v2/external_agent_memory_concurrency.rs
++++ b/codex-rs/app-server/tests/suite/v2/external_agent_memory_concurrency.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
+ //! Exercises import exclusion against an actual in-flight consolidation agent.
+ 
+@@ -49,11 +50,27 @@ async fn memory_import_retries_after_consolidation_without_partial_dual_write()
+     )
+     .await;
+     let home = TempDir::new()?;
+-    MockResponsesConfig::new(server.uri())
++    // This test needs an admitted worker, not the default read-only parent.
++    // Grant only this synthetic home's sibling staging directories; production
++    // admission and the child stage-only tool restrictions remain unchanged.
++    let mock_config = MockResponsesConfig::new(server.uri())
++        .with_sandbox_mode("workspace-write")
+         .enable_feature(Feature::Sqlite)
+         .enable_feature(Feature::MemoryTool)
+-        .enable_feature(Feature::ExternalAgentMemoryImport)
+-        .with_extra_config("[memories]\nversion = \"v2\"\ngenerate_memories = true\n")
++        .enable_feature(Feature::ExternalAgentMemoryImport);
++    #[cfg(windows)]
++    let mock_config = mock_config
++        .disable_feature(Feature::WindowsSandbox)
++        .disable_feature(Feature::WindowsSandboxElevated);
++    let writable_home = serde_json::to_string(
++        home.path()
++            .to_str()
++            .context("synthetic home is not UTF-8")?,
++    )?;
++    mock_config
++        .with_extra_config(&format!(
++            "[sandbox_workspace_write]\nwritable_roots = [{writable_home}]\n\n[memories]\nversion = \"v2\"\ngenerate_memories = true\n"
++        ))
+         .write(home.path())?;
+ 
+     let db = super::memory_reset::init_state_db(home.path()).await?;
+@@ -110,8 +127,30 @@ async fn memory_import_retries_after_consolidation_without_partial_dual_write()
+     )
+     .await
+     .context("expected foreground and in-flight memory consolidation requests within 10 seconds")?;
+-    let diff_path = memory_root.join("phase2_workspace_diff.md");
++    // Working inputs now live in an isolated sibling stage. Preserve the
++    // original diff-immutability assertion against the actual working file.
++    let identity = codex_memories_read::publication_snapshot::root_identity(&memory_root)?;
++    let prefix = format!("codex-memory-stage-{identity}-");
++    let stages = std::fs::read_dir(home.path())?
++        .map(|entry| entry.map(|entry| entry.path()))
++        .collect::<std::io::Result<Vec<_>>>()?
++        .into_iter()
++        .filter(|path| {
++            path.file_name()
++                .is_some_and(|name| name.to_string_lossy().starts_with(&prefix))
++        })
++        .collect::<Vec<_>>();
++    assert_eq!(stages.len(), 1, "exactly one admitted consolidation stage");
++    let diff_path = stages[0].join("phase2_workspace_diff.md");
+     let consolidation_diff = std::fs::read(&diff_path)?;
++    let original_summary = std::fs::read(memory_root.join("memory_summary.md"))?;
++    let before_import = db
++        .memories_for_version(MemoryVersion::V2)
++        .await?
++        .published_generation(&identity)
++        .await?
++        .context("in-flight worker must retain the legacy publication")?;
++    assert_eq!(before_import.provenance, "legacy_import");
+     let params = json!({
+         "migrationItems": [{
+             "itemType": "MEMORY",
+@@ -140,6 +179,17 @@ async fn memory_import_retries_after_consolidation_without_partial_dual_write()
+     assert!(!legacy_root.join(resource).exists());
+     assert!(!memory_root.join(resource).exists());
+     assert_eq!(std::fs::read(&diff_path)?, consolidation_diff);
++    assert_eq!(
++        std::fs::read(memory_root.join("memory_summary.md"))?,
++        original_summary
++    );
++    assert_eq!(
++        db.memories_for_version(MemoryVersion::V2)
++            .await?
++            .published_generation(&identity)
++            .await?,
++        Some(before_import.clone())
++    );
+ 
+     release_first.send(()).expect("release first response");
+     release_second.send(()).expect("release second response");
+@@ -162,10 +212,33 @@ async fn memory_import_retries_after_consolidation_without_partial_dual_write()
+             .await?,
+         1
+     );
+-    assert!(
+-        !codex_git_utils::diff_since_latest_init(&memory_root)
+-            .await?
+-            .has_changes()
++    // Consolidation publishes an immutable generation; it no longer resets a
++    // Git baseline in the original directory. Check the actual publication and
++    // its verified bytes instead of the retired live-directory clean oracle.
++    let published = db
++        .memories_for_version(MemoryVersion::V2)
++        .await?
++        .published_generation(&identity)
++        .await?
++        .context("completed consolidation must publish a generation")?;
++    assert_eq!(published.provenance, "consolidated");
++    assert_ne!(published.generation_id, before_import.generation_id);
++    let generation = codex_memories_read::publication_snapshot::generation_root(
++        &memory_root,
++        &published.generation_id,
++    )?;
++    let manifest = codex_memories_read::publication_snapshot::load_artifact_manifest(
++        &generation,
++        &published.artifact_manifest_digest,
++    )?;
++    assert_eq!(
++        codex_memories_read::publication_snapshot::read_verified_artifact(
++            &generation,
++            &generation.join("memory_summary.md"),
++            &manifest,
++            32 * 1024 * 1024,
++        )?,
++        original_summary
+     );
+ 
+     let request_id = app
+@@ -193,6 +266,14 @@ async fn memory_import_retries_after_consolidation_without_partial_dual_write()
+             "the next consolidation must still see the imported resource"
+         );
+     }
++    assert_eq!(
++        db.memories_for_version(MemoryVersion::V2)
++            .await?
++            .published_generation(&identity)
++            .await?,
++        Some(published),
++        "imported resources remain pending until the next consolidation"
++    );
+     app.shutdown_gracefully().await?;
+     server.shutdown().await;
+     Ok(())
 diff --git a/codex-rs/app-server/tests/suite/v2/gateway_oauth_tests.rs b/codex-rs/app-server/tests/suite/v2/gateway_oauth_tests.rs
 index ac278cbf1d700b1fe1719dc8a6b08b6f42bf833f..74fcee42f6efd49dc45599f51370124684dc5047 100644
 --- a/codex-rs/app-server/tests/suite/v2/gateway_oauth_tests.rs
@@ -64809,7 +64960,7 @@ index 68783b8540d419f707a61ce27a73447b87a0e173..58209dba30825511b4d913ab148014af
 +legacy-d26-ttl-observed = { "response cache activity observed" }
 +legacy-d26-mcp-hook = { "MCP / hook component split" }
 diff --git a/codex-rs/tui/locales/en/picker.ftl b/codex-rs/tui/locales/en/picker.ftl
-index 4731b248f00e2fff99940f918a00abecd06bed31..a8d565199cb965ea0bfcd227e88d87497e09103c 100644
+index 4731b248f00e2fff99940f918a00abecd06bed31..4c15474d0d21094f8e0abff12557008ba9386eb2 100644
 --- a/codex-rs/tui/locales/en/picker.ftl
 +++ b/codex-rs/tui/locales/en/picker.ftl
 @@ -1,3 +1,5 @@
@@ -64827,6 +64978,15 @@ index 4731b248f00e2fff99940f918a00abecd06bed31..a8d565199cb965ea0bfcd227e88d8749
  picker-center-show-more = Show more
  picker-center-show-more-retry = Show more (retry)
  picker-center-stop-title = Stop
+@@ -65,7 +67,7 @@ picker-center-unknown = Unknown
+ picker-center-untitled-task = Untitled task
+ picker-center-up = Up
+ picker-center-view = View
+-picker-center-voice-badge = { " " }voice
++picker-center-voice-badge = { "  " }voice
+ picker-center-waiting-approval = Waiting for approval.
+ picker-center-waiting-response = Waiting for your response.
+ picker-change-option = change option
 diff --git a/codex-rs/tui/locales/en/status.ftl b/codex-rs/tui/locales/en/status.ftl
 index 7e93ef63a430f71cbf6e12bf911f6657775f7146..0910d147b5c570f3f20de54d8d8f381b21fa2c2a 100644
 --- a/codex-rs/tui/locales/en/status.ftl
@@ -66123,7 +66283,7 @@ index 4e581bcd3e6f2c821d3fd3a4832121359e57b0f4..e9421707d625f59e229fbe4c5ffd9384
 -  Service v0.152.1 < Codex CLI v0.153.0
 +  Service v0.152.1 < Arcvera Core CLI v0.153.0
 diff --git a/codex-rs/tui/src/app/snapshots/codex_tui__app__daemon_menu__tests__daemon_cli_confirmation.snap b/codex-rs/tui/src/app/snapshots/codex_tui__app__daemon_menu__tests__daemon_cli_confirmation.snap
-index ae796e6e1ef65935dc71ef6f881223821b7b0f4c..14dcc8e81cda9c05696b65b013f642d93dfa1559 100644
+index ae796e6e1ef65935dc71ef6f881223821b7b0f4c..f8179991bb7af376980bce492b3e3e83a0e8dcaa 100644
 --- a/codex-rs/tui/src/app/snapshots/codex_tui__app__daemon_menu__tests__daemon_cli_confirmation.snap
 +++ b/codex-rs/tui/src/app/snapshots/codex_tui__app__daemon_menu__tests__daemon_cli_confirmation.snap
 @@ -1,20 +1,19 @@
@@ -66145,7 +66305,7 @@ index ae796e6e1ef65935dc71ef6f881223821b7b0f4c..14dcc8e81cda9c05696b65b013f642d9
 -                build\bin\codex. Copy the complete package and pin it against
 -                automatic updates.
 +                Update daemon and exit Arcvera?
-+                Use this CLI package v1.0.1 from /x/cli-build/bin/arcvera. Copy the
++                Use this CLI package v1.1.0 from /x/cli-build/bin/arcvera. Copy the
 +                complete package and pin it against automatic updates.
                  This may restart the daemon and interrupt active or queued work.
 -                Codex exits to update in this terminal. Relaunch it afterward.
@@ -66294,6 +66454,28 @@ index 59a21ec2dd940dd7967428c9434bbdca21444212..e55f319b6854ea8a5a89a2340ec3f5c0
       Restart background server
  
    enter select · esc back
+diff --git a/codex-rs/tui/src/app/snapshots/codex_tui__app__owned_transcript__empty_state_animation_tests__fresh_thread_header.snap b/codex-rs/tui/src/app/snapshots/codex_tui__app__owned_transcript__empty_state_animation_tests__fresh_thread_header.snap
+index 43ca4dbf50cfdd2e5534ca90786e125a0e03044d..077a65da76572ac7811a6631a7dacf6cd433fc3b 100644
+--- a/codex-rs/tui/src/app/snapshots/codex_tui__app__owned_transcript__empty_state_animation_tests__fresh_thread_header.snap
++++ b/codex-rs/tui/src/app/snapshots/codex_tui__app__owned_transcript__empty_state_animation_tests__fresh_thread_header.snap
+@@ -5,7 +5,7 @@ expression: "format!(\"enabled:\\n{}\\n---\\ndisabled:\\n{}\", text(after), text
+ ---
+ enabled:
+ 
+-  >_ OpenAI Codex (v0.166.0+native-r37.20261104)
++  >_ Arcvera Core (v1.1.0)
+      /tmp/project
+ 
+ 
+@@ -51,7 +51,7 @@ enabled:
+ ---
+ disabled:
+ 
+-  >_ OpenAI Codex (v0.166.0+native-r37.20261104)
++  >_ Arcvera Core (v1.1.0)
+      /tmp/project
+ 
+ 
 diff --git a/codex-rs/tui/src/app/startup_warnings.rs b/codex-rs/tui/src/app/startup_warnings.rs
 index 2d7751b08a288edc6ae4a69cdf3f9d8f231d1703..6f62a0d15f75c43537858541ddfb09b8652e5953 100644
 --- a/codex-rs/tui/src/app/startup_warnings.rs

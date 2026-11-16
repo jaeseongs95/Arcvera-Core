@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "d6729eb27d2047f481374b9f684646dced37dacd43bde2d13851ecea08c4953f",
+  "sourceTreeSha256": "dba02076c224fbd3fcc22dfb23b2c3e985e7676728992cdfc567923f37c1b57c",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "b3f35891a2b836b641f27f4decdd944c77ff669a2e9372d408f9287f1ba04799"
+    "sha256": "87f306b884a8920fdb682213dc619db772b21da194bd8087f99668fb4f9561f3"
   },
   "files": [
     {
@@ -77,9 +77,9 @@
     {
       "path": "MODIFICATIONS.md",
       "gitMode": "100644",
-      "bytes": 94085,
-      "sha256": "8ba42d6f61620c19c454bff5cb90a2fd78d9189fa3fb528bb4b17bd5ec30e104",
-      "gitBlob": "50f51dde4b4d5a64e308c539287cd63a05c56ca8"
+      "bytes": 95684,
+      "sha256": "11e5c50745062c066b48c0d40ae683c611d111c084f77349173624218f6227e8",
+      "gitBlob": "00a8e1ad4fd6f73a601ec755fe41af2744a8b07f"
     },
     {
       "path": "NOTICE",
@@ -11697,9 +11697,9 @@
     {
       "path": "codex-rs/app-server/tests/suite/v2/external_agent_memory_concurrency.rs",
       "gitMode": "100644",
-      "bytes": 7954,
-      "sha256": "0b73723a6390ac77158b28554b2859532020e50077de9d146d60e9b357638ff5",
-      "gitBlob": "3bbbbd7e0815116b43137698022f4b0184409f12"
+      "bytes": 11422,
+      "sha256": "d5bba4e0de6757bc16afd8416044ba6bcbaa52c2c83f14917b787d94ba174121",
+      "gitBlob": "8948542ac72c9abcad9d5b98849459660683ba57"
     },
     {
       "path": "codex-rs/app-server/tests/suite/v2/feedback.rs",
@@ -43638,9 +43638,9 @@
     {
       "path": "codex-rs/tui/locales/en/picker.ftl",
       "gitMode": "100644",
-      "bytes": 7701,
-      "sha256": "506c38610f324a0a541e9bc02dd40e1f0fbfa92d7ca67677cf05610770c75e33",
-      "gitBlob": "a8d565199cb965ea0bfcd227e88d87497e09103c"
+      "bytes": 7702,
+      "sha256": "1946380af4323836af520b7ec9e507cf7c14cfd2a05040a6f92589606cdd3975",
+      "gitBlob": "4c15474d0d21094f8e0abff12557008ba9386eb2"
     },
     {
       "path": "codex-rs/tui/locales/en/r36-agents.ftl",
@@ -45494,8 +45494,8 @@
       "path": "codex-rs/tui/src/app/snapshots/codex_tui__app__daemon_menu__tests__daemon_cli_confirmation.snap",
       "gitMode": "100644",
       "bytes": 1642,
-      "sha256": "f7c26d297d12ecc21233748a9299bd68330e81eb2e5f0c52f865fcdfdeb65ea5",
-      "gitBlob": "14dcc8e81cda9c05696b65b013f642d93dfa1559"
+      "sha256": "9de7d7a1a2ad098cdf89f543eb08915c92c8236d3e49da99700919648d863097",
+      "gitBlob": "f8179991bb7af376980bce492b3e3e83a0e8dcaa"
     },
     {
       "path": "codex-rs/tui/src/app/snapshots/codex_tui__app__daemon_menu__tests__daemon_disconnected.snap",
@@ -45598,9 +45598,9 @@
     {
       "path": "codex-rs/tui/src/app/snapshots/codex_tui__app__owned_transcript__empty_state_animation_tests__fresh_thread_header.snap",
       "gitMode": "100644",
-      "bytes": 2780,
-      "sha256": "bc5c0a164102107866e730d591d1f3f46d170a14b124274f1f99fca7f3d614cf",
-      "gitBlob": "43ca4dbf50cfdd2e5534ca90786e125a0e03044d"
+      "bytes": 2736,
+      "sha256": "66d2a9ac04b58298ff92fddca7bcfb4cc9971c5b379cd83a57557c8c868ff969",
+      "gitBlob": "077a65da76572ac7811a6631a7dacf6cd433fc3b"
     },
     {
       "path": "codex-rs/tui/src/app/snapshots/codex_tui__app__owned_transcript__follow_tests__running_copy_feedback_spacing.snap",
@@ -68069,6 +68069,11 @@
       "notice": "inline-r41"
     },
     {
+      "path": "codex-rs/app-server/tests/suite/v2/external_agent_memory_concurrency.rs",
+      "status": "modified",
+      "notice": "inline-1.1.0"
+    },
+    {
       "path": "codex-rs/app-server/tests/suite/v2/gateway_oauth_tests.rs",
       "status": "modified",
       "notice": "inline-r41"
@@ -70185,6 +70190,11 @@
     },
     {
       "path": "codex-rs/tui/src/app/snapshots/codex_tui__app__daemon_menu__tests__daemon_unpackaged_cli.snap",
+      "status": "modified",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "codex-rs/tui/src/app/snapshots/codex_tui__app__owned_transcript__empty_state_animation_tests__fresh_thread_header.snap",
       "status": "modified",
       "notice": "external-in-CURRENT_SOURCE.json"
     },

@@ -10,7 +10,7 @@ expression: "render_bottom_popup(&app.chat_widget,\nwidth).replace(r\"C:\\cli-bu
                                                           │
 
                 Update daemon and exit Arcvera?
-                Use this CLI package v1.0.1 from /x/cli-build/bin/arcvera. Copy the
+                Use this CLI package v1.1.0 from /x/cli-build/bin/arcvera. Copy the
                 complete package and pin it against automatic updates.
                 This may restart the daemon and interrupt active or queued work.
                 Arcvera exits to update in this terminal. Relaunch it afterward.
