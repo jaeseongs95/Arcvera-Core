@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
 //! Exercises import exclusion against an actual in-flight consolidation agent.
 
@@ -49,11 +50,27 @@ async fn memory_import_retries_after_consolidation_without_partial_dual_write() 
     )
     .await;
     let home = TempDir::new()?;
-    MockResponsesConfig::new(server.uri())
+    // This test needs an admitted worker, not the default read-only parent.
+    // Grant only this synthetic home's sibling staging directories; production
+    // admission and the child stage-only tool restrictions remain unchanged.
+    let mock_config = MockResponsesConfig::new(server.uri())
+        .with_sandbox_mode("workspace-write")
         .enable_feature(Feature::Sqlite)
         .enable_feature(Feature::MemoryTool)
-        .enable_feature(Feature::ExternalAgentMemoryImport)
-        .with_extra_config("[memories]\nversion = \"v2\"\ngenerate_memories = true\n")
+        .enable_feature(Feature::ExternalAgentMemoryImport);
+    #[cfg(windows)]
+    let mock_config = mock_config
+        .disable_feature(Feature::WindowsSandbox)
+        .disable_feature(Feature::WindowsSandboxElevated);
+    let writable_home = serde_json::to_string(
+        home.path()
+            .to_str()
+            .context("synthetic home is not UTF-8")?,
+    )?;
+    mock_config
+        .with_extra_config(&format!(
+            "[sandbox_workspace_write]\nwritable_roots = [{writable_home}]\n\n[memories]\nversion = \"v2\"\ngenerate_memories = true\n"
+        ))
         .write(home.path())?;
 
     let db = super::memory_reset::init_state_db(home.path()).await?;
@@ -110,8 +127,30 @@ async fn memory_import_retries_after_consolidation_without_partial_dual_write() 
     )
     .await
     .context("expected foreground and in-flight memory consolidation requests within 10 seconds")?;
-    let diff_path = memory_root.join("phase2_workspace_diff.md");
+    // Working inputs now live in an isolated sibling stage. Preserve the
+    // original diff-immutability assertion against the actual working file.
+    let identity = codex_memories_read::publication_snapshot::root_identity(&memory_root)?;
+    let prefix = format!("codex-memory-stage-{identity}-");
+    let stages = std::fs::read_dir(home.path())?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<std::io::Result<Vec<_>>>()?
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with(&prefix))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(stages.len(), 1, "exactly one admitted consolidation stage");
+    let diff_path = stages[0].join("phase2_workspace_diff.md");
     let consolidation_diff = std::fs::read(&diff_path)?;
+    let original_summary = std::fs::read(memory_root.join("memory_summary.md"))?;
+    let before_import = db
+        .memories_for_version(MemoryVersion::V2)
+        .await?
+        .published_generation(&identity)
+        .await?
+        .context("in-flight worker must retain the legacy publication")?;
+    assert_eq!(before_import.provenance, "legacy_import");
     let params = json!({
         "migrationItems": [{
             "itemType": "MEMORY",
@@ -140,6 +179,17 @@ async fn memory_import_retries_after_consolidation_without_partial_dual_write() 
     assert!(!legacy_root.join(resource).exists());
     assert!(!memory_root.join(resource).exists());
     assert_eq!(std::fs::read(&diff_path)?, consolidation_diff);
+    assert_eq!(
+        std::fs::read(memory_root.join("memory_summary.md"))?,
+        original_summary
+    );
+    assert_eq!(
+        db.memories_for_version(MemoryVersion::V2)
+            .await?
+            .published_generation(&identity)
+            .await?,
+        Some(before_import.clone())
+    );
 
     release_first.send(()).expect("release first response");
     release_second.send(()).expect("release second response");
@@ -162,10 +212,33 @@ async fn memory_import_retries_after_consolidation_without_partial_dual_write() 
             .await?,
         1
     );
-    assert!(
-        !codex_git_utils::diff_since_latest_init(&memory_root)
-            .await?
-            .has_changes()
+    // Consolidation publishes an immutable generation; it no longer resets a
+    // Git baseline in the original directory. Check the actual publication and
+    // its verified bytes instead of the retired live-directory clean oracle.
+    let published = db
+        .memories_for_version(MemoryVersion::V2)
+        .await?
+        .published_generation(&identity)
+        .await?
+        .context("completed consolidation must publish a generation")?;
+    assert_eq!(published.provenance, "consolidated");
+    assert_ne!(published.generation_id, before_import.generation_id);
+    let generation = codex_memories_read::publication_snapshot::generation_root(
+        &memory_root,
+        &published.generation_id,
+    )?;
+    let manifest = codex_memories_read::publication_snapshot::load_artifact_manifest(
+        &generation,
+        &published.artifact_manifest_digest,
+    )?;
+    assert_eq!(
+        codex_memories_read::publication_snapshot::read_verified_artifact(
+            &generation,
+            &generation.join("memory_summary.md"),
+            &manifest,
+            32 * 1024 * 1024,
+        )?,
+        original_summary
     );
 
     let request_id = app
@@ -193,6 +266,14 @@ async fn memory_import_retries_after_consolidation_without_partial_dual_write() 
             "the next consolidation must still see the imported resource"
         );
     }
+    assert_eq!(
+        db.memories_for_version(MemoryVersion::V2)
+            .await?
+            .published_generation(&identity)
+            .await?,
+        Some(published),
+        "imported resources remain pending until the next consolidation"
+    );
     app.shutdown_gracefully().await?;
     server.shutdown().await;
     Ok(())
