@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Model, collaboration, and reasoning popups for `ChatWidget`.
 //!
@@ -656,6 +657,10 @@ impl ChatWidget {
             header: Box::new(header),
             items,
             initial_selected_idx,
+            description_layout:
+                crate::bottom_pane::SelectionDescriptionLayout::SelectedBelowWhenNarrow {
+                    min_description_width: 24,
+                },
             ..SelectionViewParams::picker()
         });
     }
