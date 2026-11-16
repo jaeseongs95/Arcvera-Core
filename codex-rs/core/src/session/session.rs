@@ -1800,10 +1800,29 @@ impl Session {
                 extension_metrics::from_session_telemetry(session_telemetry.clone());
             let workspace_routing =
                 thread_extension_data.get_or_init(|| config.workspace_routing_context());
-            if config.memory_environment_supported(environment_selections)
-                && let Some(capability) = super::memory_publication::bind_memory_snapshot(config.as_ref(), state_db_ctx.as_ref()).await
-            {
-                thread_extension_data.insert(capability);
+            if config.memory_environment_supported(environment_selections) {
+                // Ephemeral threads may read published memory without acquiring
+                // thread persistence. Reuse the host's existing local state
+                // handle only behind the namespace-bound snapshot capability.
+                let memory_state_db = if config.ephemeral {
+                    if let Some(local_store) =
+                        thread_store.as_any().downcast_ref::<LocalThreadStore>()
+                    {
+                        local_store.state_db().await
+                    } else {
+                        None
+                    }
+                } else {
+                    state_db_ctx.clone()
+                };
+                if let Some(capability) = super::memory_publication::bind_memory_snapshot(
+                    config.as_ref(),
+                    memory_state_db.as_ref(),
+                )
+                .await
+                {
+                    thread_extension_data.insert(capability);
+                }
             }
             for contributor in extensions.thread_lifecycle_contributors() {
                 contributor

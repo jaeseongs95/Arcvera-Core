@@ -296,6 +296,8 @@ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_a
         .await?;
     let fresh: ThreadStartResponse = app.read_response(request).await?;
     assert_ne!(fresh.thread.id, started.thread.id);
+    assert!(fresh.thread.ephemeral);
+    assert_eq!(fresh.thread.path, None);
     let reread = read_memory(&mut app, &fresh.thread.id, false).await?;
     assert_eq!(reread.root.as_deref(), root.to_str());
     assert_eq!(reread.status.as_deref(), Some("ready"));
@@ -324,6 +326,21 @@ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_a
         "the production memories extension must inject the worker-produced summary"
     );
     app.shutdown_gracefully().await?;
+    let db = codex_state::StateRuntime::init(
+        codex_state::SqliteConfig::new_for_testing(home.path().abs()),
+        "mock_provider".into(),
+    )
+    .await?;
+    assert!(
+        db.get_thread(ThreadId::try_from(fresh.thread.id.as_str())?)
+            .await?
+            .is_none()
+    );
+    assert!(
+        codex_core::find_thread_path_by_id_str(home.path(), &fresh.thread.id, None)
+            .await?
+            .is_none()
+    );
     Ok(())
 }
 
