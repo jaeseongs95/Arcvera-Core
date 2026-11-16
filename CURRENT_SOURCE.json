@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "65c3720acfb1ea54992feee7d086cef7961a0c549eef20f58018e0458677b684",
+  "sourceTreeSha256": "ea040b25c6d84aab46cbf8379a4209aee7ad3b74022a7f7f939445972510db78",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "09e0131feaa2823aadbaba4a629c4c1a127ad23b80fb1e7b150b5cdb52309f3e"
+    "sha256": "3b2723be83a96585a3ab013804767c4a35687a9b999780ffbcdf6f40408fb72f"
   },
   "files": [
     {
@@ -77,9 +77,9 @@
     {
       "path": "MODIFICATIONS.md",
       "gitMode": "100644",
-      "bytes": 97174,
-      "sha256": "1f2ccc4f474709bb0b7e5c8d18c87230608cd13efd2898e700a66b4a616eaccc",
-      "gitBlob": "de6f0c257a51528924f474570219434df4dfb08f"
+      "bytes": 97720,
+      "sha256": "fda50ef64934d0ae40feee64f98b11c99757a7fd855e5c52fae2dbdcea81b406",
+      "gitBlob": "7d9b02b3ad5c1ab9a3bdcc491d6f5c7fa9b51abf"
     },
     {
       "path": "NOTICE",
@@ -12278,9 +12278,9 @@
     {
       "path": "codex-rs/app-server/tests/suite/v2/skills_list.rs",
       "gitMode": "100644",
-      "bytes": 48746,
-      "sha256": "b3f16d99f6936002166b81b7497ba722967a6430555070fe25abb6d30e7f0b8e",
-      "gitBlob": "d981368bce4e76b3ff2d9f3de58ef8eff3e2cd35"
+      "bytes": 48779,
+      "sha256": "df831ffcff22858bfa64b505919bf75477827d0f6c975275821f049162493b97",
+      "gitBlob": "11e5576e1d640bb5eb6b91065af71f2dbcda9e02"
     },
     {
       "path": "codex-rs/app-server/tests/suite/v2/sleep.rs",

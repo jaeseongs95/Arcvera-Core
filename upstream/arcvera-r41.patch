@@ -1162,11 +1162,15 @@ index 0000000000000000000000000000000000000000..6c2e29d22f88ea45e9e6e2efad667437
 +없으면 해당 의존성을 제외하고 공식 제공자의 직접 설치 방법을 안내합니다.
 +동봉하는 오픈소스의 소스 제공·고지 등 의무는 계속 유지합니다.
 diff --git a/MODIFICATIONS.md b/MODIFICATIONS.md
-index c3febe7112813d655a8b6c2367e9057cca8d1705..de6f0c257a51528924f474570219434df4dfb08f 100644
+index c3febe7112813d655a8b6c2367e9057cca8d1705..7d9b02b3ad5c1ab9a3bdcc491d6f5c7fa9b51abf 100644
 --- a/MODIFICATIONS.md
 +++ b/MODIFICATIONS.md
-@@ -1,3 +1,104 @@
+@@ -1,3 +1,108 @@
 +# Arcvera-Core 1.1.0 candidate / 1.1.0 후보
++
++The ordinary skills-change integration fixture explicitly leaves the optional tool ceiling unset. This completes the `ThreadStartParams` field migration found by the grouped compilation; existing assertions are preserved. Native verification remains pending.
++
++일반 skills 변경 통합시험은 선택적인 도구 상한을 명시적으로 미설정 상태로 둡니다. 묶음 컴파일에서 발견한 `ThreadStartParams` 필드 이식 누락을 보완하며 기존 assertion은 유지합니다. 네이티브 검증은 대기 중입니다.
 +
 +The full TUI failure review repairs reconnect transport cleanup on unsuccessful attempts, preserves archived-session confirmation across upstream command spellings, restores daemon and Side guidance, and keeps reasoning descriptions visible in narrow pickers. Ephemeral recap and title threads now request an empty tool allowlist; the server acknowledges the applied policy, and clients refuse generation when that acknowledgement is absent. Older servers must be upgraded for those temporary requests. Existing threads and permission profiles retain their behavior. Fixture migrations follow actual history, memory preservation and MCP registration contracts; reviewed snapshots use the approved release identity. All new native checks remain pending.
 +
@@ -1270,7 +1274,7 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..de6f0c257a51528924f474570219434d
  # R39 compact 개발 후보 (2026-11-07)
  
  정식 발행·동결된 R38과 같은 공식 0.167.0 기반에서 압축 동작만 변경합니다. 버전은 `0.167.0+native-r39.20261107`이며, 고정 소스는 `c4399dce957bb63fe1fdc276aa4306c06f6cf47f`입니다. 메모리 리팩토링·후크·캐싱·스크롤 감도·한글화·컨텍스트 조회의 미완 작업은 R40으로 이관하며 이번 변경에 포함하지 않습니다. 현재 소스·시험 후보이며 최종 빌드·발행은 미완료입니다.
-@@ -701,3 +802,30 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
+@@ -701,3 +806,30 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
  고정 소스 `8e9b7eff953e750e8f071d101233920108e5ca26`는 R37 이후의 별도 개발 후보다. 플러그인 payload 비교에서 정확한 `.git`만 제외하고, 암시적 daemon의 전체 버전 확인과 실제 시작·재연결 화면 안내를 보강했다. Stop 속성의 명시적 교정 도구와 재로드 경고의 한국어/영어 안내, 에이전트 목록의 메인 마우스 복귀 및 작은 밑줄만 사용하는 hover를 포함한다.
  
  요구별 실행 결과·원래 실패·미검증 경계는 [R38 범위](docs/native-cli-r38.ko.md)와 연결된 사례 문서를 따른다. 운영 설정 자동 교정·R38 최종 릴리스 빌드·공개·설치는 수행하지 않았다. R37 동결 실행 파일은 변경하지 않았다.
@@ -29364,7 +29368,7 @@ index 13c983ab9f037315c62369c9c11463f883b8e845..8c94a2d05a72319c20c90a6608b4622b
          .spawn()?;
      let stdout = child
 diff --git a/codex-rs/app-server/tests/suite/v2/skills_list.rs b/codex-rs/app-server/tests/suite/v2/skills_list.rs
-index a72104a0b01d439aff931afcd6481f38a57520c6..d981368bce4e76b3ff2d9f3de58ef8eff3e2cd35 100644
+index a72104a0b01d439aff931afcd6481f38a57520c6..11e5576e1d640bb5eb6b91065af71f2dbcda9e02 100644
 --- a/codex-rs/app-server/tests/suite/v2/skills_list.rs
 +++ b/codex-rs/app-server/tests/suite/v2/skills_list.rs
 @@ -1,3 +1,4 @@
@@ -29381,10 +29385,11 @@ index a72104a0b01d439aff931afcd6481f38a57520c6..d981368bce4e76b3ff2d9f3de58ef8ef
              cwd: Some(cwd.path().to_string_lossy().into_owned()),
              ..Default::default()
          })
-@@ -1375,6 +1378,7 @@ async fn skills_changed_notification_is_emitted_after_skill_change() -> Result<(
+@@ -1375,6 +1378,8 @@ async fn skills_changed_notification_is_emitted_after_skill_change() -> Result<(
  
      let thread_start_request_id = mcp
          .send_thread_start_request_with_auto_env(ThreadStartParams {
++            disable_tools: None,
 +            runtime_mcp_servers: None,
              model: None,
              model_provider: None,
