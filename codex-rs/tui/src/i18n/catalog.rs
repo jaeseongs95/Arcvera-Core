@@ -393,22 +393,29 @@ mod tests {
         let original = Catalogs::new(&[("legacy", &english)], &[("legacy", &korean)]);
         let legacy = &original.legacy;
         assert_eq!(legacy.len(), 475);
-        let sorted: BTreeMap<_, _> = legacy.iter().collect();
+        let sorted: BTreeMap<_, _> = legacy
+            .iter()
+            .map(|(original, translated)| {
+                assert_eq!(catalogs().legacy.get(original), Some(translated));
+                // d6026cbd61 deliberately replaced the inherited Desktop launcher.
+                // Verify that override, then hash its pre-migration pair so the
+                // other 474 translations retain the original frozen oracle.
+                let (original, translated) = if original == "Desktop launch disabled; show releases"
+                {
+                    assert_eq!(translated, "데스크톱 실행 비활성화; 릴리스 보기");
+                    (
+                        "continue this session in the Desktop app",
+                        "데스크톱 앱에서 이 세션 이어가기",
+                    )
+                } else {
+                    (original.as_str(), translated.as_str())
+                };
+                (original, translated)
+            })
+            .collect();
+        assert_eq!(sorted.len(), 475);
         let mut hash = Sha256::new();
         for (original, translated) in sorted {
-            assert_eq!(catalogs().legacy.get(original), Some(translated));
-            // d6026cbd61 deliberately replaced the inherited Desktop launcher.
-            // Verify that override, then hash its pre-migration pair so the
-            // other 474 translations retain the original frozen oracle.
-            let (original, translated) = if original == "Desktop launch disabled; show releases" {
-                assert_eq!(translated, "데스크톱 실행 비활성화; 릴리스 보기");
-                (
-                    "continue this session in the Desktop app",
-                    "데스크톱 앱에서 이 세션 이어가기",
-                )
-            } else {
-                (original.as_str(), translated.as_str())
-            };
             hash.update(original.as_bytes());
             hash.update([0]);
             hash.update(translated.as_bytes());

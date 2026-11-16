@@ -2481,7 +2481,16 @@ async fn localized_status_preserves_opaque_values_at_terminal_widths() {
                     .collect::<String>();
                 assert!(joined.contains(model_label), "{joined}");
                 assert!(joined.contains(permission_label), "{joined}");
-                assert!(joined.contains(approval_label), "{joined}");
+                let wrapped_prose = lines
+                    .iter()
+                    .map(|line| line.to_string().trim().to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let normalized_prose = wrapped_prose
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                assert!(normalized_prose.contains(approval_label), "{wrapped_prose}");
                 for opaque in [
                     model,
                     thread,
