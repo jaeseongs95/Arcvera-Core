@@ -6628,7 +6628,8 @@ async fn compaction_persists_resume_metadata_and_companion_records() {
     assert_eq!(restored_index, expected_index);
     for envelope in &live_history {
         use sha2::Digest as _;
-        let id = codex_history::ContextIndex::source_id(&envelope.item).expect("resident ID");
+        let id = codex_history::context_index::ContextIndex::source_id(&envelope.item)
+            .expect("resident ID");
         let bytes = serde_json::to_vec(&envelope.item).unwrap();
         let digest = format!("{:x}", sha2::Sha256::digest(bytes));
         assert_eq!(
