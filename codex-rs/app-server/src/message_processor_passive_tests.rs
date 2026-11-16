@@ -301,6 +301,117 @@ async fn finish(processor: &Arc<MessageProcessor>, rx: Receiver) {
 }
 
 #[tokio::test]
+async fn memory_read_does_not_pair_new_completion_with_old_publication() -> Result<()> {
+    use codex_app_server_protocol::ThreadMemoryReadResponse;
+    use codex_memories_read::publication_snapshot::{
+        ARTIFACT_MANIFEST, MemorySnapshotCapability, PublishedMemorySnapshot,
+        PublishedMemorySnapshotProvider, artifact_manifest_digest, make_artifact_manifest,
+        root_identity,
+    };
+    use codex_protocol::MemoryVersion;
+
+    // Only scheduling is controlled: capture, RPC dispatch, files and DB publication
+    // use the real implementations. The first captured generation stays pinned.
+    struct PauseAfterCapture {
+        inner: Arc<dyn PublishedMemorySnapshotProvider>,
+        gate: tokio::sync::Mutex<Option<(oneshot::Sender<()>, oneshot::Receiver<()>)>>,
+    }
+    impl PublishedMemorySnapshotProvider for PauseAfterCapture {
+        fn capture(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::io::Result<PublishedMemorySnapshot>> + Send + '_>> {
+            Box::pin(async move {
+                let snapshot = self.inner.capture().await?;
+                if let Some((entered, release)) = self.gate.lock().await.take() {
+                    entered.send(()).map_err(|_| std::io::Error::other("capture observer dropped"))?;
+                    release.await.map_err(|_| std::io::Error::other("capture release dropped"))?;
+                }
+                Ok(snapshot)
+            })
+        }
+    }
+    fn generation(root: &std::path::Path, id: &str, summary: &str) -> Result<String> {
+        let directory = root.join(".codex-memory-generations").join(id);
+        std::fs::create_dir_all(&directory)?;
+        std::fs::write(directory.join(".codex-memory-generation"), format!("{}\n{id}\n", root_identity(root)?))?;
+        std::fs::write(directory.join("memory_summary.md"), summary)?;
+        let manifest = make_artifact_manifest(&directory)?;
+        std::fs::write(directory.join(ARTIFACT_MANIFEST), &manifest)?;
+        Ok(artifact_manifest_digest(&manifest))
+    }
+
+    let server = create_mock_responses_server_sequence_unchecked(Vec::new()).await;
+    let home = TempDir::new()?;
+    MockResponsesConfig::new(&server.uri())
+        .enable_feature(codex_features::Feature::MemoryTool)
+        .write(home.path())?;
+    let mut config = ConfigBuilder::default().codex_home(home.path().to_path_buf()).build().await?;
+    config.model_catalog = Some(codex_models_manager::bundled_models_response()?);
+    config.sqlite = codex_state::SqliteConfig::new_for_testing(config.codex_home.clone());
+    config.features.enable(codex_features::Feature::Sqlite)?;
+    let db = codex_core::init_state_db(&config).await.expect("isolated state DB");
+    let config = Arc::new(config);
+    let auth = AuthManager::shared_from_config(config.as_ref(), false).await?;
+    let (processor, mut rx) = build_test_processor_with_state_db(config, auth, Some(db)).await;
+    let connection = ConnectionId(1);
+    let session = initialize(&processor, &mut rx, connection).await;
+    send(&processor, connection, &session, json!({"id":2,"method":"thread/start","params":{
+        "model":"mock-model", "config":{"memories.scope":"global","memories.version":"v1","memories.generate_memories":false}
+    }})).await;
+    let started: ThreadStartResponse = read_response_from(&mut rx, connection, 2).await;
+    let thread_id = ThreadId::from_string(&started.thread.id)?;
+    let thread = processor.thread_processor.thread_manager.get_thread(thread_id).await?;
+    let thread_config = thread.config().await;
+    anyhow::ensure!(thread_config.features.enabled(codex_features::Feature::MemoryTool), "fixture memory tool disabled");
+    let root = thread_config.memories.memory_root(&thread_config.codex_home).expect("global root");
+    let root = root.as_path();
+    std::fs::create_dir_all(root)?;
+    std::fs::OpenOptions::new().read(true).write(true).create_new(true)
+        .open(root.with_extension("lock"))?;
+    std::fs::write(root.join(".codex-memory-managed"), b"managed-memory-v1\n")?;
+    let identity = root_identity(root)?;
+    let old_id = uuid::Uuid::new_v4().to_string();
+    let new_id = uuid::Uuid::new_v4().to_string();
+    let old_digest = generation(root, &old_id, "old baseline")?;
+    let new_digest = generation(root, &new_id, "new consolidated summary")?;
+    let notes = codex_memories_read::publication_notes::notes_digest(root)?;
+    let store = thread.state_db().expect("thread DB").memories_for_version(MemoryVersion::V1).await?;
+    assert!(store.register_legacy_memory_baseline(&identity, &old_id, &notes, &old_digest, false).await?);
+    let codex_state::Phase2JobClaimOutcome::Claimed { ownership_token, input_watermark } =
+        store.try_claim_global_phase2_job(thread_id, 3600).await? else { panic!("fixture claim") };
+    assert!(store.bind_phase2_publication_root(&ownership_token, &identity).await?);
+    let inner = Arc::clone(&thread.thread_extension_data().get::<MemorySnapshotCapability>().expect("real snapshot provider").0);
+    let baseline = inner.capture().await?;
+    assert_eq!(baseline.generation_id.as_deref(), Some(old_id.as_str()), "fixture reader must see the registered old publication");
+    let (entered, captured) = oneshot::channel();
+    let (release, released) = oneshot::channel();
+    thread.thread_extension_data().insert(MemorySnapshotCapability(Arc::new(PauseAfterCapture {
+        inner, gate: tokio::sync::Mutex::new(Some((entered, released))),
+    })));
+    send(&processor, connection, &session, json!({"id":3,"method":"thread/memory/read","params":{
+        "threadId":started.thread.id,"includeDisabled":true
+    }})).await;
+    timeout(DEADLINE, captured).await.map_err(|error| anyhow::anyhow!("read did not reach snapshot capture: {error}"))??;
+    assert!(store.publish_global_phase2_generation(&ownership_token, input_watermark, input_watermark,
+        &[], &identity, &new_id, &notes, &new_digest).await?);
+    release.send(()).expect("release captured read");
+    let first: ThreadMemoryReadResponse = read_response_from(&mut rx, connection, 3).await;
+    assert_eq!(first.generation_id.as_deref(), Some(old_id.as_str()));
+    assert_eq!(first.summary.as_deref(), Some("old baseline"));
+    assert_ne!(first.consolidation.as_ref().map(|state| state.status.as_str()), Some("done"),
+        "a pre-publication snapshot must not report newly completed consolidation");
+
+    send(&processor, connection, &session, json!({"id":4,"method":"thread/memory/read","params":{
+        "threadId":started.thread.id,"includeDisabled":true
+    }})).await;
+    let next: ThreadMemoryReadResponse = read_response_from(&mut rx, connection, 4).await;
+    assert_eq!(next.consolidation.as_ref().map(|state| state.status.as_str()), Some("done"));
+    assert_eq!(next.generation_id.as_deref(), Some(new_id.as_str()));
+    assert_eq!(next.publication_provenance.as_deref(), Some("consolidated"));
+    assert_eq!(next.summary.as_deref(), Some("new consolidated summary"));
+    finish(&processor, rx).await;
+    Ok(())
+}
+
+#[tokio::test]
 async fn strict_user_idle_two_connections_admit_one_and_preserve_loser_settings() -> Result<()> {
     let (release, gate) = oneshot::channel();
     let (server, _) = start_streaming_sse_server(vec![vec![

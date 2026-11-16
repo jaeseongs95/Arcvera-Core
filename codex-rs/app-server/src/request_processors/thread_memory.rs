@@ -114,6 +114,38 @@ impl ThreadRequestProcessor {
             "global"
         };
         let enabled = config.features.enabled(Feature::MemoryTool);
+        // Job completion and publication commit together. Observe completion before
+        // capturing artifacts so an old snapshot cannot accompany newly observed done.
+        let consolidation = if enabled && root.is_some() {
+            match codex_memories_write::memory_consolidation_status(&thread, &config).await {
+                Ok(state) => {
+                    state.map(
+                        |state| codex_app_server_protocol::MemoryConsolidationState {
+                            status: state.status,
+                            started_at: state.started_at,
+                            finished_at: state.finished_at,
+                            lease_until: state.lease_until,
+                            retry_at: state.retry_at,
+                            last_error: state.last_error,
+                            input_watermark: state.input_watermark,
+                            last_success_watermark: state.last_success_watermark,
+                        },
+                    )
+                }
+                Err(error) => Some(codex_app_server_protocol::MemoryConsolidationState {
+                    status: "unavailable".into(),
+                    started_at: None,
+                    finished_at: None,
+                    lease_until: None,
+                    retry_at: None,
+                    last_error: Some(error.to_string()),
+                    input_watermark: None,
+                    last_success_watermark: None,
+                }),
+            }
+        } else {
+            None
+        };
         let mut generation_id = None;
         let mut publication_provenance = None;
         let (summary, status) = if root.is_none() {
@@ -187,36 +219,6 @@ impl ThreadRequestProcessor {
                 .map_or(config.memories.generate_memories, |mode| mode == "enabled")
         } else {
             false
-        };
-        let consolidation = if enabled && root.is_some() {
-            match codex_memories_write::memory_consolidation_status(&thread, &config).await {
-                Ok(state) => {
-                    state.map(
-                        |state| codex_app_server_protocol::MemoryConsolidationState {
-                            status: state.status,
-                            started_at: state.started_at,
-                            finished_at: state.finished_at,
-                            lease_until: state.lease_until,
-                            retry_at: state.retry_at,
-                            last_error: state.last_error,
-                            input_watermark: state.input_watermark,
-                            last_success_watermark: state.last_success_watermark,
-                        },
-                    )
-                }
-                Err(error) => Some(codex_app_server_protocol::MemoryConsolidationState {
-                    status: "unavailable".into(),
-                    started_at: None,
-                    finished_at: None,
-                    lease_until: None,
-                    retry_at: None,
-                    last_error: Some(error.to_string()),
-                    input_watermark: None,
-                    last_success_watermark: None,
-                }),
-            }
-        } else {
-            None
         };
         Ok(Some(
             ThreadMemoryReadResponse {
