@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Run isolated structured requests through existing app-server methods.
 
 use codex_app_server_client::AppServerRequestHandle;
@@ -140,6 +141,7 @@ pub(crate) async fn start_temporary_thread(
             .request_typed(ClientRequest::ThreadStart {
                 request_id: RequestId::String(format!("temporary-structured-{}", Uuid::new_v4())),
                 params: ThreadStartParams {
+                    disable_tools: Some(true),
                     model: Some(model),
                     model_provider: Some(model_provider),
                     cwd: Some(cwd),
@@ -161,6 +163,15 @@ pub(crate) async fn start_temporary_thread(
     })
     .await
     .map_err(|_| eyre!("temporary structured thread start timed out"))??;
+
+    // Old servers may ignore an unknown request field. Never submit transcript
+    // text until the server explicitly confirms the startup tool ceiling.
+    if response.tools_disabled != Some(true) {
+        unsubscribe_temporary_thread(request_handle, response.thread.id.clone()).await;
+        return Err(eyre!(
+            "temporary structured thread did not confirm tools are disabled"
+        ));
+    }
 
     if let Some(expected_profile) = custom_permission_profile {
         if response

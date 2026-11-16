@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 use crate::session::tests::update_turn_settings_for_test;
 use std::collections::BTreeMap;
@@ -580,6 +581,45 @@ async fn allowed_tools_filter_sources_before_code_mode_and_discovery() {
                     "extension_echo",
                 ]);
             }
+        }
+    }
+}
+
+#[tokio::test]
+async fn empty_startup_tool_ceiling_blocks_core_tools_independently_of_features() {
+    for restricted in [false, true] {
+        let (mut session, mut turn) = make_session_and_context().await;
+        set_feature(&mut turn, Feature::ShellTool, true);
+        set_feature(&mut turn, Feature::ViewImage, true);
+        set_feature(&mut turn, Feature::CodeMode, false);
+        Arc::make_mut(&mut turn.config).update_plan_enabled = true;
+        if restricted {
+            session.tool_policy = Arc::new(codex_extension_api::ToolPolicy {
+                allowed_tools: Some(Vec::new()),
+                ..Default::default()
+            });
+        }
+        let turn = Arc::new(turn);
+        let step = StepContext::for_test(Arc::clone(&turn));
+        let router = super::build_tool_router(
+            &session,
+            step.turn.as_ref(),
+            &step.settings.model_info,
+            &step.environments,
+            &step.mcp,
+            false,
+            &turn.extension_data,
+            None,
+            session.dynamic_tools().await.as_ref(),
+        )
+        .expect("build restricted router");
+        let plan = ToolPlanProbe::from_router(router);
+        if restricted {
+            assert!(plan.visible_specs.is_empty());
+            assert!(plan.registered_names.is_empty());
+            assert!(plan.code_mode_tool_names.is_empty());
+        } else {
+            plan.assert_registered_contains(&["context_index", "update_plan", "view_image"]);
         }
     }
 }

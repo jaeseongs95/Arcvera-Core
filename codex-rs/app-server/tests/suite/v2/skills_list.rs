@@ -415,6 +415,7 @@ enabled = true
         .await?;
     let thread_start_request_id = mcp
         .send_thread_start_request_with_auto_env(ThreadStartParams {
+            disable_tools: None,
             runtime_mcp_servers: None,
             cwd: Some(cwd.path().to_string_lossy().into_owned()),
             ..Default::default()

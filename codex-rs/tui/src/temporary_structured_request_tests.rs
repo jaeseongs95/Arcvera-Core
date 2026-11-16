@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::STRUCTURED_RESPONSE_MAX_BYTES;
 use super::TemporaryStructuredThreadOptions;
 use super::collect_structured_response;
@@ -134,6 +135,7 @@ async fn managed_workspace_default_respects_read_only_availability() -> color_ey
 
         if read_only_allowed {
             let response = result?;
+            assert_eq!(response.tools_disabled, Some(true));
             assert_eq!(
                 (
                     response.active_permission_profile.map(|profile| profile.id),
@@ -197,6 +199,7 @@ async fn preserves_custom_permissions_and_disables_required_mcp_servers() -> col
     )
     .await?;
 
+    assert_eq!(response.tools_disabled, Some(true));
     assert_eq!(
         (
             response.active_permission_profile.map(|profile| profile.id),
@@ -212,6 +215,44 @@ async fn preserves_custom_permissions_and_disables_required_mcp_servers() -> col
         )
     );
 
+    app_server.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn tool_ceiling_is_ephemeral_only_and_ordinary_starts_keep_their_policy()
+-> color_eyre::Result<()> {
+    use codex_app_server_protocol::{
+        ClientRequest, RequestId, ThreadStartParams, ThreadStartResponse,
+    };
+    let (chat, _, _, _) = crate::chatwidget::tests::make_chatwidget_manual_with_sender().await;
+    let app_server = crate::start_embedded_app_server_for_picker(chat.config_ref()).await?;
+    let handle = app_server.request_handle();
+    for (index, disable_tools) in [None, Some(false), Some(true)].into_iter().enumerate() {
+        let result = handle
+            .request_typed::<ThreadStartResponse>(ClientRequest::ThreadStart {
+                request_id: RequestId::String(format!("tool-ceiling-{index}")),
+                params: ThreadStartParams {
+                    disable_tools,
+                    ephemeral: Some(false),
+                    ..Default::default()
+                },
+            })
+            .await;
+        if disable_tools == Some(true) {
+            let error = result.expect_err("durable threads must not lose a non-persisted policy");
+            assert!(
+                error
+                    .to_string()
+                    .contains("disableTools is supported only for ephemeral threads"),
+                "{error}"
+            );
+        } else {
+            let response = result?;
+            assert_eq!(response.tools_disabled, None);
+            assert!(!response.thread.ephemeral);
+        }
+    }
     app_server.shutdown().await?;
     Ok(())
 }

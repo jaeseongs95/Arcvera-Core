@@ -370,6 +370,8 @@ async fn same_thread_retry_keeps_subscription_and_restores_draft() -> Result<()>
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum HistoryCapabilities {
     Current,
+    ToolsDisabledAckMissing,
+    ToolsDisabledAckFalse,
     ForwardLiveEvents,
     ItemsProjectionUnavailable(Option<&'static str>),
     LegacyOnly,
@@ -929,7 +931,23 @@ pub(super) async fn start_recording_app_server_with_realtime_speech(
                                     &request,
                                     ClientRequest::ThreadRealtimeListVoices { .. }
                                 );
+                            let tool_ceiling_start =
+                                matches!(&request, ClientRequest::ThreadStart { .. });
                             let mut result = embedded.request(request).await?;
+                            if tool_ceiling_start && let Ok(value) = &mut result {
+                                match history_capabilities {
+                                    HistoryCapabilities::ToolsDisabledAckMissing => {
+                                        value
+                                            .as_object_mut()
+                                            .expect("thread response")
+                                            .remove("toolsDisabled");
+                                    }
+                                    HistoryCapabilities::ToolsDisabledAckFalse => {
+                                        value["toolsDisabled"] = serde_json::json!(false);
+                                    }
+                                    _ => {}
+                                }
+                            }
                             if unknown_voice && let Ok(value) = &mut result {
                                 value["config"]["realtime"]["voice"] =
                                     serde_json::json!("future_voice");
@@ -5806,6 +5824,54 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
         );
         server.shutdown().await?;
         proxy.await??;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn temporary_requests_refuse_servers_without_a_positive_tool_ceiling_ack() -> Result<()> {
+    for behavior in [
+        HistoryCapabilities::ToolsDisabledAckMissing,
+        HistoryCapabilities::ToolsDisabledAckFalse,
+    ] {
+        for feature in ["thread_title", "system"] {
+            let (app, _, _) = make_test_app_with_channels().await;
+            let (server, requests, proxy) = start_recording_app_server_with_history(
+                &app.config,
+                behavior,
+                None,
+                None,
+                crate::app_server_session::ThreadParamsMode::Remote,
+                LoaderOverrides::without_managed_config_for_tests(),
+            )
+            .await?;
+            let error = crate::temporary_structured_request::start_temporary_thread(
+                &server.request_handle(),
+                crate::temporary_structured_request::TemporaryStructuredThreadOptions {
+                    thread_source: codex_app_server_protocol::ThreadSource::Feature(
+                        feature.to_string(),
+                    ),
+                    model: app.config.model.clone().expect("test model"),
+                    model_provider: app.config.model_provider_id.clone(),
+                    cwd: app.config.cwd.to_string_lossy().into_owned(),
+                    active_permission_profile: None,
+                    mcp_server_names: Vec::new(),
+                },
+            )
+            .await
+            .expect_err("tool ceiling must be confirmed before generation");
+            assert_eq!(
+                error.to_string(),
+                "temporary structured thread did not confirm tools are disabled"
+            );
+            let starts = recorded_params(&requests, "thread/start");
+            assert_eq!(starts.len(), 1);
+            assert_eq!(starts[0]["disableTools"], serde_json::json!(true));
+            assert!(recorded_params(&requests, "turn/start").is_empty());
+            assert_eq!(recorded_params(&requests, "thread/unsubscribe").len(), 1);
+            server.shutdown().await?;
+            proxy.await??;
+        }
     }
     Ok(())
 }

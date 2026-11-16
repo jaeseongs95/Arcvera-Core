@@ -1639,6 +1639,7 @@ impl ThreadRequestProcessor {
         request_context: RequestContext,
     ) -> Result<(), JSONRPCErrorError> {
         let ThreadStartParams {
+            disable_tools,
             runtime_mcp_servers,
             model,
             model_provider,
@@ -1747,6 +1748,7 @@ impl ThreadRequestProcessor {
                 typesafe_overrides,
                 dynamic_tools,
                 runtime_mcp_servers,
+                disable_tools,
                 selected_capability_roots.unwrap_or_default(),
                 history_mode.map(Into::into),
                 session_start_source,
@@ -1830,6 +1832,7 @@ impl ThreadRequestProcessor {
         typesafe_overrides: ConfigOverrides,
         dynamic_tools: Option<Vec<DynamicToolSpec>>,
         runtime_mcp_servers: Option<HashMap<String, serde_json::Value>>,
+        disable_tools: Option<bool>,
         selected_capability_roots: Vec<SelectedCapabilityRoot>,
         history_mode: Option<ThreadHistoryMode>,
         session_start_source: Option<codex_app_server_protocol::ThreadStartSource>,
@@ -1852,6 +1855,11 @@ impl ThreadRequestProcessor {
         if config.ephemeral && daybreak_enabled.is_some() {
             return Err(invalid_request(
                 "daybreakEnabled is not supported for ephemeral threads",
+            ));
+        }
+        if disable_tools == Some(true) && !config.ephemeral {
+            return Err(invalid_request(
+                "disableTools is supported only for ephemeral threads",
             ));
         }
         // Project-local config can launch host processes, so only the effective
@@ -1971,6 +1979,14 @@ impl ThreadRequestProcessor {
                 .then_some(ThreadHistoryMode::Paginated)
         });
         let mut thread_extension_init = ExtensionDataInit::new();
+        if disable_tools == Some(true) {
+            // A startup ceiling, independent of managed feature defaults. Empty
+            // also excludes future built-in, hosted, dynamic, and MCP tools.
+            thread_extension_init.insert(codex_extension_api::ToolPolicy {
+                allowed_tools: Some(Vec::new()),
+                ..Default::default()
+            });
+        }
         let mut runtime_mcp_lifetime = None;
         let mut runtime_mcp_registration_id = None;
         let runtime_mcp_servers_applied = if let Some(servers) =
@@ -2158,6 +2174,7 @@ impl ThreadRequestProcessor {
         let thread_originator = config_snapshot.originator.clone();
 
         let response = ThreadStartResponse {
+            tools_disabled: (disable_tools == Some(true)).then_some(true),
             runtime_mcp_servers_applied,
             runtime_mcp_registration_id,
             thread: thread.clone(),

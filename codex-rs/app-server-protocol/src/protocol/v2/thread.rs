@@ -62,6 +62,11 @@ pub enum ThreadStartSource {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ThreadStartParams {
+    /// Restrict an ephemeral thread to no tools. Requires a true `toolsDisabled` response.
+    #[experimental("thread/start.disableTools")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub disable_tools: Option<bool>,
     /// Connection-owned MCP servers. Subject to normal MCP policy; never persisted.
     #[experimental("thread/start.runtimeMcpServers")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -193,6 +198,11 @@ pub struct MockExperimentalMethodResponse {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ThreadStartResponse {
+    /// Confirms that the ephemeral thread has an empty tool allowlist.
+    #[experimental("thread/start.disableTools")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub tools_disabled: Option<bool>,
     /// Explicit registration ACK; missing on servers without runtime MCP support.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
