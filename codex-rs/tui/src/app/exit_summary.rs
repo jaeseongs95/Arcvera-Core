@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
@@ -177,12 +178,12 @@ mod localization_tests {
             (
                 crate::i18n::Locale::English,
                 "To continue this session, run:",
-                format!("Or run codex resume and select {name}."),
+                format!("Or run arcvera resume and select {name}."),
             ),
             (
                 crate::i18n::Locale::Korean,
                 "이 세션을 계속하려면 다음을 실행하세요:",
-                format!("또는 codex resume 명령을 실행하고 {name} 항목을 선택하세요."),
+                format!("또는 arcvera resume 명령을 실행하고 {name} 항목을 선택하세요."),
             ),
         ] {
             crate::i18n::with_locale(locale, || {
@@ -201,7 +202,7 @@ mod localization_tests {
                     info.format_exit_messages(false),
                     vec![
                         heading.to_string(),
-                        format!("  codex resume {thread_id}"),
+                        format!("  arcvera resume {thread_id}"),
                         named_hint,
                     ]
                 );

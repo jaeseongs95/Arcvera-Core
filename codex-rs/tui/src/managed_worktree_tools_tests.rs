@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use super::*;
 use crate::legacy_core::config::ConfigOverrides;
@@ -81,12 +82,13 @@ async fn start_server(
     };
     server.thread_tool_transport().configure(&mut params);
     assert_eq!(params.dynamic_tools, None);
-    let overrides = params.config.unwrap();
+    assert_eq!(params.config, None);
+    let overrides = params.runtime_mcp_servers.unwrap();
     assert_eq!(
         overrides.keys().map(String::as_str).collect::<Vec<_>>(),
-        vec!["mcp_servers.codex_tui"]
+        vec!["codex_tui"]
     );
-    let mcp = &overrides["mcp_servers.codex_tui"];
+    let mcp = &overrides["codex_tui"];
     let metadata = json!({
         "io.modelcontextprotocol/protocolVersion":"2026-07-28",
         "io.modelcontextprotocol/clientCapabilities":{}

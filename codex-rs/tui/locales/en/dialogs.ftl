@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core 1.1.0 (2026-11-16); see MODIFICATIONS.md.
 dialogs-permission-network = network
 dialogs-approval-terminal = Would you like to send input to terminal { $process_id }?
 dialogs-approval-network = Do you want to approve network access to "{ $host }"?
@@ -339,6 +340,7 @@ dialogs-warning-count = { $count ->
 dialogs-cycle-hint = { " " }({ $key } to cycle)
 dialogs-side = Side
 dialogs-side-switch = { " " }to switch
+dialogs-side-close = { " " }to close
 dialogs-side-for = { " " }for side
 dialogs-resize-all = … resize to see all
 dialogs-subagent-disabled = Viewing sub-agent — direct input is disabled

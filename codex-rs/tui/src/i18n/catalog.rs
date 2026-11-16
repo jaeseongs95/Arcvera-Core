@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! Fluent catalogs for application-owned UI messages. Argument values are opaque.
 
@@ -380,16 +381,34 @@ mod tests {
     #[test]
     fn all_475_legacy_translations_match_the_pre_migration_dictionary() {
         // Freeze the original dictionary while allowing new official UI literals.
-        let original = Catalogs::new(
-            &[("legacy", include_str!("../../locales/en/legacy.ftl"))],
-            &[("legacy", include_str!("../../locales/ko/legacy.ftl"))],
-        );
+        let pre_migration = |source: &str| {
+            source
+                .lines()
+                .filter(|line| !line.starts_with("legacy-d26-"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        let english = pre_migration(include_str!("../../locales/en/legacy.ftl"));
+        let korean = pre_migration(include_str!("../../locales/ko/legacy.ftl"));
+        let original = Catalogs::new(&[("legacy", &english)], &[("legacy", &korean)]);
         let legacy = &original.legacy;
         assert_eq!(legacy.len(), 475);
         let sorted: BTreeMap<_, _> = legacy.iter().collect();
         let mut hash = Sha256::new();
         for (original, translated) in sorted {
             assert_eq!(catalogs().legacy.get(original), Some(translated));
+            // d6026cbd61 deliberately replaced the inherited Desktop launcher.
+            // Verify that override, then hash its pre-migration pair so the
+            // other 474 translations retain the original frozen oracle.
+            let (original, translated) = if original == "Desktop launch disabled; show releases" {
+                assert_eq!(translated, "데스크톱 실행 비활성화; 릴리스 보기");
+                (
+                    "continue this session in the Desktop app",
+                    "데스크톱 앱에서 이 세션 이어가기",
+                )
+            } else {
+                (original.as_str(), translated.as_str())
+            };
             hash.update(original.as_bytes());
             hash.update([0]);
             hash.update(translated.as_bytes());

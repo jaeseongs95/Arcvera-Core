@@ -1,5 +1,9 @@
 # Arcvera-Core 1.1.0 candidate / 1.1.0 후보
 
+The full TUI failure review repairs reconnect transport cleanup on unsuccessful attempts, preserves archived-session confirmation across upstream command spellings, restores daemon and Side guidance, and keeps reasoning descriptions visible in narrow pickers. Ephemeral recap and title threads now request an empty tool allowlist; the server acknowledges the applied policy, and clients refuse generation when that acknowledgement is absent. Older servers must be upgraded for those temporary requests. Existing threads and permission profiles retain their behavior. Fixture migrations follow actual history, memory preservation and MCP registration contracts; reviewed snapshots use the approved release identity. All new native checks remain pending.
+
+전체 TUI 실패 검토에서 재접속 실패 시 transport 정리, 원본 명령 표기와 호환되는 아카이브 해제 확인, daemon·Side 안내, 좁은 추론 선택창의 설명 표시를 수정합니다. 일시 recap·제목 대화는 빈 도구 허용 목록을 요청하고 서버의 적용 확인이 없으면 생성을 거부합니다. 구형 서버에서는 해당 임시 요청을 사용하기 전에 서버를 갱신해야 합니다. 기존 대화와 권한 프로필의 동작은 유지합니다. 시험 fixture는 실제 이력·메모리 보존·MCP 등록 계약을 반영하고 검토한 스냅샷은 승인된 릴리스 식별 정보를 사용합니다. 새 네이티브 검증은 모두 대기 중입니다.
+
 The English voice badge retains its pre-localization two-space alignment. Daemon package and fresh-thread snapshots follow the approved Arcvera Core 1.1.0 identity; their remaining content and the voice layout oracle are preserved. Native verification is pending.
 
 영문 음성 배지는 현지화 전의 두 칸 정렬을 복원합니다. daemon 패키지와 새 대화 스냅샷은 승인된 Arcvera Core 1.1.0 식별 정보를 반영하며 나머지 내용과 음성 배치의 기준 스냅샷은 보존합니다. 네이티브 검증은 대기 중입니다.

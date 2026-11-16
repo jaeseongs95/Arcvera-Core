@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Voice settings hierarchy with parent navigation; selections apply to subsequent conversations.
 
@@ -320,8 +321,29 @@ mod tests;
 mod localization_tests {
     use super::*;
     use crate::chatwidget::tests::make_chatwidget_manual_with_sender;
-    use crate::chatwidget::tests::render_bottom_popup;
+    use crate::render::renderable::Renderable;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    fn popup_text(chat: &ChatWidget, width: u16) -> String {
+        let area = ratatui::layout::Rect::new(0, 0, width, chat.desired_height(width));
+        let mut buffer = ratatui::buffer::Buffer::empty(area);
+        chat.render(area, &mut buffer);
+        (0..area.height)
+            .map(|row| {
+                let mut text = String::new();
+                let mut col = 0;
+                while col < width {
+                    let symbol =
+                        crate::terminal_hyperlinks::strip_osc8(buffer[(col, row)].symbol());
+                    // Wide glyph continuation cells are padding, not text.
+                    col += crate::width::display_width(&symbol).max(1) as u16;
+                    text.push_str(&symbol);
+                }
+                text.trim_end().to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
 
     #[tokio::test]
     async fn voice_device_picker_localizes_labels_and_preserves_selected_device_payload() {
@@ -347,7 +369,7 @@ mod localization_tests {
                         is_default: true,
                     }],
                 );
-                let screen = render_bottom_popup(&chat, 100);
+                let screen = popup_text(&chat, 100);
                 assert!(screen.contains(title), "{screen}");
                 assert!(screen.contains(default), "{screen}");
                 assert!(screen.contains(name), "{screen}");

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! Request-user-input overlay state machine.
 //!
@@ -3353,7 +3354,7 @@ mod tests {
         assert_eq!(other_row.name, "  4. None of the above");
         assert_eq!(
             other_row.description.as_deref(),
-            Some(OTHER_OPTION_DESCRIPTION)
+            Some(crate::i18n::static_message(OTHER_OPTION_DESCRIPTION))
         );
 
         let other_idx = overlay.options_len().saturating_sub(1);

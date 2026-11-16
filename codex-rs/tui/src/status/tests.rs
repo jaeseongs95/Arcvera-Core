@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 use super::new_status_output;
 use super::new_status_output_with_rate_limits;
@@ -2415,6 +2416,15 @@ async fn localized_status_preserves_opaque_values_at_terminal_widths() {
     use crate::i18n::{Locale, with_locale};
     let temp_home = TempDir::new().expect("temp home");
     let mut config = test_config(&temp_home).await;
+    // Workspace identity is shown only for a provider using first-party auth.
+    let provider = config
+        .model_providers
+        .get("openai")
+        .expect("OpenAI provider")
+        .clone();
+    config
+        .model_providers
+        .insert("공급자🧪".to_string(), provider);
     config
         .permissions
         .approval_policy

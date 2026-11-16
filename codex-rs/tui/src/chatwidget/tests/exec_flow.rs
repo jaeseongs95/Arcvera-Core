@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use super::*;
 use codex_app_server_protocol::ThreadItem;
@@ -28,7 +29,11 @@ async fn language_command_routes_only_valid_local_preferences_without_model_or_p
     let model = chat.config.model.clone();
     let approval = chat.config.permissions.approval_policy.value();
     let permissions = chat.config.permissions.clone();
-    for (args, expected) in [("ko", UiLanguage::Korean), ("en", UiLanguage::English)] {
+    for (args, expected) in [
+        ("ko", UiLanguage::Korean),
+        ("KO", UiLanguage::Korean),
+        ("en", UiLanguage::English),
+    ] {
         chat.dispatch_command_with_args(SlashCommand::Language, args.into(), Vec::new());
         let selected = std::iter::from_fn(|| events.try_recv().ok())
             .filter_map(|event| match event {
@@ -39,7 +44,7 @@ async fn language_command_routes_only_valid_local_preferences_without_model_or_p
         assert_eq!(selected, vec![expected]);
         assert!(operations.try_recv().is_err());
     }
-    for invalid in ["kr", "KO", "en ko", ""] {
+    for invalid in ["kr", "en ko", ""] {
         chat.dispatch_command_with_args(SlashCommand::Language, invalid.into(), Vec::new());
         assert!(
             !std::iter::from_fn(|| events.try_recv().ok())

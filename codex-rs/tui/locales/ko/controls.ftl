@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core 1.1.0 (2026-11-16); see MODIFICATIONS.md.
 # Application-owned chat controls and exit guidance.
 controls-back = 뒤로
 controls-goal-edit = 목표 편집
@@ -143,8 +144,8 @@ controls-memory-confirmed = 메모리 설정과 현재 실행 상태를 확인�
 
 controls-memory-command-hint = /memory enable on|off · /memory edit <정정 내용> · /memory read on|off · /memory generate on|off
 controls-memory-usage = 사용법: /memory view | enable on|off | edit <정정 내용> | read on|off | generate on|off | scope project|global
-daemon-auto-selected-mismatch = 선택된 공유 서버 실행 파일 { $managed_path }은(는) 현재 CLI { $cli_path }와 다릅니다. 이번 대화는 현재 CLI에 포함된 서버를 사용하며 공유 설치본은 보존했습니다. 명시적으로 선택을 바꾸려면 `codex app-server daemon update --from-cli --yes --no-force`를 실행하세요.
-daemon-implicit-version-mismatch = 공유 서버 { $endpoint }에서 확인한 버전 { $server }이(가) 현재 CLI { $client }와 다르거나 확인되지 않아 연결을 거부했습니다. 현재 CLI 실행 파일: { $cli_path }; --no-daemon으로 이 CLI에 포함된 백엔드를 사용할 수 있습니다. 공유 서버는 변경하거나 다시 시작하지 않았습니다. 소켓 경로만으로 실행 중인 서버 실행 파일 경로는 확인할 수 없습니다. 명시적으로 이 CLI의 서버를 선택하려면 `codex app-server daemon update --from-cli --yes --no-force`를 실행하세요.
+daemon-auto-selected-mismatch = 선택된 공유 서버 실행 파일 { $managed_path }은(는) 현재 CLI { $cli_path }와 다릅니다. 이번 대화는 현재 CLI에 포함된 서버를 사용하며 공유 설치본은 보존했습니다. 명시적으로 선택을 바꾸려면 `arcvera app-server daemon update --from-cli --yes --no-force`를 실행하세요.
+daemon-implicit-version-mismatch = 공유 서버 { $endpoint }에서 확인한 버전 { $server }이(가) 현재 CLI { $client }와 다르거나 확인되지 않아 연결을 거부했습니다. 현재 CLI 실행 파일: { $cli_path }; --no-daemon으로 이 CLI에 포함된 백엔드를 사용할 수 있습니다. 공유 서버는 변경하거나 다시 시작하지 않았습니다. 소켓 경로만으로 실행 중인 서버 실행 파일 경로는 확인할 수 없습니다. 명시적으로 이 CLI의 서버를 선택하려면 `arcvera app-server daemon update --from-cli --yes --no-force`를 실행하세요.
 daemon-version-manage-hint = /daemon으로 로컬 백그라운드 서버를 관리할 수 있습니다.
 daemon-version-update-warning = 업데이트하면 진행 중이거나 대기 중인 작업이 중단될 수 있습니다.
 daemon-running-embedded = 현재 CLI에 포함된 백엔드로 실행합니다. 공유 백그라운드 서버를 사용하지 않는 이유: { $reason }.

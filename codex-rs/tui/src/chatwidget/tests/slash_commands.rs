@@ -2371,13 +2371,13 @@ async fn assert_daybreak_catalog_and_account_gates(provider_id: &str) {
         .set_composer_text(String::new(), Vec::new(), Vec::new());
     chat.bottom_pane
         .set_composer_text("/daybreak".to_string(), Vec::new(), Vec::new());
-    insta::assert_snapshot!(
+    assert_eq!(
         render_bottom_popup(&chat, /*width*/ 80)
             .lines()
             .filter(|line| line.contains("broader access"))
             .collect::<Vec<_>>()
             .join("\n"),
-        @""
+        ""
     );
     chat.has_chatgpt_account = true;
     chat.status_account_display = None;

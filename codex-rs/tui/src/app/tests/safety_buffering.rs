@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R32 (2026-11-01); see MODIFICATIONS.md.
 use super::*;
 use crate::app::safety_buffering::SafetyBufferedRetry;
@@ -1184,6 +1185,11 @@ goals = true
         return Ok(());
     }
 
+    // Apply the same ordered reset and replay events as the app event loop. Dropping
+    // these events leaves the old transcript visible and the reset barrier armed.
+    while let Ok(event) = app_event_rx.try_recv() {
+        Box::pin(app.handle_event(&mut tui, &mut app_server, event)).await?;
+    }
     let first_retry_thread_id = app.chat_widget.thread_id().expect("first retry thread id");
     if scenario == SafetyRetryScenario::RetryTwice {
         let first_retry_turn_id =
@@ -1283,19 +1289,19 @@ goals = true
             &PermissionProfile::read_only()
         );
     }
-    let mut replayed_history = String::new();
     while let Ok(event) = app_event_rx.try_recv() {
-        if let AppEvent::InsertHistoryCell(cell) = event {
-            let rendered = lines_to_single_string(&cell.transcript_lines(/*width*/ 80));
-            if cell
-                .as_any()
-                .is::<crate::history_cell::FinalMessageSeparator>()
-            {
-                replayed_history
-                    .push_str(&normalize_completion_timestamps(cell.as_ref(), rendered));
-            } else {
-                replayed_history.push_str(&rendered);
-            }
+        Box::pin(app.handle_event(&mut tui, &mut app_server, event)).await?;
+    }
+    let mut replayed_history = String::new();
+    for cell in &app.transcript_cells {
+        let rendered = lines_to_single_string(&cell.transcript_lines(/*width*/ 80));
+        if cell
+            .as_any()
+            .is::<crate::history_cell::FinalMessageSeparator>()
+        {
+            replayed_history.push_str(&normalize_completion_timestamps(cell.as_ref(), rendered));
+        } else {
+            replayed_history.push_str(&rendered);
         }
     }
     assert_eq!(

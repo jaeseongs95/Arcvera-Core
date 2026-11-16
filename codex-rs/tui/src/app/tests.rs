@@ -3260,19 +3260,21 @@ fn attach_live_thread_for_selection_rejects_empty_non_ephemeral_fallback_threads
         assert!(!app.thread_event_channels.contains_key(&thread_id));
         assert_eq!(recorded_params(&requests, "thread/resume").len(), 1);
         let reads = recorded_params(&requests, "thread/read");
+        // The resume now reads metadata before the attempt to capture its receipt.
+        // Check each read and its order, including the two fallback reads.
+        let reads: Vec<codex_app_server_protocol::ThreadReadParams> = reads
+            .into_iter()
+            .map(serde_json::from_value)
+            .collect::<Result<_, _>>()?;
+        assert_eq!(reads.len(), 5);
+        assert!(reads.iter().all(|read| read.thread_id == id));
         assert_eq!(
-            reads.len(),
-            4,
-            "both explicit checks and fallback reads must run"
+            reads
+                .iter()
+                .map(|read| read.include_turns)
+                .collect::<Vec<_>>(),
+            vec![false, true, false, false, true]
         );
-        let metadata_read: codex_app_server_protocol::ThreadReadParams =
-            serde_json::from_value(reads[2].clone())?;
-        let history_read: codex_app_server_protocol::ThreadReadParams =
-            serde_json::from_value(reads[3].clone())?;
-        assert_eq!(metadata_read.thread_id, id);
-        assert!(!metadata_read.include_turns);
-        assert_eq!(history_read.thread_id, id);
-        assert!(history_read.include_turns);
         app_server.shutdown().await?;
         proxy.await??;
         Ok(())
@@ -3683,7 +3685,13 @@ async fn reset_memories_clears_local_memory_directories() -> Result<()> {
 
         Box::pin(app.reset_memories_with_app_server(&mut app_server)).await;
 
-        assert_eq!(std::fs::read_dir(&memory_root)?.count(), 0);
+        assert!(!memory_root.join("MEMORY.md").exists());
+        assert!(!memory_root.join("rollout_summaries").exists());
+        assert_eq!(
+            std::fs::read_to_string(extensions_root.join("stale.txt"))?,
+            "stale extension\n"
+        );
+        assert_eq!(std::fs::read_dir(&memory_root)?.count(), 1);
 
         app_server.shutdown().await?;
         Ok(())
@@ -6681,7 +6689,10 @@ async fn ctrl_l_preserves_the_transcript_and_draft_after_clearing_the_screen() -
         app.transcript_view.history,
         crate::pager_overlay::TranscriptHistoryState::LoadingBeginning
     );
-    assert!(app_server.is_older_history_page_pending(thread_id, &cursor));
+    // Clearing establishes a display boundary: browsing must not request the
+    // server's older cursor or reintroduce transcript content from before it.
+    assert!(!app.scrollback_has_older_history);
+    assert!(!app_server.is_older_history_page_pending(thread_id, &cursor));
     app.handle_tui_event(&mut tui, &mut app_server, TuiEvent::Key(ctrl_t))
         .await?;
     app.handle_older_history_page(&mut tui, &mut app_server, thread_id, &cursor, Ok(page))

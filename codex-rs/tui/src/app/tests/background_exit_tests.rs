@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::*;
 use pretty_assertions::assert_eq;
 
@@ -287,7 +288,7 @@ async fn embedded_exit_keeps_the_session_summary() {
     assert_snapshot!(output, @"
     Token usage: total=2 input=0 output=2
     To continue this session, run:
-      codex resume THREAD_ID
+      arcvera resume THREAD_ID
     ");
 }
 

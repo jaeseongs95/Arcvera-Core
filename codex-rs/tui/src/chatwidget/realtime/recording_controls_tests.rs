@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for Arcvera-Core R41 (2026-11-11); see MODIFICATIONS.md.
 // Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 //! Rendering and capture-state regressions for live recording controls.
@@ -638,7 +639,7 @@ async fn compact_voice_meters_keep_real_speaker_history_when_the_microphone_is_m
     let live = render_bottom_popup(&chat, /*width*/ 45);
     let meters = live.lines().find(|line| line.contains("mic")).unwrap();
     assert!(meters.contains("mic ▁▃▄▅▇█"));
-    assert!(meters.contains("arcvera █▇▅▃▂▁"));
+    assert!(meters.contains("codex █▇▅▃▂▁"));
     assert_eq!(
         live.lines().filter(|line| line.contains("codex")).count(),
         1
@@ -650,7 +651,7 @@ async fn compact_voice_meters_keep_real_speaker_history_when_the_microphone_is_m
         chat.update_realtime_footer();
         let muted = render_bottom_popup(&chat, /*width*/ 45);
         assert!(muted.contains("mic ▁▁▁▁▁▁"));
-        assert!(muted.contains("arcvera █▇▅▃▂▁"));
+        assert!(muted.contains("codex █▇▅▃▂▁"));
     }
     chat.thread_id = Some(ThreadId::new());
     chat.update_realtime_footer();

@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R35 (2026-11-03); see MODIFICATIONS.md.
 //! The bottom-pane footer renders transient hints and context indicators.
 //!
@@ -655,7 +656,7 @@ pub(crate) fn side_conversation_context_line(label: &str) -> Line<'static> {
             line.extend(key_hint::key_label_spans(keys));
             let action = match action {
                 " to switch" => crate::i18n::message("dialogs-side-switch", &[]),
-                " to close" => crate::i18n::message("dialogs-close", &[]),
+                " to close" => crate::i18n::message("dialogs-side-close", &[]),
                 " for side" => crate::i18n::message("dialogs-side-for", &[]),
                 other => other.to_string(),
             };

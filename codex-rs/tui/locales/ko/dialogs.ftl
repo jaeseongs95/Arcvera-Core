@@ -1,3 +1,4 @@
+# Modified for Arcvera-Core 1.1.0 (2026-11-16); see MODIFICATIONS.md.
 dialogs-permission-network = 네트워크
 dialogs-approval-terminal = 터미널 { $process_id }에 입력을 보내시겠습니까?
 dialogs-approval-network = "{ $host }"에 대한 네트워크 접근을 승인하시겠습니까?
@@ -324,6 +325,7 @@ dialogs-warning-count = 경고 { $count }개
 dialogs-cycle-hint = { " " }({ $key }로 전환)
 dialogs-side = 사이드
 dialogs-side-switch = { " " }전환
+dialogs-side-close = { " " }닫기
 dialogs-side-for = { " " }사이드 대화
 dialogs-resize-all = … 전체를 보려면 창 크기를 늘리세요
 dialogs-subagent-disabled = 하위 에이전트 보기 — 직접 입력이 비활성화되어 있습니다

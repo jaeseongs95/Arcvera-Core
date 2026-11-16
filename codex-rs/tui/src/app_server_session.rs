@@ -4753,7 +4753,8 @@ mod tests {
 
         let expected_service_tier = Some(Some(ServiceTier::Fast.request_value().to_string()));
         assert_eq!(start.service_tier, expected_service_tier);
-        assert_eq!(resume.service_tier, expected_service_tier);
+        // Mutating the resolved config does not create an explicit launch override; preserve the saved tier.
+        assert_eq!(resume.service_tier, None);
         assert_eq!(fork.service_tier, expected_service_tier);
         let string = |value: &str| serde_json::Value::String(value.to_string());
         let expected_config = HashMap::from([

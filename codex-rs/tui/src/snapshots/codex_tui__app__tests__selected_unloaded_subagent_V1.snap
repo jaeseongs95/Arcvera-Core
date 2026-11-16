@@ -3,7 +3,8 @@ source: tui/src/app/tests.rs
 assertion_line: 2870
 expression: "normalize_snapshot_paths(render_bottom_popup(&app.chat_widget, 80))"
 ---
-Subagents: completed 1 · /subagents
+Subagents: completed 1 · /subagents · alt+s expand · click
+  Main agent
 
 
 › Ask Codex to do anything

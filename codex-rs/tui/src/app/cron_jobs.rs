@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! CLI-lifetime cron integration: immutable targets, normal protocol input, one loop deadline.
 use super::*;
@@ -2151,10 +2152,27 @@ mod tests {
         let mut session =
             Box::pin(crate::start_embedded_app_server_for_picker(&app.config)).await?;
         let started = session.start_thread(&app.config).await?;
-        assert!(
-            !started.task_tools_available,
-            "예약만으로 일반 작업 도구를 활성화하지 않음"
-        );
+        // Native transport includes non-delegating task tools in addition to cron.
+        assert!(started.task_tools_available);
+        let specs = crate::dynamic_tools::non_delegation_tool_specs();
+        let [codex_app_server_protocol::DynamicToolSpec::Namespace(namespace)] = specs.as_slice()
+        else {
+            panic!("expected native task tools namespace");
+        };
+        let names: Vec<_> = namespace
+            .tools
+            .iter()
+            .map(|tool| match tool {
+                codex_app_server_protocol::DynamicToolNamespaceTool::Function(function) => {
+                    function.name.as_str()
+                }
+            })
+            .collect();
+        assert!(names.contains(&"list_threads"));
+        assert!(names.contains(&crate::cron_tools::NAME));
+        for name in crate::dynamic_tools::DELEGATION_TOOLS {
+            assert!(!names.contains(&name));
+        }
         let caller = started.session.thread_id;
         app.enqueue_primary_thread_session(started.session, started.turns)
             .await?;
