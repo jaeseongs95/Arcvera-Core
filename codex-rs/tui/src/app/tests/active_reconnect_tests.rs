@@ -465,6 +465,7 @@ async fn reconnect_restores_history_permissions_and_resumes_unsent_input() -> Re
             let mut methods = Vec::new();
             for attempt in 0..2 {
                 let (stream, _) = listener.accept().await?;
+                let mut registered_mcp_origin = None;
                 methods.extend(serve_reconnect_requests(tokio_tungstenite::accept_async(stream).await?, |request| std::future::ready(match request.method.as_str() {
                     "thread/resume" if attempt == 0 => Some(json!({"error": {"code": resume_error_code, "message":
                         if resume_error_code == -32600 {
@@ -479,6 +480,15 @@ async fn reconnect_restores_history_permissions_and_resumes_unsent_input() -> Re
                         assert!(params["model"].is_null());
                         let mut result = json!({"thread": thread, "model": "gpt-test", "modelProvider": "test-provider", "cwd": cwd,
                             "approvalPolicy": "never", "approvalsReviewer": "user", "sandbox": {"type": "dangerFullAccess"}, "reasoningEffort": null});
+                        if !params["runtimeDynamicTools"].is_null() {
+                            registered_mcp_origin = params["runtimeMcpServers"]["codex_tui"]["url"]
+                                .as_str()
+                                .map(|value| url::Url::parse(value).unwrap().origin().ascii_serialization());
+                            result["runtimeDynamicToolsApplied"] = json!(true);
+                            result["runtimeDynamicToolsRuntimeId"] = json!("reconnected-runtime");
+                            result["runtimeMcpServersApplied"] = json!(true);
+                            result["runtimeMcpRegistrationId"] = json!("reconnected-registration");
+                        }
                         if let Some(mode) = &server_mode {
                             result["collaborationMode"] = json!(mode);
                         }
@@ -487,6 +497,15 @@ async fn reconnect_restores_history_permissions_and_resumes_unsent_input() -> Re
                     "thread/read" => Some(json!({"result": {"thread": thread}})),
                     "thread/list" | "thread/loaded/list" => Some(json!({"result": {"data": [], "nextCursor": null}})),
                     "thread/goal/get" => Some(json!({"result": {"goal": null}})),
+                    "mcpServerStatus/list" => {
+                        assert_eq!(request.params.as_ref().unwrap()["threadId"], id.to_string());
+                        Some(json!({"result": {"data": [{
+                            "name": "codex_tui", "runtimeRegistrationId": "reconnected-registration",
+                            "runtimeStatus": "connected", "httpOrigin": registered_mcp_origin,
+                            "tools": {"list_threads": {"name": "list_threads", "inputSchema": {"type": "object"}}},
+                            "resources": [], "resourceTemplates": [], "authStatus": "unsupported"
+                        }], "nextCursor": null}}))
+                    }
                     "turn/start" => {
                         assert!(!edit_offline);
                         let params = request.params.as_ref().unwrap();

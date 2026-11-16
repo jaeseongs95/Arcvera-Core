@@ -296,6 +296,9 @@ pub(crate) async fn request_thread_start_with_history_fallback(
                         ),
                     });
                 }
+                let task_tools_available = task_tools_available
+                    || (params.runtime_mcp_servers.is_some()
+                        && response.runtime_mcp_servers_applied == Some(true));
                 return Ok((response, history_support, task_tools_available));
             }
             Err(TypedRequestError::Server { source, .. })
@@ -1506,7 +1509,7 @@ impl AppServerSession {
             started.session.daybreak_enabled = false;
         }
         started.session.fork_parent_title = fork_parent.and_then(|thread| thread.name);
-        if !runtime_mcp_requested && self.task_tools_available(thread_id) {
+        if runtime_mcp_requested || self.task_tools_available(thread_id) {
             started.task_tools_available = true;
             self.remember_task_tool_thread(started.session.thread_id);
         }

@@ -420,9 +420,6 @@ impl AppServerSession {
         {
             params.model_provider = self.explicit_model_provider(&config);
         }
-        if self.thread_params_mode().settings_owner() == ThreadSettingsOwner::Client {
-            self.thread_tool_transport().configure_resume(&mut params);
-        }
         let paginated = self.history_support == ThreadHistorySupport::Paginated;
         let cached_legacy = paginated
             && self
@@ -442,10 +439,19 @@ impl AppServerSession {
         let metadata = Box::pin(self.thread_read(thread_id, /*include_turns*/ false))
             .await
             .ok();
+        let blocks_direct_input = metadata
+            .as_ref()
+            .is_some_and(super::thread_blocks_direct_input);
+        if self.thread_params_mode().settings_owner() == ThreadSettingsOwner::Client
+            && !blocks_direct_input
+        {
+            self.thread_tool_transport().configure_resume(&mut params);
+        }
         let known_legacy = cached_legacy
             && (!self.uses_embedded_app_server()
                 || (rollout_maintenance_guard.is_some()
                     && metadata
+                        .as_ref()
                         .is_some_and(|thread| thread.history_mode == ThreadHistoryMode::Legacy)));
         params.exclude_turns = paginated && !known_legacy;
         if params.exclude_turns {
@@ -570,7 +576,9 @@ impl AppServerSession {
         )
         .await?;
         started.session.fork_parent_title = fork_parent_title;
-        if params.runtime_mcp_servers.is_none() && self.task_tools_available(thread_id) {
+        if (runtime_mcp_confirmed && params.runtime_mcp_servers.is_some())
+            || (params.runtime_mcp_servers.is_none() && self.task_tools_available(thread_id))
+        {
             self.remember_task_tool_thread(thread_id);
             started.task_tools_available = true;
         }
