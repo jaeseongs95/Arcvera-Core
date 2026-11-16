@@ -1,5 +1,10 @@
 # Arcvera-Core 1.1.0 candidate / 1.1.0 후보
 
+Memory reads now observe consolidation state before capturing publication artifacts, preventing the reproduced old-generation/new-completion race. A deterministic regression uses the real request dispatcher, SQLite publication transaction and artifact reader. The Core compaction test uses the public `codex_history::context_index::ContextIndex` path. These source changes do not by themselves establish final release validation; the release verification appendix identifies executed checks and their limits.
+
+메모리 읽기는 통합 상태를 먼저 조회한 뒤 게시 산출물을 캡처하여 재현된 이전 세대·새 완료 상태 혼합 경쟁을 방지합니다. 결정적 회귀시험은 실제 요청 처리기, SQLite 게시 트랜잭션과 산출물 reader를 사용합니다. Core 압축시험의 참조는 공개 경로인 `codex_history::context_index::ContextIndex`로 수정합니다. 소스 변경만으로 최종 릴리스 검증을 뜻하지 않으며, 실제 검사 결과와 한계는 릴리스 검증 부록에 기록합니다.
+
+
 Startup memory fixtures explicitly select their legacy namespace and grant their temporary parent access to isolated staging. Assertions follow the host-selected immutable publication and resource fingerprints, preserve original inputs, and check rejection when required hooks prevent Windows worker isolation. Production permission checks are unchanged. Native verification is pending.
 
 메모리 시작 시험은 기존 namespace를 명시하고 임시 부모에 격리 stage 접근 권한을 부여합니다. 호스트가 선택한 불변 발행물과 리소스 해시, 원본 입력 보존을 검사하며 필수 hook 제약으로 Windows 작업자 격리가 불가능한 경우 차단을 확인합니다. 제품 권한 검사는 유지하며 네이티브 검증은 대기 중입니다.

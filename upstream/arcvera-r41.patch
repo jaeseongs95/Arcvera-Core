@@ -1162,11 +1162,16 @@ index 0000000000000000000000000000000000000000..6c2e29d22f88ea45e9e6e2efad667437
 +없으면 해당 의존성을 제외하고 공식 제공자의 직접 설치 방법을 안내합니다.
 +동봉하는 오픈소스의 소스 제공·고지 등 의무는 계속 유지합니다.
 diff --git a/MODIFICATIONS.md b/MODIFICATIONS.md
-index c3febe7112813d655a8b6c2367e9057cca8d1705..e50be7e4270f4455ca0d155974455ce56233aaa4 100644
+index c3febe7112813d655a8b6c2367e9057cca8d1705..50f51dde4b4d5a64e308c539287cd63a05c56ca8 100644
 --- a/MODIFICATIONS.md
 +++ b/MODIFICATIONS.md
-@@ -1,3 +1,87 @@
+@@ -1,3 +1,92 @@
 +# Arcvera-Core 1.1.0 candidate / 1.1.0 후보
++
++Memory reads now observe consolidation state before capturing publication artifacts, preventing the reproduced old-generation/new-completion race. A deterministic regression uses the real request dispatcher, SQLite publication transaction and artifact reader. The Core compaction test uses the public `codex_history::context_index::ContextIndex` path. These source changes do not by themselves establish final release validation; the release verification appendix identifies executed checks and their limits.
++
++메모리 읽기는 통합 상태를 먼저 조회한 뒤 게시 산출물을 캡처하여 재현된 이전 세대·새 완료 상태 혼합 경쟁을 방지합니다. 결정적 회귀시험은 실제 요청 처리기, SQLite 게시 트랜잭션과 산출물 reader를 사용합니다. Core 압축시험의 참조는 공개 경로인 `codex_history::context_index::ContextIndex`로 수정합니다. 소스 변경만으로 최종 릴리스 검증을 뜻하지 않으며, 실제 검사 결과와 한계는 릴리스 검증 부록에 기록합니다.
++
 +
 +Startup memory fixtures explicitly select their legacy namespace and grant their temporary parent access to isolated staging. Assertions follow the host-selected immutable publication and resource fingerprints, preserve original inputs, and check rejection when required hooks prevent Windows worker isolation. Production permission checks are unchanged. Native verification is pending.
 +
@@ -1253,7 +1258,7 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..e50be7e4270f4455ca0d155974455ce5
  # R39 compact 개발 후보 (2026-11-07)
  
  정식 발행·동결된 R38과 같은 공식 0.167.0 기반에서 압축 동작만 변경합니다. 버전은 `0.167.0+native-r39.20261107`이며, 고정 소스는 `c4399dce957bb63fe1fdc276aa4306c06f6cf47f`입니다. 메모리 리팩토링·후크·캐싱·스크롤 감도·한글화·컨텍스트 조회의 미완 작업은 R40으로 이관하며 이번 변경에 포함하지 않습니다. 현재 소스·시험 후보이며 최종 빌드·발행은 미완료입니다.
-@@ -701,3 +785,30 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
+@@ -701,3 +790,30 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
  고정 소스 `8e9b7eff953e750e8f071d101233920108e5ca26`는 R37 이후의 별도 개발 후보다. 플러그인 payload 비교에서 정확한 `.git`만 제외하고, 암시적 daemon의 전체 버전 확인과 실제 시작·재연결 화면 안내를 보강했다. Stop 속성의 명시적 교정 도구와 재로드 경고의 한국어/영어 안내, 에이전트 목록의 메인 마우스 복귀 및 작은 밑줄만 사용하는 hover를 포함한다.
  
  요구별 실행 결과·원래 실패·미검증 경계는 [R38 범위](docs/native-cli-r38.ko.md)와 연결된 사례 문서를 따른다. 운영 설정 자동 교정·R38 최종 릴리스 빌드·공개·설치는 수행하지 않았다. R37 동결 실행 파일은 변경하지 않았다.
@@ -1285,10 +1290,10 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..e50be7e4270f4455ca0d155974455ce5
 +영문·한글 공식 설치 안내를 제공하며 기존 실행 파일과 네이티브 소스 출처는
 +변경하지 않습니다. 패키징 변경의 커밋과 대응소스는 별도로 기록합니다.
 diff --git a/README.ko.md b/README.ko.md
-index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..6e8be821753edbab77218941e94e965394a26272 100644
+index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..cd2c4b73d1ef0eca76e43aaedb7dda71a162e6a0 100644
 --- a/README.ko.md
 +++ b/README.ko.md
-@@ -1,55 +1,62 @@
+@@ -1,55 +1,64 @@
 -# OpenDIY Codex
 +# Arcvera-Core
  
@@ -1307,11 +1312,11 @@ index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..6e8be821753edbab77218941e94e9653
 -3. `bin\codex.exe`를 실행합니다. 소스 컴파일이나 CMD 실행 파일 사용은 필수가 아닙니다.
 -
 -R40의 경우 첫 명령은 다운로드 폴더에서, 두 번째 명령은 압축을 푼 패키지 폴더에서 실행합니다.
-+Windows x86-64 전체 ZIP과 `SHA256SUMS.txt`를 받고 ZIP 해시를 비교한 뒤 새 폴더에 압축을 풉니다. 1.0.1의 명령은 다음과 같습니다.
++Windows x86-64 전체 ZIP과 `SHA256SUMS.txt`를 받고 ZIP 해시를 비교한 뒤 새 폴더에 압축을 풉니다. 1.1.0의 명령은 다음과 같습니다.
  
  ```powershell
 -Get-FileHash .\opendiy-codex-r40-windows-x86_64.zip -Algorithm SHA256
-+Get-FileHash .\arcvera-core-1.0.1-windows-x86_64.zip -Algorithm SHA256
++Get-FileHash .\arcvera-core-1.1.0-windows-x86_64.zip -Algorithm SHA256
  ```
  
 +압축을 푼 폴더에서 실행합니다.
@@ -1345,27 +1350,29 @@ index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..6e8be821753edbab77218941e94e9653
 +## 현재 릴리스
  
 -### 개별 실행 파일
-+Arcvera-Core **1.0.1**은 네이티브 홈 분리·업데이트 정책 핫픽스입니다. `arcvera`, `ARCVERA_HOME`, `~/.arcvera`를 도입하고 상속된 자동 설치기와 업데이트 피드를 비활성화합니다. 새 버전은 이 저장소의 릴리스에서 직접 다운로드하십시오. [영한 릴리스 노트](docs/releases/v1.0.1.md)에 소스 기준 시점과 최종 실행본 검증 기록을 구분합니다.
++Arcvera-Core **1.1.0**은 인덱스 문맥 선택, 크기가 제한된 메모리 발행, 캐시 정책 가시성과 MCP/hook 수명 관리를 추가합니다. 동작·업데이트·복구 안내는 [영한 릴리스 노트](docs/releases/v1.1.0.md)를 확인하십시오. 해당 버전의 검증 부록과 `SHA256SUMS.txt`는 [릴리스 자산](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v1.1.0)에 제공합니다.
  
 -릴리스에는 `codex.exe`, `codex-app-server.exe`, `codex-code-mode-host.exe`도 개별 자산으로 제공됩니다. 세 파일은 같은 릴리스의 것을 사용합니다. 실제로 실행하는 EXE와 같은 폴더에 helper를 `codex-code-mode-host.exe`라는 원래 이름으로 둡니다. helper가 없으면 `os error 2`가 발생할 수 있습니다. CLI와 서버를 함께 두면 세 파일 모두 같은 폴더에 둡니다.
-+이전 [1.0.0 릴리스](docs/releases/R41.md)는 R41 대화 기능과 버전 계약 변경을 포함합니다. 과거 시험 결과는 1.0.1의 검증 근거가 아닙니다. 구조 개선은 [R42](docs/roadmap/R42.md)에 유지합니다. 제품 버전은 공식 Codex 0.167.0과 독립적입니다.
++이전 [1.0.1 릴리스](docs/releases/v1.0.1.md)는 홈 분리와 직접 업데이트 정책을 도입했습니다. 과거 시험 결과는 1.1.0의 검증 근거가 아닙니다. 구조 개선은 [R42](docs/roadmap/R42.md)에 유지합니다. 제품 버전은 공식 Codex 0.167.0과 독립적입니다.
  
 -이 세 파일은 관리형 서버 설치용 전체 패키지가 아닙니다. 음성 리소스, launcher, updater 지원과 `app-server daemon update --from-cli`에는 전체 ZIP이 필요합니다. 다운로드·버전 확인은 새 PC에서의 최초 설치 시험을 뜻하지 않습니다.
-+## 1.1.0 후보: 문맥과 캐시 제어
++### 문맥과 캐시 제어
  
 -## 현재 릴리스
-+후보는 비동기 hook과 수명 관리 작업을 합쳐 미완료 작업 72개까지 접수하며, 명령 hook은 최대 8개를 동시에 실행합니다. 입력 JSON 직렬화 크기의 합계는 16 MiB로 제한하고 포화 시 오류를 알립니다. 상속한 사용자 원문은 worker 권한과 분리된 유한 보관 영역에서 checkpoint 이후에도 유지하며, standalone root는 상속 출처로 채택합니다. 이전 checkpoint에서 이미 사라진 원문은 재구성할 수 없습니다. 이 변경의 네이티브 및 공동 검증은 아직 필요합니다.
++1.1.0은 비동기 hook과 수명 관리 작업을 합쳐 미완료 작업 72개까지 접수하며, 명령 hook은 최대 8개를 동시에 실행합니다. 입력 JSON 직렬화 크기의 합계는 16 MiB로 제한하고 포화 시 오류를 알립니다. 상속한 사용자 원문은 worker 권한과 분리된 유한 보관 영역에서 checkpoint 이후에도 유지하며, standalone root는 상속 출처로 채택합니다. 이전 checkpoint에서 이미 사라진 원문은 재구성할 수 없습니다. 실행한 네이티브·공동 검증과 한계는 릴리스 검증 부록에 기록합니다.
 +
-+1.1.0 후보는 네이티브 검증 중이며 아직 발행된 릴리스가 아닙니다. 인덱스 문맥은 작업 조각과 의존 항목을 모델의 활성 입력에 선택하고 원문은 권한에 따른 조회를 위해 보존합니다. 무관한 상세 내용을 활성 입력에서 제외해도 원문을 삭제하지 않습니다. 요청 전용 탐색 정보는 선택된 이력 뒤에 놓여 탐색 정보 변경이 안정적인 접두부를 바꾸지 않도록 합니다. 인덱스 포커스가 있으면 선택 문맥이 입력 예산을 사용하며 한도를 초과할 때 필수 근거를 요약으로 대체하지 않고 오류를 알립니다.
++메모리 통합은 두 격리 경로 모두에서 작업을 시작하기 전에 worker의 실제 적용 기능 정책을 검사합니다. 관리 정책 때문에 금지된 worker 기능이 켜진 채로 남으면 통합은 `unsupported_stage_permissions`로 차단하며 부모 정책은 보존합니다. 네이티브 회귀 검증 근거는 릴리스 검증 부록에 기록합니다.
  
 -| 릴리스 | 주요 변경 | 검증 범위 |
 -| --- | --- | --- |
 -| [R40](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108) · [노트 (EN/KO)](docs/releases/R40.md) | 임시 MCP 재연결, 비차단 컨텍스트 조회, 후크 경계, 스크롤, 한국어 문구, 확인된 메모리·상속 출처 결함 수정 | 최종 CLI·RPC·ConPTY와 격리 TEST Desktop 검사. 실패·미실행 항목은 노트 참조. |
 -| [R39](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r39.20261107) · [노트 (EN/KO)](docs/releases/R39.md) | 미완 작업 중심 압축 | 최종 패키지 격리 검사 15개와 소스 압축 시험. 최종 Desktop 공동시험은 미실행. |
-+실험적 `thread/context/read`는 기존 연결 및 실행 인스턴스 접근 검사 아래 로드된 스레드의 본문 없는 구성 메타데이터를 반환합니다. UTF-8 직렬화된 상주 바이트, 로컬 토큰 추정치와 제공자 보고 사용량을 구분합니다. 페이지는 스냅샷에 묶이며 오래된 스냅샷이면 처음부터 다시 조회해야 합니다. 이용할 수 없는 보관 크기, 제공자 지원, 만료 및 개별 조각 TTL은 미확인 상태로 유지합니다. `hooks/list`는 현재 스레드에 설치된 런타임 정보와 설정 검색을 구분합니다. 재로드 요청 확인은 MCP 준비 완료를 뜻하지 않습니다. Hook stdout과 stderr는 각각 1 MiB로 제한하며 초과 시 오류를 반환합니다.
++인덱스 문맥은 작업 조각과 의존 항목을 모델의 활성 입력에 선택하고 원문은 권한에 따른 조회를 위해 보존합니다. 무관한 상세 내용을 활성 입력에서 제외해도 원문을 삭제하지 않습니다. 요청 전용 탐색 정보는 선택된 이력 뒤에 놓여 탐색 정보 변경이 안정적인 접두부를 바꾸지 않도록 합니다. 인덱스 포커스가 있으면 선택 문맥이 입력 예산을 사용하며 한도를 초과할 때 필수 근거를 요약으로 대체하지 않고 오류를 알립니다.
  
 -두 버전 모두 공식 Codex 0.167.0을 기반으로 합니다. 공개됐다는 사실이 해당 PC의 설치 버전을 뜻하지는 않습니다. 이전 버전은 [릴리스 이력](https://github.com/jaeseongs95/opendiy-codex/releases)에서 확인할 수 있습니다.
-+후보에는 마우스로 활성화하는 HTTP(S) 링크를 위한 `--terminal-link-owner=tui|host`가 추가됩니다. 기본값은 `tui`이며 터미널 호스트가 실제로 링크를 열 때에만 `host`를 지정하십시오. 파일 링크와 프로그램이 인증을 위해 여는 URL은 기존 경로를 유지합니다. 버전 문자열만으로 옵션 지원 여부를 판단하지 마십시오. 협력하는 설정 writer는 해석된 대상을 잠그고 현재 읽은 내용으로 버전을 검사합니다. 비협력 외부 프로세스의 경로 교체는 보장 범위에 포함되지 않습니다. 이 변경의 네이티브 및 Desktop 연동 검증은 진행 중입니다.
++실험적 `thread/context/read`는 기존 연결 및 실행 인스턴스 접근 검사 아래 로드된 스레드의 본문 없는 구성 메타데이터를 반환합니다. UTF-8 직렬화된 상주 바이트, 로컬 토큰 추정치와 제공자 보고 사용량을 구분합니다. 페이지는 스냅샷에 묶이며 오래된 스냅샷이면 처음부터 다시 조회해야 합니다. 이용할 수 없는 보관 크기, 제공자 지원, 만료 및 개별 조각 TTL은 미확인 상태로 유지합니다. `hooks/list`는 현재 스레드에 설치된 런타임 정보와 설정 검색을 구분합니다. 재로드 요청 확인은 MCP 준비 완료를 뜻하지 않습니다. Hook stdout과 stderr는 각각 1 MiB로 제한하며 초과 시 오류를 반환합니다.
++
++1.1.0에는 마우스로 활성화하는 HTTP(S) 링크를 위한 `--terminal-link-owner=tui|host`가 추가됩니다. 기본값은 `tui`이며 터미널 호스트가 실제로 링크를 열 때에만 `host`를 지정하십시오. 파일 링크와 프로그램이 인증을 위해 여는 URL은 기존 경로를 유지합니다. 버전 문자열만으로 옵션 지원 여부를 판단하지 마십시오. 협력하는 설정 writer는 해석된 대상을 잠그고 현재 읽은 내용으로 버전을 검사합니다. 비협력 외부 프로세스의 경로 교체는 보장 범위에 포함되지 않습니다. 네이티브·Desktop 연동 검증 범위는 릴리스 검증 부록을 확인하십시오.
 +
 +프롬프트 캐시 정책은 Responses 호환 제공자에 대해 명시적으로 선택합니다. `example`을 설정한 제공자 ID로 바꾸고 해당 제공자가 선택한 전송 정책을 지원할 때에만 다음 예를 사용하십시오.
 +
@@ -1375,19 +1382,19 @@ index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..6e8be821753edbab77218941e94e9653
 +ttl = "30m" # 또는 "12h"
 +```
 +
-+명시적 레거시 대안은 `kind = "legacy"`와 `retention = "in_memory"` 또는 `"24h"`입니다. 정책을 지정하지 않으면 기존 전송 동작이 유지됩니다. 요청 TTL과 보고된 캐시 활동은 제공자의 지원, 적용 또는 보존을 확인하지 않습니다. 최소 유효 시각, 실제 적용 TTL, 개별 조각 TTL과 서버 확정 만료는 미확인 상태로 유지합니다. TTL은 권한, 필수 선택 또는 원문 보존을 변경하지 않습니다. [1.1.0 후보 안내](docs/releases/v1.1.0.md)를 참고하십시오.
++명시적 레거시 대안은 `kind = "legacy"`와 `retention = "in_memory"` 또는 `"24h"`입니다. 정책을 지정하지 않으면 기존 전송 동작이 유지됩니다. 요청 TTL과 보고된 캐시 활동은 제공자의 지원, 적용 또는 보존을 확인하지 않습니다. 최소 유효 시각, 실제 적용 TTL, 개별 조각 TTL과 서버 확정 만료는 미확인 상태로 유지합니다. TTL은 권한, 필수 선택 또는 원문 보존을 변경하지 않습니다. [1.1.0 릴리스 안내](docs/releases/v1.1.0.md)를 참고하십시오.
  
  ## 대화 제어
  
-@@ -58,6 +65,7 @@ ZIP에는 `codex-patched.cmd`가 이미 포함돼 있습니다. 인자를 `bin\c
+@@ -58,6 +67,7 @@ ZIP에는 `codex-patched.cmd`가 이미 포함돼 있습니다. 인자를 `bin\c
  | 명령 | 용도 |
  | --- | --- |
  | `/context 120000` · `/context reset` | 대화 문맥 크기 지정·초기화 |
-+| `/context inspect` · `/context inspect next` · `/context cancel` | 1.1.0 후보: 크기가 제한된 메타데이터 페이지 조회·표시 취소 |
++| `/context inspect` · `/context inspect next` · `/context cancel` | 크기가 제한된 메타데이터 페이지 조회·표시 취소 |
  | `/memory view` · `/memory enable on` | 메모리 조회·명시적 활성화 |
  | `/cron add --every 10m -- Check whether the build has finished` | 현재 CLI 세션의 반복 프롬프트 예약 |
  | `/cron list` · `/cron remove 1` | 예약 조회·실제 예약 ID로 삭제 |
-@@ -68,26 +76,26 @@ ZIP에는 `codex-patched.cmd`가 이미 포함돼 있습니다. 인자를 `bin\c
+@@ -68,26 +78,26 @@ ZIP에는 `codex-patched.cmd`가 이미 포함돼 있습니다. 인자를 `bin\c
  
  문맥 설정은 모델 한도를 늘리지 않습니다. 메모리 정정이 요약에 즉시 반영되는 것은 아닙니다. 예약은 대화가 바쁘면 해당 회차를 건너뛰며 CLI 종료 시 사라집니다. 자연어 제어에는 실행 중인 CLI의 도구가 필요합니다. 다시 연결 요청 확인이 모든 MCP 서버의 준비 완료를 뜻하지는 않습니다.
  
@@ -1402,14 +1409,14 @@ index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..6e8be821753edbab77218941e94e9653
 +[OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop)은 별도 클라이언트입니다. `arcvera`를 실행하고 기본값이 아닌 프로필은 `ARCVERA_HOME`을 명시해야 합니다. 새 CLI 파일을 선택해도 실행 중 서버는 교체되지 않습니다. 초기화 시 서버와 정확히 같은 전체 Core 버전을 선언해야 합니다.
  
 -연결 성공, initialize 응답, 버전 일치만으로 전체 호환성을 판단할 수 없습니다. 기존 데이터와 진행 중 작업을 보존하며 서버를 자동 교체하지 않습니다.
-+명시적으로 관리 서버를 교체하기 전에 진행 중 작업을 마치십시오. [공유 서버 절차](docs/releases/v1.0.1.md#공유-서버-업데이트)에 따라 실제 서버 버전과 경로를 확인하십시오. ZIP 압축 해제는 프로필을 이전하거나 실행 중 서버를 교체하지 않습니다.
++명시적으로 관리 서버를 교체하기 전에 진행 중 작업을 마치십시오. [공유 서버 절차](docs/releases/v1.1.0.md#공유-서버-업데이트)에 따라 실제 서버 버전과 경로를 확인하십시오. ZIP 압축 해제는 프로필을 이전하거나 실행 중 서버를 교체하지 않습니다.
  
  ## 검증과 제한
  
 -시험한 실행본, 원 실패와 미실행 항목은 해당 태그의 릴리스 노트에서 확인합니다. 실제 모델의 압축 의미 품질, 물리 키보드·IME·음성 동작, 최초 설치, 장시간 부하에는 노트에 명시한 검증 공백이 있습니다. 이 시험으로 모든 GUI 지연이나 메모리 증가가 해결됐다고 판단할 수는 없습니다.
-+[릴리스 노트](docs/releases/v1.0.1.md)는 소스 시험·최종 실행본·미실행 항목을 구분합니다. 최초의 중첩 SQLite/socket 오류는 새 1.0.0 시험 홈에서 재현되지 않았습니다. 홈 충돌과 상속된 updater 동작은 별도로 확인한 결함이며, 이를 고쳤다는 사실만으로 원 오류의 직접 원인이 입증되지는 않습니다.
++[릴리스 노트](docs/releases/v1.1.0.md)와 해당 버전의 릴리스 검증 부록은 소스 시험·최종 실행본·미실행 항목을 구분합니다. 최초의 중첩 SQLite/socket 오류는 새 1.0.0 시험 홈에서 재현되지 않았습니다. 홈 충돌과 상속된 updater 동작은 별도로 확인한 결함이며, 이를 고쳤다는 사실만으로 원 오류의 직접 원인이 입증되지는 않습니다.
 +
-+실계정·실모델, 물리 IME, 음성, 장시간 부하, 새 PC의 런타임 설치는 별도 검증이 필요합니다. 원본 구현 명칭의 완전한 제거와 멀티벤더 로그인은 이번 핫픽스에 포함하지 않습니다.
++실계정·실모델, 물리 IME, 음성, 장시간 부하, 새 PC의 런타임 설치는 별도 검증이 필요합니다. 원본 구현 명칭의 완전한 제거와 멀티벤더 로그인은 이번 릴리스에 포함하지 않습니다.
  
 -R40에는 메모리 전면 개편, 새로운 CodeMode 구조, 전체 리팩토링, 구조적 캐싱 개선이 포함되지 않습니다. 화면 이력 제한은 전체 프로세스 메모리 제한이 아니며 파일 생성은 클라우드 업로드 성공의 증거가 아닙니다.
 +[검증](docs/TESTING.md) · [소스 빌드](docs/source-import.md) · [Windows 패키징](tools/windows-cli/README.md) · [변경 고지](MODIFICATIONS.md)
@@ -1425,10 +1432,10 @@ index 4edf81a04fb99b559e4966a8f71fd90356e2fef5..6e8be821753edbab77218941e94e9653
 -[Apache-2.0](LICENSE) · [NOTICE](NOTICE)
 +[AGPL-3.0-or-later](LICENSE) · [라이선스](LICENSING.md) · [원 Apache-2.0](LICENSE-APACHE-2.0) · [NOTICE](NOTICE)
 diff --git a/README.md b/README.md
-index 4fbf1c87d2f614904d8f43660f15495977558d7d..be8d0c745b34f36eb53096de527b4467ea8a9a07 100644
+index 4fbf1c87d2f614904d8f43660f15495977558d7d..08d3e96c6cb67d330afe3c34ec6480778a5b9b99 100644
 --- a/README.md
 +++ b/README.md
-@@ -1,55 +1,62 @@
+@@ -1,55 +1,64 @@
 -# OpenDIY Codex
 +# Arcvera-Core
  
@@ -1447,11 +1454,11 @@ index 4fbf1c87d2f614904d8f43660f15495977558d7d..be8d0c745b34f36eb53096de527b4467
 -3. Run `bin\codex.exe`. Source compilation and CMD launchers are optional.
 -
 -For R40, run the first command in the download folder and the second in the extracted package folder:
-+Download the complete Windows x86-64 ZIP and `SHA256SUMS.txt`, compare the ZIP hash, and extract to a new folder. For version 1.0.1:
++Download the complete Windows x86-64 ZIP and `SHA256SUMS.txt`, compare the ZIP hash, and extract to a new folder. For version 1.1.0:
  
  ```powershell
 -Get-FileHash .\opendiy-codex-r40-windows-x86_64.zip -Algorithm SHA256
-+Get-FileHash .\arcvera-core-1.0.1-windows-x86_64.zip -Algorithm SHA256
++Get-FileHash .\arcvera-core-1.1.0-windows-x86_64.zip -Algorithm SHA256
  ```
  
 +In the extracted folder:
@@ -1487,25 +1494,27 @@ index 4fbf1c87d2f614904d8f43660f15495977558d7d..be8d0c745b34f36eb53096de527b4467
 +## Current releases
  
 -These three files are not a complete managed-server installation package. Voice resources, launchers, updater support, and `app-server daemon update --from-cli` require the complete ZIP. Download and version checks do not establish first-time installation on a new PC.
-+Arcvera-Core **1.0.1** is the native home-isolation and update-policy hotfix. It introduces `arcvera`, `ARCVERA_HOME` and `~/.arcvera`, and disables inherited automatic installers and update feeds. Download new versions manually from this repository's releases. See the [bilingual release note](docs/releases/v1.0.1.md) for the source snapshot and final executable verification record.
++Arcvera-Core **1.1.0** adds indexed context selection, bounded memory publication, cache-policy visibility and MCP/hook lifecycle controls. See the [bilingual release note](docs/releases/v1.1.0.md) for behavior, update and recovery instructions. The version-matched verification appendix and `SHA256SUMS.txt` are provided with the [release assets](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v1.1.0).
  
 -## Current releases
-+The previous [1.0.0 release](docs/releases/R41.md) introduced the R41 conversation and version-contract changes. Its historical test results do not establish the correctness of 1.0.1. Broader architecture work remains in [R42](docs/roadmap/R42.md). Release versions are independent of upstream Codex 0.167.0.
++The previous [1.0.1 release](docs/releases/v1.0.1.md) introduced home isolation and the manual-update policy. Its historical test results do not establish the correctness of 1.1.0. Broader architecture work remains in [R42](docs/roadmap/R42.md). Release versions are independent of upstream Codex 0.167.0.
 +
-+## 1.1.0 candidate: context and cache controls
++### Context and cache controls
 +
-+The candidate bounds unfinished asynchronous hooks and lifecycle coordinators to 72 jobs, with up to eight command hooks executing and a shared 16 MiB serialized-input budget. Saturation reports an error. Inherited user sources survive worker checkpoints in a bounded archive that is separate from worker permissions; standalone roots adopt those sources with inherited provenance. Sources already lost by an older checkpoint cannot be reconstructed. These changes still require the candidate's native and joint verification.
++Version 1.1.0 bounds unfinished asynchronous hooks and lifecycle coordinators to 72 jobs, with up to eight command hooks executing and a shared 16 MiB serialized-input budget. Saturation reports an error. Inherited user sources survive worker checkpoints in a bounded archive that is separate from worker permissions; standalone roots adopt those sources with inherited provenance. Sources already lost by an older checkpoint cannot be reconstructed. The release verification appendix identifies the executed native and joint checks and their limits.
++
++Memory consolidation checks the worker’s effective feature policy before starting either isolation path. If a managed policy keeps a forbidden worker feature enabled, consolidation is blocked with `unsupported_stage_permissions`; the parent’s policy is preserved. The release verification appendix records the native regression evidence.
  
 -| Release | Main change | Verification boundary |
 -| --- | --- | --- |
 -| [R40](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r40.20261108) · [Notes (EN/KO)](docs/releases/R40.md) | Temporary MCP reconnection, nonblocking context lookup, hook boundaries, scrolling, Korean text, and confirmed memory/provenance fixes | Final CLI, RPC, ConPTY, and isolated TEST Desktop checks; see the notes for failures and unrun cases. |
 -| [R39](https://github.com/jaeseongs95/opendiy-codex/releases/tag/v0.167.0-r39.20261107) · [Notes (EN/KO)](docs/releases/R39.md) | Compaction focused on unfinished work | 15 isolated final-package checks plus source compaction tests. Final Desktop joint testing was not run. |
-+The 1.1.0 candidate is under native verification and is not yet a published release. Indexed context selects task fragments and dependencies for active model input while preserving originals for authorized retrieval. Unrelated details can leave active input without deleting their originals. Request-only navigation follows selected history, so navigation changes do not disturb its stable prefix. With an indexed focus, selected context owns its input budget; an oversized selection reports an error instead of silently replacing required evidence with a summary.
++Indexed context selects task fragments and dependencies for active model input while preserving originals for authorized retrieval. Unrelated details can leave active input without deleting their originals. Request-only navigation follows selected history, so navigation changes do not disturb its stable prefix. With an indexed focus, selected context owns its input budget; an oversized selection reports an error instead of silently replacing required evidence with a summary.
  
 -Both are based on official Codex 0.167.0. Publication does not establish the version installed on a PC. Earlier versions remain in the [release history](https://github.com/jaeseongs95/opendiy-codex/releases).
 +The experimental `thread/context/read` returns body-free metadata for a loaded thread through the existing connection and runtime access checks. It separates UTF-8 serialized resident bytes, local token estimates and provider-reported usage. Pages bind to a snapshot; restart pagination on a stale snapshot. Unavailable archive sizes, provider support, expiry and individual fragment TTLs remain unknown. `hooks/list` distinguishes installed current-thread runtime information from configuration discovery. Reload acknowledgement alone does not establish MCP readiness. Hook stdout and stderr are each limited to 1 MiB; exceeding a limit produces an error.
 +
-+The candidate adds `--terminal-link-owner=tui|host` for mouse-activated HTTP(S) links. The default is `tui`; select `host` only when the terminal host actually opens those links. File links and URLs opened programmatically for authentication retain their existing handling. Do not infer option support from a version string alone. Cooperating configuration writers use the resolved target for locking and the current read for version checks; independent external path replacement is not covered. These changes await native and Desktop integration verification.
++Version 1.1.0 adds `--terminal-link-owner=tui|host` for mouse-activated HTTP(S) links. The default is `tui`; select `host` only when the terminal host actually opens those links. File links and URLs opened programmatically for authentication retain their existing handling. Do not infer option support from a version string alone. Cooperating configuration writers use the resolved target for locking and the current read for version checks; independent external path replacement is not covered. See the release verification appendix for native and Desktop integration coverage.
 +
 +Prompt cache policy is opt-in for a Responses-compatible provider. Replace `example` with the configured provider ID, and use this example only when that provider supports the selected wire policy:
 +
@@ -1515,19 +1524,19 @@ index 4fbf1c87d2f614904d8f43660f15495977558d7d..be8d0c745b34f36eb53096de527b4467
 +ttl = "30m" # or "12h"
 +```
 +
-+The explicit legacy alternative is `kind = "legacy"` with `retention = "in_memory"` or `"24h"`. Without a policy the existing wire behavior is preserved. Requested TTL and reported cache activity do not confirm provider support, application or retention. Minimum validity, effective TTL, individual fragment TTL and server-confirmed expiry remain unknown. TTL does not change authorization, required selection or original retention. See the [1.1.0 candidate notes](docs/releases/v1.1.0.md).
++The explicit legacy alternative is `kind = "legacy"` with `retention = "in_memory"` or `"24h"`. Without a policy the existing wire behavior is preserved. Requested TTL and reported cache activity do not confirm provider support, application or retention. Minimum validity, effective TTL, individual fragment TTL and server-confirmed expiry remain unknown. TTL does not change authorization, required selection or original retention. See the [1.1.0 release notes](docs/releases/v1.1.0.md).
  
  ## Conversation controls
  
-@@ -58,6 +65,7 @@ Enter these in the CLI conversation input, not PowerShell.
+@@ -58,6 +67,7 @@ Enter these in the CLI conversation input, not PowerShell.
  | Command | Purpose |
  | --- | --- |
  | `/context 120000` · `/context reset` | Set or reset the conversation context override |
-+| `/context inspect` · `/context inspect next` · `/context cancel` | 1.1.0 candidate: inspect bounded metadata pages or cancel their presentation |
++| `/context inspect` · `/context inspect next` · `/context cancel` | Inspect bounded metadata pages or cancel their presentation |
  | `/memory view` · `/memory enable on` | Inspect memory or explicitly enable it |
  | `/cron add --every 10m -- Check whether the build has finished` | Schedule a repeating prompt for this CLI session |
  | `/cron list` · `/cron remove 1` | Inspect schedules or remove the actual schedule ID |
-@@ -68,26 +76,27 @@ Enter these in the CLI conversation input, not PowerShell.
+@@ -68,26 +78,27 @@ Enter these in the CLI conversation input, not PowerShell.
  
  Context overrides cannot exceed the model limit. Memory corrections are not immediate summary consolidation. Schedules skip busy occurrences and disappear when the CLI exits. Natural-language controls need the running CLI's tools. Reload acknowledgement does not prove every MCP server is ready.
  
@@ -1543,14 +1552,14 @@ index 4fbf1c87d2f614904d8f43660f15495977558d7d..be8d0c745b34f36eb53096de527b4467
 +[OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop) is a separate client. It must launch `arcvera` and explicitly select `ARCVERA_HOME` when using a nondefault profile. Selecting a new CLI file does not replace a running server. Clients must declare the server's exact full Core version at initialization.
  
 -A connection, initialize response, or matching version alone does not prove full compatibility. Existing data and active work are preserved without automatic server replacement.
-+Finish active work before an explicit managed-server replacement. Follow the [shared-server procedure](docs/releases/v1.0.1.md#shared-server-update), then verify the actual server version and path. No automatic profile migration or running-server replacement is performed by extracting the ZIP.
++Finish active work before an explicit managed-server replacement. Follow the [shared-server procedure](docs/releases/v1.1.0.md#shared-server-update), then verify the actual server version and path. No automatic profile migration or running-server replacement is performed by extracting the ZIP.
  
  ## Validation and limits
  
 -Tagged release notes identify tested binaries, original failures, and unrun cases. Real-model compaction quality, physical keyboard/IME and voice behavior, first-time installation, and sustained workloads have the gaps specified there. These tests do not establish that all GUI delays or memory growth have been resolved.
-+The [release note](docs/releases/v1.0.1.md) separates source tests, final binaries and unrun cases. The originally reported nested SQLite/socket error has not been reproduced in a fresh 1.0.0 fixture; home collision and inherited updater behavior are independently confirmed defects. Their correction is not proof of the original error's direct cause.
++The [release note](docs/releases/v1.1.0.md) and version-matched release verification appendix separate source tests, final binaries and unrun cases. The originally reported nested SQLite/socket error has not been reproduced in a fresh 1.0.0 fixture; home collision and inherited updater behavior are independently confirmed defects. Their correction is not proof of the original error's direct cause.
 +
-+Real-account/model behavior, physical IME, voice, sustained workloads, and clean-PC runtime installation require separate evidence. Full removal of upstream implementation names and multi-vendor login are not included in this hotfix.
++Real-account/model behavior, physical IME, voice, sustained workloads, and clean-PC runtime installation require separate evidence. Full removal of upstream implementation names and multi-vendor login are not included in this release.
  
 -R40 excludes a full memory redesign, a new CodeMode architecture, broad refactoring, and structural caching improvements. Display-history bounds are not total process-memory limits; file creation is not proof of cloud upload.
 +[Validation](docs/TESTING.md) · [Source build](docs/source-import.md) · [Windows packaging](tools/windows-cli/README.md) · [Modifications](MODIFICATIONS.md)
@@ -21961,7 +21970,7 @@ index 7dd6c9ed81581b4f10e21e8829c7d3c1169bafa7..a92202e22fcfb0014be93cd44067d541
      )
      .await;
 diff --git a/codex-rs/app-server/src/message_processor_passive_tests.rs b/codex-rs/app-server/src/message_processor_passive_tests.rs
-index 72fd4afd0fd02fa6f325573a633caa4609f707e3..bab52bc2a23d02115042063354ddac81cba94e11 100644
+index 72fd4afd0fd02fa6f325573a633caa4609f707e3..3f65bf7f91a83f1dda01633e90eebd6cd8345a06 100644
 --- a/codex-rs/app-server/src/message_processor_passive_tests.rs
 +++ b/codex-rs/app-server/src/message_processor_passive_tests.rs
 @@ -1,3 +1,5 @@
@@ -22011,7 +22020,7 @@ index 72fd4afd0fd02fa6f325573a633caa4609f707e3..bab52bc2a23d02115042063354ddac81
          }}),
      )
      .await;
-@@ -138,6 +165,135 @@ fn assert_passive_unavailable(error: codex_app_server_protocol::JSONRPCErrorErro
+@@ -138,12 +165,252 @@ fn assert_passive_unavailable(error: codex_app_server_protocol::JSONRPCErrorErro
      );
  }
  
@@ -22147,7 +22156,124 @@ index 72fd4afd0fd02fa6f325573a633caa4609f707e3..bab52bc2a23d02115042063354ddac81
  async fn finish(processor: &Arc<MessageProcessor>, rx: Receiver) {
      drop(rx);
      processor.clear_runtime_references();
-@@ -505,6 +661,7 @@ async fn passive_listener_replays_general_pending_but_emits_no_idle_lifecycle()
+     processor.shutdown_threads().await;
+ }
+ 
++#[tokio::test]
++async fn memory_read_does_not_pair_new_completion_with_old_publication() -> Result<()> {
++    use codex_app_server_protocol::ThreadMemoryReadResponse;
++    use codex_memories_read::publication_snapshot::{
++        ARTIFACT_MANIFEST, MemorySnapshotCapability, PublishedMemorySnapshot,
++        PublishedMemorySnapshotProvider, artifact_manifest_digest, make_artifact_manifest,
++        root_identity,
++    };
++    use codex_protocol::MemoryVersion;
++
++    // Only scheduling is controlled: capture, RPC dispatch, files and DB publication
++    // use the real implementations. The first captured generation stays pinned.
++    struct PauseAfterCapture {
++        inner: Arc<dyn PublishedMemorySnapshotProvider>,
++        gate: tokio::sync::Mutex<Option<(oneshot::Sender<()>, oneshot::Receiver<()>)>>,
++    }
++    impl PublishedMemorySnapshotProvider for PauseAfterCapture {
++        fn capture(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::io::Result<PublishedMemorySnapshot>> + Send + '_>> {
++            Box::pin(async move {
++                let snapshot = self.inner.capture().await?;
++                if let Some((entered, release)) = self.gate.lock().await.take() {
++                    entered.send(()).map_err(|_| std::io::Error::other("capture observer dropped"))?;
++                    release.await.map_err(|_| std::io::Error::other("capture release dropped"))?;
++                }
++                Ok(snapshot)
++            })
++        }
++    }
++    fn generation(root: &std::path::Path, id: &str, summary: &str) -> Result<String> {
++        let directory = root.join(".codex-memory-generations").join(id);
++        std::fs::create_dir_all(&directory)?;
++        std::fs::write(directory.join(".codex-memory-generation"), format!("{}\n{id}\n", root_identity(root)?))?;
++        std::fs::write(directory.join("memory_summary.md"), summary)?;
++        let manifest = make_artifact_manifest(&directory)?;
++        std::fs::write(directory.join(ARTIFACT_MANIFEST), &manifest)?;
++        Ok(artifact_manifest_digest(&manifest))
++    }
++
++    let server = create_mock_responses_server_sequence_unchecked(Vec::new()).await;
++    let home = TempDir::new()?;
++    MockResponsesConfig::new(&server.uri())
++        .enable_feature(codex_features::Feature::MemoryTool)
++        .write(home.path())?;
++    let mut config = ConfigBuilder::default().codex_home(home.path().to_path_buf()).build().await?;
++    config.model_catalog = Some(codex_models_manager::bundled_models_response()?);
++    config.sqlite = codex_state::SqliteConfig::new_for_testing(config.codex_home.clone());
++    config.features.enable(codex_features::Feature::Sqlite)?;
++    let db = codex_core::init_state_db(&config).await.expect("isolated state DB");
++    let config = Arc::new(config);
++    let auth = AuthManager::shared_from_config(config.as_ref(), false).await?;
++    let (processor, mut rx) = build_test_processor_with_state_db(config, auth, Some(db)).await;
++    let connection = ConnectionId(1);
++    let session = initialize(&processor, &mut rx, connection).await;
++    send(&processor, connection, &session, json!({"id":2,"method":"thread/start","params":{
++        "model":"mock-model", "config":{"memories.scope":"global","memories.version":"v1","memories.generate_memories":false}
++    }})).await;
++    let started: ThreadStartResponse = read_response_from(&mut rx, connection, 2).await;
++    let thread_id = ThreadId::from_string(&started.thread.id)?;
++    let thread = processor.thread_processor.thread_manager.get_thread(thread_id).await?;
++    let thread_config = thread.config().await;
++    anyhow::ensure!(thread_config.features.enabled(codex_features::Feature::MemoryTool), "fixture memory tool disabled");
++    let root = thread_config.memories.memory_root(&thread_config.codex_home).expect("global root");
++    let root = root.as_path();
++    std::fs::create_dir_all(root)?;
++    std::fs::OpenOptions::new().read(true).write(true).create_new(true)
++        .open(root.with_extension("lock"))?;
++    std::fs::write(root.join(".codex-memory-managed"), b"managed-memory-v1\n")?;
++    let identity = root_identity(root)?;
++    let old_id = uuid::Uuid::new_v4().to_string();
++    let new_id = uuid::Uuid::new_v4().to_string();
++    let old_digest = generation(root, &old_id, "old baseline")?;
++    let new_digest = generation(root, &new_id, "new consolidated summary")?;
++    let notes = codex_memories_read::publication_notes::notes_digest(root)?;
++    let store = thread.state_db().expect("thread DB").memories_for_version(MemoryVersion::V1).await?;
++    assert!(store.register_legacy_memory_baseline(&identity, &old_id, &notes, &old_digest, false).await?);
++    let codex_state::Phase2JobClaimOutcome::Claimed { ownership_token, input_watermark } =
++        store.try_claim_global_phase2_job(thread_id, 3600).await? else { panic!("fixture claim") };
++    assert!(store.bind_phase2_publication_root(&ownership_token, &identity).await?);
++    let inner = Arc::clone(&thread.thread_extension_data().get::<MemorySnapshotCapability>().expect("real snapshot provider").0);
++    let baseline = inner.capture().await?;
++    assert_eq!(baseline.generation_id.as_deref(), Some(old_id.as_str()), "fixture reader must see the registered old publication");
++    let (entered, captured) = oneshot::channel();
++    let (release, released) = oneshot::channel();
++    thread.thread_extension_data().insert(MemorySnapshotCapability(Arc::new(PauseAfterCapture {
++        inner, gate: tokio::sync::Mutex::new(Some((entered, released))),
++    })));
++    send(&processor, connection, &session, json!({"id":3,"method":"thread/memory/read","params":{
++        "threadId":started.thread.id,"includeDisabled":true
++    }})).await;
++    timeout(DEADLINE, captured).await.map_err(|error| anyhow::anyhow!("read did not reach snapshot capture: {error}"))??;
++    assert!(store.publish_global_phase2_generation(&ownership_token, input_watermark, input_watermark,
++        &[], &identity, &new_id, &notes, &new_digest).await?);
++    release.send(()).expect("release captured read");
++    let first: ThreadMemoryReadResponse = read_response_from(&mut rx, connection, 3).await;
++    assert_eq!(first.generation_id.as_deref(), Some(old_id.as_str()));
++    assert_eq!(first.summary.as_deref(), Some("old baseline"));
++    assert_ne!(first.consolidation.as_ref().map(|state| state.status.as_str()), Some("done"),
++        "a pre-publication snapshot must not report newly completed consolidation");
++
++    send(&processor, connection, &session, json!({"id":4,"method":"thread/memory/read","params":{
++        "threadId":started.thread.id,"includeDisabled":true
++    }})).await;
++    let next: ThreadMemoryReadResponse = read_response_from(&mut rx, connection, 4).await;
++    assert_eq!(next.consolidation.as_ref().map(|state| state.status.as_str()), Some("done"));
++    assert_eq!(next.generation_id.as_deref(), Some(new_id.as_str()));
++    assert_eq!(next.publication_provenance.as_deref(), Some("consolidated"));
++    assert_eq!(next.summary.as_deref(), Some("new consolidated summary"));
++    finish(&processor, rx).await;
++    Ok(())
++}
++
+ #[tokio::test]
+ async fn strict_user_idle_two_connections_admit_one_and_preserve_loser_settings() -> Result<()> {
+     let (release, gate) = oneshot::channel();
+@@ -505,6 +772,7 @@ async fn passive_listener_replays_general_pending_but_emits_no_idle_lifecycle()
          .send_request_to_connections(
              Some(&[owner]),
              ServerRequestPayload::McpServerElicitationRequest(McpServerElicitationRequestParams {
@@ -22539,7 +22665,7 @@ index d53c4b6de28fe3694ad61257c18e4198e2de7d0b..be7e5eef0ce7df0a07b1b89971f9c931
          supports_compact_if_idle: pending.passive.then_some(true),
          supports_expected_turn_interrupt: Some(true),
 diff --git a/codex-rs/app-server/src/request_processors/thread_memory.rs b/codex-rs/app-server/src/request_processors/thread_memory.rs
-index 192b7ab4413e5c8f31bcbb83454c477375b3eea4..4f158b9c609deb09a7306112d6fec2b21c160940 100644
+index 192b7ab4413e5c8f31bcbb83454c477375b3eea4..58aa1f285ed648fd506501becf51a26a51a94de0 100644
 --- a/codex-rs/app-server/src/request_processors/thread_memory.rs
 +++ b/codex-rs/app-server/src/request_processors/thread_memory.rs
 @@ -1,3 +1,4 @@
@@ -22547,16 +22673,48 @@ index 192b7ab4413e5c8f31bcbb83454c477375b3eea4..4f158b9c609deb09a7306112d6fec2b2
  // Modified for OpenDIY Codex R37 (2026-11-04); see MODIFICATIONS.md.
  //! Explicit browsing and user corrections for the loaded thread's memory scope.
  use super::*;
-@@ -113,6 +114,8 @@ impl ThreadRequestProcessor {
+@@ -113,6 +114,40 @@ impl ThreadRequestProcessor {
              "global"
          };
          let enabled = config.features.enabled(Feature::MemoryTool);
++        // Job completion and publication commit together. Observe completion before
++        // capturing artifacts so an old snapshot cannot accompany newly observed done.
++        let consolidation = if enabled && root.is_some() {
++            match codex_memories_write::memory_consolidation_status(&thread, &config).await {
++                Ok(state) => {
++                    state.map(
++                        |state| codex_app_server_protocol::MemoryConsolidationState {
++                            status: state.status,
++                            started_at: state.started_at,
++                            finished_at: state.finished_at,
++                            lease_until: state.lease_until,
++                            retry_at: state.retry_at,
++                            last_error: state.last_error,
++                            input_watermark: state.input_watermark,
++                            last_success_watermark: state.last_success_watermark,
++                        },
++                    )
++                }
++                Err(error) => Some(codex_app_server_protocol::MemoryConsolidationState {
++                    status: "unavailable".into(),
++                    started_at: None,
++                    finished_at: None,
++                    lease_until: None,
++                    retry_at: None,
++                    last_error: Some(error.to_string()),
++                    input_watermark: None,
++                    last_success_watermark: None,
++                }),
++            }
++        } else {
++            None
++        };
 +        let mut generation_id = None;
 +        let mut publication_provenance = None;
          let (summary, status) = if root.is_none() {
              (None, "unavailable")
          } else if !enabled || !config.memories.use_memories && params.include_disabled != Some(true)
-@@ -123,26 +126,38 @@ impl ThreadRequestProcessor {
+@@ -123,26 +158,38 @@ impl ThreadRequestProcessor {
          }) {
              (None, "unreadable")
          } else {
@@ -22611,7 +22769,7 @@ index 192b7ab4413e5c8f31bcbb83454c477375b3eea4..4f158b9c609deb09a7306112d6fec2b2
                  if bytes.len() as u64 > MAX_SUMMARY_BYTES {
                      return (None, "oversized");
                  }
-@@ -153,7 +168,15 @@ impl ThreadRequestProcessor {
+@@ -153,7 +200,15 @@ impl ThreadRequestProcessor {
                  }
              })
              .await
@@ -22628,7 +22786,44 @@ index 192b7ab4413e5c8f31bcbb83454c477375b3eea4..4f158b9c609deb09a7306112d6fec2b2
          };
          let generate = if let Some(db) = thread.state_db() {
              db.get_thread_memory_mode(thread_id)
-@@ -204,6 +227,8 @@ impl ThreadRequestProcessor {
+@@ -165,36 +220,6 @@ impl ThreadRequestProcessor {
+         } else {
+             false
+         };
+-        let consolidation = if enabled && root.is_some() {
+-            match codex_memories_write::memory_consolidation_status(&thread, &config).await {
+-                Ok(state) => {
+-                    state.map(
+-                        |state| codex_app_server_protocol::MemoryConsolidationState {
+-                            status: state.status,
+-                            started_at: state.started_at,
+-                            finished_at: state.finished_at,
+-                            lease_until: state.lease_until,
+-                            retry_at: state.retry_at,
+-                            last_error: state.last_error,
+-                            input_watermark: state.input_watermark,
+-                            last_success_watermark: state.last_success_watermark,
+-                        },
+-                    )
+-                }
+-                Err(error) => Some(codex_app_server_protocol::MemoryConsolidationState {
+-                    status: "unavailable".into(),
+-                    started_at: None,
+-                    finished_at: None,
+-                    lease_until: None,
+-                    retry_at: None,
+-                    last_error: Some(error.to_string()),
+-                    input_watermark: None,
+-                    last_success_watermark: None,
+-                }),
+-            }
+-        } else {
+-            None
+-        };
+         Ok(Some(
+             ThreadMemoryReadResponse {
+                 summary,
+@@ -204,6 +229,8 @@ impl ThreadRequestProcessor {
                  use_memories: Some(enabled && config.memories.use_memories),
                  generate_memories: Some(enabled && generate),
                  consolidation,
@@ -24848,7 +25043,7 @@ index ca2e06e467b896dcb690786414c596cda7b01ada..73614bdcbd666edd3eed9e733b8370aa
              turn_id: None,
              server_name: TEST_SERVER_NAME.to_string(),
 diff --git a/codex-rs/app-server/tests/suite/v2/memory_consolidate.rs b/codex-rs/app-server/tests/suite/v2/memory_consolidate.rs
-index 5545a04f0c69c7144a47850b39a9dde1f53f0411..93a3d9c852ab3d2e48c48471bb5fd5de19248b74 100644
+index 5545a04f0c69c7144a47850b39a9dde1f53f0411..b7b5811450051f0fb0408af611cd576caeb0bd08 100644
 --- a/codex-rs/app-server/tests/suite/v2/memory_consolidate.rs
 +++ b/codex-rs/app-server/tests/suite/v2/memory_consolidate.rs
 @@ -1,3 +1,4 @@
@@ -25071,7 +25266,13 @@ index 5545a04f0c69c7144a47850b39a9dde1f53f0411..93a3d9c852ab3d2e48c48471bb5fd5de
  
      // A fresh thread exercises the real memory API and extension, without another startup job.
      let request = app
-@@ -211,6 +300,11 @@ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_a
+@@ -207,10 +296,17 @@ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_a
+         .await?;
+     let fresh: ThreadStartResponse = app.read_response(request).await?;
+     assert_ne!(fresh.thread.id, started.thread.id);
++    assert!(fresh.thread.ephemeral);
++    assert_eq!(fresh.thread.path, None);
+     let reread = read_memory(&mut app, &fresh.thread.id, false).await?;
      assert_eq!(reread.root.as_deref(), root.to_str());
      assert_eq!(reread.status.as_deref(), Some("ready"));
      assert_eq!(reread.summary.as_deref(), Some(summary.as_str()));
@@ -25083,17 +25284,40 @@ index 5545a04f0c69c7144a47850b39a9dde1f53f0411..93a3d9c852ab3d2e48c48471bb5fd5de
      let foreground = mount_sse_once(
          &server,
          sse(vec![
+@@ -230,6 +326,21 @@ async fn memory_consolidation_note_worker_patch_is_visible_to_fresh_memory_api_a
+         "the production memories extension must inject the worker-produced summary"
+     );
+     app.shutdown_gracefully().await?;
++    let db = codex_state::StateRuntime::init(
++        codex_state::SqliteConfig::new_for_testing(home.path().abs()),
++        "mock_provider".into(),
++    )
++    .await?;
++    assert!(
++        db.get_thread(ThreadId::try_from(fresh.thread.id.as_str())?)
++            .await?
++            .is_none()
++    );
++    assert!(
++        codex_core::find_thread_path_by_id_str(home.path(), &fresh.thread.id, None)
++            .await?
++            .is_none()
++    );
+     Ok(())
+ }
+ 
 diff --git a/codex-rs/app-server/tests/suite/v2/memory_recovery.rs b/codex-rs/app-server/tests/suite/v2/memory_recovery.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..ddf610db82f85c48c6f3b85d6cb8d398f503f8fa
+index 0000000000000000000000000000000000000000..83fc5d32271c6b08e25153ce01e63e2050c46ac6
 --- /dev/null
 +++ b/codex-rs/app-server/tests/suite/v2/memory_recovery.rs
-@@ -0,0 +1,312 @@
+@@ -0,0 +1,313 @@
 +// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 +//! Recovery with real stdio, worker tools, SQLite and synthetic inputs only.
 +use super::*;
 +use anyhow::Context;
 +use core_test_support::responses::{ev_function_call, mount_sse_sequence};
++use pretty_assertions::assert_eq;
 +use std::collections::BTreeMap;
 +use tokio::time::{Duration, Instant};
 +
@@ -44968,7 +45192,7 @@ index 0000000000000000000000000000000000000000..9321d0d82085748324b15a2c4eec98ea
 +    );
 +}
 diff --git a/codex-rs/core/src/session/session.rs b/codex-rs/core/src/session/session.rs
-index ef1e04687ddeaa371a0cc4cb40149a773f975a08..70184251e9de22dbcc8f999c29e9b9d7dba6735c 100644
+index ef1e04687ddeaa371a0cc4cb40149a773f975a08..a0fa51a973156091bf25d26101ba6082572e50e0 100644
 --- a/codex-rs/core/src/session/session.rs
 +++ b/codex-rs/core/src/session/session.rs
 @@ -1,3 +1,4 @@
@@ -44994,19 +45218,38 @@ index ef1e04687ddeaa371a0cc4cb40149a773f975a08..70184251e9de22dbcc8f999c29e9b9d7
                      | RolloutItem::SecurityRiskScore(_) => {}
                  }
              }
-@@ -1797,6 +1800,11 @@ impl Session {
+@@ -1797,6 +1800,30 @@ impl Session {
                  extension_metrics::from_session_telemetry(session_telemetry.clone());
              let workspace_routing =
                  thread_extension_data.get_or_init(|| config.workspace_routing_context());
-+            if config.memory_environment_supported(environment_selections)
-+                && let Some(capability) = super::memory_publication::bind_memory_snapshot(config.as_ref(), state_db_ctx.as_ref()).await
-+            {
-+                thread_extension_data.insert(capability);
++            if config.memory_environment_supported(environment_selections) {
++                // Ephemeral threads may read published memory without acquiring
++                // thread persistence. Reuse the host's existing local state
++                // handle only behind the namespace-bound snapshot capability.
++                let memory_state_db = if config.ephemeral {
++                    if let Some(local_store) =
++                        thread_store.as_any().downcast_ref::<LocalThreadStore>()
++                    {
++                        local_store.state_db().await
++                    } else {
++                        None
++                    }
++                } else {
++                    state_db_ctx.clone()
++                };
++                if let Some(capability) = super::memory_publication::bind_memory_snapshot(
++                    config.as_ref(),
++                    memory_state_db.as_ref(),
++                )
++                .await
++                {
++                    thread_extension_data.insert(capability);
++                }
 +            }
              for contributor in extensions.thread_lifecycle_contributors() {
                  contributor
                      .on_thread_start(codex_extension_api::ThreadStartInput {
-@@ -2112,6 +2120,7 @@ impl Session {
+@@ -2112,6 +2139,7 @@ impl Session {
  
              // record_initial_history can emit events. We record only after the SessionConfiguredEvent is emitted.
              Box::pin(sess.record_initial_history(initial_history)).await;
@@ -45061,7 +45304,7 @@ index 5d3fa4d681eb061f01dbd954e882cf59137236a7..fbd616359e0c922d1cac73e2a4ab3222
      client_session
          .prewarm_websocket(
 diff --git a/codex-rs/core/src/session/tests.rs b/codex-rs/core/src/session/tests.rs
-index 487759427966b1967651a4781efce28b2e0214a0..db3fae7de19dcb63592118b57d183cd904c50e50 100644
+index 487759427966b1967651a4781efce28b2e0214a0..25111f66b11e39562ecc8625c417a9ffbb7e43c1 100644
 --- a/codex-rs/core/src/session/tests.rs
 +++ b/codex-rs/core/src/session/tests.rs
 @@ -1,5 +1,8 @@
@@ -45166,7 +45409,7 @@ index 487759427966b1967651a4781efce28b2e0214a0..db3fae7de19dcb63592118b57d183cd9
      assert_eq!(&live_history[1..], &[accepted_goal]);
  
      session.flush_rollout().await.expect("flush checkpoints");
-@@ -6590,8 +6603,44 @@ async fn compaction_persists_resume_metadata_and_companion_records() {
+@@ -6590,8 +6603,45 @@ async fn compaction_persists_resume_metadata_and_companion_records() {
      else {
          panic!("unexpected compaction records: {compaction_items:#?}");
      };
@@ -45197,7 +45440,8 @@ index 487759427966b1967651a4781efce28b2e0214a0..db3fae7de19dcb63592118b57d183cd9
 +    assert_eq!(restored_index, expected_index);
 +    for envelope in &live_history {
 +        use sha2::Digest as _;
-+        let id = codex_history::ContextIndex::source_id(&envelope.item).expect("resident ID");
++        let id = codex_history::context_index::ContextIndex::source_id(&envelope.item)
++            .expect("resident ID");
 +        let bytes = serde_json::to_vec(&envelope.item).unwrap();
 +        let digest = format!("{:x}", sha2::Sha256::digest(bytes));
 +        assert_eq!(
@@ -45213,7 +45457,7 @@ index 487759427966b1967651a4781efce28b2e0214a0..db3fae7de19dcb63592118b57d183cd9
      assert_eq!(
          saved_world_state,
          &WorldStateItem::full(world_state.render_full().0.into_object())
-@@ -7340,6 +7389,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
+@@ -7340,6 +7390,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
          "turn_id".to_string(),
          skills_snapshot,
      );
@@ -45221,7 +45465,7 @@ index 487759427966b1967651a4781efce28b2e0214a0..db3fae7de19dcb63592118b57d183cd9
      session.mark_mcp_runtime_dirty();
      crate::guardian::test_host::install(&session, &turn_context.config);
      (session, turn_context)
-@@ -9345,13 +9395,15 @@ where
+@@ -9345,13 +9396,15 @@ where
      F: FnOnce(&mut Config),
  {
      let codex_home = tempfile::tempdir().expect("create temp dir");
@@ -73623,17 +73867,19 @@ index 0000000000000000000000000000000000000000..f970f0b09299e828b7179a505b74dd8a
 +전체 패키지에 프로젝트 대응소스, AGPL-3.0-or-later, 원 Apache 라이선스와 출처 고지를 포함합니다. [변경 고지](../../MODIFICATIONS.md), [소스 가져오기](../source-import.md), [패키징](../../tools/windows-cli/README.md)을 참고하십시오. 제품은 GitHub Actions가 아닌 로컬에서 빌드합니다. Microsoft CRT DLL·설치기는 동봉하지 않습니다. 최종 커밋, 컴파일러·프로필 설정, 실행 파일·ZIP 해시, 원격 자산 확인과 독립감사는 빌드 후 검증 부록에 기록합니다. 이 기준 시점에는 최종 체크섬이 없습니다.
 diff --git a/docs/releases/v1.1.0.md b/docs/releases/v1.1.0.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..13e710744dc3282fbed2b3230b8070ab4c8dabf1
+index 0000000000000000000000000000000000000000..1ecfef60e6243fd6fe84ad449f8c4558cc21d1ce
 --- /dev/null
 +++ b/docs/releases/v1.1.0.md
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,145 @@
 +# Arcvera-Core 1.1.0 — Context selection and cache visibility / 문맥 선택과 캐시 가시성
 +
 +## English
 +
 +### Overview
 +
-+This is a pre-release source draft for the Windows x86-64 1.1.0 candidate. Native tests and joint Desktop integration are in progress. The final source identity, executables, package, independent audit and publication have not yet been established. Historical tests are not final 1.1.0 release validation.
++Arcvera-Core 1.1.0 adds indexed context selection, bounded memory publication, cache-policy visibility and MCP/hook lifecycle controls for Windows x86-64. Historical tests are not final 1.1.0 release validation.
++
++The upstream base is Codex 0.167.0. The bilingual verification appendix provided with the [1.1.0 release assets](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v1.1.0) identifies the frozen product/build source, build settings, final executables and package, executed checks, performance measurements, Desktop integration, independent audit, asset names and hashes. Its recorded limits remain applicable.
 +
 +### Changes
 +
@@ -73647,23 +73893,53 @@ index 0000000000000000000000000000000000000000..13e710744dc3282fbed2b3230b8070ab
 +
 +* Optional `requestSizes` describes the latest prepared sampling prompt using four JSON component byte counts: input, base instructions, the standalone tools field, and output schema. The server supplies their sum and the preparation's history/index revisions. Incremental tool definitions carried inside input remain counted in input. This observation can precede the displayed history and does not measure provider normalization, transport envelopes, delta requests, billed tokens or successful delivery. No additional prompt body is retained for these counters.
 +* TUI MCP registrations belong to their connection and thread subscription. Active work keeps its existing call lifetime; queued replacements apply at the safe runtime boundary. An opaque registration identity links an applied registration to the matching published, connected MCP status. Pending, applied and ready are distinct states. User and managed configuration, authentication, approvals and tool namespaces remain authoritative.
-+* The candidate supports `--terminal-link-owner=tui|host` for mouse-activated HTTP(S) links. The default is `tui`; use `host` only when the terminal host actually opens those links. File links and URLs opened programmatically for authentication retain their existing handling. A version string alone does not establish support.
++* Version 1.1.0 supports `--terminal-link-owner=tui|host` for mouse-activated HTTP(S) links. The default is `tui`; use `host` only when the terminal host actually opens those links. File links and URLs opened programmatically for authentication retain their existing handling. A version string alone does not establish support.
 +* Configuration writes derive their returned user-layer version from the exact serialized document written by that operation. Cooperating writers resolve supported symlink paths to the same target for locking and use the current read for version checks. Empty-layer boundaries and Windows path case behavior are preserved. The lock remains held through a started blocking write after cancellation. Non-cooperating external editors and path replacement after verification remain outside this guarantee.
++* Before starting a consolidation worker, both isolation paths verify that collaboration, memory tools, apps, plugins, Codex hooks and skill MCP dependency installation are effectively disabled. A managed policy that keeps any of them enabled blocks consolidation with `unsupported_stage_permissions`; the parent’s managed policy is not changed. See the release verification appendix for native regression evidence.
 +* Memory consolidation prepares selected inputs in a bounded stage and publishes a verified generation after the existing store's lease, authorization and input checks. Host readers capture one generation. A reset removes the current publication reference while preserving original notes, the managed marker and recovery generations. Managed read failures do not silently fall back to a legacy summary. A generation ID identifies the current captured generation; it does not prove older readers have released their references or that a model's semantic claims are correct.
++* Memory reads observe consolidation status before capturing the published generation, preventing a read paused on an older generation from reporting a newly completed consolidation.
 +
 +Core-internal special approval flows require both a Core-issued origin indicator and the existing request checks. External MCP metadata cannot select that origin. Requests from Core 1.0.1 that omit the origin are treated as unknown; their origin must not be used to infer support for special approvals in a newer client. Existing general form and API semantics remain unchanged. Verify that the client and Core versions work together before use. No installation or profile migration is performed automatically.
 +
-+### Getting started and recovery
++### Getting started
 +
-+In the 1.1.0 TUI candidate, `/context inspect` starts one metadata page of up to 25 fragments. `/context inspect next` requests the next page of the same snapshot; there is no automatic full-history fetch. If a page exceeds the 64 KiB bound, `/context inspect small` restarts with one fragment. An oversized single fragment is reported as unavailable. `/context cancel` cancels presentation of the inspection, while the already-sent request retains its bounded slot until it drains or its connection closes. Existing context-window query, reset and numeric settings remain separate.
++Use the complete Windows x86-64 ZIP and its `SHA256SUMS.txt` from the verified release. Compare the ZIP's SHA-256 with that file before extracting it into a new folder. Use the asset names and hashes recorded in the version-matched release verification appendix.
 +
-+Use the complete package from a verified release, including its `bin` folder, package metadata and helpers; keep the previous complete package for recovery. The 1.0.1 [shared server update procedure](v1.0.1.md#shared-server-update) explains the existing explicit replacement process. Finish connected work before replacement and verify the actual executable and server version. Extraction does not replace a running server or migrate a profile. Do not delete existing databases or authentication files for recovery. Final 1.1.0 asset names and checksums must be recorded only after the actual release assets are built and verified.
++Start directly from the extracted package:
 +
-+### Validation and known limitations
++```powershell
++.\bin\arcvera.exe
++```
 +
-+Generation publication is limited to 64 retained generations and 1 GiB of logical generation files, including the proposed generation. Each stage is limited to 32 MiB and 10,000 entries; at most two failed stages are retained before new work is blocked. Blocking preserves the previous current generation. These bounds do not reserve physical disk space or guarantee power-loss durability of Windows directory entries. Recovery procedures require their own execution checks before release. Direct file access by another process with the same operating-system privileges is outside the host reader's same-handle integrity check.
++`arcvera.cmd` forwards arguments to the same CLI and uses the default local shared server. `arcvera-local.cmd` selects an embedded backend with `--no-daemon`; it does not replace a shared server. Keep `codex-package.json`, `package-receipt.json`, the `bin` folder and all helpers together. `codex-app-server.exe` and `codex-code-mode-host.exe` must match the CLI's release. Individual executable downloads are not a complete managed-server package. Native voice requires the separately installed [Microsoft Visual C++ v14 X64 runtime](../../tools/windows-cli/RUNTIME.md).
 +
-+Native 1.1.0 verification is in progress. The link-owner and configuration-target changes have not yet completed native regression or joint Desktop verification. Creating Windows file symlinks in the current test session returned error 1314; the original symlink contention red/green test has not run. Historical source-import evidence of 50 runs, 49 passes and one skipped case, and the earlier five cache-policy passes on the 1.0.1 development candidate, cover those respective test conditions only; they are not final 1.1.0 validation. Real-provider/model cache behavior, sustained workload effects, actual Desktop integration, final binary/package checks and independent audit require their own results. Java migration, new multi-vendor login, automatic updater and installation migration are outside this scope.
++The default home is `~/.arcvera`. Set `ARCVERA_HOME` only to an existing directory when selecting a custom home. `CODEX_HOME` does not select an Arcvera home. Authentication and data from other products are not imported automatically.
++
++In the 1.1.0 TUI, `/context inspect` starts one metadata page of up to 25 fragments. `/context inspect next` requests the next page of the same snapshot; there is no automatic full-history fetch. If a page exceeds the 64 KiB bound, `/context inspect small` restarts with one fragment. An oversized single fragment is reported as unavailable. `/context cancel` cancels presentation of the inspection, while the already-sent request retains its bounded slot until it drains or its connection closes. Existing context-window query, reset and numeric settings remain separate.
++
++### Shared server update
++
++Finish active work and disconnect clients before replacing the managed server. Replacement can restart it and interrupt connected work. Before the first 1.1.0 startup, stop all clients and server processes using the selected home, then preserve the previous complete package and an offline snapshot of that entire home. Keep the snapshot private because it can contain authentication data. Do not copy a live database as a recovery snapshot.
++
++From the complete 1.1.0 package, use the existing explicit update procedure:
++
++```powershell
++.\bin\arcvera.exe app-server daemon update --from-cli --yes
++.\bin\arcvera.exe app-server daemon start
++.\bin\arcvera.exe app-server daemon status --json
++```
++
++Verify the actual server version is `1.1.0` and its executable is under the selected Arcvera home. Clients must declare that exact full Core version. Extracting a ZIP or selecting a CLI in Desktop does not replace an already running server. If update or startup fails, preserve its error and run the status command; do not delete databases or authentication files.
++
++Recovery to 1.0.1 requires the pre-upgrade whole-home snapshot. Finish and stop all new-version clients and servers, archive the upgraded home as a separate directory, and restore the snapshot to the original home path. Start the retained complete 1.0.1 package and verify its actual server version, path and original notes. Notes created after the snapshot remain in the archived upgraded home; this procedure does not merge them into the restored old home. Do not run 1.0.1 against an upgraded database as an in-place downgrade. The release verification appendix records the isolated full-package recovery scenario and its result; power-loss recovery is not established.
++
++### Validation
++
++The release verification appendix identifies the exact native regression and joint Desktop coverage, including the tested executable hashes. The appendix distinguishes native Windows symlink regressions from capability and setup probes; setup success alone does not establish product behavior. Historical source-import evidence of 50 runs, 49 passes and one skipped case, and the earlier five cache-policy passes on the 1.0.1 development candidate, cover those respective test conditions only; they are not final 1.1.0 validation. Real-provider/model cache behavior, sustained workload effects, actual Desktop integration, final binary/package checks and independent audit require their own results. Java migration, new multi-vendor login, automatic updater and installation migration are outside this scope.
++
++### Known limitations
++
++Generation publication is limited to 64 retained generations and 1 GiB of logical generation files, including the proposed generation. Each stage is limited to 32 MiB and 10,000 entries; at most two failed stages are retained before new work is blocked. Blocking preserves the previous current generation. These bounds do not reserve physical disk space or guarantee power-loss durability of Windows directory entries. The release verification appendix records the executed recovery checks. Direct file access by another process with the same operating-system privileges is outside the host reader's same-handle integrity check.
 +
 +### Source and integrity
 +
@@ -73673,7 +73949,9 @@ index 0000000000000000000000000000000000000000..13e710744dc3282fbed2b3230b8070ab
 +
 +### 개요
 +
-+이 문서는 Windows x86-64 1.1.0 후보의 발행 전 소스 초안입니다. 네이티브 시험과 Desktop 공동 통합이 진행 중입니다. 최종 소스 식별자, 실행 파일, 패키지, 독립 감사와 발행은 아직 확정되지 않았습니다. 과거 시험을 1.1.0 릴리스 검증으로 간주하지 마십시오.
++Arcvera-Core 1.1.0은 Windows x86-64에서 인덱스 문맥 선택, 크기가 제한된 메모리 발행, 캐시 정책 가시성과 MCP/hook 수명 관리를 추가합니다. 과거 시험을 1.1.0 릴리스 검증으로 간주하지 마십시오.
++
++공식 기반은 Codex 0.167.0입니다. [1.1.0 릴리스 자산](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v1.1.0)의 영한 검증 부록에는 고정된 제품·빌드 소스, 빌드 설정, 최종 실행 파일과 패키지, 실행한 검사, 성능 측정, Desktop 통합, 독립감사, 자산 이름과 해시를 기록합니다. 부록에 명시한 검증 한계도 함께 적용됩니다.
 +
 +### 변경 사항
 +
@@ -73687,23 +73965,53 @@ index 0000000000000000000000000000000000000000..13e710744dc3282fbed2b3230b8070ab
 +
 +* 선택 항목 `requestSizes`는 마지막으로 준비한 sampling prompt의 input·기본 지침·독립 tools 필드·출력 스키마에 대한 JSON 바이트 수 네 개를 제공합니다. 서버가 합계와 준비 당시의 history/index 리비전을 함께 반환합니다. input에 포함된 증분 도구 정의는 input 크기에 포함됩니다. 이 관측은 화면의 최신 이력보다 이전일 수 있으며 제공자 정규화, 전송 봉투, delta 요청, 과금 토큰이나 전송 성공을 측정하지 않습니다. 크기 계측을 위해 본문 사본을 추가 보관하지 않습니다.
 +* TUI MCP 등록의 수명은 연결과 해당 대화의 구독에 묶입니다. 진행 중 호출의 수명을 보존하고 대기 중 교체는 안전한 런타임 경계에서 적용합니다. 비밀이 아닌 등록 식별자로 적용된 등록과 실제 게시·연결된 MCP 상태를 연결합니다. 대기·적용·준비 상태를 구분하며 사용자·관리 설정, 인증, 승인과 도구 이름 공간의 검사를 유지합니다.
-+* 후보는 마우스로 여는 HTTP(S) 링크에 `--terminal-link-owner=tui|host`를 지원합니다. 기본값은 `tui`이며 터미널 호스트가 실제로 링크를 열 때에만 `host`를 지정합니다. 파일 링크와 프로그램이 인증을 위해 여는 URL은 기존 경로를 유지합니다. 버전 문자열만으로 지원 여부를 판단할 수 없습니다.
++* 1.1.0은 마우스로 여는 HTTP(S) 링크에 `--terminal-link-owner=tui|host`를 지원합니다. 기본값은 `tui`이며 터미널 호스트가 실제로 링크를 열 때에만 `host`를 지정합니다. 파일 링크와 프로그램이 인증을 위해 여는 URL은 기존 경로를 유지합니다. 버전 문자열만으로 지원 여부를 판단할 수 없습니다.
 +* 설정 쓰기는 같은 작업에서 실제 저장한 직렬화 문서로 반환할 user-layer 버전을 계산합니다. 협력하는 writer는 지원되는 symlink 경로를 같은 대상으로 해석해 잠그고 현재 읽은 내용으로 버전을 검사합니다. 빈 계층의 경계와 Windows 경로의 대소문자 동작은 유지합니다. 시작한 blocking 쓰기는 호출자가 취소해도 저장이 끝날 때까지 잠금을 보유합니다. 비협력 외부 편집기와 검사 후 경로 교체는 보장 범위에 포함되지 않습니다.
++* 통합 worker를 시작하기 전에 두 격리 경로 모두 협업·메모리 도구·앱·플러그인·Codex hook·스킬 MCP 의존성 설치가 실제로 꺼졌는지 확인합니다. 관리 정책 때문에 하나라도 켜진 채로 남으면 통합은 `unsupported_stage_permissions`로 차단하며 부모의 관리 정책은 변경하지 않습니다. 네이티브 회귀 검증 근거는 릴리스 검증 부록을 확인하십시오.
 +* 메모리 통합은 선택 입력을 크기가 제한된 stage에서 준비한 뒤 기존 저장소의 lease·인가·입력 검사를 통과한 세대를 발행합니다. 호스트 reader는 한 세대를 캡처합니다. 초기화는 현재 발행 참조를 제거하고 원본 노트·관리 marker·복구 세대는 보존합니다. 관리 상태의 읽기 실패를 이전 legacy 요약으로 조용히 대체하지 않습니다. 세대 ID는 현재 캡처한 세대를 식별하며, 다른 reader의 과거 세대 참조 해제나 모델의 의미적 주장 정확성을 증명하지 않습니다.
++* 메모리 읽기는 게시 세대를 캡처하기 전에 통합 상태를 조회합니다. 이전 세대를 캡처한 채 대기하던 읽기에 새 통합 완료 상태가 섞이는 경쟁을 방지합니다.
 +
 +Core 내부 특수 승인 흐름에는 Core가 발행한 출처 표시와 기존 요청 검사가 모두 필요합니다. 외부 MCP 메타데이터로는 해당 출처를 선택할 수 없습니다. 출처가 누락된 Core 1.0.1 요청은 미확인으로 처리하며, 이를 새 클라이언트의 특수 승인 지원 근거로 추정하지 않습니다. 일반 form과 API의 기존 의미는 유지합니다. 사용 전에 클라이언트와 Core 조합의 지원 여부를 확인하십시오. 설치나 프로필 이전은 자동으로 수행되지 않습니다.
 +
-+### 시작과 복구
++### 시작하기
 +
-+1.1.0 TUI 후보의 `/context inspect`는 최대 25개 조각으로 구성된 메타데이터 페이지 하나를 조회합니다. `/context inspect next`는 같은 스냅샷의 다음 페이지만 요청하며 전체 이력을 자동 조회하지 않습니다. 페이지가 64 KiB를 넘으면 `/context inspect small`로 조각 하나부터 다시 조회할 수 있습니다. 단일 조각도 한도를 넘으면 표시할 수 없다는 오류를 알립니다. `/context cancel`은 조회 결과의 표시를 취소하며 이미 보낸 요청은 실제로 끝나거나 연결이 종료될 때까지 제한된 대기 슬롯을 유지합니다. 기존 문맥 크기 조회·초기화·정수 설정과 구분합니다.
++검증된 릴리스의 전체 Windows x86-64 ZIP과 `SHA256SUMS.txt`를 사용하십시오. 새 폴더에 압축을 풀기 전에 ZIP의 SHA-256을 해당 파일과 대조하십시오. 해당 버전의 릴리스 검증 부록에 기록한 자산 이름과 해시를 확인하십시오.
 +
-+검증된 릴리스의 완전한 패키지에서 `bin` 폴더, 패키지 메타데이터와 helper를 함께 사용하고 이전 전체 패키지를 복구용으로 보관하십시오. 기존 명시적 교체 방식은 1.0.1 [공유 서버 업데이트 절차](v1.0.1.md#공유-서버-업데이트)를 참고하십시오. 교체 전에 연결된 작업을 마치고 실제 실행 파일과 서버 버전을 확인하십시오. 압축 해제만으로 실행 중 서버를 교체하거나 프로필을 이전하지 않습니다. 복구를 위해 기존 데이터베이스나 인증 파일을 삭제하지 마십시오. 최종 1.1.0 자산 이름과 체크섬은 실제 빌드와 검증 이후에만 기록해야 합니다.
++압축을 푼 패키지에서 직접 실행합니다.
 +
-+### 검증과 제한
++```powershell
++.\bin\arcvera.exe
++```
 +
-+발행 상한은 새 세대를 포함한 보존 세대 64개와 generation 파일의 논리 크기 1 GiB입니다. 각 stage는 32 MiB와 10,000항목으로 제한하며 실패 stage는 최대 두 개를 보존한 뒤 새 작업을 차단합니다. 차단 시 이전 현재 세대는 보존합니다. 이 상한은 실제 디스크 공간을 예약하거나 Windows 디렉터리 항목의 정전 내구성을 보장하지 않습니다. 복구 절차는 릴리스 전 별도 실행 검증이 필요합니다. 같은 운영체제 권한을 가진 다른 프로세스의 직접 파일 접근은 호스트 reader의 동일 handle 무결성 검사 범위 밖입니다.
++`arcvera.cmd`는 같은 CLI에 인자를 전달하며 기본 로컬 공유 서버를 사용합니다. `arcvera-local.cmd`는 `--no-daemon`으로 내장 백엔드를 선택하며 공유 서버를 교체하지 않습니다. `codex-package.json`, `package-receipt.json`, `bin` 폴더와 모든 helper를 함께 유지하십시오. `codex-app-server.exe`와 `codex-code-mode-host.exe`는 CLI와 같은 릴리스여야 합니다. 개별 실행 파일만으로는 완전한 관리 서버 패키지가 되지 않습니다. 네이티브 음성에는 [Microsoft Visual C++ v14 X64 런타임](../../tools/windows-cli/RUNTIME.md)을 별도로 설치해야 합니다.
 +
-+1.1.0 네이티브 검증은 진행 중입니다. 링크 소유권과 설정 대상 변경의 네이티브 회귀 및 Desktop 공동 검증은 아직 완료되지 않았습니다. 현재 시험 세션에서 Windows 파일 symlink 생성은 오류 1314로 실패했으며 원래 symlink 경합의 red/green 시험은 실행하지 못했습니다. 기존 소스 가져오기 시험 50회 중 49회 통과·1회 건너뜀과 앞선 1.0.1 개발 후보의 캐시 정책 5개 통과는 각각 해당 시험 조건의 근거일 뿐 1.1.0 최종 검증이 아닙니다. 실제 제공자·모델 캐시 동작, 지속 부하 효과, Desktop 실통합, 최종 실행 파일·패키지 검사와 독립 감사는 별도 결과가 필요합니다. Java 이전, 새로운 멀티벤더 로그인, 자동 updater와 설치 이전은 이번 범위에 포함되지 않습니다.
++기본 홈은 `~/.arcvera`입니다. 사용자 지정 홈을 선택할 때는 이미 존재하는 디렉터리만 `ARCVERA_HOME`으로 지정하십시오. `CODEX_HOME`은 Arcvera 홈을 선택하지 않습니다. 다른 제품의 인증과 데이터는 자동으로 가져오지 않습니다.
++
++1.1.0 TUI의 `/context inspect`는 최대 25개 조각으로 구성된 메타데이터 페이지 하나를 조회합니다. `/context inspect next`는 같은 스냅샷의 다음 페이지만 요청하며 전체 이력을 자동 조회하지 않습니다. 페이지가 64 KiB를 넘으면 `/context inspect small`로 조각 하나부터 다시 조회할 수 있습니다. 단일 조각도 한도를 넘으면 표시할 수 없다는 오류를 알립니다. `/context cancel`은 조회 결과의 표시를 취소하며 이미 보낸 요청은 실제로 끝나거나 연결이 종료될 때까지 제한된 대기 슬롯을 유지합니다. 기존 문맥 크기 조회·초기화·정수 설정과 구분합니다.
++
++### 공유 서버 업데이트
++
++관리 서버를 교체하기 전에 진행 중 작업을 마치고 클라이언트 연결을 종료하십시오. 교체 시 서버가 재시작되어 연결된 작업이 중단될 수 있습니다. 1.1.0을 처음 실행하기 전에 선택한 홈을 사용하는 모든 클라이언트와 서버 프로세스를 종료한 뒤 이전 전체 패키지와 해당 홈 전체의 오프라인 스냅샷을 보관하십시오. 스냅샷에 인증 정보가 포함될 수 있으므로 비공개로 보관하십시오. 실행 중인 데이터베이스를 복사한 자료는 복구 스냅샷으로 사용하지 마십시오.
++
++전체 1.1.0 패키지에서 기존의 명시적 업데이트 절차를 사용합니다.
++
++```powershell
++.\bin\arcvera.exe app-server daemon update --from-cli --yes
++.\bin\arcvera.exe app-server daemon start
++.\bin\arcvera.exe app-server daemon status --json
++```
++
++실제 서버 버전이 `1.1.0`이고 실행 파일이 선택한 Arcvera 홈 아래에 있는지 확인하십시오. 클라이언트는 정확히 같은 전체 Core 버전을 선언해야 합니다. ZIP 압축 해제나 Desktop의 CLI 선택은 실행 중인 서버를 교체하지 않습니다. 업데이트나 시작에 실패하면 오류를 보존하고 status 명령으로 상태를 확인하십시오. 데이터베이스나 인증 파일을 삭제하지 마십시오.
++
++1.0.1로 복구하려면 업그레이드 전의 전체 홈 스냅샷이 필요합니다. 새 버전의 모든 클라이언트와 서버를 정상 종료하고 업그레이드된 홈을 별도 디렉터리로 보관한 뒤 스냅샷을 원래 홈 경로에 복원하십시오. 보관한 전체 1.0.1 패키지를 실행하고 실제 서버 버전·경로·원본 노트를 확인하십시오. 스냅샷 이후 생성한 노트는 업그레이드된 홈 보관본에 남으며 이 절차가 복원한 이전 홈에 병합하지 않습니다. 업그레이드된 데이터베이스에 1.0.1을 직접 실행하는 방식으로 다운그레이드하지 마십시오. 격리한 전체 패키지 복구 시나리오와 결과는 릴리스 검증 부록에 기록합니다. 정전 복구는 검증되지 않았습니다.
++
++### 검증
++
++정확한 네이티브 회귀·Desktop 공동 검증 범위와 시험한 실행 파일 해시는 릴리스 검증 부록을 확인하십시오. Windows symlink 네이티브 회귀와 생성 권한·설정 확인은 부록에서 구분합니다. 설정 확인만으로 제품 동작 검증을 대신하지 않습니다. 기존 소스 가져오기 시험 50회 중 49회 통과·1회 건너뜀과 앞선 1.0.1 개발 후보의 캐시 정책 5개 통과는 각각 해당 시험 조건의 근거일 뿐 1.1.0 최종 검증이 아닙니다. 실제 제공자·모델 캐시 동작, 지속 부하 효과, Desktop 실통합, 최종 실행 파일·패키지 검사와 독립 감사는 별도 결과가 필요합니다. Java 이전, 새로운 멀티벤더 로그인, 자동 updater와 설치 이전은 이번 범위에 포함되지 않습니다.
++
++### 알려진 제한
++
++발행 상한은 새 세대를 포함한 보존 세대 64개와 generation 파일의 논리 크기 1 GiB입니다. 각 stage는 32 MiB와 10,000항목으로 제한하며 실패 stage는 최대 두 개를 보존한 뒤 새 작업을 차단합니다. 차단 시 이전 현재 세대는 보존합니다. 이 상한은 실제 디스크 공간을 예약하거나 Windows 디렉터리 항목의 정전 내구성을 보장하지 않습니다. 실행한 복구 검증은 릴리스 검증 부록에 기록합니다. 같은 운영체제 권한을 가진 다른 프로세스의 직접 파일 접근은 호스트 reader의 동일 handle 무결성 검사 범위 밖입니다.
 +
 +### 소스와 무결성
 +

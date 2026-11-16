@@ -8,10 +8,10 @@ An independently maintained Windows CLI and Rust App Server derived from OpenAI 
 
 ## Start on Windows
 
-Download the complete Windows x86-64 ZIP and `SHA256SUMS.txt`, compare the ZIP hash, and extract to a new folder. For version 1.0.1:
+Download the complete Windows x86-64 ZIP and `SHA256SUMS.txt`, compare the ZIP hash, and extract to a new folder. For version 1.1.0:
 
 ```powershell
-Get-FileHash .\arcvera-core-1.0.1-windows-x86_64.zip -Algorithm SHA256
+Get-FileHash .\arcvera-core-1.1.0-windows-x86_64.zip -Algorithm SHA256
 ```
 
 In the extracted folder:
@@ -34,19 +34,21 @@ Native voice requires the Microsoft Visual C++ v14 **X64** runtime installed sep
 
 ## Current releases
 
-Arcvera-Core **1.0.1** is the native home-isolation and update-policy hotfix. It introduces `arcvera`, `ARCVERA_HOME` and `~/.arcvera`, and disables inherited automatic installers and update feeds. Download new versions manually from this repository's releases. See the [bilingual release note](docs/releases/v1.0.1.md) for the source snapshot and final executable verification record.
+Arcvera-Core **1.1.0** adds indexed context selection, bounded memory publication, cache-policy visibility and MCP/hook lifecycle controls. See the [bilingual release note](docs/releases/v1.1.0.md) for behavior, update and recovery instructions. The version-matched verification appendix and `SHA256SUMS.txt` are provided with the [release assets](https://github.com/jaeseongs95/Arcvera-Core/releases/tag/v1.1.0).
 
-The previous [1.0.0 release](docs/releases/R41.md) introduced the R41 conversation and version-contract changes. Its historical test results do not establish the correctness of 1.0.1. Broader architecture work remains in [R42](docs/roadmap/R42.md). Release versions are independent of upstream Codex 0.167.0.
+The previous [1.0.1 release](docs/releases/v1.0.1.md) introduced home isolation and the manual-update policy. Its historical test results do not establish the correctness of 1.1.0. Broader architecture work remains in [R42](docs/roadmap/R42.md). Release versions are independent of upstream Codex 0.167.0.
 
-## 1.1.0 candidate: context and cache controls
+### Context and cache controls
 
-The candidate bounds unfinished asynchronous hooks and lifecycle coordinators to 72 jobs, with up to eight command hooks executing and a shared 16 MiB serialized-input budget. Saturation reports an error. Inherited user sources survive worker checkpoints in a bounded archive that is separate from worker permissions; standalone roots adopt those sources with inherited provenance. Sources already lost by an older checkpoint cannot be reconstructed. These changes still require the candidate's native and joint verification.
+Version 1.1.0 bounds unfinished asynchronous hooks and lifecycle coordinators to 72 jobs, with up to eight command hooks executing and a shared 16 MiB serialized-input budget. Saturation reports an error. Inherited user sources survive worker checkpoints in a bounded archive that is separate from worker permissions; standalone roots adopt those sources with inherited provenance. Sources already lost by an older checkpoint cannot be reconstructed. The release verification appendix identifies the executed native and joint checks and their limits.
 
-The 1.1.0 candidate is under native verification and is not yet a published release. Indexed context selects task fragments and dependencies for active model input while preserving originals for authorized retrieval. Unrelated details can leave active input without deleting their originals. Request-only navigation follows selected history, so navigation changes do not disturb its stable prefix. With an indexed focus, selected context owns its input budget; an oversized selection reports an error instead of silently replacing required evidence with a summary.
+Memory consolidation checks the worker’s effective feature policy before starting either isolation path. If a managed policy keeps a forbidden worker feature enabled, consolidation is blocked with `unsupported_stage_permissions`; the parent’s policy is preserved. The release verification appendix records the native regression evidence.
+
+Indexed context selects task fragments and dependencies for active model input while preserving originals for authorized retrieval. Unrelated details can leave active input without deleting their originals. Request-only navigation follows selected history, so navigation changes do not disturb its stable prefix. With an indexed focus, selected context owns its input budget; an oversized selection reports an error instead of silently replacing required evidence with a summary.
 
 The experimental `thread/context/read` returns body-free metadata for a loaded thread through the existing connection and runtime access checks. It separates UTF-8 serialized resident bytes, local token estimates and provider-reported usage. Pages bind to a snapshot; restart pagination on a stale snapshot. Unavailable archive sizes, provider support, expiry and individual fragment TTLs remain unknown. `hooks/list` distinguishes installed current-thread runtime information from configuration discovery. Reload acknowledgement alone does not establish MCP readiness. Hook stdout and stderr are each limited to 1 MiB; exceeding a limit produces an error.
 
-The candidate adds `--terminal-link-owner=tui|host` for mouse-activated HTTP(S) links. The default is `tui`; select `host` only when the terminal host actually opens those links. File links and URLs opened programmatically for authentication retain their existing handling. Do not infer option support from a version string alone. Cooperating configuration writers use the resolved target for locking and the current read for version checks; independent external path replacement is not covered. These changes await native and Desktop integration verification.
+Version 1.1.0 adds `--terminal-link-owner=tui|host` for mouse-activated HTTP(S) links. The default is `tui`; select `host` only when the terminal host actually opens those links. File links and URLs opened programmatically for authentication retain their existing handling. Do not infer option support from a version string alone. Cooperating configuration writers use the resolved target for locking and the current read for version checks; independent external path replacement is not covered. See the release verification appendix for native and Desktop integration coverage.
 
 Prompt cache policy is opt-in for a Responses-compatible provider. Replace `example` with the configured provider ID, and use this example only when that provider supports the selected wire policy:
 
@@ -56,7 +58,7 @@ kind = "implicit"
 ttl = "30m" # or "12h"
 ```
 
-The explicit legacy alternative is `kind = "legacy"` with `retention = "in_memory"` or `"24h"`. Without a policy the existing wire behavior is preserved. Requested TTL and reported cache activity do not confirm provider support, application or retention. Minimum validity, effective TTL, individual fragment TTL and server-confirmed expiry remain unknown. TTL does not change authorization, required selection or original retention. See the [1.1.0 candidate notes](docs/releases/v1.1.0.md).
+The explicit legacy alternative is `kind = "legacy"` with `retention = "in_memory"` or `"24h"`. Without a policy the existing wire behavior is preserved. Requested TTL and reported cache activity do not confirm provider support, application or retention. Minimum validity, effective TTL, individual fragment TTL and server-confirmed expiry remain unknown. TTL does not change authorization, required selection or original retention. See the [1.1.0 release notes](docs/releases/v1.1.0.md).
 
 ## Conversation controls
 
@@ -65,7 +67,7 @@ Enter these in the CLI conversation input, not PowerShell.
 | Command | Purpose |
 | --- | --- |
 | `/context 120000` · `/context reset` | Set or reset the conversation context override |
-| `/context inspect` · `/context inspect next` · `/context cancel` | 1.1.0 candidate: inspect bounded metadata pages or cancel their presentation |
+| `/context inspect` · `/context inspect next` · `/context cancel` | Inspect bounded metadata pages or cancel their presentation |
 | `/memory view` · `/memory enable on` | Inspect memory or explicitly enable it |
 | `/cron add --every 10m -- Check whether the build has finished` | Schedule a repeating prompt for this CLI session |
 | `/cron list` · `/cron remove 1` | Inspect schedules or remove the actual schedule ID |
@@ -83,13 +85,13 @@ Automatic updates are disabled. `arcvera update` and inherited daemon updater co
 
 [OpenDIY Desktop](https://github.com/jaeseongs95/opendiy-desktop) is a separate client. It must launch `arcvera` and explicitly select `ARCVERA_HOME` when using a nondefault profile. Selecting a new CLI file does not replace a running server. Clients must declare the server's exact full Core version at initialization.
 
-Finish active work before an explicit managed-server replacement. Follow the [shared-server procedure](docs/releases/v1.0.1.md#shared-server-update), then verify the actual server version and path. No automatic profile migration or running-server replacement is performed by extracting the ZIP.
+Finish active work before an explicit managed-server replacement. Follow the [shared-server procedure](docs/releases/v1.1.0.md#shared-server-update), then verify the actual server version and path. No automatic profile migration or running-server replacement is performed by extracting the ZIP.
 
 ## Validation and limits
 
-The [release note](docs/releases/v1.0.1.md) separates source tests, final binaries and unrun cases. The originally reported nested SQLite/socket error has not been reproduced in a fresh 1.0.0 fixture; home collision and inherited updater behavior are independently confirmed defects. Their correction is not proof of the original error's direct cause.
+The [release note](docs/releases/v1.1.0.md) and version-matched release verification appendix separate source tests, final binaries and unrun cases. The originally reported nested SQLite/socket error has not been reproduced in a fresh 1.0.0 fixture; home collision and inherited updater behavior are independently confirmed defects. Their correction is not proof of the original error's direct cause.
 
-Real-account/model behavior, physical IME, voice, sustained workloads, and clean-PC runtime installation require separate evidence. Full removal of upstream implementation names and multi-vendor login are not included in this hotfix.
+Real-account/model behavior, physical IME, voice, sustained workloads, and clean-PC runtime installation require separate evidence. Full removal of upstream implementation names and multi-vendor login are not included in this release.
 
 [Validation](docs/TESTING.md) · [Source build](docs/source-import.md) · [Windows packaging](tools/windows-cli/README.md) · [Modifications](MODIFICATIONS.md)
 
