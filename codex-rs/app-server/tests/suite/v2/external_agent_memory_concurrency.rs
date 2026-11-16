@@ -54,7 +54,7 @@ async fn memory_import_retries_after_consolidation_without_partial_dual_write() 
     // Grant only this synthetic home's sibling staging directories; production
     // admission and the child stage-only tool restrictions remain unchanged.
     let mock_config = MockResponsesConfig::new(server.uri())
-        .with_sandbox_mode("workspace-write")
+        .with_root_config("default_permissions = \"memory-test\"")
         .enable_feature(Feature::Sqlite)
         .enable_feature(Feature::MemoryTool)
         .enable_feature(Feature::ExternalAgentMemoryImport);
@@ -69,7 +69,7 @@ async fn memory_import_retries_after_consolidation_without_partial_dual_write() 
     )?;
     mock_config
         .with_extra_config(&format!(
-            "[sandbox_workspace_write]\nwritable_roots = [{writable_home}]\n\n[memories]\nversion = \"v2\"\ngenerate_memories = true\n"
+            "[permissions.memory-test.workspace_roots]\n{writable_home} = true\n\n[permissions.memory-test.filesystem]\n\":root\" = \"read\"\n\n[permissions.memory-test.filesystem.\":workspace_roots\"]\n\".\" = \"write\"\n\n[memories]\nversion = \"v2\"\ngenerate_memories = true\n"
         ))
         .write(home.path())?;
 
