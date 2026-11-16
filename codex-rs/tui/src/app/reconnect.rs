@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 //! TUI-only out-of-process reconnection. Each attempt initializes a fresh client and rejoins existing
 //! threads using ordinary resume/history semantics. Confirmed submissions are reconciled before
@@ -67,14 +68,18 @@ pub(super) async fn reconnect(
     // Track only the stage. Transport errors can contain endpoint credentials.
     let mut stage = "connecting to the server";
     for delay in [0, 1, 2, 4].into_iter().chain(std::iter::repeat(/*elt*/ 8)) {
+        let mut failed_session = None;
         let attempt = async {
             tokio::time::sleep(Duration::from_secs(delay)).await;
             stage = "connecting to the server";
             let client = crate::app_server_connection::connect(&target).await?;
-            let mut session = AppServerSession::new(backend_id, client, mode)
-                .with_local_codex_home(&config.codex_home)
-                .with_remote_cwd_override(remote_cwd.clone())
-                .with_thread_tool_transport(task_tools.clone());
+            failed_session = Some(
+                AppServerSession::new(backend_id, client, mode)
+                    .with_local_codex_home(&config.codex_home)
+                    .with_remote_cwd_override(remote_cwd.clone())
+                    .with_thread_tool_transport(task_tools.clone()),
+            );
+            let session = failed_session.as_mut().expect("reconnect session");
             stage = "loading session settings";
             let bootstrap = session.bootstrap(&config).await?;
             let thread = if let Some(thread_id) = thread_id {
@@ -117,18 +122,27 @@ pub(super) async fn reconnect(
                     {
                         None
                     }
-                    Err(error) => return Err(error),
+                    Err(error) => {
+                        return Err(error);
+                    }
                 }
             } else {
                 None
             };
             Ok::<_, color_eyre::Report>(Reconnected {
-                session,
+                session: failed_session.take().expect("successful reconnect session"),
                 bootstrap,
                 thread,
             })
         };
         let result = tokio::time::timeout_at(deadline, attempt).await;
+        // Own the transport outside the timed future so deadline cancellation
+        // also closes only this failed client's connection before retrying.
+        if let Some(session) = failed_session {
+            if session.shutdown().await.is_err() {
+                tracing::warn!("failed to close unsuccessful reconnect transport");
+            }
+        }
         match result {
             Ok(Ok(connected)) => return Ok(connected),
             Ok(Err(error)) if error.is::<crate::app_server_connection::LocalVersionMismatch>() => {
