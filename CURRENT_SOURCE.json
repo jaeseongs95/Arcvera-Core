@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "3105e06592df73bfafadd71ec1cb490aa3a9559cf28ab1ee0e0ec4af17ce0623",
+  "sourceTreeSha256": "7ef25812700d1308d88bcfcdf2230b615727c28d2df62a622867442409db8b56",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "157c6f92a9fbede58b60a0464274274392851e8f8405d43c9cece19c97da75a2"
+    "sha256": "679cd21eecb5735244fd1f583257d2768de23f4faadc2f5a66b086c1cf6153cb"
   },
   "files": [
     {
@@ -57610,9 +57610,9 @@
     {
       "path": "codex-rs/tui/src/managed_worktree_tools_tests.rs",
       "gitMode": "100644",
-      "bytes": 16144,
-      "sha256": "cdee5a005fa0afacade25de815073bba0db1a4e01aa7714777d66f99f2e04cdb",
-      "gitBlob": "356d3427fb948275992bd10267b968d3c24732fe"
+      "bytes": 17337,
+      "sha256": "bc2b800e4d3454d7473e64fac66d0407821ad9e9034f3fc2463a1b48356ad717",
+      "gitBlob": "8f7b2eb8bd998fc4a333606b7785ef0575d1a25e"
     },
     {
       "path": "codex-rs/tui/src/markdown.rs",

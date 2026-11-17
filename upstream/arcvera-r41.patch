@@ -75337,15 +75337,33 @@ index 1d9d1f3ac55d45a2de8f73839b2665477fc8a128..6c2f959196ecfae959264ca8a8064e47
      // managed model. Service tier remains independent and is resolved against the selected model
      // before the thread starts.
 diff --git a/codex-rs/tui/src/managed_worktree_tools_tests.rs b/codex-rs/tui/src/managed_worktree_tools_tests.rs
-index edc11eb76b241ad9c404969fbb713fccf60772f1..356d3427fb948275992bd10267b968d3c24732fe 100644
+index edc11eb76b241ad9c404969fbb713fccf60772f1..8f7b2eb8bd998fc4a333606b7785ef0575d1a25e 100644
 --- a/codex-rs/tui/src/managed_worktree_tools_tests.rs
 +++ b/codex-rs/tui/src/managed_worktree_tools_tests.rs
-@@ -1,3 +1,4 @@
+@@ -1,5 +1,7 @@
 +// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
  // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
  use super::*;
++use crate::app_event::AppEvent;
  use crate::legacy_core::config::ConfigOverrides;
-@@ -81,12 +82,13 @@ async fn start_server(
+ use crate::test_support::boxed_future;
+ use codex_config::LoaderOverrides;
+@@ -63,9 +65,12 @@ async fn mcp_request(config: &Value, payload: Value) -> color_eyre::Result<Value
+ 
+ async fn start_server(
+     config: &Config,
+-) -> color_eyre::Result<crate::app_server_session::AppServerSession> {
++) -> color_eyre::Result<(
++    crate::app_server_session::AppServerSession,
++    tokio::sync::mpsc::UnboundedReceiver<AppEvent>,
++)> {
+     let mut server = crate::start_embedded_app_server_for_picker(config).await?;
+-    let (events, _events_rx) = tokio::sync::mpsc::unbounded_channel();
++    let (events, events_rx) = tokio::sync::mpsc::unbounded_channel();
+     let (status, _status_rx) = tokio::sync::broadcast::channel(16);
+     server
+         .start_dynamic_tool_mcp(
+@@ -81,12 +86,13 @@ async fn start_server(
      };
      server.thread_tool_transport().configure(&mut params);
      assert_eq!(params.dynamic_tools, None);
@@ -75362,6 +75380,78 @@ index edc11eb76b241ad9c404969fbb713fccf60772f1..356d3427fb948275992bd10267b968d3
      let metadata = json!({
          "io.modelcontextprotocol/protocolVersion":"2026-07-28",
          "io.modelcontextprotocol/clientCapabilities":{}
+@@ -138,7 +144,26 @@ async fn start_server(
+     arguments.sort_unstable();
+     assert_eq!(arguments, vec!["action", "at", "every", "id", "prompt"]);
+ 
+-    Ok(server)
++    Ok((server, events_rx))
++}
++
++async fn wait_for_task_tools_ready(
++    events: &mut tokio::sync::mpsc::UnboundedReceiver<AppEvent>,
++    expected_thread: codex_protocol::ThreadId,
++) -> color_eyre::Result<()> {
++    // The production watcher validates the live registration, endpoint and catalog.
++    // Keep this receiver alive and wait for its matching event, not the start ACK.
++    tokio::time::timeout(Duration::from_secs(10), async {
++        while let Some(event) = events.recv().await {
++            if matches!(event, AppEvent::TaskToolsAvailable { thread_id } if thread_id == expected_thread)
++            {
++                return;
++            }
++        }
++        panic!("task-tool readiness channel closed before {expected_thread} became ready");
++    })
++    .await?;
++    Ok(())
+ }
+ 
+ #[tokio::test]
+@@ -170,7 +195,7 @@ async fn creation_attaches_to_original_task_and_survives_service_restart_scenari
+         .loader_overrides(LoaderOverrides::without_managed_config_for_tests())
+         .build()
+         .await?;
+-    let mut server = Box::pin(start_server(&config)).await?;
++    let (mut server, mut events) = Box::pin(start_server(&config)).await?;
+     let mut conflicting = config.clone();
+     let raw: codex_config::RawMcpServerConfig =
+         serde_json::from_value(json!({"url":"http://127.0.0.1:1/mcp"}))?;
+@@ -185,7 +210,11 @@ async fn creation_attaches_to_original_task_and_survives_service_restart_scenari
+         .unwrap_err();
+     assert!(error.to_string().contains("MCP server owns"));
+     let started = Box::pin(server.start_thread(&config)).await?;
+-    assert!(started.task_tools_available);
++    assert!(
++        !started.task_tools_available,
++        "registration is not MCP readiness"
++    );
++    wait_for_task_tools_ready(&mut events, started.session.thread_id).await?;
+     let thread_id = started.session.thread_id.to_string();
+     let _: codex_app_server_protocol::TurnStartResponse = server
+         .request_handle()
+@@ -390,7 +419,7 @@ async fn creation_attaches_to_original_task_and_survives_service_restart_scenari
+         assert_eq!(supervised.manager.list(&repository).unwrap().len(), 1);
+     }
+     server.shutdown().await?;
+-    let mut resumed_server = Box::pin(start_server(&config)).await?;
++    let (mut resumed_server, mut resumed_events) = Box::pin(start_server(&config)).await?;
+     let resumed = Box::pin(resumed_server.resume_thread(
+         &crate::local_settings::LocalSettings::from(&config),
+         config.clone(),
+@@ -398,7 +427,11 @@ async fn creation_attaches_to_original_task_and_survives_service_restart_scenari
+         crate::app_server_session::ResumeModelSettings::RestoreFromThread,
+     ))
+     .await?;
+-    assert!(resumed.task_tools_available);
++    assert!(
++        !resumed.task_tools_available,
++        "registration after restart is not MCP readiness"
++    );
++    wait_for_task_tools_ready(&mut resumed_events, resumed.session.thread_id).await?;
+     assert_eq!(
+         value(
+             fresh
 diff --git a/codex-rs/tui/src/markdown_render_tests.rs b/codex-rs/tui/src/markdown_render_tests.rs
 index 36a839d4b2b8f82c6f180b9476f20db4d7c094b7..aa0753c578fdcafab29e40dc20c19a2e49a75699 100644
 --- a/codex-rs/tui/src/markdown_render_tests.rs
