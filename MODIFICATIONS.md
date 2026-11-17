@@ -1,5 +1,9 @@
 # Arcvera-Core 1.1.0 candidate / 1.1.0 후보
 
+Test-only diagnostics record the pin completion event identity and worktree discovery stages without changing the original assertions or deadline. The focused and full TUI diagnostic runs did not reproduce the two earlier failures; their causes remain unconfirmed. Per-file notices cover both diagnostic source files. This provenance correction changes comments only and does not establish final release validation.
+
+시험 전용 계측은 기존 assertion과 제한 시간을 유지하며 pin 완료 이벤트의 식별 정보와 worktree 탐색 단계를 기록합니다. 집중 시험과 전체 TUI 진단 실행에서는 이전 두 실패가 재현되지 않았으며 원인은 미확정입니다. 두 진단 소스 파일에 변경 고지를 추가했습니다. 이 출처 보완은 주석만 변경하며 최종 릴리스 검증 완료를 뜻하지 않습니다.
+
 Safety retries wait for the interrupted turn's terminal event before reading history and forking; the earlier interrupt acknowledgement confirms only the cancellation claim. Disconnect, event loss and timeout preserve the prompt and stop the retry. Resume reads parent-owned input capability before configuring tools, and MCP task-tool availability waits for a matching live connection and catalog after registration. Clearing the display keeps its boundary across transcript hydration. The remaining regression fixture changes preserve the frozen translation hash, opaque status values, permission checks and reviewed release identity. Native validation of these follow-up changes is pending.
 
 안전 재시도는 중단 대상 확보만 알리는 응답 이후 해당 턴의 종료 이벤트를 기다린 뒤 이력 조회와 분기를 수행합니다. 연결 종료·이벤트 유실·시간 초과 시 프롬프트를 보존하고 재시도를 중단합니다. 대화 재개는 부모 소유 입력 권한을 먼저 읽은 뒤 도구를 구성하며, MCP 등록 후 일치하는 실제 연결과 도구 목록이 확인돼야 작업 도구를 사용 가능으로 표시합니다. 화면 지우기 경계는 대화 이력을 불러올 때도 유지합니다. 나머지 회귀시험 수정은 기존 번역 해시, 상태의 원본 값, 권한 검사와 검토된 릴리스 식별 정보를 보존합니다. 후속 변경의 네이티브 검증은 대기 중입니다.

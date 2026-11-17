@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 use super::*;
 use crate::app::agents_overview_discovery::list_pinned_threads;
 use crate::app_event::AgentsOverviewAction;

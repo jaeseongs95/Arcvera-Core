@@ -1,3 +1,4 @@
+// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 //! Local worktree discovery and explicit removal; ownership is not activity or exclusion.
 
 use crate::app_event::AppEvent;
