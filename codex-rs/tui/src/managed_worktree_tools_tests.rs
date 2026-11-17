@@ -1,6 +1,7 @@
 // Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
 // Modified for OpenDIY Codex R38 (2026-11-06); see MODIFICATIONS.md.
 use super::*;
+use crate::app_event::AppEvent;
 use crate::legacy_core::config::ConfigOverrides;
 use crate::test_support::boxed_future;
 use codex_config::LoaderOverrides;
@@ -64,9 +65,12 @@ async fn mcp_request(config: &Value, payload: Value) -> color_eyre::Result<Value
 
 async fn start_server(
     config: &Config,
-) -> color_eyre::Result<crate::app_server_session::AppServerSession> {
+) -> color_eyre::Result<(
+    crate::app_server_session::AppServerSession,
+    tokio::sync::mpsc::UnboundedReceiver<AppEvent>,
+)> {
     let mut server = crate::start_embedded_app_server_for_picker(config).await?;
-    let (events, _events_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (events, events_rx) = tokio::sync::mpsc::unbounded_channel();
     let (status, _status_rx) = tokio::sync::broadcast::channel(16);
     server
         .start_dynamic_tool_mcp(
@@ -140,7 +144,26 @@ async fn start_server(
     arguments.sort_unstable();
     assert_eq!(arguments, vec!["action", "at", "every", "id", "prompt"]);
 
-    Ok(server)
+    Ok((server, events_rx))
+}
+
+async fn wait_for_task_tools_ready(
+    events: &mut tokio::sync::mpsc::UnboundedReceiver<AppEvent>,
+    expected_thread: codex_protocol::ThreadId,
+) -> color_eyre::Result<()> {
+    // The production watcher validates the live registration, endpoint and catalog.
+    // Keep this receiver alive and wait for its matching event, not the start ACK.
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while let Some(event) = events.recv().await {
+            if matches!(event, AppEvent::TaskToolsAvailable { thread_id } if thread_id == expected_thread)
+            {
+                return;
+            }
+        }
+        panic!("task-tool readiness channel closed before {expected_thread} became ready");
+    })
+    .await?;
+    Ok(())
 }
 
 #[tokio::test]
@@ -172,7 +195,7 @@ async fn creation_attaches_to_original_task_and_survives_service_restart_scenari
         .loader_overrides(LoaderOverrides::without_managed_config_for_tests())
         .build()
         .await?;
-    let mut server = Box::pin(start_server(&config)).await?;
+    let (mut server, mut events) = Box::pin(start_server(&config)).await?;
     let mut conflicting = config.clone();
     let raw: codex_config::RawMcpServerConfig =
         serde_json::from_value(json!({"url":"http://127.0.0.1:1/mcp"}))?;
@@ -187,7 +210,11 @@ async fn creation_attaches_to_original_task_and_survives_service_restart_scenari
         .unwrap_err();
     assert!(error.to_string().contains("MCP server owns"));
     let started = Box::pin(server.start_thread(&config)).await?;
-    assert!(started.task_tools_available);
+    assert!(
+        !started.task_tools_available,
+        "registration is not MCP readiness"
+    );
+    wait_for_task_tools_ready(&mut events, started.session.thread_id).await?;
     let thread_id = started.session.thread_id.to_string();
     let _: codex_app_server_protocol::TurnStartResponse = server
         .request_handle()
@@ -392,7 +419,7 @@ async fn creation_attaches_to_original_task_and_survives_service_restart_scenari
         assert_eq!(supervised.manager.list(&repository).unwrap().len(), 1);
     }
     server.shutdown().await?;
-    let mut resumed_server = Box::pin(start_server(&config)).await?;
+    let (mut resumed_server, mut resumed_events) = Box::pin(start_server(&config)).await?;
     let resumed = Box::pin(resumed_server.resume_thread(
         &crate::local_settings::LocalSettings::from(&config),
         config.clone(),
@@ -400,7 +427,11 @@ async fn creation_attaches_to_original_task_and_survives_service_restart_scenari
         crate::app_server_session::ResumeModelSettings::RestoreFromThread,
     ))
     .await?;
-    assert!(resumed.task_tools_available);
+    assert!(
+        !resumed.task_tools_available,
+        "registration after restart is not MCP readiness"
+    );
+    wait_for_task_tools_ready(&mut resumed_events, resumed.session.thread_id).await?;
     assert_eq!(
         value(
             fresh
