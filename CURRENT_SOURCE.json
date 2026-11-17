@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "7ef25812700d1308d88bcfcdf2230b615727c28d2df62a622867442409db8b56",
+  "sourceTreeSha256": "e90ad960fb2eb6d9dc4145b38c897649a5e41e1da17d4f559ca84fbedb51b0f3",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "679cd21eecb5735244fd1f583257d2768de23f4faadc2f5a66b086c1cf6153cb"
+    "sha256": "bb063110cad9770e94a9f77c42459cee94d8ad0305ac2d15e9204744bc6243b8"
   },
   "files": [
     {
@@ -77,9 +77,9 @@
     {
       "path": "MODIFICATIONS.md",
       "gitMode": "100644",
-      "bytes": 99192,
-      "sha256": "910028d48d382db811a32d3d320f50c2b49b3c791c6e6bfce7dee57dd5aed6b8",
-      "gitBlob": "3c7f1e4e2ebd065211ae6f4c5654fbd2bc612019"
+      "bytes": 100063,
+      "sha256": "600c884c4061926041d68bc8c60b5b71d26ac250073b64383f1f27fc5e6917e1",
+      "gitBlob": "8a1171ae41b9996df7f1ac132795988e31879947"
     },
     {
       "path": "NOTICE",
@@ -44541,9 +44541,9 @@
     {
       "path": "codex-rs/tui/src/app/agents_overview_actions_tests.rs",
       "gitMode": "100644",
-      "bytes": 47441,
-      "sha256": "3106982c0fcee218bd3af0945d349ad20ac8fa21c62b534730113ccd59bb481f",
-      "gitBlob": "dd48bb15cbb3d73aca91b38a9efa56e22181ceba"
+      "bytes": 48132,
+      "sha256": "2207c285eed9d53c7d4685930475f1a83ed074bc628c6bce187f01007872f36a",
+      "gitBlob": "d0381c03f6fd95a3ee3d21fff7f5b3852d2efee3"
     },
     {
       "path": "codex-rs/tui/src/app/agents_overview_details.rs",
@@ -62377,9 +62377,9 @@
     {
       "path": "codex-rs/tui/src/worktree_browser.rs",
       "gitMode": "100644",
-      "bytes": 5770,
-      "sha256": "85b6fc2e4b662f5a5ffba5fa5ba6cbc0d6014d9b65658690f9abef25c3505b91",
-      "gitBlob": "aa3664d09746ae4eb8c4e0e643e9b2d9f261f2ec"
+      "bytes": 9396,
+      "sha256": "5f0df12758c61a7e53b20a7b0a7b7edfa5ad12c1497d8daacc7f02959d1a36d1",
+      "gitBlob": "047d617660b83a30d1480791e11589e20a661333"
     },
     {
       "path": "codex-rs/tui/src/worktree_startup.rs",
@@ -70064,6 +70064,11 @@
       "notice": "inline-r41"
     },
     {
+      "path": "codex-rs/tui/src/app/agents_overview_actions_tests.rs",
+      "status": "modified",
+      "notice": "inline-1.1.0"
+    },
+    {
       "path": "codex-rs/tui/src/app/agents_overview_tests.rs",
       "status": "modified",
       "notice": "inline-1.1.0"
@@ -71007,6 +71012,11 @@
       "path": "codex-rs/tui/src/version.rs",
       "status": "modified",
       "notice": "inline-r41"
+    },
+    {
+      "path": "codex-rs/tui/src/worktree_browser.rs",
+      "status": "modified",
+      "notice": "inline-1.1.0"
     },
     {
       "path": "codex-rs/tui/tests/suite/external_editor_tests.rs",

@@ -1162,11 +1162,15 @@ index 0000000000000000000000000000000000000000..6c2e29d22f88ea45e9e6e2efad667437
 +없으면 해당 의존성을 제외하고 공식 제공자의 직접 설치 방법을 안내합니다.
 +동봉하는 오픈소스의 소스 제공·고지 등 의무는 계속 유지합니다.
 diff --git a/MODIFICATIONS.md b/MODIFICATIONS.md
-index c3febe7112813d655a8b6c2367e9057cca8d1705..3c7f1e4e2ebd065211ae6f4c5654fbd2bc612019 100644
+index c3febe7112813d655a8b6c2367e9057cca8d1705..8a1171ae41b9996df7f1ac132795988e31879947 100644
 --- a/MODIFICATIONS.md
 +++ b/MODIFICATIONS.md
-@@ -1,3 +1,112 @@
+@@ -1,3 +1,116 @@
 +# Arcvera-Core 1.1.0 candidate / 1.1.0 후보
++
++Test-only diagnostics record the pin completion event identity and worktree discovery stages without changing the original assertions or deadline. The focused and full TUI diagnostic runs did not reproduce the two earlier failures; their causes remain unconfirmed. Per-file notices cover both diagnostic source files. This provenance correction changes comments only and does not establish final release validation.
++
++시험 전용 계측은 기존 assertion과 제한 시간을 유지하며 pin 완료 이벤트의 식별 정보와 worktree 탐색 단계를 기록합니다. 집중 시험과 전체 TUI 진단 실행에서는 이전 두 실패가 재현되지 않았으며 원인은 미확정입니다. 두 진단 소스 파일에 변경 고지를 추가했습니다. 이 출처 보완은 주석만 변경하며 최종 릴리스 검증 완료를 뜻하지 않습니다.
 +
 +Safety retries wait for the interrupted turn's terminal event before reading history and forking; the earlier interrupt acknowledgement confirms only the cancellation claim. Disconnect, event loss and timeout preserve the prompt and stop the retry. Resume reads parent-owned input capability before configuring tools, and MCP task-tool availability waits for a matching live connection and catalog after registration. Clearing the display keeps its boundary across transcript hydration. The remaining regression fixture changes preserve the frozen translation hash, opaque status values, permission checks and reviewed release identity. Native validation of these follow-up changes is pending.
 +
@@ -1278,7 +1282,7 @@ index c3febe7112813d655a8b6c2367e9057cca8d1705..3c7f1e4e2ebd065211ae6f4c5654fbd2
  # R39 compact 개발 후보 (2026-11-07)
  
  정식 발행·동결된 R38과 같은 공식 0.167.0 기반에서 압축 동작만 변경합니다. 버전은 `0.167.0+native-r39.20261107`이며, 고정 소스는 `c4399dce957bb63fe1fdc276aa4306c06f6cf47f`입니다. 메모리 리팩토링·후크·캐싱·스크롤 감도·한글화·컨텍스트 조회의 미완 작업은 R40으로 이관하며 이번 변경에 포함하지 않습니다. 현재 소스·시험 후보이며 최종 빌드·발행은 미완료입니다.
-@@ -701,3 +810,30 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
+@@ -701,3 +814,30 @@ TUI는 성공한 재개와 원래 세션·연결을 유지하면서 이력 미
  고정 소스 `8e9b7eff953e750e8f071d101233920108e5ca26`는 R37 이후의 별도 개발 후보다. 플러그인 payload 비교에서 정확한 `.git`만 제외하고, 암시적 daemon의 전체 버전 확인과 실제 시작·재연결 화면 안내를 보강했다. Stop 속성의 명시적 교정 도구와 재로드 경고의 한국어/영어 안내, 에이전트 목록의 메인 마우스 복귀 및 작은 밑줄만 사용하는 hover를 포함한다.
  
  요구별 실행 결과·원래 실패·미검증 경계는 [R38 범위](docs/native-cli-r38.ko.md)와 연결된 사례 문서를 따른다. 운영 설정 자동 교정·R38 최종 릴리스 빌드·공개·설치는 수행하지 않았다. R37 동결 실행 파일은 변경하지 않았다.
@@ -68735,6 +68739,37 @@ index e00a6131d7201f1614801b656ac849a91f5b76c7..1aa5f78f539f9445eef6b1e72b30e632
  mod empty_state_policy;
  mod event_dispatch;
  mod exit_summary;
+diff --git a/codex-rs/tui/src/app/agents_overview_actions_tests.rs b/codex-rs/tui/src/app/agents_overview_actions_tests.rs
+index dd48bb15cbb3d73aca91b38a9efa56e22181ceba..d0381c03f6fd95a3ee3d21fff7f5b3852d2efee3 100644
+--- a/codex-rs/tui/src/app/agents_overview_actions_tests.rs
++++ b/codex-rs/tui/src/app/agents_overview_actions_tests.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ use super::*;
+ use crate::app::agents_overview_discovery::list_pinned_threads;
+ use crate::app_event::AgentsOverviewAction;
+@@ -31,6 +32,21 @@ async fn pin_action_updates_shared_section_state() -> Result<()> {
+         .await?;
+         assert!(app.agents_overview.pending_pin_change.is_some());
+         let completed = rx.recv().await.expect("pin request completes");
++        let event_kind: &'static str = (&completed).into();
++        let completion_matches = matches!(
++            &completed,
++            AppEvent::AgentsOverviewPinToggled {
++                request_id,
++                thread_id: completed_thread,
++                pinned: completed_pin,
++                ..
++            } if Some(*request_id) == app.agents_overview.pending_pin_change
++                && *completed_thread == thread_id
++                && *completed_pin == pinned
++        );
++        eprintln!(
++            "native2-pin pinned={pinned} event={event_kind} completion_matches={completion_matches}"
++        );
+         assert!(matches!(
+             &completed,
+             AppEvent::AgentsOverviewPinToggled { .. }
 diff --git a/codex-rs/tui/src/app/agents_overview_tests.rs b/codex-rs/tui/src/app/agents_overview_tests.rs
 index 9446cfb3684ee292736afafd177d6b6b35afb315..8aa7a39ec561fd556f2bf31de3dd0488e3d96fdc 100644
 --- a/codex-rs/tui/src/app/agents_overview_tests.rs
@@ -77209,6 +77244,179 @@ index 8c8d108dc61314c01eeb31a987f48cf508f6fa9d..7ac947c23bcdcb0a51bff96d65353551
 +// Modified for Arcvera-Core 1.0.1 (2026-11-13); see MODIFICATIONS.md.
 +/// The current Arcvera Core CLI version as embedded at compile time.
  pub const CODEX_CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
+diff --git a/codex-rs/tui/src/worktree_browser.rs b/codex-rs/tui/src/worktree_browser.rs
+index aa3664d09746ae4eb8c4e0e643e9b2d9f261f2ec..047d617660b83a30d1480791e11589e20a661333 100644
+--- a/codex-rs/tui/src/worktree_browser.rs
++++ b/codex-rs/tui/src/worktree_browser.rs
+@@ -1,3 +1,4 @@
++// Modified for Arcvera-Core 1.1.0 (2026-11-14); see MODIFICATIONS.md.
+ //! Local worktree discovery and explicit removal; ownership is not activity or exclusion.
+ 
+ use crate::app_event::AppEvent;
+@@ -53,13 +54,34 @@ pub(crate) fn fetch(
+     tx: AppEventSender,
+ ) {
+     tokio::spawn(async move {
++        #[cfg(test)]
++        let diagnostic_started = std::time::Instant::now();
++        #[cfg(test)]
++        eprintln!(
++            "native2-worktree fetch={} stage=list-start ms=0",
++            request.id
++        );
+         let result = async {
+             let mut entries = list(codex_home.clone(), request.cwd.clone()).await?;
++            #[cfg(test)]
++            eprintln!(
++                "native2-worktree fetch={} stage=list-done ms={} entries={}",
++                request.id,
++                diagnostic_started.elapsed().as_millis(),
++                entries.len()
++            );
+             let archive_root = codex_home.join(codex_rollout::ARCHIVED_SESSIONS_SUBDIR);
+-            for entry in &mut entries {
++            for (_owner_index, entry) in entries.iter_mut().enumerate() {
+                 let Owner::Unavailable(id) = entry.owner else {
+                     continue;
+                 };
++                #[cfg(test)]
++                eprintln!(
++                    "native2-worktree fetch={} stage=owner-rpc-start owner={} ms={}",
++                    request.id,
++                    _owner_index,
++                    diagnostic_started.elapsed().as_millis()
++                );
+                 let response = app_server
+                     .request_typed::<ThreadReadResponse>(ClientRequest::ThreadRead {
+                         request_id: RequestId::String(uuid::Uuid::new_v4().to_string()),
+@@ -69,12 +91,36 @@ pub(crate) fn fetch(
+                         },
+                     })
+                     .await;
++                #[cfg(test)]
++                eprintln!(
++                    "native2-worktree fetch={} stage=owner-rpc-done owner={} ms={} ok={}",
++                    request.id,
++                    _owner_index,
++                    diagnostic_started.elapsed().as_millis(),
++                    response.is_ok()
++                );
+                 if let Ok(response) = response {
+                     let thread = response.thread;
+                     let Some(path) = thread.path.as_ref() else {
+                         continue;
+                     };
+-                    let Some(path) = codex_rollout::existing_rollout_path(path).await else {
++                    #[cfg(test)]
++                    eprintln!(
++                        "native2-worktree fetch={} stage=owner-path-start owner={} ms={}",
++                        request.id,
++                        _owner_index,
++                        diagnostic_started.elapsed().as_millis()
++                    );
++                    let path = codex_rollout::existing_rollout_path(path).await;
++                    #[cfg(test)]
++                    eprintln!(
++                        "native2-worktree fetch={} stage=owner-path-done owner={} ms={} exists={}",
++                        request.id,
++                        _owner_index,
++                        diagnostic_started.elapsed().as_millis(),
++                        path.is_some()
++                    );
++                    let Some(path) = path else {
+                         continue;
+                     };
+                     let archived = path.starts_with(&archive_root);
+@@ -111,11 +157,22 @@ pub(crate) fn fetch(
+         }
+         .await
+         .map_err(|error| error.to_string());
++        #[cfg(test)]
++        eprintln!(
++            "native2-worktree fetch={} stage=complete ms={} ok={}",
++            request.id,
++            diagnostic_started.elapsed().as_millis(),
++            result.is_ok()
++        );
+         tx.send(AppEvent::ManagedWorktreesLoaded { request, result });
+     });
+ }
+ 
+ pub(crate) async fn list(codex_home: PathBuf, cwd: PathBuf) -> anyhow::Result<Vec<Entry>> {
++    #[cfg(test)]
++    let diagnostic_started = std::time::Instant::now();
++    #[cfg(test)]
++    eprintln!("native2-worktree-list stage=config-start ms=0");
+     let host = crate::legacy_core::config::load_config_toml_with_layer_stack(
+         &codex_home,
+         /*cwd*/ None,
+@@ -125,22 +182,59 @@ pub(crate) async fn list(codex_home: PathBuf, cwd: PathBuf) -> anyhow::Result<Ve
+     .await?;
+     let settings =
+         codex_worktree::WorktreeSettings::for_cli(&codex_home, host.config_toml.desktop.as_ref())?;
++    #[cfg(test)]
++    eprintln!(
++        "native2-worktree-list stage=config-done ms={}",
++        diagnostic_started.elapsed().as_millis()
++    );
+     // Closing the popup discards its result; an already-running blocking Git call still finishes.
+     tokio::task::spawn_blocking(move || {
++        #[cfg(test)]
++        eprintln!(
++            "native2-worktree-list stage=git-root-start ms={}",
++            diagnostic_started.elapsed().as_millis()
++        );
+         let cwd = codex_git_utils::get_git_repo_root(&cwd).unwrap_or(cwd);
++        #[cfg(test)]
++        eprintln!(
++            "native2-worktree-list stage=git-root-done ms={}",
++            diagnostic_started.elapsed().as_millis()
++        );
+         let manager = codex_worktree::WorktreeManager::new(settings);
+-        Ok(manager
+-            .list(&cwd)?
++        let checkouts = manager.list(&cwd)?;
++        #[cfg(test)]
++        eprintln!(
++            "native2-worktree-list stage=git-list-done ms={} entries={}",
++            diagnostic_started.elapsed().as_millis(),
++            checkouts.len()
++        );
++        Ok(checkouts
+             .into_iter()
+-            .map(|checkout| Entry {
+-                owner: manager
++            .enumerate()
++            .map(|(_owner_index, checkout)| {
++                #[cfg(test)]
++                eprintln!(
++                    "native2-worktree-list stage=git-owner-start owner={} ms={}",
++                    _owner_index,
++                    diagnostic_started.elapsed().as_millis()
++                );
++                let owner = manager
+                     .owner(&checkout.root)
+                     .ok()
+                     .flatten()
+                     .and_then(|owner| ThreadId::from_string(&owner).ok())
+-                    .map_or(Owner::None, Owner::Unavailable),
+-                root: checkout.root,
+-                cwd: checkout.cwd,
++                    .map_or(Owner::None, Owner::Unavailable);
++                #[cfg(test)]
++                eprintln!(
++                    "native2-worktree-list stage=git-owner-done owner={} ms={}",
++                    _owner_index,
++                    diagnostic_started.elapsed().as_millis()
++                );
++                Entry {
++                    owner,
++                    root: checkout.root,
++                    cwd: checkout.cwd,
++                }
+             })
+             .collect())
+     })
 diff --git a/codex-rs/tui/tests/suite/external_editor_tests.rs b/codex-rs/tui/tests/suite/external_editor_tests.rs
 index fe5f019f844db87fd3394c61837d96517c7998a5..25f7dd1f5a0355ce1d5310075a5d49f5aaf114e0 100644
 --- a/codex-rs/tui/tests/suite/external_editor_tests.rs
