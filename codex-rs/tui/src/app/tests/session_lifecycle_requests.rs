@@ -1628,7 +1628,7 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths() 
 
 async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_scenario()
 -> Result<()> {
-    let (mut app, events, _ops) = Box::pin(make_test_app_with_channels()).await;
+    let (mut app, mut events, _ops) = Box::pin(make_test_app_with_channels()).await;
     // Invalid optional worktree settings must preserve both daemon start paths.
     let codex_home = tempdir()?;
     app.config.codex_home = codex_home.path().to_path_buf().abs();
@@ -1742,6 +1742,19 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
     for tool in crate::dynamic_tools::DELEGATION_TOOLS {
         assert!(tools.contains_key(tool));
     }
+    // Only the matching live-catalog observation may publish readiness.
+    let ready = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let event = events.recv().await.expect("readiness event channel");
+            if matches!(&event, AppEvent::TaskToolsAvailable { thread_id: id } if *id == thread_id) {
+                break event;
+            }
+        }
+    })
+    .await?;
+    let mut readiness_tui = crate::tui::test_support::make_test_tui()?;
+    Box::pin(app.handle_event(&mut readiness_tui, &mut app_server, ready)).await?;
+    assert!(app_server.task_tools_available(thread_id));
     assert!(
         !tools["create_thread"]
             .input_schema
@@ -1791,13 +1804,17 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
         ThreadHistoryMode::Legacy,
         "Approved task source",
     )?;
-    Box::pin(app_server.resume_thread(
+    let resumed_start = Box::pin(app_server.resume_thread(
         &app.local_settings,
         app.config.clone(),
         delegation_source,
         crate::app_server_session::ResumeModelSettings::RestoreFromThread,
     ))
     .await?;
+    assert!(
+        !resumed_start.task_tools_available,
+        "registration is not MCP readiness"
+    );
     let resumed = recorded_params(&requests, "thread/resume")
         .pop()
         .expect("resumed task request");
@@ -1805,13 +1822,17 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
         resumed["runtimeMcpServers"]["codex_tui"],
         starts[0]["runtimeMcpServers"]["codex_tui"]
     );
-    Box::pin(app_server.resume_thread(
+    let reattached_start = Box::pin(app_server.resume_thread(
         &app.local_settings,
         app.config.clone(),
         delegation_source,
         crate::app_server_session::ResumeModelSettings::PreserveExistingThread,
     ))
     .await?;
+    assert!(
+        !reattached_start.task_tools_available,
+        "registration is not MCP readiness"
+    );
     let reattached = recorded_params(&requests, "thread/resume")
         .pop()
         .expect("reattached task request");
@@ -1819,8 +1840,16 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
         reattached["runtimeMcpServers"]["codex_tui"],
         starts[0]["runtimeMcpServers"]["codex_tui"]
     );
-    Box::pin(app_server.fork_thread(&app.local_settings, app.config.clone(), delegation_source))
-        .await?;
+    let forked_start = Box::pin(app_server.fork_thread(
+        &app.local_settings,
+        app.config.clone(),
+        delegation_source,
+    ))
+    .await?;
+    assert!(
+        !forked_start.task_tools_available,
+        "registration is not MCP readiness"
+    );
     let forked = recorded_params(&requests, "thread/fork")
         .pop()
         .expect("forked task request");

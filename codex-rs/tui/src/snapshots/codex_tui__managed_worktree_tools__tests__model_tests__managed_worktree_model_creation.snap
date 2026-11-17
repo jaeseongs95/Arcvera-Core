@@ -14,8 +14,8 @@ Settings:
   store: false
   stream: true
   tool_choice: "auto"
-  tools (1; hash=c975d43208f99d91):
-    - namespace/mcp__codex_tui: Tools in the mcp__codex_tui namespace.; hash=55c486d92df9a1e9
+  tools (1; hash=9a2e2b0d6be96b26):
+    - namespace/mcp__codex_tui: Tools in the mcp__codex_tui namespace.; hash=cec8a329a8dec130
       - function/create_thread
       - function/create_worktree
       - function/cron

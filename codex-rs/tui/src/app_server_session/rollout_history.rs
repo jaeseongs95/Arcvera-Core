@@ -576,9 +576,7 @@ impl AppServerSession {
         )
         .await?;
         started.session.fork_parent_title = fork_parent_title;
-        if (runtime_mcp_confirmed && params.runtime_mcp_servers.is_some())
-            || (params.runtime_mcp_servers.is_none() && self.task_tools_available(thread_id))
-        {
+        if params.runtime_mcp_servers.is_none() && self.task_tools_available(thread_id) {
             self.remember_task_tool_thread(thread_id);
             started.task_tools_available = true;
         }

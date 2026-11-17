@@ -6687,7 +6687,7 @@ async fn ctrl_l_preserves_the_transcript_and_draft_after_clearing_the_screen() -
         .await?;
     assert_eq!(
         app.transcript_view.history,
-        crate::pager_overlay::TranscriptHistoryState::LoadingBeginning
+        crate::pager_overlay::TranscriptHistoryState::Complete
     );
     // Clearing establishes a display boundary: browsing must not request the
     // server's older cursor or reintroduce transcript content from before it.

@@ -2490,7 +2490,18 @@ async fn localized_status_preserves_opaque_values_at_terminal_widths() {
                     .split_whitespace()
                     .collect::<Vec<_>>()
                     .join(" ");
-                assert!(normalized_prose.contains(approval_label), "{wrapped_prose}");
+                // CJK wrapping may split a word without a space in the source.
+                // This prose-only comparison ignores layout whitespace; opaque
+                // values below still require exact bytes across line boundaries.
+                let compact_prose: String = normalized_prose
+                    .chars()
+                    .filter(|ch| !ch.is_whitespace())
+                    .collect();
+                let compact_approval: String = approval_label
+                    .chars()
+                    .filter(|ch| !ch.is_whitespace())
+                    .collect();
+                assert!(compact_prose.contains(&compact_approval), "{wrapped_prose}");
                 for opaque in [
                     model,
                     thread,
