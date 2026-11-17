@@ -31,6 +31,21 @@ async fn pin_action_updates_shared_section_state() -> Result<()> {
         .await?;
         assert!(app.agents_overview.pending_pin_change.is_some());
         let completed = rx.recv().await.expect("pin request completes");
+        let event_kind: &'static str = (&completed).into();
+        let completion_matches = matches!(
+            &completed,
+            AppEvent::AgentsOverviewPinToggled {
+                request_id,
+                thread_id: completed_thread,
+                pinned: completed_pin,
+                ..
+            } if Some(*request_id) == app.agents_overview.pending_pin_change
+                && *completed_thread == thread_id
+                && *completed_pin == pinned
+        );
+        eprintln!(
+            "native2-pin pinned={pinned} event={event_kind} completion_matches={completion_matches}"
+        );
         assert!(matches!(
             &completed,
             AppEvent::AgentsOverviewPinToggled { .. }

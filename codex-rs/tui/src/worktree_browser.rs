@@ -53,13 +53,34 @@ pub(crate) fn fetch(
     tx: AppEventSender,
 ) {
     tokio::spawn(async move {
+        #[cfg(test)]
+        let diagnostic_started = std::time::Instant::now();
+        #[cfg(test)]
+        eprintln!(
+            "native2-worktree fetch={} stage=list-start ms=0",
+            request.id
+        );
         let result = async {
             let mut entries = list(codex_home.clone(), request.cwd.clone()).await?;
+            #[cfg(test)]
+            eprintln!(
+                "native2-worktree fetch={} stage=list-done ms={} entries={}",
+                request.id,
+                diagnostic_started.elapsed().as_millis(),
+                entries.len()
+            );
             let archive_root = codex_home.join(codex_rollout::ARCHIVED_SESSIONS_SUBDIR);
-            for entry in &mut entries {
+            for (_owner_index, entry) in entries.iter_mut().enumerate() {
                 let Owner::Unavailable(id) = entry.owner else {
                     continue;
                 };
+                #[cfg(test)]
+                eprintln!(
+                    "native2-worktree fetch={} stage=owner-rpc-start owner={} ms={}",
+                    request.id,
+                    _owner_index,
+                    diagnostic_started.elapsed().as_millis()
+                );
                 let response = app_server
                     .request_typed::<ThreadReadResponse>(ClientRequest::ThreadRead {
                         request_id: RequestId::String(uuid::Uuid::new_v4().to_string()),
@@ -69,12 +90,36 @@ pub(crate) fn fetch(
                         },
                     })
                     .await;
+                #[cfg(test)]
+                eprintln!(
+                    "native2-worktree fetch={} stage=owner-rpc-done owner={} ms={} ok={}",
+                    request.id,
+                    _owner_index,
+                    diagnostic_started.elapsed().as_millis(),
+                    response.is_ok()
+                );
                 if let Ok(response) = response {
                     let thread = response.thread;
                     let Some(path) = thread.path.as_ref() else {
                         continue;
                     };
-                    let Some(path) = codex_rollout::existing_rollout_path(path).await else {
+                    #[cfg(test)]
+                    eprintln!(
+                        "native2-worktree fetch={} stage=owner-path-start owner={} ms={}",
+                        request.id,
+                        _owner_index,
+                        diagnostic_started.elapsed().as_millis()
+                    );
+                    let path = codex_rollout::existing_rollout_path(path).await;
+                    #[cfg(test)]
+                    eprintln!(
+                        "native2-worktree fetch={} stage=owner-path-done owner={} ms={} exists={}",
+                        request.id,
+                        _owner_index,
+                        diagnostic_started.elapsed().as_millis(),
+                        path.is_some()
+                    );
+                    let Some(path) = path else {
                         continue;
                     };
                     let archived = path.starts_with(&archive_root);
@@ -111,11 +156,22 @@ pub(crate) fn fetch(
         }
         .await
         .map_err(|error| error.to_string());
+        #[cfg(test)]
+        eprintln!(
+            "native2-worktree fetch={} stage=complete ms={} ok={}",
+            request.id,
+            diagnostic_started.elapsed().as_millis(),
+            result.is_ok()
+        );
         tx.send(AppEvent::ManagedWorktreesLoaded { request, result });
     });
 }
 
 pub(crate) async fn list(codex_home: PathBuf, cwd: PathBuf) -> anyhow::Result<Vec<Entry>> {
+    #[cfg(test)]
+    let diagnostic_started = std::time::Instant::now();
+    #[cfg(test)]
+    eprintln!("native2-worktree-list stage=config-start ms=0");
     let host = crate::legacy_core::config::load_config_toml_with_layer_stack(
         &codex_home,
         /*cwd*/ None,
@@ -125,22 +181,59 @@ pub(crate) async fn list(codex_home: PathBuf, cwd: PathBuf) -> anyhow::Result<Ve
     .await?;
     let settings =
         codex_worktree::WorktreeSettings::for_cli(&codex_home, host.config_toml.desktop.as_ref())?;
+    #[cfg(test)]
+    eprintln!(
+        "native2-worktree-list stage=config-done ms={}",
+        diagnostic_started.elapsed().as_millis()
+    );
     // Closing the popup discards its result; an already-running blocking Git call still finishes.
     tokio::task::spawn_blocking(move || {
+        #[cfg(test)]
+        eprintln!(
+            "native2-worktree-list stage=git-root-start ms={}",
+            diagnostic_started.elapsed().as_millis()
+        );
         let cwd = codex_git_utils::get_git_repo_root(&cwd).unwrap_or(cwd);
+        #[cfg(test)]
+        eprintln!(
+            "native2-worktree-list stage=git-root-done ms={}",
+            diagnostic_started.elapsed().as_millis()
+        );
         let manager = codex_worktree::WorktreeManager::new(settings);
-        Ok(manager
-            .list(&cwd)?
+        let checkouts = manager.list(&cwd)?;
+        #[cfg(test)]
+        eprintln!(
+            "native2-worktree-list stage=git-list-done ms={} entries={}",
+            diagnostic_started.elapsed().as_millis(),
+            checkouts.len()
+        );
+        Ok(checkouts
             .into_iter()
-            .map(|checkout| Entry {
-                owner: manager
+            .enumerate()
+            .map(|(_owner_index, checkout)| {
+                #[cfg(test)]
+                eprintln!(
+                    "native2-worktree-list stage=git-owner-start owner={} ms={}",
+                    _owner_index,
+                    diagnostic_started.elapsed().as_millis()
+                );
+                let owner = manager
                     .owner(&checkout.root)
                     .ok()
                     .flatten()
                     .and_then(|owner| ThreadId::from_string(&owner).ok())
-                    .map_or(Owner::None, Owner::Unavailable),
-                root: checkout.root,
-                cwd: checkout.cwd,
+                    .map_or(Owner::None, Owner::Unavailable);
+                #[cfg(test)]
+                eprintln!(
+                    "native2-worktree-list stage=git-owner-done owner={} ms={}",
+                    _owner_index,
+                    diagnostic_started.elapsed().as_millis()
+                );
+                Entry {
+                    owner,
+                    root: checkout.root,
+                    cwd: checkout.cwd,
+                }
             })
             .collect())
     })
