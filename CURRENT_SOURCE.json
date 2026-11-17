@@ -19,10 +19,10 @@
     "CURRENT_SOURCE.json",
     "upstream/arcvera-r41.patch"
   ],
-  "sourceTreeSha256": "b2f2dcaeed6dd77bee39b4aa397c1a30dbc8125920cf3d01bc38b4492e692b6e",
+  "sourceTreeSha256": "3105e06592df73bfafadd71ec1cb490aa3a9559cf28ab1ee0e0ec4af17ce0623",
   "delta": {
     "path": "upstream/arcvera-r41.patch",
-    "sha256": "ae59026a52f1c6cb4e3e8cff165af96093380e149cd30fed774def38c56bbde2"
+    "sha256": "157c6f92a9fbede58b60a0464274274392851e8f8405d43c9cece19c97da75a2"
   },
   "files": [
     {
@@ -77,9 +77,9 @@
     {
       "path": "MODIFICATIONS.md",
       "gitMode": "100644",
-      "bytes": 99119,
-      "sha256": "6a4e54bc18d9a2c73da038e1bbb9b0e5167463317562eeb0bea9c85383f8572b",
-      "gitBlob": "2442e5700296cc6b20a83d6fd5ea9eb14ef7bd2d"
+      "bytes": 99192,
+      "sha256": "910028d48d382db811a32d3d320f50c2b49b3c791c6e6bfce7dee57dd5aed6b8",
+      "gitBlob": "3c7f1e4e2ebd065211ae6f4c5654fbd2bc612019"
     },
     {
       "path": "NOTICE",
@@ -45962,9 +45962,9 @@
     {
       "path": "codex-rs/tui/src/app/tests.rs",
       "gitMode": "100644",
-      "bytes": 396067,
-      "sha256": "3f56d237d323916ab37fac5dd38eab6dcabc20f361ed43df7dcbde3b7e51878a",
-      "gitBlob": "9b2856d94a559a078a57073ea93736dba2b083ad"
+      "bytes": 396059,
+      "sha256": "6550efa75c4a931f778a3f62ee4017a23daecb78f46d3699022aa9188d3ae8b1",
+      "gitBlob": "ec642ffab8cf44ab898b389970d565056b7a3a8d"
     },
     {
       "path": "codex-rs/tui/src/app/tests/active_reconnect_tests.rs",
@@ -46333,9 +46333,9 @@
     {
       "path": "codex-rs/tui/src/app/tests/session_lifecycle_requests.rs",
       "gitMode": "100644",
-      "bytes": 242536,
-      "sha256": "1fd7dfb968ea43809b80ad9a42b1a260852c43c95fc1e2858265ed41647ef771",
-      "gitBlob": "ac40723e3e1fba1dc3a07c2c3be1978ab4cd8b60"
+      "bytes": 243581,
+      "sha256": "deb054f2e66055478da829b1e34c79336db5d64b2745344bb118181c2981dd93",
+      "gitBlob": "7efbf9af5856ce0ab1cf549239f33a6835a73b61"
     },
     {
       "path": "codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__active_reconnect__reconnect_failed.snap",
@@ -46823,9 +46823,9 @@
     {
       "path": "codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__safety_buffering__safety_retry_committed_steer_history.snap",
       "gitMode": "100644",
-      "bytes": 385,
-      "sha256": "8b3552e75c6860e8bdf61992aaf5c908285426048b3e501a0fa8fd0dc83db57a",
-      "gitBlob": "94774a3f19bf267a9d1b1cf38ef0081532d43cc1"
+      "bytes": 220,
+      "sha256": "40cb9c3a26a8c8adea1e819bcdff03790e706d5b232edaf29fa3e97ee5121425",
+      "gitBlob": "42e22f7c9a7c4516fa3ea3ef3be6b01f86183d1b"
     },
     {
       "path": "codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__session_lifecycle_requests__daybreak_toggle_confirmations.snap",
@@ -47271,9 +47271,9 @@
     {
       "path": "codex-rs/tui/src/app_server_session.rs",
       "gitMode": "100644",
-      "bytes": 229256,
-      "sha256": "57a1318c8190a69c973ed972b701a71010f40d4ae80f06573d3f03843f8d2ffd",
-      "gitBlob": "2a0f6bfb97ba1611c0863ca75e8685c8a448cd65"
+      "bytes": 229219,
+      "sha256": "4c615d5865cf7489e87899dfc908059b6f89d155b77ec423a7c77a20c9259e2e",
+      "gitBlob": "9d447f2afddde044bdad4e0120e9d1364ac5dba2"
     },
     {
       "path": "codex-rs/tui/src/app_server_session/collaboration_catalog_tests.rs",
@@ -47397,9 +47397,9 @@
     {
       "path": "codex-rs/tui/src/app_server_session/rollout_history.rs",
       "gitMode": "100644",
-      "bytes": 25963,
-      "sha256": "967ed71675d21eda59884421fcd439767a0d280e2afad3386289c2532da36e7f",
-      "gitBlob": "384a8ab5a5fcb2cb3d091db93d62d4a4987f9d00"
+      "bytes": 25874,
+      "sha256": "fedb4a8f09f8ee4d54cb5269d60ebbdd686977b0a67cc7eae995e7b30496e306",
+      "gitBlob": "81f07930ea644bd01b935dff34751f0b0f6e3d53"
     },
     {
       "path": "codex-rs/tui/src/app_server_session/rollout_history_tests.rs",
@@ -59634,8 +59634,8 @@
       "path": "codex-rs/tui/src/snapshots/codex_tui__managed_worktree_tools__tests__model_tests__managed_worktree_model_creation.snap",
       "gitMode": "100644",
       "bytes": 4265,
-      "sha256": "5ad7eff59401d0f0e0f0e78b1bf3c63cc8a3c3ef9ead2ebccf522ebf340809e0",
-      "gitBlob": "c74e34facf080e265c7ddd889846af64a4f35860"
+      "sha256": "1161a282ca45b915e59da750c5904c12f286260305763b4fec0a7f2aad5e98d3",
+      "gitBlob": "e9976d59f2abb9ed47b79603dccee462c3bb0733"
     },
     {
       "path": "codex-rs/tui/src/snapshots/codex_tui__markdown_render__markdown_render_tests__bare_url_with_tilde_keeps_complete_hyperlink.snap",
@@ -60634,9 +60634,9 @@
     {
       "path": "codex-rs/tui/src/status/tests.rs",
       "gitMode": "100644",
-      "bytes": 86512,
-      "sha256": "b5e63a81adb8f467109a101eed7d62fdaf09fcbda5ac14d0c25772e5ca487ace",
-      "gitBlob": "866e9f5d484389afb6bf0de926b5637b438af8ff"
+      "bytes": 87107,
+      "sha256": "02e43fd278bcaccaefafd900a11789dd1ec7a610d5874d94f61732a056cd96a2",
+      "gitBlob": "7eedcac687df28fd564f4619882d000de0c62dee"
     },
     {
       "path": "codex-rs/tui/src/status/thread_usage.rs",
@@ -70319,6 +70319,11 @@
       "notice": "external-in-CURRENT_SOURCE.json"
     },
     {
+      "path": "codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__safety_buffering__safety_retry_committed_steer_history.snap",
+      "status": "modified",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
       "path": "codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__session_lifecycle_requests__new_session_tests__widget_replacement_preserves_mention_usage_with_history_disabled.snap",
       "status": "modified",
       "notice": "external-in-CURRENT_SOURCE.json"
@@ -70750,6 +70755,11 @@
     },
     {
       "path": "codex-rs/tui/src/snapshots/codex_tui__app__tests__selected_unloaded_subagent_V2.snap",
+      "status": "modified",
+      "notice": "external-in-CURRENT_SOURCE.json"
+    },
+    {
+      "path": "codex-rs/tui/src/snapshots/codex_tui__managed_worktree_tools__tests__model_tests__managed_worktree_model_creation.snap",
       "status": "modified",
       "notice": "external-in-CURRENT_SOURCE.json"
     },

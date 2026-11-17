@@ -1162,15 +1162,15 @@ index 0000000000000000000000000000000000000000..6c2e29d22f88ea45e9e6e2efad667437
 +없으면 해당 의존성을 제외하고 공식 제공자의 직접 설치 방법을 안내합니다.
 +동봉하는 오픈소스의 소스 제공·고지 등 의무는 계속 유지합니다.
 diff --git a/MODIFICATIONS.md b/MODIFICATIONS.md
-index c3febe7112813d655a8b6c2367e9057cca8d1705..2442e5700296cc6b20a83d6fd5ea9eb14ef7bd2d 100644
+index c3febe7112813d655a8b6c2367e9057cca8d1705..3c7f1e4e2ebd065211ae6f4c5654fbd2bc612019 100644
 --- a/MODIFICATIONS.md
 +++ b/MODIFICATIONS.md
 @@ -1,3 +1,112 @@
 +# Arcvera-Core 1.1.0 candidate / 1.1.0 후보
 +
-+Safety retries wait for the interrupted turn's terminal event before reading history and forking; the earlier interrupt acknowledgement confirms only the cancellation claim. Disconnect, event loss and timeout preserve the prompt and stop the retry. Resume reads parent-owned input capability before configuring tools, and confirmed MCP registration contributes to historical task-tool availability. Clearing the display keeps its boundary across transcript hydration. The remaining regression fixture changes preserve the frozen translation hash, opaque status values, permission checks and reviewed release identity. Native validation of these follow-up changes is pending.
++Safety retries wait for the interrupted turn's terminal event before reading history and forking; the earlier interrupt acknowledgement confirms only the cancellation claim. Disconnect, event loss and timeout preserve the prompt and stop the retry. Resume reads parent-owned input capability before configuring tools, and MCP task-tool availability waits for a matching live connection and catalog after registration. Clearing the display keeps its boundary across transcript hydration. The remaining regression fixture changes preserve the frozen translation hash, opaque status values, permission checks and reviewed release identity. Native validation of these follow-up changes is pending.
 +
-+안전 재시도는 중단 대상 확보만 알리는 응답 이후 해당 턴의 종료 이벤트를 기다린 뒤 이력 조회와 분기를 수행합니다. 연결 종료·이벤트 유실·시간 초과 시 프롬프트를 보존하고 재시도를 중단합니다. 대화 재개는 부모 소유 입력 권한을 먼저 읽은 뒤 도구를 구성하며, 확인된 MCP 등록을 과거 작업 도구 가용성에 반영합니다. 화면 지우기 경계는 대화 이력을 불러올 때도 유지합니다. 나머지 회귀시험 수정은 기존 번역 해시, 상태의 원본 값, 권한 검사와 검토된 릴리스 식별 정보를 보존합니다. 후속 변경의 네이티브 검증은 대기 중입니다.
++안전 재시도는 중단 대상 확보만 알리는 응답 이후 해당 턴의 종료 이벤트를 기다린 뒤 이력 조회와 분기를 수행합니다. 연결 종료·이벤트 유실·시간 초과 시 프롬프트를 보존하고 재시도를 중단합니다. 대화 재개는 부모 소유 입력 권한을 먼저 읽은 뒤 도구를 구성하며, MCP 등록 후 일치하는 실제 연결과 도구 목록이 확인돼야 작업 도구를 사용 가능으로 표시합니다. 화면 지우기 경계는 대화 이력을 불러올 때도 유지합니다. 나머지 회귀시험 수정은 기존 번역 해시, 상태의 원본 값, 권한 검사와 검토된 릴리스 식별 정보를 보존합니다. 후속 변경의 네이티브 검증은 대기 중입니다.
 +
 +The ordinary skills-change integration fixture explicitly leaves the optional tool ceiling unset. This completes the `ThreadStartParams` field migration found by the grouped compilation; existing assertions are preserved. Native verification remains pending.
 +
@@ -70283,7 +70283,7 @@ index 2d7751b08a288edc6ae4a69cdf3f9d8f231d1703..6f62a0d15f75c43537858541ddfb09b8
  #[cfg(target_os = "linux")]
  pub(super) async fn warn_about_nfs_migration(
 diff --git a/codex-rs/tui/src/app/tests.rs b/codex-rs/tui/src/app/tests.rs
-index 6fdd0bf692340b8194edca8b5269ca0c2d2b6c88..9b2856d94a559a078a57073ea93736dba2b083ad 100644
+index 6fdd0bf692340b8194edca8b5269ca0c2d2b6c88..ec642ffab8cf44ab898b389970d565056b7a3a8d 100644
 --- a/codex-rs/tui/src/app/tests.rs
 +++ b/codex-rs/tui/src/app/tests.rs
 @@ -1,3 +1,6 @@
@@ -70383,9 +70383,12 @@ index 6fdd0bf692340b8194edca8b5269ca0c2d2b6c88..9b2856d94a559a078a57073ea93736db
      assert!(compact.contains("New exchange"));
      assert!(!compact.contains("Earlier exchange"));
      let ctrl_t = KeyEvent::new(KeyCode::Char('t'), KeyModifiers::CONTROL);
-@@ -6675,7 +6689,10 @@ async fn ctrl_l_preserves_the_transcript_and_draft_after_clearing_the_screen() -
+@@ -6673,9 +6687,12 @@ async fn ctrl_l_preserves_the_transcript_and_draft_after_clearing_the_screen() -
+         .await?;
+     assert_eq!(
          app.transcript_view.history,
-         crate::pager_overlay::TranscriptHistoryState::LoadingBeginning
+-        crate::pager_overlay::TranscriptHistoryState::LoadingBeginning
++        crate::pager_overlay::TranscriptHistoryState::Complete
      );
 -    assert!(app_server.is_older_history_page_pending(thread_id, &cursor));
 +    // Clearing establishes a display boundary: browsing must not request the
@@ -70615,7 +70618,7 @@ index f63edd80c671506070bb2bb7a7d3f968a93ecd47..f6cbfdac5a9a60a645e8fb1eb5547b0e
      }
      assert_eq!(
 diff --git a/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs b/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs
-index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978ab4cd8b60 100644
+index 10f3689f3a4d2c190a72af66fa2e05de13b06383..7efbf9af5856ce0ab1cf549239f33a6835a73b61 100644
 --- a/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs
 +++ b/codex-rs/tui/src/app/tests/session_lifecycle_requests.rs
 @@ -1,3 +1,6 @@
@@ -70685,6 +70688,15 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
              "archived threads must not be advertised for direct resuming"
          );
          assert_eq!(
+@@ -1607,7 +1628,7 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths()
+ 
+ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_scenario()
+ -> Result<()> {
+-    let (mut app, events, _ops) = Box::pin(make_test_app_with_channels()).await;
++    let (mut app, mut events, _ops) = Box::pin(make_test_app_with_channels()).await;
+     // Invalid optional worktree settings must preserve both daemon start paths.
+     let codex_home = tempdir()?;
+     app.config.codex_home = codex_home.path().to_path_buf().abs();
 @@ -1676,8 +1697,11 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
          );
          assert!(!app.dynamic_tool_tasks.contains_key(&request_id));
@@ -70711,7 +70723,27 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
  
      let inventory: codex_app_server_protocol::ListMcpServerStatusResponse = app_server
          .request_handle()
-@@ -1728,7 +1755,8 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
+@@ -1715,6 +1742,19 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
+     for tool in crate::dynamic_tools::DELEGATION_TOOLS {
+         assert!(tools.contains_key(tool));
+     }
++    // Only the matching live-catalog observation may publish readiness.
++    let ready = tokio::time::timeout(Duration::from_secs(5), async {
++        loop {
++            let event = events.recv().await.expect("readiness event channel");
++            if matches!(&event, AppEvent::TaskToolsAvailable { thread_id: id } if *id == thread_id) {
++                break event;
++            }
++        }
++    })
++    .await?;
++    let mut readiness_tui = crate::tui::test_support::make_test_tui()?;
++    Box::pin(app.handle_event(&mut readiness_tui, &mut app_server, ready)).await?;
++    assert!(app_server.task_tools_available(thread_id));
+     assert!(
+         !tools["create_thread"]
+             .input_schema
+@@ -1728,7 +1768,8 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
      for params in &starts {
          assert_eq!(params["dynamicTools"], serde_json::Value::Null);
          assert_eq!(params["config"].get("web_search"), None);
@@ -70721,7 +70753,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
          assert!(
              server["url"]
                  .as_str()
-@@ -1745,7 +1773,7 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
+@@ -1745,7 +1786,7 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
          }
      }
  
@@ -70730,7 +70762,23 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
          .as_str()
          .expect("MCP server URL");
      let unauthorized = codex_http_client::HttpClientBuilder::new()
-@@ -1774,8 +1802,8 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
+@@ -1763,45 +1804,61 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
+         ThreadHistoryMode::Legacy,
+         "Approved task source",
+     )?;
+-    Box::pin(app_server.resume_thread(
++    let resumed_start = Box::pin(app_server.resume_thread(
+         &app.local_settings,
+         app.config.clone(),
+         delegation_source,
+         crate::app_server_session::ResumeModelSettings::RestoreFromThread,
+     ))
+     .await?;
++    assert!(
++        !resumed_start.task_tools_available,
++        "registration is not MCP readiness"
++    );
+     let resumed = recorded_params(&requests, "thread/resume")
          .pop()
          .expect("resumed task request");
      assert_eq!(
@@ -70739,9 +70787,19 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
 +        resumed["runtimeMcpServers"]["codex_tui"],
 +        starts[0]["runtimeMcpServers"]["codex_tui"]
      );
-     Box::pin(app_server.resume_thread(
+-    Box::pin(app_server.resume_thread(
++    let reattached_start = Box::pin(app_server.resume_thread(
          &app.local_settings,
-@@ -1788,8 +1816,8 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
+         app.config.clone(),
+         delegation_source,
+         crate::app_server_session::ResumeModelSettings::PreserveExistingThread,
+     ))
+     .await?;
++    assert!(
++        !reattached_start.task_tools_available,
++        "registration is not MCP readiness"
++    );
+     let reattached = recorded_params(&requests, "thread/resume")
          .pop()
          .expect("reattached task request");
      assert_eq!(
@@ -70749,10 +70807,20 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
 -        starts[0]["config"]["mcp_servers.codex_tui"]
 +        reattached["runtimeMcpServers"]["codex_tui"],
 +        starts[0]["runtimeMcpServers"]["codex_tui"]
++    );
++    let forked_start = Box::pin(app_server.fork_thread(
++        &app.local_settings,
++        app.config.clone(),
++        delegation_source,
++    ))
++    .await?;
++    assert!(
++        !forked_start.task_tools_available,
++        "registration is not MCP readiness"
      );
-     Box::pin(app_server.fork_thread(&app.local_settings, app.config.clone(), delegation_source))
-         .await?;
-@@ -1797,11 +1825,11 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
+-    Box::pin(app_server.fork_thread(&app.local_settings, app.config.clone(), delegation_source))
+-        .await?;
+     let forked = recorded_params(&requests, "thread/fork")
          .pop()
          .expect("forked task request");
      assert_eq!(
@@ -70767,7 +70835,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
              .as_str()
              .expect("MCP bearer token");
      let client = codex_http_client::HttpClientBuilder::new().build_direct()?;
-@@ -1859,6 +1887,15 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
+@@ -1859,6 +1916,15 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
          new_sender,
          Some(replacement.cron_tool_connection()),
      );
@@ -70783,7 +70851,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
      let previous = std::mem::replace(
          &mut app_server,
          replacement.with_thread_tool_transport(transport),
-@@ -1897,13 +1934,14 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
+@@ -1897,13 +1963,14 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
      let AppEvent::DynamicToolThreadStarted {
          thread,
          task_tools_available,
@@ -70799,7 +70867,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
      assert!(registered.send(()).is_ok());
      let created = creation.await??;
      assert!(created.status().is_success());
-@@ -1914,8 +1952,8 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
+@@ -1914,8 +1981,8 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
      assert_eq!(child["dynamicTools"], serde_json::Value::Null);
      assert!(child["config"]["web_search"].is_null());
      assert_eq!(
@@ -70810,7 +70878,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
      );
      // Fork another task: this synthetic MCP call has no active turn to cut before.
      let fork_source =
-@@ -1958,8 +1996,8 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
+@@ -1958,8 +2025,8 @@ async fn local_daemon_registers_approval_gated_mcp_tools_for_both_start_paths_sc
          .pop()
          .expect("MCP-created fork request");
      assert_eq!(
@@ -70821,7 +70889,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
      );
  
      app_server.shutdown().await?;
-@@ -2045,13 +2083,14 @@ async fn local_mcp_respects_configured_servers_and_managed_requirements() -> Res
+@@ -2045,13 +2112,14 @@ async fn local_mcp_respects_configured_servers_and_managed_requirements() -> Res
              .expect("fallback task start");
          if scenario == "allowed" {
              assert!(start["dynamicTools"].is_null());
@@ -70838,7 +70906,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
          }
          app_server.shutdown().await?;
          proxy.await??;
-@@ -2467,6 +2506,7 @@ async fn check_dynamic_tool_requests(
+@@ -2467,6 +2535,7 @@ async fn check_dynamic_tool_requests(
      let AppEvent::DynamicToolThreadStarted {
          thread,
          task_tools_available,
@@ -70846,7 +70914,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
          registered,
      } = registration
      else {
-@@ -2481,6 +2521,7 @@ async fn check_dynamic_tool_requests(
+@@ -2481,6 +2550,7 @@ async fn check_dynamic_tool_requests(
          AppEvent::DynamicToolThreadStarted {
              thread,
              task_tools_available,
@@ -70854,7 +70922,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
              registered,
          },
      ))
-@@ -2586,6 +2627,7 @@ async fn check_dynamic_tool_requests(
+@@ -2586,6 +2656,7 @@ async fn check_dynamic_tool_requests(
      let AppEvent::DynamicToolThreadStarted {
          thread,
          task_tools_available,
@@ -70862,7 +70930,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
          registered,
      } = tokio::time::timeout(std::time::Duration::from_secs(/*secs*/ 5), events.recv())
          .await?
-@@ -2601,6 +2643,7 @@ async fn check_dynamic_tool_requests(
+@@ -2601,6 +2672,7 @@ async fn check_dynamic_tool_requests(
          AppEvent::DynamicToolThreadStarted {
              thread,
              task_tools_available,
@@ -70870,7 +70938,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
              registered,
          },
      ))
-@@ -3417,7 +3460,7 @@ async fn underfilled_scrollback_fetches_older_pages_without_opening_the_transcri
+@@ -3417,7 +3489,7 @@ async fn underfilled_scrollback_fetches_older_pages_without_opening_the_transcri
          overlay.set_highlight_cell(Some(0));
          let partial = render_overlay(overlay);
          assert!(partial.contains("Earlier messages available."));
@@ -70879,7 +70947,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
          assert!(!partial.contains("This is a test announcement"));
          assert!(!partial.contains('%'));
  
-@@ -3427,7 +3470,7 @@ async fn underfilled_scrollback_fetches_older_pages_without_opening_the_transcri
+@@ -3427,7 +3499,7 @@ async fn underfilled_scrollback_fetches_older_pages_without_opening_the_transcri
          )?;
          let loading = render_overlay(overlay);
          assert!(loading.contains("Loading earlier messages…"));
@@ -70888,7 +70956,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
          assert!(!loading.contains('%'));
      } else {
          panic!("expected transcript overlay");
-@@ -5740,9 +5783,8 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
+@@ -5740,9 +5812,8 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
                  )
              })
              .map(|request| {
@@ -70900,7 +70968,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
                  let field = |name: &str| param(name).and_then(serde_json::Value::as_str);
                  serde_json::json!({
                      "method": request.method.as_str(),
-@@ -5761,7 +5803,11 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
+@@ -5761,7 +5832,11 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
          assert!(
              app.chat_widget.has_provider_error(),
              "route={} target_thread={thread_id} displayed_thread={:?} safe_requests={safe_requests:?} fixture_history={history_messages:?}",
@@ -70913,7 +70981,7 @@ index 10f3689f3a4d2c190a72af66fa2e05de13b06383..ac40723e3e1fba1dc3a07c2c3be1978a
              app.chat_widget.thread_id(),
          );
          let notice = history_messages
-@@ -5781,3 +5827,51 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
+@@ -5781,3 +5856,51 @@ async fn provider_error_preserves_partial_history_notice() -> Result<()> {
      }
      Ok(())
  }
@@ -71054,6 +71122,16 @@ index 587ed73ebbb1c09d1d6c8de948a2cfd9466c6390..efe708efef48aa5f5f19a24b50df2d92
       /tmp/project
  
    To get started, describe a task or try one of these commands:
+diff --git a/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__safety_buffering__safety_retry_committed_steer_history.snap b/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__safety_buffering__safety_retry_committed_steer_history.snap
+index 94774a3f19bf267a9d1b1cf38ef0081532d43cc1..42e22f7c9a7c4516fa3ea3ef3be6b01f86183d1b 100644
+--- a/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__safety_buffering__safety_retry_committed_steer_history.snap
++++ b/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__safety_buffering__safety_retry_committed_steer_history.snap
+@@ -5,4 +5,4 @@ expression: rendered_retry
+ ---
+ › Handle the safety-buffered request
+   Keep the accepted steer
+-⚠ Full-history hydration is deprecated for paginated threads; omit `includeTurns` or set it to `false`, then page with `thread/turns/list` and `thread/items/list`.• done  Worked for [duration] • [completion time]
++• done  Worked for [duration] • [completion time]
 diff --git a/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__session_lifecycle_requests__new_session_tests__widget_replacement_preserves_mention_usage_with_history_disabled.snap b/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__session_lifecycle_requests__new_session_tests__widget_replacement_preserves_mention_usage_with_history_disabled.snap
 index f79813f9f03fddc858c6b9c00040c8280dc955c0..02ba4ecab71bd079bd2690e0a550fb6cce004703 100644
 --- a/codex-rs/tui/src/app/tests/snapshots/codex_tui__app__tests__session_lifecycle_requests__new_session_tests__widget_replacement_preserves_mention_usage_with_history_disabled.snap
@@ -71986,7 +72064,7 @@ index 3460eb9b1a78a5f22f06a1de2bc41035d9f91e76..bae250fdbc82aa3ba2d8f03e5fcdbf0a
          thread_id: ThreadId,
      },
 diff --git a/codex-rs/tui/src/app_server_session.rs b/codex-rs/tui/src/app_server_session.rs
-index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8a448cd65 100644
+index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..9d447f2afddde044bdad4e0120e9d1364ac5dba2 100644
 --- a/codex-rs/tui/src/app_server_session.rs
 +++ b/codex-rs/tui/src/app_server_session.rs
 @@ -1,10 +1,15 @@
@@ -72014,7 +72092,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
                  request_id,
                  params: params.clone(),
              })
-@@ -272,10 +277,28 @@ pub(crate) async fn request_thread_start_with_history_fallback(
+@@ -272,10 +277,27 @@ pub(crate) async fn request_thread_start_with_history_fallback(
                              !crate::cron_tools::is_owned_tool(&function.name)
                          }
                      })
@@ -72041,13 +72119,12 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
 +                        ),
 +                    });
 +                }
-+                let task_tools_available = task_tools_available
-+                    || (params.runtime_mcp_servers.is_some()
-+                        && response.runtime_mcp_servers_applied == Some(true));
++                // Registration acknowledges the binding, not its live tool catalog.
++                // MCP readiness arrives through watch_runtime_mcp_ready instead.
                  return Ok((response, history_support, task_tools_available));
              }
              Err(TypedRequestError::Server { source, .. })
-@@ -346,7 +369,11 @@ pub(crate) struct AppServerSession {
+@@ -346,7 +368,11 @@ pub(crate) struct AppServerSession {
      connection_live: Arc<std::sync::atomic::AtomicBool>,
      runtime_tool_registration_generation: u64,
      runtime_tool_registration_lifetime: tokio_util::sync::CancellationToken,
@@ -72060,7 +72137,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
      pending_compact: Option<(
          ThreadId,
          String,
-@@ -535,7 +562,10 @@ impl AppServerSession {
+@@ -535,7 +561,10 @@ impl AppServerSession {
              connection_live: Arc::new(std::sync::atomic::AtomicBool::new(true)),
              runtime_tool_registration_generation: 0,
              runtime_tool_registration_lifetime: tokio_util::sync::CancellationToken::new(),
@@ -72072,7 +72149,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
              pending_compact: None,
              connection_owner,
              request_handle,
-@@ -757,6 +787,8 @@ impl AppServerSession {
+@@ -757,6 +786,8 @@ impl AppServerSession {
          self.task_tool_threads.extend(&previous.task_tool_threads);
      }
  
@@ -72081,7 +72158,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
      pub(crate) fn task_tools_available(&self, thread_id: ThreadId) -> bool {
          self.task_tool_threads.contains(&thread_id)
              || self
-@@ -1051,6 +1083,8 @@ impl AppServerSession {
+@@ -1051,6 +1082,8 @@ impl AppServerSession {
              self.connection_live
                  .store(false, std::sync::atomic::Ordering::Release);
              self.pending_compact = None;
@@ -72090,7 +72167,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
          }
          if let Some(codex_app_server_client::AppServerEvent::ServerNotification(notification)) =
              &event
-@@ -1179,6 +1213,7 @@ impl AppServerSession {
+@@ -1179,6 +1212,7 @@ impl AppServerSession {
              self.thread_tool_transport().configure(&mut params);
          }
          let request_handle = self.request_handle();
@@ -72098,7 +72175,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
          let (response, history_support, task_tools_available) =
              request_thread_start_with_history_fallback(&request_handle, request_id, params)
                  .await
-@@ -1188,6 +1223,7 @@ impl AppServerSession {
+@@ -1188,6 +1222,7 @@ impl AppServerSession {
          if history_support == ThreadHistorySupport::LegacyOnly {
              self.history_support = ThreadHistorySupport::LegacyOnly;
          }
@@ -72106,7 +72183,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
          // An explicit server selection must not reuse the client's local display policy.
          let selected_permissions = selected_profile.map(|_| {
              PermissionProfile::from_legacy_sandbox_policy_for_cwd(
-@@ -1209,6 +1245,11 @@ impl AppServerSession {
+@@ -1209,6 +1244,11 @@ impl AppServerSession {
          if task_tools_available {
              self.remember_task_tool_thread(started.session.thread_id);
          }
@@ -72118,7 +72195,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
          Ok(started)
      }
  
-@@ -1383,7 +1424,8 @@ impl AppServerSession {
+@@ -1383,7 +1423,8 @@ impl AppServerSession {
              remove_permission_config_overrides(&mut params.config);
          }
          self.thread_tool_transport()
@@ -72128,7 +72205,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
          let response: ThreadForkResponse = match self
              .request_handle
              .request_typed(ClientRequest::ThreadFork {
-@@ -1413,6 +1455,19 @@ impl AppServerSession {
+@@ -1413,6 +1454,19 @@ impl AppServerSession {
                  ));
              }
          };
@@ -72148,12 +72225,12 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
          let mut response = response;
          if presentation == ForkPresentation::Regular
              && !response.thread.ephemeral
-@@ -1454,10 +1509,15 @@ impl AppServerSession {
+@@ -1454,10 +1508,15 @@ impl AppServerSession {
              started.session.daybreak_enabled = false;
          }
          started.session.fork_parent_title = fork_parent.and_then(|thread| thread.name);
 -        if self.task_tools_available(thread_id) {
-+        if runtime_mcp_requested || self.task_tools_available(thread_id) {
++        if !runtime_mcp_requested && self.task_tools_available(thread_id) {
              started.task_tools_available = true;
              self.remember_task_tool_thread(started.session.thread_id);
          }
@@ -72165,7 +72242,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
          Ok(started)
      }
  
-@@ -2267,7 +2327,8 @@ impl AppServerSession {
+@@ -2267,7 +2326,8 @@ impl AppServerSession {
          client.resolve_server_request(request_id, result).await
      }
  
@@ -72175,7 +72252,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
          self.connection_live
              .store(false, std::sync::atomic::Ordering::Release);
          match self.connection_owner {
-@@ -2280,6 +2341,17 @@ impl AppServerSession {
+@@ -2280,6 +2340,17 @@ impl AppServerSession {
          self.request_handle.clone()
      }
  
@@ -72193,7 +72270,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
      pub(crate) fn next_request_id(&mut self) -> RequestId {
          let request_id = self.next_request_id;
          self.next_request_id += 1;
-@@ -2314,16 +2386,29 @@ pub(crate) async fn start_thread_with_request_handle(
+@@ -2314,16 +2385,29 @@ pub(crate) async fn start_thread_with_request_handle(
          params.daybreak_enabled = (config.daybreak_enabled && !config.ephemeral).then_some(true);
          thread_tool_transport.configure(&mut params);
      }
@@ -72223,7 +72300,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
      Ok(started)
  }
  
-@@ -2702,6 +2787,7 @@ fn thread_start_params_with_reviewer(
+@@ -2702,6 +2786,7 @@ fn thread_start_params_with_reviewer(
          })
          .flatten();
      ThreadStartParams {
@@ -72231,7 +72308,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
          model: config.model.clone(),
          model_provider: provider_selection::explicit_provider(config),
          service_tier: service_tier_override_from_config(config),
-@@ -3440,6 +3526,7 @@ mod tests {
+@@ -3440,6 +3525,7 @@ mod tests {
                  previous_runtime_dynamic_tools: crate::cron_tools::previous_specs(),
                  ..Default::default()
              },
@@ -72239,7 +72316,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
          ));
          let thread_text = thread.to_string();
          let (_, params) = tokio::join!(
-@@ -3481,6 +3568,21 @@ mod tests {
+@@ -3481,6 +3567,21 @@ mod tests {
              params, expected,
              "no model, permissions, history, MCP config, or user input overrides"
          );
@@ -72261,7 +72338,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
          session
              .retry_runtime_tools_on_idle(
                  &thread.to_string(),
-@@ -3498,6 +3600,53 @@ mod tests {
+@@ -3498,6 +3599,53 @@ mod tests {
          );
      }
  
@@ -72315,7 +72392,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
      #[tokio::test]
      async fn runtime_tool_worker_never_sends_after_selection_or_registration_changes_before_poll() {
          for case in ["selection", "registration"] {
-@@ -3560,6 +3709,7 @@ mod tests {
+@@ -3560,6 +3708,7 @@ mod tests {
                      exclude_turns: true,
                      ..Default::default()
                  },
@@ -72323,7 +72400,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
              ));
              if case == "disconnected" {
                  session
-@@ -4606,7 +4756,8 @@ mod tests {
+@@ -4606,7 +4755,8 @@ mod tests {
  
          let expected_service_tier = Some(Some(ServiceTier::Fast.request_value().to_string()));
          assert_eq!(start.service_tier, expected_service_tier);
@@ -72333,7 +72410,7 @@ index 4cd8bc3c7917f8da049c4462b871d3f5282002ab..2a0f6bfb97ba1611c0863ca75e8685c8
          assert_eq!(fork.service_tier, expected_service_tier);
          let string = |value: &str| serde_json::Value::String(value.to_string());
          let expected_config = HashMap::from([
-@@ -5343,6 +5494,9 @@ mod tests {
+@@ -5343,6 +5493,9 @@ mod tests {
          let forked_from_id = ThreadId::new();
          let read_only_profile = PermissionProfile::read_only();
          let response = ThreadResumeResponse {
@@ -73088,7 +73165,7 @@ index 0000000000000000000000000000000000000000..6d09fad512fc054ade184164fa3a077f
 +    }
 +}
 diff --git a/codex-rs/tui/src/app_server_session/rollout_history.rs b/codex-rs/tui/src/app_server_session/rollout_history.rs
-index 82c73de4714ab2f72517cb1d7f129fbce8240c9c..384a8ab5a5fcb2cb3d091db93d62d4a4987f9d00 100644
+index 82c73de4714ab2f72517cb1d7f129fbce8240c9c..81f07930ea644bd01b935dff34751f0b0f6e3d53 100644
 --- a/codex-rs/tui/src/app_server_session/rollout_history.rs
 +++ b/codex-rs/tui/src/app_server_session/rollout_history.rs
 @@ -1,3 +1,4 @@
@@ -73393,14 +73470,12 @@ index 82c73de4714ab2f72517cb1d7f129fbce8240c9c..384a8ab5a5fcb2cb3d091db93d62d4a4
          let fork_parent_title = self
              .fork_parent_title_from_app_server(response.thread.forked_from_id.as_deref())
              .await;
-@@ -406,10 +576,18 @@ impl AppServerSession {
+@@ -406,10 +576,16 @@ impl AppServerSession {
          )
          .await?;
          started.session.fork_parent_title = fork_parent_title;
 -        if self.task_tools_available(thread_id) {
-+        if (runtime_mcp_confirmed && params.runtime_mcp_servers.is_some())
-+            || (params.runtime_mcp_servers.is_none() && self.task_tools_available(thread_id))
-+        {
++        if params.runtime_mcp_servers.is_none() && self.task_tools_available(thread_id) {
              self.remember_task_tool_thread(thread_id);
              started.task_tools_available = true;
          }
@@ -75792,6 +75867,21 @@ index b08729aa9bf22952fb391072a705bc18b7ac1bd8..b785cb11d9f280675127447ed99bd46c
  
  
  › Viewing sub-agent — direct input is disabled
+diff --git a/codex-rs/tui/src/snapshots/codex_tui__managed_worktree_tools__tests__model_tests__managed_worktree_model_creation.snap b/codex-rs/tui/src/snapshots/codex_tui__managed_worktree_tools__tests__model_tests__managed_worktree_model_creation.snap
+index c74e34facf080e265c7ddd889846af64a4f35860..e9976d59f2abb9ed47b79603dccee462c3bb0733 100644
+--- a/codex-rs/tui/src/snapshots/codex_tui__managed_worktree_tools__tests__model_tests__managed_worktree_model_creation.snap
++++ b/codex-rs/tui/src/snapshots/codex_tui__managed_worktree_tools__tests__model_tests__managed_worktree_model_creation.snap
+@@ -14,8 +14,8 @@ Settings:
+   store: false
+   stream: true
+   tool_choice: "auto"
+-  tools (1; hash=c975d43208f99d91):
+-    - namespace/mcp__codex_tui: Tools in the mcp__codex_tui namespace.; hash=55c486d92df9a1e9
++  tools (1; hash=9a2e2b0d6be96b26):
++    - namespace/mcp__codex_tui: Tools in the mcp__codex_tui namespace.; hash=cec8a329a8dec130
+       - function/create_thread
+       - function/create_worktree
+       - function/cron
 diff --git a/codex-rs/tui/src/snapshots/codex_tui__startup_draft__layout__tests__owned_startup_layout.snap b/codex-rs/tui/src/snapshots/codex_tui__startup_draft__layout__tests__owned_startup_layout.snap
 index 3d7678a1df546f63c0ad9147ee48a449f0a07d72..b2677b95441bfa811c493aa823ff06fd7396af92 100644
 --- a/codex-rs/tui/src/snapshots/codex_tui__startup_draft__layout__tests__owned_startup_layout.snap
@@ -76553,7 +76643,7 @@ index d46387bc32b59d953cbd18d252b9bc45dfc71385..1d77bcc33eb3895ce93e7c07ab10be66
    Visit https://chatgpt.com/settings/usage for up-to-date
    information on rate limits and credits
 diff --git a/codex-rs/tui/src/status/tests.rs b/codex-rs/tui/src/status/tests.rs
-index ff052f6fc7086a5ca3c9b6c9a934994084ec57ad..866e9f5d484389afb6bf0de926b5637b438af8ff 100644
+index ff052f6fc7086a5ca3c9b6c9a934994084ec57ad..7eedcac687df28fd564f4619882d000de0c62dee 100644
 --- a/codex-rs/tui/src/status/tests.rs
 +++ b/codex-rs/tui/src/status/tests.rs
 @@ -1,3 +1,4 @@
@@ -76577,7 +76667,7 @@ index ff052f6fc7086a5ca3c9b6c9a934994084ec57ad..866e9f5d484389afb6bf0de926b5637b
      config
          .permissions
          .approval_policy
-@@ -2471,7 +2481,16 @@ async fn localized_status_preserves_opaque_values_at_terminal_widths() {
+@@ -2471,7 +2481,27 @@ async fn localized_status_preserves_opaque_values_at_terminal_widths() {
                      .collect::<String>();
                  assert!(joined.contains(model_label), "{joined}");
                  assert!(joined.contains(permission_label), "{joined}");
@@ -76591,7 +76681,18 @@ index ff052f6fc7086a5ca3c9b6c9a934994084ec57ad..866e9f5d484389afb6bf0de926b5637b
 +                    .split_whitespace()
 +                    .collect::<Vec<_>>()
 +                    .join(" ");
-+                assert!(normalized_prose.contains(approval_label), "{wrapped_prose}");
++                // CJK wrapping may split a word without a space in the source.
++                // This prose-only comparison ignores layout whitespace; opaque
++                // values below still require exact bytes across line boundaries.
++                let compact_prose: String = normalized_prose
++                    .chars()
++                    .filter(|ch| !ch.is_whitespace())
++                    .collect();
++                let compact_approval: String = approval_label
++                    .chars()
++                    .filter(|ch| !ch.is_whitespace())
++                    .collect();
++                assert!(compact_prose.contains(&compact_approval), "{wrapped_prose}");
                  for opaque in [
                      model,
                      thread,
